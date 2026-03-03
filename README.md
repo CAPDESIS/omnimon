@@ -4,6 +4,18 @@ A lightweight macOS system monitor that watches RAM pressure, swap usage, orphan
 
 [![CI](https://github.com/chochy2001/macmon/actions/workflows/ci.yml/badge.svg)](https://github.com/chochy2001/macmon/actions/workflows/ci.yml)
 
+<!-- SCREENSHOT: Process Picker (main window)
+     Capture the full ProcessPicker window showing:
+     - The memory pressure gauge at the top (green/yellow/red bar)
+     - The search field
+     - The table with columns: checkbox, Name, RAM, CPU, Uptime, Disk R/W, State
+     - Several processes listed with at least one group expanded
+     - The summary bar at the bottom showing selected count and RAM
+     Window size: 1100x600, use a mix of apps (Chrome tabs, Xcode, etc.)
+     Save as: docs/images/picker.png
+-->
+![Process Picker](docs/images/picker.png)
+
 ## Features
 
 - **Background daemon** — monitors memory pressure, swap, and process accumulation with configurable thresholds, cooldowns, and native macOS notifications
@@ -108,6 +120,22 @@ macmon help             # Show all commands
 
 ### Menu Bar Monitor
 
+<!-- SCREENSHOT: Menu Bar dropdown
+     Capture the macOS menu bar with the macmon icon (memorychip + percentage)
+     clicked open, showing the dropdown menu with:
+     - RAM: XX% free of XXGB (colored green/yellow/red)
+     - Swap: XXMB used
+     - Processes: XX total
+     - Separator
+     - Open Process Picker
+     - Export Snapshot... submenu
+     - Status...
+     - Quit macmon
+     Make sure the menu bar area and dropdown are both visible.
+     Save as: docs/images/menubar.png
+-->
+![Menu Bar](docs/images/menubar.png)
+
 After installation, the menu bar icon shows live RAM usage. Click it to see:
 - Current RAM and swap usage (color-coded)
 - Total process count
@@ -148,6 +176,16 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for all options.
 ## How It Works
 
 macmon consists of four components:
+
+<!-- SCREENSHOT: Native macOS notification
+     Capture a macOS notification banner from macmon showing either:
+     - Memory pressure alert: "RAM is low (XX% free). Open process picker to free memory?"
+     - OR flutter_tester alert: "Detected XX flutter_tester processes. Kill them all?"
+     - OR orphan daemon alert: "Found X orphan build daemon(s)"
+     Use tools/simulate_load.sh to trigger the notification, then capture it.
+     Save as: docs/images/notification.png
+-->
+![Notification](docs/images/notification.png)
 
 1. **Daemon** (`macmond.sh`) — background loop that checks RAM, swap, and process thresholds every 60 seconds. Shows native macOS notifications when thresholds are crossed and offers to open the process picker.
 

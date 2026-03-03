@@ -114,20 +114,53 @@ chmod 755 "${BIN_DIR}/macmon"
 echo "Starting daemon..."
 launchctl load -w "${PLIST_DIR}/${PLIST_LABEL}.plist"
 
+# Read installed version
+INSTALLED_VERSION="unknown"
+if [[ -f "$INSTALL_DIR/lib/macmon-core.sh" ]]; then
+    INSTALLED_VERSION=$(grep -o 'MACMON_VERSION="[^"]*"' "$INSTALL_DIR/lib/macmon-core.sh" | cut -d'"' -f2)
+fi
+
+# --- Colored onboarding message ---
+G='\033[0;32m'   # green
+C='\033[0;36m'   # cyan
+Y='\033[1;33m'   # yellow
+B='\033[1m'      # bold
+D='\033[2m'      # dim
+R='\033[0m'      # reset
+
 echo ""
-echo "Installation complete!"
+printf '%b' "${G}${B}"
+cat <<'BANNER'
+               ___  ___  ___   ___ ___  ___  ___
+  _ __  __ _ _|  _||   \/   | / _ \   \| __|/ __|
+ | '  \/ _` / _|  | |) | |) | (_) | |) | _|\__ \
+ |_|_|_\__,_\__|  |___/|___/ \___/|___/|___|___/
+BANNER
+printf '%b' "${R}"
 echo ""
-echo "Make sure $BIN_DIR is in your PATH."
-echo "  Usage:"
-echo "    macmon              # Open process picker"
-echo "    macmon status       # System health summary"
-echo "    macmon help         # All commands"
+printf '%b' "  ${B}v${INSTALLED_VERSION}${R}${D} — installed successfully${R}\n"
 echo ""
-echo "  Menu Bar:"
-echo "    MACMON_HOME=$INSTALL_DIR $INSTALL_DIR/MacmonStatusBar &"
-echo "    # Runs a status bar icon with live RAM/swap/process info."
-echo "    # Add to Login Items for auto-start."
+printf '%b' "  ${G}${B}Daemon is running${R} and will auto-start on login.\n"
+printf '%b' "  ${D}Monitoring RAM, swap, orphan daemons, and idle processes.${R}\n"
 echo ""
-echo "The daemon is running and will auto-start on login."
-echo "Config: $CONFIG_DIR/macmon.yaml"
-echo "Logs:   $LOG_DIR/macmond.log"
+printf '%b' "  ${C}${B}Quick Start${R}\n"
+printf '%b' "  ${Y}macmon${R}              Open the native process picker\n"
+printf '%b' "  ${Y}macmon status${R}       System health summary in terminal\n"
+printf '%b' "  ${Y}macmon config edit${R}  Customize thresholds and intervals\n"
+echo ""
+printf '%b' "  ${C}${B}Menu Bar${R}\n"
+printf '%b' "  ${D}Run once to start the status bar icon:${R}\n"
+printf '%b' "  ${Y}MACMON_HOME=${INSTALL_DIR} ${INSTALL_DIR}/MacmonStatusBar &${R}\n"
+printf '%b' "  ${D}Add to Login Items for auto-start.${R}\n"
+echo ""
+printf '%b' "  ${D}Config:${R}  ${CONFIG_DIR}/macmon.yaml\n"
+printf '%b' "  ${D}Logs:${R}    ${LOG_DIR}/macmond.log\n"
+printf '%b' "  ${D}Docs:${R}    macmon help\n"
+echo ""
+
+# PATH reminder
+if ! echo "$PATH" | tr ':' '\n' | grep -qx "$BIN_DIR"; then
+    printf '%b' "  ${Y}${B}Note:${R} Add ${BIN_DIR} to your PATH:\n"
+    printf '%b' "  ${D}echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc${R}\n"
+    echo ""
+fi
