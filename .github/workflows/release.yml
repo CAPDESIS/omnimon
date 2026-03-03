@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install jq bats-core
+
+      - name: Run tests
+        run: |
+          make test
+          make check
+
+      - name: Build binaries
+        run: make build
+
+      - name: Create release archive
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          tar czf "dist/macmon-${VERSION}-macos-arm64.tar.gz" \
+            --exclude='.git' \
+            --exclude='dist' \
+            --exclude='*.dSYM' \
+            -s '/^\./macmon/' \
+            .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.tar.gz
+          generate_release_notes: true
+          draft: false
+          prerelease: false
