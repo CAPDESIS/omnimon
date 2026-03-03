@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # macmon-config.sh - Flat YAML config loader
 # Sources config values as MACMON_CFG_* environment variables
-
-set -euo pipefail
+# Compatible with bash 3.2+ (macOS default)
 
 _macmon_config_loaded=0
+
+# Uppercase helper (works on bash 3.2)
+_to_upper() {
+    printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
+}
 
 # Parse a flat YAML file into MACMON_CFG_SECTION_KEY variables
 # Supports: key: value (nested one level with section prefix)
@@ -39,7 +43,7 @@ _parse_yaml() {
             val="${val%%#*}"    # strip inline comments
             val="${val%"${val##*[![:space:]]}"}"  # trim trailing
             if [[ -n "$section" ]]; then
-                local list_var="MACMON_CFG_${section^^}"
+                local list_var="MACMON_CFG_$(_to_upper "$section")"
                 local existing="${!list_var:-}"
                 if [[ -n "$existing" ]]; then
                     export "$list_var=${existing}:${val}"
@@ -63,7 +67,7 @@ _parse_yaml() {
             val="${val%%#*}"    # strip inline comments
             val="${val%"${val##*[![:space:]]}"}"  # trim trailing
             if [[ -n "$section" ]]; then
-                export "MACMON_CFG_${section^^}_${key^^}=${val}"
+                export "MACMON_CFG_$(_to_upper "$section")_$(_to_upper "$key")=${val}"
             fi
             continue
         fi
@@ -75,7 +79,7 @@ _parse_yaml() {
             val="${val%%#*}"
             val="${val%"${val##*[![:space:]]}"}"
             section=""
-            export "MACMON_CFG_${key^^}=${val}"
+            export "MACMON_CFG_$(_to_upper "$key")=${val}"
             continue
         fi
     done < "$file"
@@ -83,7 +87,7 @@ _parse_yaml() {
 
 # Get a config value with fallback default
 macmon_cfg() {
-    local key="MACMON_CFG_${1^^}"
+    local key="MACMON_CFG_$(_to_upper "$1")"
     local default="${2:-}"
     echo "${!key:-$default}"
 }

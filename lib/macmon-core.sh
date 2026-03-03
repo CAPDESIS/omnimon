@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-MACMON_VERSION="1.0.0"
+MACMON_VERSION="1.1.0"
 MACMON_HOME="${MACMON_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 # Source config loader
@@ -130,6 +130,30 @@ friendly_name() {
         return
     fi
 
+    # SourceKitService
+    if [[ "$base" == "SourceKitService" ]]; then
+        echo "SourceKitService"
+        return
+    fi
+
+    # Gradle daemon
+    if [[ "$base" == "java" && "$args" == *"GradleDaemon"* ]]; then
+        echo "Gradle Daemon"
+        return
+    fi
+
+    # Android emulator
+    if [[ "$base" == "qemu-system-"* || "$base" == "qemu-system-x86_64" || "$base" == "qemu-system-aarch64" ]]; then
+        echo "Android Emulator"
+        return
+    fi
+
+    # xcodebuild
+    if [[ "$base" == "xcodebuild" ]]; then
+        echo "xcodebuild"
+        return
+    fi
+
     # .app bundle extraction
     if [[ "$comm" == *".app/"* ]]; then
         local app_name
@@ -193,6 +217,18 @@ uptime_seconds() {
     echo $(( now - start_epoch ))
 }
 
+# --- Code Signature Verification ---
+
+# Verify a process binary is genuinely Apple-signed
+# Used to prevent system process name spoofing for kill-immunity
+_verify_apple_signed() {
+    local pid="$1"
+    local comm
+    comm=$(ps -p "$pid" -o comm= 2>/dev/null) || return 1
+    [[ -n "$comm" ]] || return 1
+    codesign --verify --verbose=0 -R='anchor apple' "$comm" 2>/dev/null
+}
+
 # --- System Process Protection ---
 
 # Check if a process name is a protected system process
@@ -228,6 +264,7 @@ verify_pid() {
 collect_processes_json() {
     local min_rss_kb="${1:-102400}"
     local idle_cpu="${2:-1.0}"
+    [[ "$idle_cpu" =~ ^[0-9]+\.?[0-9]*$ ]] || idle_cpu="1.0"
 
     # Phase 1: Single bulk ps call — get all qualifying processes
     local ps_data
@@ -245,6 +282,7 @@ collect_processes_json() {
         # Skip non-numeric or too-small
         [[ "$pid" =~ ^[0-9]+$ ]] || continue
         [[ "$rss" =~ ^[0-9]+$ ]] || continue
+        [[ "$cpu" =~ ^[0-9]+\.?[0-9]*$ ]] || continue
         (( rss >= min_rss_kb )) || continue
 
         # Extract lstart (5 fields: day month date time year)
@@ -331,12 +369,16 @@ collect_processes_json() {
             group="Google Chrome"
         fi
 
-        # Detect system process
+        # Detect system process (with signature verification)
         local base_comm
         base_comm=$(basename "${comm_arr[$i]}")
         local is_system="false"
         if is_system_process "$base_comm"; then
-            is_system="true"
+            if _verify_apple_signed "$pid"; then
+                is_system="true"
+            else
+                macmon_log "WARNING: Process '$base_comm' (PID $pid) claims system name but is NOT Apple-signed"
+            fi
         fi
 
         # Get thread count from proc info (cached from initial ps)
@@ -373,6 +415,29 @@ collect_processes_json() {
                 state: $state
             }]')
     done
+
+    # Phase 4b: Collect disk I/O via Swift helper (optional)
+    local disk_io_enabled
+    disk_io_enabled=$(macmon_cfg "COLLECT_DISK_IO" "true")
+    local disk_io_helper="${MACMON_HOME}/DiskIOHelper"
+    if [[ "$disk_io_enabled" == "true" && -x "$disk_io_helper" ]]; then
+        local disk_io_json
+        disk_io_json=$(printf '%s\n' "${pids[@]}" | "$disk_io_helper" --stdin 2>/dev/null || echo "[]")
+        # Merge disk I/O data into process array
+        json_array=$(printf '%s' "$json_array" | jq --argjson dio "$disk_io_json" '
+            . as $procs |
+            ($dio | map({(.pid | tostring): .}) | add // {}) as $dioMap |
+            $procs | map(
+                . + {
+                    diskReadMB: ($dioMap[(.pid | tostring)].diskReadMB // 0),
+                    diskWriteMB: ($dioMap[(.pid | tostring)].diskWriteMB // 0)
+                }
+            )
+        ')
+    else
+        # Add zero disk I/O fields
+        json_array=$(printf '%s' "$json_array" | jq 'map(. + {diskReadMB: 0, diskWriteMB: 0})')
+    fi
 
     # Phase 5: Collect system health data
     local mem_pressure_output
@@ -444,10 +509,14 @@ kill_processes() {
     for pid in "${pids_to_kill[@]}"; do
         name="${pid_names[$pid]:-unknown}"
 
-        # Skip system processes
+        # Skip system processes (verified Apple-signed)
         if is_system_process "$(basename "$name")"; then
-            macmon_log "BLOCKED: refusing to kill system process $name (PID $pid)"
-            continue
+            if _verify_apple_signed "$pid"; then
+                macmon_log "BLOCKED: refusing to kill system process $name (PID $pid)"
+                continue
+            else
+                macmon_log "WARNING: PID $pid uses system name '$name' but is not Apple-signed, allowing kill"
+            fi
         fi
 
         # Verify PID still matches expected process
@@ -476,6 +545,7 @@ kill_processes() {
     # Wait for graceful shutdown
     local grace
     grace=$(macmon_cfg "INTERVALS_KILL_GRACE" "3")
+    [[ "$grace" =~ ^[0-9]+$ ]] || grace=3
     sleep "$grace"
 
     # SIGKILL stragglers (skip Chrome tabs and .app processes already handled)
@@ -520,6 +590,77 @@ kill_flutter_testers() {
     sleep 2
 
     pids=$(pgrep -x flutter_tester 2>/dev/null || true)
+    while IFS= read -r pid; do
+        [[ -n "$pid" ]] && kill -KILL "$pid" 2>/dev/null || true
+    done <<< "$pids"
+}
+
+# --- Orphan Build Daemon Detection ---
+
+# Generalized orphan daemon checker
+# Checks all configured orphan_daemons and returns info about detected orphans
+check_orphan_daemons() {
+    local -a results=()
+
+    # SourceKitService: flag if >4GB RAM or running >2h without Xcode
+    local sk_pids sk_count
+    sk_pids=$(pgrep -x SourceKitService 2>/dev/null || true)
+    sk_count=$(echo "$sk_pids" | grep -c '[0-9]' 2>/dev/null || echo 0)
+    if (( sk_count > 0 )) && ! pgrep -x Xcode >/dev/null 2>&1; then
+        results+=("SourceKitService:$sk_count:orphan (Xcode not running)")
+    fi
+
+    # Gradle daemons: flag if >3 or any older than 8h
+    local gradle_pids gradle_count
+    gradle_pids=$(pgrep -f 'GradleDaemon' 2>/dev/null || true)
+    gradle_count=$(echo "$gradle_pids" | grep -c '[0-9]' 2>/dev/null || echo 0)
+    if (( gradle_count > 3 )); then
+        results+=("GradleDaemon:$gradle_count:excessive count")
+    fi
+
+    # xcodebuild: flag if running >60min without Xcode
+    local xb_pids xb_count
+    xb_pids=$(pgrep -x xcodebuild 2>/dev/null || true)
+    xb_count=$(echo "$xb_pids" | grep -c '[0-9]' 2>/dev/null || echo 0)
+    if (( xb_count > 0 )) && ! pgrep -x Xcode >/dev/null 2>&1; then
+        results+=("xcodebuild:$xb_count:orphan (Xcode not running)")
+    fi
+
+    # Android emulator (qemu-system): flag if >2 instances
+    local qemu_pids qemu_count
+    qemu_pids=$(pgrep -f 'qemu-system' 2>/dev/null || true)
+    qemu_count=$(echo "$qemu_pids" | grep -c '[0-9]' 2>/dev/null || echo 0)
+    if (( qemu_count > 2 )); then
+        results+=("qemu-system:$qemu_count:excessive count")
+    fi
+
+    if (( ${#results[@]} > 0 )); then
+        printf '%s\n' "${results[@]}"
+        return 0  # orphans detected
+    fi
+    return 1  # no orphans
+}
+
+# Kill orphan processes by name pattern
+kill_orphan_by_pattern() {
+    local pattern="$1"
+    local pids
+    pids=$(pgrep -f "$pattern" 2>/dev/null || true)
+    [[ -z "$pids" ]] && return 0
+
+    macmon_log "Killing orphan $pattern processes"
+    local pid
+    while IFS= read -r pid; do
+        [[ -n "$pid" ]] || continue
+        if is_system_process "$(ps -p "$pid" -o comm= 2>/dev/null | xargs basename 2>/dev/null)"; then
+            continue
+        fi
+        kill -TERM "$pid" 2>/dev/null || true
+    done <<< "$pids"
+
+    sleep 2
+
+    pids=$(pgrep -f "$pattern" 2>/dev/null || true)
     while IFS= read -r pid; do
         [[ -n "$pid" ]] && kill -KILL "$pid" 2>/dev/null || true
     done <<< "$pids"

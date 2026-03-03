@@ -33,11 +33,13 @@ remove_pid() {
 LAST_FLUTTER_ALERT=0
 LAST_RAM_ALERT=0
 LAST_IDLE_ALERT=0
+LAST_ORPHAN_ALERT=0
 
 cooldown_elapsed() {
     local last_time="$1"
     local cooldown
     cooldown=$(macmon_cfg "INTERVALS_COOLDOWN" "300")
+    [[ "$cooldown" =~ ^[0-9]+$ ]] || cooldown=300
     local now
     now=$(date +%s)
     (( now - last_time >= cooldown ))
@@ -132,6 +134,38 @@ do_check_ram() {
     fi
 }
 
+do_check_orphans() {
+    cooldown_elapsed "$LAST_ORPHAN_ALERT" || return 0
+
+    local orphans
+    if orphans=$(check_orphan_daemons); then
+        LAST_ORPHAN_ALERT=$(date +%s)
+        local orphan_summary=""
+        local orphan_count=0
+        while IFS=: read -r name count reason; do
+            orphan_summary="${orphan_summary}\n- ${name}: ${count} (${reason})"
+            (( orphan_count += count )) || true
+        done <<< "$orphans"
+
+        macmon_log "Orphan daemons detected: $orphan_count total"
+
+        if macmon_ask_yes_no "macmon - Orphan Processes" "Found ${orphan_count} orphan build daemon(s):${orphan_summary}\n\nClean them up?"; then
+            while IFS=: read -r name count reason; do
+                case "$name" in
+                    SourceKitService) kill_orphan_by_pattern "SourceKitService" ;;
+                    GradleDaemon)     kill_orphan_by_pattern "GradleDaemon" ;;
+                    xcodebuild)       kill_orphan_by_pattern "xcodebuild" ;;
+                    qemu-system)      kill_orphan_by_pattern "qemu-system" ;;
+                esac
+            done <<< "$orphans"
+            macmon_notify "macmon" "Cleaned up ${orphan_count} orphan daemon(s)"
+            macmon_log "User approved orphan cleanup: $orphan_count processes"
+        else
+            macmon_log "User declined orphan cleanup"
+        fi
+    fi
+}
+
 do_check_idle() {
     cooldown_elapsed "$LAST_IDLE_ALERT" || return 0
 
@@ -171,6 +205,8 @@ write_pid
 
 check_interval=$(macmon_cfg "INTERVALS_CHECK" "60")
 idle_interval=$(macmon_cfg "INTERVALS_IDLE_CHECK" "600")
+[[ "$check_interval" =~ ^[0-9]+$ ]] || check_interval=60
+[[ "$idle_interval" =~ ^[0-9]+$ ]] || idle_interval=600
 last_idle_check=0
 
 while $RUNNING; do
@@ -178,6 +214,7 @@ while $RUNNING; do
 
     # Run checks
     do_check_flutter
+    do_check_orphans
     do_check_ram
 
     # Idle check at its own interval
