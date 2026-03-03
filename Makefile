@@ -1,14 +1,19 @@
 SHELL := /bin/bash
 SWIFT_SRC := src/gui/ProcessPicker.swift
 SWIFT_BIN := ProcessPicker
+DISKIO_SRC := src/gui/DiskIOHelper.swift
+DISKIO_BIN := DiskIOHelper
 INSTALL_DIR := $(HOME)/.local/libexec/macmon
 
-.PHONY: build install uninstall clean check
+.PHONY: build install uninstall clean check test
 
-build: $(SWIFT_BIN)
+build: $(SWIFT_BIN) $(DISKIO_BIN)
 
 $(SWIFT_BIN): $(SWIFT_SRC)
 	swiftc -O -framework Cocoa -o $@ $<
+
+$(DISKIO_BIN): $(DISKIO_SRC)
+	swiftc -O -o $@ $<
 
 install: build
 	./install.sh
@@ -17,8 +22,12 @@ uninstall:
 	./uninstall.sh
 
 clean:
-	rm -f $(SWIFT_BIN)
-	rm -rf $(SWIFT_BIN).dSYM
+	rm -f $(SWIFT_BIN) $(DISKIO_BIN)
+	rm -rf $(SWIFT_BIN).dSYM $(DISKIO_BIN).dSYM
+
+test:
+	@command -v bats >/dev/null 2>&1 || { echo "ERROR: bats not found (brew install bats-core)"; exit 1; }
+	bats tests/
 
 check:
 	@echo "Checking dependencies..."
@@ -35,7 +44,7 @@ check:
 	@bash -n scripts/graceful-quit.sh && echo "  scripts/graceful-quit.sh: OK"
 	@echo ""
 	@echo "Checking Swift compilation..."
-	@$(MAKE) build && echo "  ProcessPicker.swift: OK"
+	@$(MAKE) build && echo "  Swift binaries: OK"
 	@$(MAKE) clean
 	@echo ""
 	@echo "All checks passed"

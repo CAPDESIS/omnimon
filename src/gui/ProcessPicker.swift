@@ -17,11 +17,32 @@ struct ProcessEntry: Codable {
     let group: String
     let isSystem: Bool
     let state: String
+    let diskReadMB: Double
+    let diskWriteMB: Double
 
     var selected: Bool = false
 
     enum CodingKeys: String, CodingKey {
-        case pid, name, ramMB, cpuPct, uptime, uptimeSeconds, cwd, tty, idle, detail, group, isSystem, state
+        case pid, name, ramMB, cpuPct, uptime, uptimeSeconds, cwd, tty, idle, detail, group, isSystem, state, diskReadMB, diskWriteMB
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        pid = try c.decode(Int.self, forKey: .pid)
+        name = try c.decode(String.self, forKey: .name)
+        ramMB = try c.decode(Double.self, forKey: .ramMB)
+        cpuPct = try c.decode(Double.self, forKey: .cpuPct)
+        uptime = try c.decode(String.self, forKey: .uptime)
+        uptimeSeconds = try c.decode(Int.self, forKey: .uptimeSeconds)
+        cwd = try c.decode(String.self, forKey: .cwd)
+        tty = try c.decode(String.self, forKey: .tty)
+        idle = try c.decode(Bool.self, forKey: .idle)
+        detail = try c.decode(String.self, forKey: .detail)
+        group = try c.decode(String.self, forKey: .group)
+        isSystem = try c.decode(Bool.self, forKey: .isSystem)
+        state = try c.decode(String.self, forKey: .state)
+        diskReadMB = try c.decodeIfPresent(Double.self, forKey: .diskReadMB) ?? 0
+        diskWriteMB = try c.decodeIfPresent(Double.self, forKey: .diskWriteMB) ?? 0
     }
 }
 
@@ -42,7 +63,7 @@ struct ProcessData: Codable {
 // MARK: - Sort Configuration
 
 enum SortColumn: String {
-    case name, ramMB, cpuPct, uptime, pid, tty, cwd, detail, idle, group, state
+    case name, ramMB, cpuPct, uptime, pid, tty, cwd, detail, idle, group, state, diskReadMB, diskWriteMB
 }
 
 enum SortOrder {
@@ -122,6 +143,8 @@ class ProcessViewModel {
             case .idle:     result = !pa.idle && pb.idle
             case .group:    result = pa.group < pb.group
             case .state:    result = pa.state < pb.state
+            case .diskReadMB:  result = pa.diskReadMB < pb.diskReadMB
+            case .diskWriteMB: result = pa.diskWriteMB < pb.diskWriteMB
             }
             return sortOrder == .ascending ? result : !result
         }
@@ -302,6 +325,8 @@ private let ColDetail = NSUserInterfaceItemIdentifier("detail")
 private let ColIdle = NSUserInterfaceItemIdentifier("idle")
 private let ColGroup = NSUserInterfaceItemIdentifier("group")
 private let ColState = NSUserInterfaceItemIdentifier("state")
+private let ColDiskR = NSUserInterfaceItemIdentifier("diskReadMB")
+private let ColDiskW = NSUserInterfaceItemIdentifier("diskWriteMB")
 
 // MARK: - Main Window Controller
 
@@ -376,6 +401,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             (ColCWD, "Directory", 200, 80),
             (ColIdle, "Idle", 40, 35),
             (ColGroup, "Group", 100, 60),
+            (ColDiskR, "Disk R (MB)", 85, 60),
+            (ColDiskW, "Disk W (MB)", 85, 60),
             (ColState, "State", 50, 40),
             (ColTTY, "TTY", 70, 50),
         ]
@@ -695,6 +722,16 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         case ColGroup:
             cell.stringValue = proc.group.isEmpty ? "-" : proc.group
             if proc.group.isEmpty { cell.textColor = .tertiaryLabelColor }
+        case ColDiskR:
+            cell.stringValue = proc.diskReadMB > 0 ? String(format: "%.1f", proc.diskReadMB) : "-"
+            cell.alignment = .right
+            if proc.diskReadMB > 10000 { cell.textColor = .systemRed }
+            else if proc.diskReadMB > 1000 { cell.textColor = .systemOrange }
+        case ColDiskW:
+            cell.stringValue = proc.diskWriteMB > 0 ? String(format: "%.1f", proc.diskWriteMB) : "-"
+            cell.alignment = .right
+            if proc.diskWriteMB > 10000 { cell.textColor = .systemRed }
+            else if proc.diskWriteMB > 1000 { cell.textColor = .systemOrange }
         case ColState:
             cell.stringValue = proc.state
         default:

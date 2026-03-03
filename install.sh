@@ -47,6 +47,13 @@ swiftc -O -framework Cocoa \
     "$INSTALL_DIR/src/gui/ProcessPicker.swift"
 echo "ProcessPicker compiled successfully"
 
+# Compile DiskIOHelper
+echo "Compiling DiskIOHelper..."
+swiftc -O \
+    -o "$INSTALL_DIR/DiskIOHelper" \
+    "$INSTALL_DIR/src/gui/DiskIOHelper.swift"
+echo "DiskIOHelper compiled successfully"
+
 # Create config if absent
 if [[ ! -f "$CONFIG_DIR/macmon.yaml" ]]; then
     cp "$INSTALL_DIR/config/macmon.default.yaml" "$CONFIG_DIR/macmon.yaml"

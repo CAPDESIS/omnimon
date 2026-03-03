@@ -96,6 +96,24 @@ cmd_status() {
         printf "  Flutter: ${fc_color}%s\033[0m flutter_tester processes\n" "$flutter_count"
     fi
 
+    # Orphan build daemons
+    local sk_count gradle_count xb_count qemu_count
+    sk_count=$(pgrep -x SourceKitService 2>/dev/null | wc -l | tr -d ' ')
+    gradle_count=$(pgrep -f GradleDaemon 2>/dev/null | wc -l | tr -d ' ')
+    xb_count=$(pgrep -x xcodebuild 2>/dev/null | wc -l | tr -d ' ')
+    qemu_count=$(pgrep -f qemu-system 2>/dev/null | wc -l | tr -d ' ')
+    local orphan_total=$(( sk_count + gradle_count + xb_count + qemu_count ))
+    if (( orphan_total > 0 )); then
+        printf "  Orphans: "
+        local parts=()
+        (( sk_count > 0 )) && parts+=("SourceKit:$sk_count")
+        (( gradle_count > 0 )) && parts+=("Gradle:$gradle_count")
+        (( xb_count > 0 )) && parts+=("xcodebuild:$xb_count")
+        (( qemu_count > 0 )) && parts+=("qemu:$qemu_count")
+        local IFS=', '
+        printf "\033[33m%s\033[0m\n" "${parts[*]}"
+    fi
+
     # Daemon status
     echo ""
     if launchctl list "$PLIST_LABEL" &>/dev/null; then
@@ -176,6 +194,61 @@ cmd_log() {
     fi
 }
 
+cmd_export() {
+    local format="${1:-json}"
+    local output_dir="$HOME/.local/share/macmon/exports"
+    local timestamp
+    timestamp=$(date '+%Y%m%d-%H%M%S')
+
+    mkdir -p "$output_dir"
+
+    echo "Collecting process data..."
+    local json
+    json=$(collect_processes_json \
+        "$(macmon_cfg "THRESHOLDS_PROCESS_RAM_MIN_KB" "102400")" \
+        "$(macmon_cfg "THRESHOLDS_IDLE_CPU_PERCENT" "1.0")")
+
+    case "$format" in
+        json)
+            local outfile="${output_dir}/macmon-${timestamp}.json"
+            printf '%s' "$json" | jq --arg ts "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" '{
+                timestamp: $ts,
+                snapshot: .
+            }' > "$outfile"
+            echo "Exported to $outfile"
+            ;;
+        csv)
+            local outfile="${output_dir}/macmon-${timestamp}.csv"
+            printf '%s' "$json" | jq -r '
+                ["PID","Name","RAM_MB","CPU_Pct","Uptime","UptimeSec","Idle","Group","State","CWD","Detail"],
+                (.processes[] | [.pid,.name,.ramMB,.cpuPct,.uptime,.uptimeSeconds,.idle,.group,.state,.cwd,.detail])
+                | @csv
+            ' > "$outfile"
+            echo "Exported to $outfile"
+            ;;
+        --peaks)
+            local peak_dir="${MACMON_LOG_DIR}"
+            local peak_files
+            peak_files=$(ls -1 "$peak_dir"/peaks-*.json 2>/dev/null || true)
+            if [[ -z "$peak_files" ]]; then
+                echo "No peak data found. Start the daemon to collect peaks."
+                return 1
+            fi
+            echo "Peak data files:"
+            echo "$peak_files"
+            echo ""
+            echo "Latest peaks:"
+            local latest
+            latest=$(echo "$peak_files" | tail -1)
+            jq '.' "$latest"
+            ;;
+        *)
+            echo "Usage: macmon export [json|csv|--peaks]"
+            return 1
+            ;;
+    esac
+}
+
 cmd_version() {
     echo "macmon v${MACMON_VERSION}"
 }
@@ -195,6 +268,9 @@ Commands:
   config          Show current configuration
   config edit     Edit configuration in \$EDITOR
   config reset    Reset configuration to defaults
+  export [json]   Export current snapshot as JSON
+  export csv      Export current snapshot as CSV
+  export --peaks  Show daily peak consumption data
   log             Show last 50 lines of daemon log
   log -f          Follow daemon log (tail -f)
   version         Show version
@@ -221,6 +297,7 @@ case "${1:-}" in
     stop)           cmd_stop ;;
     restart)        cmd_restart ;;
     config)         shift; cmd_config "$@" ;;
+    export)         shift; cmd_export "$@" ;;
     log)            shift; cmd_log "$@" ;;
     version|--version|-v)  cmd_version ;;
     help|--help|-h) cmd_help ;;
