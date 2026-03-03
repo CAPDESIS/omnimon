@@ -11,10 +11,10 @@ _to_upper() {
 }
 
 # Expand ~ to $HOME in config values
+# shellcheck disable=SC2088
 _expand_tilde() {
     local val="$1"
     case "$val" in
-        # shellcheck disable=SC2088
         "~/"*) val="${HOME}/${val#\~/}" ;;
         "~")   val="$HOME" ;;
     esac
