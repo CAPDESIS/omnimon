@@ -362,7 +362,7 @@ collect_processes_json() {
     # Phase 3: Batch lsof for working directories (single call for all PIDs)
     local pid_list
     pid_list=$(IFS=,; echo "${pids[*]}")
-    local -A cwd_map=()
+    local -a cwd_pids=() cwd_values=()
     local lsof_limit
     lsof_limit=$(macmon_cfg "COLLECT_BATCH_LSOF_LIMIT" "50")
     if (( count <= lsof_limit )); then
@@ -370,7 +370,10 @@ collect_processes_json() {
             local lpid lcwd
             lpid=$(echo "$line" | awk -F'\t' '{print $1}')
             lcwd=$(echo "$line" | awk -F'\t' '{print $2}')
-            [[ -n "$lpid" && -n "$lcwd" ]] && cwd_map["$lpid"]="$lcwd"
+            if [[ -n "$lpid" && -n "$lcwd" ]]; then
+                cwd_pids+=("$lpid")
+                cwd_values+=("$lcwd")
+            fi
         done < <(lsof -a -d cwd -Fn -p "$pid_list" 2>/dev/null | awk '/^p/{pid=substr($0,2)} /^n/{print pid"\t"substr($0,2)}')
     fi
 
@@ -381,6 +384,8 @@ collect_processes_json() {
         pid="${pids[$i]}"
         rss="${rss_arr[$i]}"
         cpu="${cpu_arr[$i]}"
+        local exec_name
+        exec_name=$(basename "${comm_arr[$i]}")
         local name
         name=$(friendly_name "${comm_arr[$i]}" "${args_arr[$i]}")
         local ram_mb
@@ -388,7 +393,14 @@ collect_processes_json() {
         local uptime_str uptime_sec
         uptime_str=$(calc_uptime "${lstart_arr[$i]}" 2>/dev/null || echo "?")
         uptime_sec=$(uptime_seconds "${lstart_arr[$i]}" 2>/dev/null || echo "0")
-        local cwd="${cwd_map[$pid]:-}"
+        local cwd=""
+        local j
+        for (( j = 0; j < ${#cwd_pids[@]}; j++ )); do
+            if [[ "${cwd_pids[$j]}" == "$pid" ]]; then
+                cwd="${cwd_values[$j]}"
+                break
+            fi
+        done
         local is_idle="false"
         if awk "BEGIN {exit !(${cpu} < ${idle_cpu})}"; then
             is_idle="true"
@@ -419,14 +431,12 @@ collect_processes_json() {
         fi
 
         # Detect system process (with signature verification)
-        local base_comm
-        base_comm=$(basename "${comm_arr[$i]}")
         local is_system="false"
-        if is_system_process "$base_comm"; then
+        if is_system_process "$exec_name"; then
             if _verify_apple_signed "$pid"; then
                 is_system="true"
             else
-                macmon_log "WARNING: Process '$base_comm' (PID $pid) claims system name but is NOT Apple-signed"
+                macmon_log "WARNING: Process '$exec_name' (PID $pid) claims system name but is NOT Apple-signed"
             fi
         fi
 
@@ -437,6 +447,7 @@ collect_processes_json() {
         json_array=$(printf '%s' "$json_array" | jq \
             --argjson pid "$pid" \
             --arg name "$name" \
+            --arg execName "$exec_name" \
             --argjson ramMB "$ram_mb" \
             --argjson cpuPct "$cpu" \
             --arg uptime "$uptime_str" \
@@ -451,6 +462,7 @@ collect_processes_json() {
             '. + [{
                 pid: $pid,
                 name: $name,
+                execName: $execName,
                 ramMB: $ramMB,
                 cpuPct: $cpuPct,
                 uptime: $uptime,
@@ -541,18 +553,19 @@ collect_processes_json() {
 kill_processes() {
     local json_file="$1"
     local -a pids_to_kill=()
-    local -A pid_names=()
+    local -a names_to_kill=()
 
     # Read PIDs and names from JSON (format: [{"pid":123,"name":"Foo"}, ...])
     while IFS=$'\t' read -r pid name; do
         [[ -n "$pid" ]] || continue
         pids_to_kill+=("$pid")
-        pid_names["$pid"]="$name"
+        names_to_kill+=("$name")
     done < <(jq -r '.[] | [.pid, .name] | @tsv' "$json_file" 2>/dev/null)
 
-    local pid name
-    for pid in "${pids_to_kill[@]}"; do
-        name="${pid_names[$pid]:-unknown}"
+    local idx pid name
+    for (( idx = 0; idx < ${#pids_to_kill[@]}; idx++ )); do
+        pid="${pids_to_kill[$idx]}"
+        name="${names_to_kill[$idx]:-unknown}"
 
         # Skip system processes (verified Apple-signed)
         if is_system_process "$(basename "$name")"; then
@@ -599,16 +612,64 @@ kill_processes() {
     sleep "$grace"
 
     # SIGKILL stragglers (skip Chrome tabs and .app processes already handled)
-    for pid in "${pids_to_kill[@]}"; do
-        name="${pid_names[$pid]:-unknown}"
+    for (( idx = 0; idx < ${#pids_to_kill[@]}; idx++ )); do
+        pid="${pids_to_kill[$idx]}"
+        name="${names_to_kill[$idx]:-unknown}"
         [[ "$name" == "Chrome Tab" ]] && continue
         if kill -0 "$pid" 2>/dev/null; then
+            # Re-apply strict protection checks before SIGKILL
+            if is_system_process "$(basename "$name")"; then
+                if _verify_apple_signed "$pid"; then
+                    macmon_log "BLOCKED: refusing SIGKILL for system process $name (PID $pid)"
+                    continue
+                else
+                    macmon_log "WARNING: PID $pid uses system name '$name' but is not Apple-signed, allowing SIGKILL"
+                fi
+            fi
+
+            if _is_apple_system_pid "$pid"; then
+                macmon_log "BLOCKED: refusing SIGKILL for Apple system binary (PID $pid)"
+                continue
+            fi
+
             if verify_pid "$pid" "$name"; then
                 macmon_log "Sending SIGKILL to $name (PID $pid)"
                 kill -KILL "$pid" 2>/dev/null || true
             fi
         fi
     done
+}
+
+# Convert picker output to kill payload JSON.
+# Supports current JSON array format and legacy newline PID format.
+build_kill_payload_json() {
+    local selection="$1"
+    local output_file="$2"
+    [[ -n "$output_file" ]] || return 1
+
+    if [[ -z "$selection" ]]; then
+        printf '[]\n' > "$output_file"
+        return 0
+    fi
+
+    if printf '%s' "$selection" | jq -e . >/dev/null 2>&1; then
+        printf '%s' "$selection" | jq -c '
+            if type == "array" then
+                map(
+                    select((.pid | type) == "number" and (.pid > 1)) |
+                    {pid: .pid, name: ((.name // "") | tostring)}
+                )
+            else
+                []
+            end
+        ' > "$output_file"
+    else
+        printf '%s' "$selection" | jq -R -s '
+            split("\n") | map(select(length > 0)) |
+            map(select(test("^[0-9]+$"))) |
+            map({pid: (. | tonumber), name: "unknown"})
+        ' > "$output_file"
+    fi
 }
 
 # --- Dynamic Process Monitoring ---
@@ -704,9 +765,19 @@ kill_process_by_name() {
 
     sleep 2
 
+    # SIGKILL stragglers — re-apply blocklist checks before escalation
     pids=$(pgrep -x "$proc_name" 2>/dev/null || true)
     while IFS= read -r pid; do
-        [[ -n "$pid" ]] && kill -KILL "$pid" 2>/dev/null || true
+        [[ -n "$pid" ]] || continue
+        if macmon_is_blocked_process "$proc_name" || is_system_process "$proc_name"; then
+            macmon_log "BLOCKED: refusing SIGKILL for system process $proc_name (PID $pid)"
+            continue
+        fi
+        if _is_apple_system_pid "$pid"; then
+            macmon_log "BLOCKED: refusing SIGKILL for Apple system binary (PID $pid)"
+            continue
+        fi
+        kill -KILL "$pid" 2>/dev/null || true
     done <<< "$pids"
 }
 
@@ -771,9 +842,21 @@ kill_orphan_by_pattern() {
 
     sleep 2
 
+    # SIGKILL stragglers — re-apply blocklist checks before escalation
     pids=$(pgrep -f "$pattern" 2>/dev/null || true)
     while IFS= read -r pid; do
-        [[ -n "$pid" ]] && kill -KILL "$pid" 2>/dev/null || true
+        [[ -n "$pid" ]] || continue
+        local proc_comm
+        proc_comm=$(ps -p "$pid" -o comm= 2>/dev/null | xargs basename 2>/dev/null || true)
+        if [[ -n "$proc_comm" ]] && is_system_process "$proc_comm"; then
+            macmon_log "BLOCKED: refusing SIGKILL for system process $proc_comm (PID $pid)"
+            continue
+        fi
+        if _is_apple_system_pid "$pid"; then
+            macmon_log "BLOCKED: refusing SIGKILL for Apple system binary (PID $pid)"
+            continue
+        fi
+        kill -KILL "$pid" 2>/dev/null || true
     done <<< "$pids"
 }
 
@@ -793,10 +876,14 @@ ensure_picker_compiled() {
 
     # Compile if binary missing or source is newer
     if [[ ! -f "$binary" || "$swift_src" -nt "$binary" || "$swift_model_src" -nt "$binary" || "$swift_i18n_src" -nt "$binary" || "$swift_ai_src" -nt "$binary" ]]; then
-        macmon_log "Compiling ProcessPicker..."
-        if swiftc -O -framework Cocoa -o "$binary" "$swift_model_src" "$swift_i18n_src" "$swift_ai_src" "$swift_src" 2>&1; then
+        macmon_log "Compiling ProcessPicker (universal)..."
+        if swiftc -O -target arm64-apple-macos13 -framework Cocoa -o "${binary}-arm64" "$swift_model_src" "$swift_i18n_src" "$swift_ai_src" "$swift_src" 2>&1 \
+           && swiftc -O -target x86_64-apple-macos13 -framework Cocoa -o "${binary}-x86_64" "$swift_model_src" "$swift_i18n_src" "$swift_ai_src" "$swift_src" 2>&1 \
+           && lipo -create -output "$binary" "${binary}-arm64" "${binary}-x86_64" 2>&1; then
+            rm -f "${binary}-arm64" "${binary}-x86_64"
             macmon_log "ProcessPicker compiled successfully"
         else
+            rm -f "${binary}-arm64" "${binary}-x86_64"
             macmon_log "ERROR: Failed to compile ProcessPicker"
             return 1
         fi

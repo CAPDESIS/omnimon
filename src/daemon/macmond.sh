@@ -204,11 +204,7 @@ do_check_ram() {
                 if [[ -n "$selected" ]]; then
                     local kill_file
                     kill_file=$(mktemp "${MACMON_TMPDIR}/macmon-kill.XXXXXX.json")
-                    # Convert PID list to JSON
-                    echo "$selected" | jq -R -s '
-                        split("\n") | map(select(length > 0)) |
-                        map({pid: (. | tonumber), name: "selected"})
-                    ' > "$kill_file"
+                    build_kill_payload_json "$selected" "$kill_file"
                     kill_processes "$kill_file"
                     rm -f "$kill_file"
                     macmon_notify "macmon" "Freed memory from selected processes"
@@ -278,10 +274,7 @@ do_check_idle() {
             if [[ -n "$selected" ]]; then
                 local kill_file
                 kill_file=$(mktemp "${MACMON_TMPDIR}/macmon-kill.XXXXXX.json")
-                echo "$selected" | jq -R -s '
-                    split("\n") | map(select(length > 0)) |
-                    map({pid: (. | tonumber), name: "selected"})
-                ' > "$kill_file"
+                build_kill_payload_json "$selected" "$kill_file"
                 kill_processes "$kill_file"
                 rm -f "$kill_file"
                 macmon_notify "macmon" "Cleaned up idle processes"

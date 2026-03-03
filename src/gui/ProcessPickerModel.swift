@@ -5,6 +5,7 @@ import Foundation
 struct ProcessEntry: Codable {
     let pid: Int
     let name: String
+    let execName: String
     let ramMB: Double
     let cpuPct: Double
     let uptime: String
@@ -22,13 +23,14 @@ struct ProcessEntry: Codable {
     var selected: Bool = false
 
     enum CodingKeys: String, CodingKey {
-        case pid, name, ramMB, cpuPct, uptime, uptimeSeconds, cwd, tty, idle, detail, group, isSystem, state, diskReadMB, diskWriteMB
+        case pid, name, execName, ramMB, cpuPct, uptime, uptimeSeconds, cwd, tty, idle, detail, group, isSystem, state, diskReadMB, diskWriteMB
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         pid = try c.decode(Int.self, forKey: .pid)
         name = try c.decode(String.self, forKey: .name)
+        execName = try c.decodeIfPresent(String.self, forKey: .execName) ?? name
         ramMB = try c.decode(Double.self, forKey: .ramMB)
         cpuPct = try c.decode(Double.self, forKey: .cpuPct)
         uptime = try c.decode(String.self, forKey: .uptime)
@@ -44,9 +46,10 @@ struct ProcessEntry: Codable {
         diskWriteMB = try c.decodeIfPresent(Double.self, forKey: .diskWriteMB) ?? 0
     }
 
-    init(pid: Int, name: String, ramMB: Double, cpuPct: Double, uptime: String = "", uptimeSeconds: Int = 0, cwd: String = "", tty: String = "", idle: Bool = false, detail: String = "", group: String = "", isSystem: Bool = false, state: String = "", diskReadMB: Double = 0, diskWriteMB: Double = 0) {
+    init(pid: Int, name: String, execName: String = "", ramMB: Double, cpuPct: Double, uptime: String = "", uptimeSeconds: Int = 0, cwd: String = "", tty: String = "", idle: Bool = false, detail: String = "", group: String = "", isSystem: Bool = false, state: String = "", diskReadMB: Double = 0, diskWriteMB: Double = 0) {
         self.pid = pid
         self.name = name
+        self.execName = execName.isEmpty ? name : execName
         self.ramMB = ramMB
         self.cpuPct = cpuPct
         self.uptime = uptime

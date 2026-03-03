@@ -792,9 +792,13 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             NSApp.terminate(nil)
             return
         }
-        // Output selected PIDs to stdout
-        for pid in pids {
-            print(pid)
+        // Output selected processes as JSON to stdout
+        let selected = viewModel.allProcesses
+            .filter { $0.selected }
+            .map { ["pid": $0.pid, "name": $0.execName] }
+        if let data = try? JSONSerialization.data(withJSONObject: selected, options: []),
+           let json = String(data: data, encoding: .utf8) {
+            print(json)
         }
         exitCode = 0
         NSApp.terminate(nil)

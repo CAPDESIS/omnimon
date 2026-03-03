@@ -41,6 +41,13 @@ MSG_RUN_HELP="Run 'macmon help' for usage"
 MSG_PROFILE_CURRENT="Active profile:"
 MSG_PROFILE_SWITCHED="Switched profile:"
 MSG_PROFILE_MISSING="Profile not found:"
+MSG_UPDATE_CHECKING="Checking for updates..."
+MSG_UPDATE_UP_TO_DATE="Already up to date"
+MSG_UPDATE_AVAILABLE="Update available:"
+MSG_UPDATE_DOWNLOADING="Downloading update..."
+MSG_UPDATE_INSTALLING="Installing update..."
+MSG_UPDATE_DONE="Updated successfully to"
+MSG_UPDATE_FAILED="Update failed"
 
 # --- Subcommands ---
 
@@ -52,10 +59,8 @@ cmd_picker() {
             count=$(echo "$selected" | wc -l | tr -d ' ')
             local kill_file
             kill_file=$(mktemp "${MACMON_TMPDIR}/macmon-kill.XXXXXX.json")
-            echo "$selected" | jq -R -s '
-                split("\n") | map(select(length > 0)) |
-                map({pid: (. | tonumber), name: "selected"})
-            ' > "$kill_file"
+            build_kill_payload_json "$selected" "$kill_file"
+            count=$(jq 'length' "$kill_file" 2>/dev/null || echo 0)
             kill_processes "$kill_file"
             rm -f "$kill_file"
             echo "$MSG_CLOSED_PROCESSES $count process(es)"
@@ -334,6 +339,86 @@ cmd_export() {
     esac
 }
 
+cmd_update() {
+    local api_url="https://api.github.com/repos/chochy2001/macmon/releases/latest"
+
+    echo "$MSG_UPDATE_CHECKING"
+
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "$MSG_UPDATE_FAILED: jq is required for secure update parsing"
+        return 1
+    fi
+
+    local release_json
+    release_json=$(curl -fsSL "$api_url" 2>/dev/null) || {
+        echo "$MSG_UPDATE_FAILED: could not reach GitHub API"
+        return 1
+    }
+
+    local remote_tag
+    remote_tag=$(printf '%s' "$release_json" | jq -r '.tag_name // empty')
+    if [[ -z "$remote_tag" ]]; then
+        echo "$MSG_UPDATE_FAILED: could not parse release tag"
+        return 1
+    fi
+    local remote_version="${remote_tag#v}"
+
+    # Compare versions using sort -V
+    local newest
+    newest=$(printf '%s\n%s\n' "$MACMON_VERSION" "$remote_version" | sort -V | tail -1)
+    if [[ "$newest" == "$MACMON_VERSION" && "$MACMON_VERSION" == "$remote_version" ]] || [[ "$newest" == "$MACMON_VERSION" && "$newest" != "$remote_version" ]]; then
+        echo "$MSG_UPDATE_UP_TO_DATE (v${MACMON_VERSION})"
+        return 0
+    fi
+
+    echo "$MSG_UPDATE_AVAILABLE v${MACMON_VERSION} -> v${remote_version}"
+
+    # Parse download URL for universal tarball
+    local archive_name="macmon-${remote_version}-macos-universal.tar.gz"
+    local asset_url
+    asset_url=$(printf '%s' "$release_json" | jq -r --arg archive_name "$archive_name" '
+        [.assets[]? | select(.name == $archive_name) | .browser_download_url][0] // empty
+    ')
+    if [[ -z "$asset_url" ]]; then
+        echo "$MSG_UPDATE_FAILED: could not find ${archive_name} in release assets"
+        return 1
+    fi
+
+    local tmpdir="${TMPDIR:-/tmp}/macmon-update-$$"
+    mkdir -p "$tmpdir"
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    echo "$MSG_UPDATE_DOWNLOADING"
+    curl -fSL -o "${tmpdir}/${archive_name}" "$asset_url" || {
+        echo "$MSG_UPDATE_FAILED: download error"
+        return 1
+    }
+
+    echo "$MSG_UPDATE_INSTALLING"
+    tar xzf "${tmpdir}/${archive_name}" -C "$tmpdir" || {
+        echo "$MSG_UPDATE_FAILED: extraction error"
+        return 1
+    }
+
+    local install_src="${tmpdir}/macmon"
+    if [[ ! -d "$install_src" ]]; then
+        install_src="$tmpdir"
+    fi
+
+    if [[ ! -f "${install_src}/install.sh" ]]; then
+        echo "$MSG_UPDATE_FAILED: install.sh not found in archive"
+        return 1
+    fi
+
+    cd "$install_src"
+    bash install.sh || {
+        echo "$MSG_UPDATE_FAILED: install.sh returned an error"
+        return 1
+    }
+
+    echo "$MSG_UPDATE_DONE v${remote_version}"
+}
+
 cmd_version() {
     echo "$MSG_VERSION v${MACMON_VERSION}"
 }
@@ -361,6 +446,7 @@ Commands:
   profile use X   Switch active profile
   log             Show last 50 lines of daemon log
   log -f          Follow daemon log (tail -f)
+  update          Check for updates and install if available
   version         Show version
   help            Show this help message
 
@@ -373,6 +459,7 @@ Examples:
   macmon start            # Start monitoring daemon
   macmon config edit      # Customize thresholds
   macmon log -f           # Watch daemon activity
+  macmon update           # Check and install updates
 
 EOF
 }
@@ -388,6 +475,7 @@ case "${1:-}" in
     export)         shift; cmd_export "$@" ;;
     profile)        shift; cmd_profile "$@" ;;
     log)            shift; cmd_log "$@" ;;
+    update)         cmd_update ;;
     version|--version|-v)  cmd_version ;;
     help|--help|-h) cmd_help ;;
     "")             cmd_picker ;;
