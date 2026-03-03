@@ -10,6 +10,11 @@ A lightweight macOS system monitor that watches RAM pressure, swap usage, flutte
 - **Security-first** — AppleScript injection sanitization, jq-based JSON construction, PID reuse verification, system process protection
 - **Performance-optimized** — batched `ps` calls (3 instead of ~300), cached `memory_pressure`, NSTableView cell recycling
 - **Chrome-aware** — closes Chrome tabs via AppleScript instead of killing renderer processes
+- **Orphan daemon detection** — SourceKitService, Gradle, xcodebuild, Android emulator (qemu)
+- **Disk I/O metrics** — per-process disk read/write via `proc_pid_rusage` (no root needed)
+- **Metrics export** — `macmon export json/csv` for profiling and `--peaks` for daily peak tracking
+- **Code signature verification** — detects process name spoofing on protected system processes
+- **46 BATS tests** + GitHub Actions CI pipeline
 
 ### What macmon shows that Activity Monitor doesn't
 
@@ -20,6 +25,9 @@ A lightweight macOS system monitor that watches RAM pressure, swap usage, flutte
 | Working directory per process | Yes | No |
 | Chrome tab titles | Yes | No |
 | Flutter tester accumulation alert | Yes | No |
+| Orphan build daemon detection | Yes | No |
+| Per-process disk I/O | Yes | No |
+| Metrics export (JSON/CSV) | Yes | No |
 | Proactive memory pressure notifications | Yes | No |
 | CLI system health summary | Yes | No |
 
@@ -63,8 +71,19 @@ macmon config edit      # Open config in $EDITOR
 macmon config reset     # Reset to default configuration
 macmon log              # Show last 50 lines of daemon log
 macmon log -f           # Follow daemon log in real time
+macmon export           # Export current snapshot as JSON
+macmon export csv       # Export as CSV
+macmon export --peaks   # Show daily peak consumption
 macmon version          # Show version
 macmon help             # Show all commands
+```
+
+## Testing
+
+```bash
+brew install bats-core  # one-time setup
+make test               # run 46 BATS tests
+make check              # full verification (syntax + compilation + tests)
 ```
 
 ### Process Picker Keyboard Shortcuts
