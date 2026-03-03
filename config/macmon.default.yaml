@@ -1,0 +1,52 @@
+# macmon - Default Configuration
+# Copy to ~/.config/macmon/macmon.yaml to customize
+
+# Monitoring thresholds
+thresholds:
+  flutter_process_count: 10
+  ram_free_percent: 25
+  swap_used_mb: 2048
+  process_ram_min_kb: 102400
+  idle_cpu_percent: 1.0
+  idle_ram_trigger_percent: 40
+
+# Timing (seconds)
+intervals:
+  check: 60
+  idle_check: 600
+  cooldown: 300
+  kill_grace: 3
+
+# Log settings
+log:
+  max_size_mb: 10
+  max_files: 5
+  dir: ~/.local/log/macmon
+
+# Process collection
+collect:
+  batch_lsof_limit: 50
+  chrome_tab_titles: true
+
+# Protected processes (never killed)
+protected:
+  - launchd
+  - kernel_task
+  - WindowServer
+  - loginwindow
+  - coreaudiod
+  - bluetoothd
+  - fseventsd
+  - mds
+  - mds_stores
+  - opendirectoryd
+  - syslogd
+  - configd
+  - diskarbitrationd
+  - powerd
+  - thermalmonitord
+  - UserEventAgent
+  - cfprefsd
+  - distnoted
+  - logd
+  - notifyd

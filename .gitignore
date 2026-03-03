@@ -1,0 +1,26 @@
+# Compiled binaries
+ProcessPicker
+*.o
+*.dSYM/
+
+# macOS
+.DS_Store
+._*
+
+# IDE
+.vscode/
+.idea/
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+
+# Logs
+*.log
+
+# Local config overrides
+config/macmon.yaml
+
+# Temp files
+*.tmp
+*.swp
+*~

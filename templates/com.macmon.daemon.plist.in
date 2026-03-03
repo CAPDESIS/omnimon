@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.macmon.daemon</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>@@INSTALL_DIR@@/libexec/macmon/src/daemon/macmond.sh</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>@@LOG_DIR@@/macmond.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>@@LOG_DIR@@/macmond.stderr.log</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityBackgroundIO</key>
+    <true/>
+    <key>Nice</key>
+    <integer>10</integer>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>MACMON_HOME</key>
+        <string>@@INSTALL_DIR@@/libexec/macmon</string>
+        <key>MACMON_CONFIG</key>
+        <string>@@CONFIG_DIR@@/macmon.yaml</string>
+    </dict>
+</dict>
+</plist>
