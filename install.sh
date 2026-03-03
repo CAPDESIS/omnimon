@@ -13,6 +13,15 @@ PLIST_LABEL="com.macmon.daemon"
 echo "macmon installer"
 echo "================"
 echo ""
+
+# Security: refuse to install if source directory is not owned by current user
+src_owner=$(stat -f%u "$SCRIPT_DIR" 2>/dev/null)
+if [[ "$src_owner" != "$(id -u)" ]]; then
+    echo "ERROR: Source directory not owned by current user. Aborting." >&2
+    echo "  Source: $SCRIPT_DIR (owner uid: $src_owner, you: $(id -u))" >&2
+    exit 1
+fi
+
 echo "Install directory: $INSTALL_DIR"
 echo "Config directory:  $CONFIG_DIR"
 echo "Log directory:     $LOG_DIR"
@@ -24,8 +33,12 @@ if launchctl list "$PLIST_LABEL" &>/dev/null; then
     launchctl unload "${PLIST_DIR}/${PLIST_LABEL}.plist" 2>/dev/null || true
 fi
 
-# Create directories
-mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$CONFIG_DIR" "$LOG_DIR" "$PLIST_DIR"
+# Create directories with restrictive permissions (MITRE TA0004 - Privilege Escalation)
+# User-only for sensitive directories to prevent other users from planting malicious scripts
+mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$PLIST_DIR"
+mkdir -p "$CONFIG_DIR" "$LOG_DIR"
+chmod 700 "$CONFIG_DIR" "$LOG_DIR"
+chmod 755 "$INSTALL_DIR" "$BIN_DIR"
 
 # Copy project files
 echo "Copying files..."
@@ -34,11 +47,14 @@ cp -R "$SCRIPT_DIR"/src "$INSTALL_DIR/"
 cp -R "$SCRIPT_DIR"/scripts "$INSTALL_DIR/"
 cp -R "$SCRIPT_DIR"/config "$INSTALL_DIR/"
 
-# Make scripts executable
-chmod +x "$INSTALL_DIR"/lib/*.sh
-chmod +x "$INSTALL_DIR"/src/daemon/macmond.sh
-chmod +x "$INSTALL_DIR"/src/cli/macmon.sh
-chmod +x "$INSTALL_DIR"/scripts/*.sh
+# Fix permissions: scripts executable by owner only, no group/other write
+chmod 755 "$INSTALL_DIR"/lib/*.sh
+chmod 755 "$INSTALL_DIR"/src/daemon/macmond.sh
+chmod 755 "$INSTALL_DIR"/src/cli/macmon.sh
+chmod 755 "$INSTALL_DIR"/scripts/*.sh
+# Non-executable files: read-only for group/other
+find "$INSTALL_DIR"/src/gui -name '*.swift' -exec chmod 644 {} +
+find "$INSTALL_DIR"/config -type f -exec chmod 644 {} +
 
 # Compile Swift picker
 echo "Compiling ProcessPicker..."
@@ -62,9 +78,13 @@ swiftc -O -framework Cocoa \
     "$INSTALL_DIR/src/gui/MacmonStatusBar.swift"
 echo "MacmonStatusBar compiled successfully"
 
-# Create config if absent
+# Harden binary permissions: executable by owner, readable by group (755)
+chmod 755 "$INSTALL_DIR/ProcessPicker" "$INSTALL_DIR/DiskIOHelper" "$INSTALL_DIR/MacmonStatusBar"
+
+# Create config if absent, with restrictive permissions
 if [[ ! -f "$CONFIG_DIR/macmon.yaml" ]]; then
     cp "$INSTALL_DIR/config/macmon.default.yaml" "$CONFIG_DIR/macmon.yaml"
+    chmod 600 "$CONFIG_DIR/macmon.yaml"
     echo "Created default config at $CONFIG_DIR/macmon.yaml"
 fi
 
@@ -76,16 +96,19 @@ sed \
     -e "s|@@CONFIG_DIR@@|${CONFIG_DIR}|g" \
     "$SCRIPT_DIR/templates/com.macmon.daemon.plist.in" \
     > "${PLIST_DIR}/${PLIST_LABEL}.plist"
+# Plist must be readable by launchd (644)
+chmod 644 "${PLIST_DIR}/${PLIST_LABEL}.plist"
 
-# Create CLI symlink
+# Create CLI wrapper with restrictive permissions
 echo "Creating macmon symlink..."
-cat > "${BIN_DIR}/macmon" <<WRAPPER
+(umask 022; cat > "${BIN_DIR}/macmon" <<WRAPPER
 #!/usr/bin/env bash
 export MACMON_HOME="$INSTALL_DIR"
 export MACMON_CONFIG="$CONFIG_DIR/macmon.yaml"
 exec "\${MACMON_HOME}/src/cli/macmon.sh" "\$@"
 WRAPPER
-chmod +x "${BIN_DIR}/macmon"
+)
+chmod 755 "${BIN_DIR}/macmon"
 
 # Start daemon
 echo "Starting daemon..."
