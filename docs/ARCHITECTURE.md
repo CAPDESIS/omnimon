@@ -5,7 +5,7 @@
 macmon is structured as three cooperating components with a shared library:
 
 ```
-┌─────────────┐     ┌─────────────-┐    ┌──────────────────┐
+┌────────────-─┐    ┌─────────────-┐    ┌──────────────────┐
 │   macmond    │    │  macmon CLI  │    │  ProcessPicker   │
 │  (daemon)    │    │   (bash)     │    │   (Swift/AppKit) │
 │              │    │              │    │                  │
