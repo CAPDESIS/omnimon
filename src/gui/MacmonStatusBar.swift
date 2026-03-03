@@ -311,6 +311,16 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         statusActionItem.target = self
         menu.addItem(statusActionItem)
 
+        // Check for Updates...
+        let updateItem = NSMenuItem(
+            title: L("statusbar.menu.check_updates"),
+            action: #selector(checkForUpdates),
+            keyEquivalent: "u"
+        )
+        updateItem.keyEquivalentModifierMask = [.command]
+        updateItem.target = self
+        menu.addItem(updateItem)
+
         // Separator
         menu.addItem(NSMenuItem.separator())
 
@@ -591,6 +601,125 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
                 }
             } catch {
                 fputs("Warning: Could not run macmon status: \(error)\n", stderr)
+            }
+        }
+    }
+
+    @objc func checkForUpdates() {
+        metricsQueue.async { [weak self] in
+            guard let self = self else { return }
+            let apiURL = URL(string: "https://api.github.com/repos/chochy2001/macmon/releases/latest")!
+            let task = URLSession.shared.dataTask(with: apiURL) { [weak self] data, response, error in
+                guard let self = self else { return }
+                guard let data = data, error == nil,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let tagName = json["tag_name"] as? String else {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.showAlert(
+                            title: L("statusbar.update.error_title"),
+                            message: L("statusbar.update.error_message")
+                        )
+                    }
+                    return
+                }
+
+                let remoteVersion = tagName.hasPrefix("v") ? String(tagName.dropFirst()) : tagName
+                let currentVersion = self.readCurrentVersion()
+
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    if self.isVersionNewer(remote: remoteVersion, current: currentVersion) {
+                        let alert = NSAlert()
+                        alert.messageText = L("statusbar.update.available_title")
+                        alert.informativeText = LF("statusbar.update.available_message", currentVersion, remoteVersion)
+                        alert.alertStyle = .informational
+                        alert.addButton(withTitle: L("statusbar.update.button_update"))
+                        alert.addButton(withTitle: L("statusbar.update.button_later"))
+                        let resp = alert.runModal()
+                        if resp == .alertFirstButtonReturn {
+                            self.runMacmonUpdate()
+                        }
+                    } else {
+                        self.showAlert(
+                            title: L("statusbar.update.uptodate_title"),
+                            message: LF("statusbar.update.uptodate_message", currentVersion)
+                        )
+                    }
+                }
+            }
+            task.resume()
+        }
+    }
+
+    private func readCurrentVersion() -> String {
+        let corePath = macmonHome + "/lib/macmon-core.sh"
+        guard let content = try? String(contentsOfFile: corePath, encoding: .utf8) else { return "0.0.0" }
+        // Match MACMON_VERSION="X.Y.Z"
+        let pattern = #"MACMON_VERSION="([^"]+)""#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: content, range: NSRange(content.startIndex..., in: content)),
+              let range = Range(match.range(at: 1), in: content) else { return "0.0.0" }
+        return String(content[range])
+    }
+
+    private func isVersionNewer(remote: String, current: String) -> Bool {
+        let rParts = remote.split(separator: ".").compactMap { Int($0) }
+        let cParts = current.split(separator: ".").compactMap { Int($0) }
+        for i in 0..<max(rParts.count, cParts.count) {
+            let r = i < rParts.count ? rParts[i] : 0
+            let c = i < cParts.count ? cParts[i] : 0
+            if r > c { return true }
+            if r < c { return false }
+        }
+        return false
+    }
+
+    private func runMacmonUpdate() {
+        let macmonBin = findMacmonCLI()
+        guard FileManager.default.isExecutableFile(atPath: macmonBin) else {
+            showAlert(
+                title: L("statusbar.alert.cli_missing_title"),
+                message: LF("statusbar.alert.cli_missing_message", macmonBin)
+            )
+            return
+        }
+        metricsQueue.async { [weak self] in
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: macmonBin)
+            proc.arguments = ["update"]
+            var env = ProcessInfo.processInfo.environment
+            env["MACMON_HOME"] = self?.macmonHome ?? ""
+            proc.environment = env
+
+            let pipe = Pipe()
+            proc.standardOutput = pipe
+            proc.standardError = pipe
+
+            do {
+                try proc.run()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                proc.waitUntilExit()
+                let output = String(data: data, encoding: .utf8) ?? ""
+                DispatchQueue.main.async { [weak self] in
+                    if proc.terminationStatus == 0 {
+                        self?.showAlert(
+                            title: L("statusbar.update.done_title"),
+                            message: output
+                        )
+                    } else {
+                        self?.showAlert(
+                            title: L("statusbar.update.error_title"),
+                            message: output
+                        )
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    self?.showAlert(
+                        title: L("statusbar.update.error_title"),
+                        message: error.localizedDescription
+                    )
+                }
             }
         }
     }

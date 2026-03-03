@@ -27,6 +27,16 @@
 "statusbar.alert.config_missing_message" = "No se encontro el archivo de configuracion en:\n%@";
 "statusbar.profile.none" = "No se encontraron perfiles";
 "statusbar.alert.ok" = "OK";
+"statusbar.menu.check_updates" = "Buscar actualizaciones...";
+"statusbar.update.error_title" = "Error de actualizacion";
+"statusbar.update.error_message" = "No se pudo verificar actualizaciones. Intenta mas tarde.";
+"statusbar.update.available_title" = "Actualizacion disponible";
+"statusbar.update.available_message" = "macmon v%@ esta instalado. v%@ esta disponible.";
+"statusbar.update.button_update" = "Actualizar";
+"statusbar.update.button_later" = "Despues";
+"statusbar.update.uptodate_title" = "Al dia";
+"statusbar.update.uptodate_message" = "macmon v%@ es la version mas reciente.";
+"statusbar.update.done_title" = "Actualizacion completa";
 "statusbar.export.panel.title" = "Exportar captura de macmon";
 "statusbar.export.panel.filename" = "macmon-snapshot.%@";
 

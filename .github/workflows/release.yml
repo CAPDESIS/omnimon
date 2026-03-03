@@ -22,24 +22,32 @@ jobs:
           make test
           make check
 
-      - name: Build binaries
+      - name: Build universal binaries
         run: make build
 
       - name: Create release archive
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p dist
-          tar czf "dist/macmon-${VERSION}-macos-arm64.tar.gz" \
+          tar czf "dist/macmon-${VERSION}-macos-universal.tar.gz" \
             --exclude='.git' \
+            --exclude='.github' \
             --exclude='dist' \
             --exclude='*.dSYM' \
             -s '/^\./macmon/' \
             .
 
+      - name: Generate checksums
+        run: |
+          cd dist
+          shasum -a 256 *.tar.gz > checksums-sha256.txt
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.tar.gz
+          files: |
+            dist/*.tar.gz
+            dist/checksums-sha256.txt
           generate_release_notes: true
           draft: false
           prerelease: false

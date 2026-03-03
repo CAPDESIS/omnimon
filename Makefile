@@ -11,20 +11,28 @@ STATUSBAR_SRC := src/gui/MacmonStatusBar.swift
 STATUSBAR_BIN := MacmonStatusBar
 INSTALL_DIR := $(HOME)/.local/libexec/macmon
 
+# Universal binary helper: compile for each arch, merge with lipo
+define universal_swiftc
+	swiftc -O -target arm64-apple-macos13 $(1) -o $(2)-arm64 $(3)
+	swiftc -O -target x86_64-apple-macos13 $(1) -o $(2)-x86_64 $(3)
+	lipo -create -output $(2) $(2)-arm64 $(2)-x86_64
+	rm -f $(2)-arm64 $(2)-x86_64
+endef
+
 .PHONY: build statusbar install uninstall clean check test audit
 
 build: $(SWIFT_BIN) $(DISKIO_BIN) $(STATUSBAR_BIN)
 
 $(SWIFT_BIN): $(SWIFT_MODEL_SRC) $(SWIFT_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC)
-	swiftc -O -framework Cocoa -o $@ $(SWIFT_MODEL_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_SRC)
+	$(call universal_swiftc,-framework Cocoa,$@,$(SWIFT_MODEL_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_SRC))
 
 $(DISKIO_BIN): $(DISKIO_SRC)
-	swiftc -O -o $@ $<
+	$(call universal_swiftc,,$@,$<)
 
 statusbar: $(STATUSBAR_BIN)
 
 $(STATUSBAR_BIN): $(STATUSBAR_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_PREFS_SRC)
-	swiftc -O -framework Cocoa -o $@ $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_PREFS_SRC) $(STATUSBAR_SRC)
+	$(call universal_swiftc,-framework Cocoa,$@,$(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_PREFS_SRC) $(STATUSBAR_SRC))
 
 install: build
 	./install.sh
@@ -34,6 +42,9 @@ uninstall:
 
 clean:
 	rm -f $(SWIFT_BIN) $(DISKIO_BIN) $(STATUSBAR_BIN)
+	rm -f $(SWIFT_BIN)-arm64 $(SWIFT_BIN)-x86_64
+	rm -f $(DISKIO_BIN)-arm64 $(DISKIO_BIN)-x86_64
+	rm -f $(STATUSBAR_BIN)-arm64 $(STATUSBAR_BIN)-x86_64
 	rm -rf $(SWIFT_BIN).dSYM $(DISKIO_BIN).dSYM $(STATUSBAR_BIN).dSYM
 
 test:

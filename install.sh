@@ -58,32 +58,51 @@ chmod 755 "$INSTALL_DIR"/scripts/*.sh
 find "$INSTALL_DIR"/src/gui -name '*.swift' -exec chmod 644 {} +
 find "$INSTALL_DIR"/config -type f -exec chmod 644 {} +
 
-# Compile Swift picker
-echo "Compiling ProcessPicker..."
-swiftc -O -framework Cocoa \
-    -o "$INSTALL_DIR/ProcessPicker" \
-    "$INSTALL_DIR/src/gui/ProcessPickerModel.swift" \
-    "$INSTALL_DIR/src/gui/Localization.swift" \
-    "$INSTALL_DIR/src/gui/AIService.swift" \
-    "$INSTALL_DIR/src/gui/ProcessPicker.swift"
-echo "ProcessPicker compiled successfully"
+# Helper: compile universal binary (arm64 + x86_64, merged with lipo)
+compile_universal() {
+    local output="$1"
+    shift
+    # $@ = remaining swiftc flags and sources
+    swiftc -O -target arm64-apple-macos13 "$@" -o "${output}-arm64"
+    swiftc -O -target x86_64-apple-macos13 "$@" -o "${output}-x86_64"
+    lipo -create -output "$output" "${output}-arm64" "${output}-x86_64"
+    rm -f "${output}-arm64" "${output}-x86_64"
+}
 
-# Compile DiskIOHelper
-echo "Compiling DiskIOHelper..."
-swiftc -O \
-    -o "$INSTALL_DIR/DiskIOHelper" \
-    "$INSTALL_DIR/src/gui/DiskIOHelper.swift"
-echo "DiskIOHelper compiled successfully"
+# Use pre-compiled binaries if present (web installer flow), otherwise compile
+if [[ -x "$SCRIPT_DIR/ProcessPicker" && -x "$SCRIPT_DIR/DiskIOHelper" && -x "$SCRIPT_DIR/MacmonStatusBar" ]]; then
+    echo "Using pre-compiled binaries..."
+    cp "$SCRIPT_DIR/ProcessPicker" "$INSTALL_DIR/ProcessPicker"
+    cp "$SCRIPT_DIR/DiskIOHelper" "$INSTALL_DIR/DiskIOHelper"
+    cp "$SCRIPT_DIR/MacmonStatusBar" "$INSTALL_DIR/MacmonStatusBar"
+    echo "Binaries copied successfully"
+else
+    # Compile Swift picker
+    echo "Compiling ProcessPicker..."
+    compile_universal "$INSTALL_DIR/ProcessPicker" \
+        -framework Cocoa \
+        "$INSTALL_DIR/src/gui/ProcessPickerModel.swift" \
+        "$INSTALL_DIR/src/gui/Localization.swift" \
+        "$INSTALL_DIR/src/gui/AIService.swift" \
+        "$INSTALL_DIR/src/gui/ProcessPicker.swift"
+    echo "ProcessPicker compiled successfully"
 
-# Compile MacmonStatusBar
-echo "Compiling MacmonStatusBar..."
-swiftc -O -framework Cocoa \
-    -o "$INSTALL_DIR/MacmonStatusBar" \
-    "$INSTALL_DIR/src/gui/Localization.swift" \
-    "$INSTALL_DIR/src/gui/AIService.swift" \
-    "$INSTALL_DIR/src/gui/PreferencesWindow.swift" \
-    "$INSTALL_DIR/src/gui/MacmonStatusBar.swift"
-echo "MacmonStatusBar compiled successfully"
+    # Compile DiskIOHelper
+    echo "Compiling DiskIOHelper..."
+    compile_universal "$INSTALL_DIR/DiskIOHelper" \
+        "$INSTALL_DIR/src/gui/DiskIOHelper.swift"
+    echo "DiskIOHelper compiled successfully"
+
+    # Compile MacmonStatusBar
+    echo "Compiling MacmonStatusBar..."
+    compile_universal "$INSTALL_DIR/MacmonStatusBar" \
+        -framework Cocoa \
+        "$INSTALL_DIR/src/gui/Localization.swift" \
+        "$INSTALL_DIR/src/gui/AIService.swift" \
+        "$INSTALL_DIR/src/gui/PreferencesWindow.swift" \
+        "$INSTALL_DIR/src/gui/MacmonStatusBar.swift"
+    echo "MacmonStatusBar compiled successfully"
+fi
 
 # Harden binary permissions: executable by owner, readable by group (755)
 chmod 755 "$INSTALL_DIR/ProcessPicker" "$INSTALL_DIR/DiskIOHelper" "$INSTALL_DIR/MacmonStatusBar"
