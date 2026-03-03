@@ -16,7 +16,7 @@ macmon is structured as three cooperating components with a shared library:
        │                   │                      ▲
        └───────┬───────────┘                      │
                ▼                                  │
-       ┌────────────-───┐              ┌───────────┴───────┐
+       ┌────────────-───┐              ┌──────────┴───────-┐
        │ macmon-core.sh │              │  JSON temp file   │
        │ (shared lib)   │─────────────▶│  (process data)   │
        │                │              └───────────────────┘
