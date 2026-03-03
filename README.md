@@ -111,13 +111,13 @@ macmon help             # Show all commands
 
 Keep this README short; detailed topics are in docs:
 
-- English
-  - `docs/CONFIGURATION.md`
-  - `docs/ARCHITECTURE.md`
-  - `docs/VERSIONING.md`
-- Espanol
-  - `docs/es/CONFIGURATION.md`
-  - `docs/es/ARCHITECTURE.md`
+1. English
+   `docs/CONFIGURATION.md`
+   `docs/ARCHITECTURE.md`
+   `docs/VERSIONING.md`
+2. Espanol
+   `docs/es/CONFIGURATION.md`
+   `docs/es/ARCHITECTURE.md`
 
 If you start from the menu bar UI, use `Open Configuration` to edit thresholds directly in your editor.
 

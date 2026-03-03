@@ -46,10 +46,10 @@ custom_processes:
 ```
 
 Rules:
-- `name` is required and must match the executable name used by `pgrep -x`
-- `max_instances`, `max_ram_mb`, and `max_cpu_percent` are optional
-- Missing threshold fields default to `0` (no limit)
-- The daemon parses this list once and caches it, then evaluates each process each cycle
+1. `name` is required and must match the executable name used by `pgrep -x`
+2. `max_instances`, `max_ram_mb`, and `max_cpu_percent` are optional
+3. Missing threshold fields default to `0` (no limit)
+4. The daemon parses this list once and caches it, then evaluates each process each cycle
 
 ### Intervals
 
@@ -145,13 +145,13 @@ Orphans trigger a native macOS notification offering to open the process picker 
 
 ## Security Hardening
 
-- **CWE-362 (Race Condition)**: PID file writes now use a lock directory + atomic move to prevent concurrent write/remove races.
-- **TA0004 / Path Traversal**: config loading only accepts canonical `.yaml/.yml` paths under `~/.config/macmon/` or `${MACMON_HOME}/config/`; `..` traversal paths are rejected.
+1. **CWE-362 (Race Condition)**: PID file writes now use a lock directory + atomic move to prevent concurrent write/remove races.
+2. **TA0004 / Path Traversal**: config loading only accepts canonical `.yaml/.yml` paths under `~/.config/macmon/` or `${MACMON_HOME}/config/`; `..` traversal paths are rejected.
 
 ## Reliability Fallbacks
 
-- If config uses tab indentation or has malformed `custom_processes` entries, macmon logs a warning and keeps safe defaults in memory.
-- Daemon remains running; invalid config never crashes monitoring.
+1. If config uses tab indentation or has malformed `custom_processes` entries, macmon logs a warning and keeps safe defaults in memory.
+2. Daemon remains running; invalid config never crashes monitoring.
 
 ## Menu Bar Monitor
 

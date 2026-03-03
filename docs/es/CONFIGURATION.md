@@ -38,20 +38,20 @@ intervals:
 
 ## Reglas de `custom_processes`
 
-- `name` es obligatorio.
-- `max_instances`, `max_ram_mb` y `max_cpu_percent` son opcionales.
-- Si falta un campo, se asume `0` (sin limite).
-- El daemon cachea la lista y la invalida al recargar config.
+1. `name` es obligatorio.
+2. `max_instances`, `max_ram_mb` y `max_cpu_percent` son opcionales.
+3. Si falta un campo, se asume `0` (sin limite).
+4. El daemon cachea la lista y la invalida al recargar config.
 
 ## Hot Reload
 
-- El daemon detecta cambios en `macmon.yaml` y recarga automaticamente.
-- Desde GUI tambien puedes forzar recarga con `Reload Configuration`.
+1. El daemon detecta cambios en `macmon.yaml` y recarga automaticamente.
+2. Desde GUI tambien puedes forzar recarga con `Reload Configuration`.
 
 ## Fallback seguro
 
 Si el YAML tiene tabs o sintaxis invalida en `custom_processes`, macmon:
 
-- registra advertencia en logs,
-- notifica en UI,
-- y mantiene una configuracion segura por defecto en memoria (sin crash).
+1. Registra advertencia en logs.
+2. Notifica en UI.
+3. Mantiene una configuracion segura por defecto en memoria sin crash.
