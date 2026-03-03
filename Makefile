@@ -11,7 +11,7 @@ STATUSBAR_SRC := src/gui/MacmonStatusBar.swift
 STATUSBAR_BIN := MacmonStatusBar
 INSTALL_DIR := $(HOME)/.local/libexec/macmon
 
-.PHONY: build statusbar install uninstall clean check test audit verify-authors
+.PHONY: build statusbar install uninstall clean check test audit
 
 build: $(SWIFT_BIN) $(DISKIO_BIN) $(STATUSBAR_BIN)
 
@@ -39,9 +39,6 @@ clean:
 test:
 	@command -v bats >/dev/null 2>&1 || { echo "ERROR: bats not found (brew install bats-core)"; exit 1; }
 	bats tests/
-
-verify-authors:
-	@./scripts/verify-authors.sh HEAD
 
 check:
 	@echo "Checking dependencies..."

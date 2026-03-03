@@ -57,9 +57,9 @@ Native AppKit window using MVVM architecture:
 Persistent `NSStatusItem` showing live RAM usage. Collects data natively via `host_statistics64` and `sysctlbyname` (no subprocess spawning). Metrics collection runs on a background queue and applies UI updates on the main thread. Provides quick access to picker, config editing, export, and status.
 
 ### 5. AI Analysis Layer (`AIService.swift`)
-Keychain backed API key storage with provider support for OpenAI, Anthropic, and OpenRouter. This layer is analysis only and returns PID suggestions as strict JSON for user review.
+Keychain-backed API key storage with provider support for OpenAI, Anthropic, and OpenRouter. This layer is analysis-only and returns PID suggestions as strict JSON for user review.
 
-### 5. Disk I/O Helper (`DiskIOHelper.swift`)
+### 6. Disk I/O Helper (`DiskIOHelper.swift`)
 Standalone binary that reads per-process disk I/O via `proc_pid_rusage` with `RUSAGE_INFO_V4`. Takes PIDs as arguments or via `--stdin`, outputs JSON. Does not require root.
 
 ## Data Flow
@@ -105,6 +105,7 @@ Standalone binary that reads per-process disk I/O via `proc_pid_rusage` with `RU
 lib/
   macmon-core.sh                 # Shared functions (security, collection, kill, picker)
   macmon-config.sh               # Flat YAML parser → MACMON_CFG_* env vars
+  macmon-security.sh             # Immutable process blocklist
 src/
   daemon/macmond.sh              # Background loop with signal handlers
   cli/macmon.sh                  # CLI subcommand dispatcher
@@ -112,19 +113,28 @@ src/
   gui/ProcessPicker.swift        # AppKit UI layer
   gui/MacmonStatusBar.swift      # Menu bar status item
   gui/DiskIOHelper.swift         # Disk I/O via proc_pid_rusage
+  gui/AIService.swift            # AI provider integration (Keychain, API)
+  gui/PreferencesWindow.swift    # Preferences window for AI settings
+  gui/Localization.swift         # i18n string loader
+  gui/Resources/en.lproj/        # English strings
+  gui/Resources/es.lproj/        # Spanish strings
 scripts/
   chrome-tabs.sh                 # Chrome tab enumeration via AppleScript
   graceful-quit.sh               # Safe app/tab closing
 config/
   macmon.default.yaml            # Default configuration reference
+  profiles/                      # Preset profiles (developer, creator, gaming)
 templates/
   com.macmon.daemon.plist.in     # LaunchAgent template
 tests/
-  *.bats                         # BATS shell script tests (46 tests)
-  swift/ProcessViewModelTests.swift  # XCTest suite (12 tests)
+  *.bats                         # BATS shell script tests
+  swift/ProcessViewModelTests.swift  # XCTest suite
+  swift/AIServiceTests.swift     # AI service tests
   swift/run_tests.sh             # XCTest runner script
 brew/
   macmon.rb                      # Homebrew formula
+tools/
+  simulate_load.sh               # Demo load generator for testing
 ```
 
 ## Signal Handling

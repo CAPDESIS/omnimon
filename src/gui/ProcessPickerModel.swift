@@ -97,7 +97,6 @@ struct ProcessGroup {
     var entries: [Int]  // indices into the flat list
     var collapsed: Bool = false
 
-    var totalRAM: Double { return 0 }  // computed on demand from view model
     var count: Int { return entries.count }
 }
 

@@ -5,6 +5,7 @@ enum I18n {
     private static let fallbackLanguage = "en"
 
     private static var cache: [String: [String: String]] = [:]
+    private static let cacheLock = NSLock()
 
     private static var selectedLanguage: String {
         if let forced = ProcessInfo.processInfo.environment["MACMON_LANG"], !forced.isEmpty {
@@ -35,6 +36,8 @@ enum I18n {
     }
 
     private static func value(for key: String, language: String) -> String? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
         if cache[language] == nil {
             cache[language] = loadTable(language: language)
         }

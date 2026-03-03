@@ -1,36 +1,30 @@
 # Seguimiento de Implementacion
 
-Este archivo resume hitos completados y siguientes pasos de macmon.
+Estado de las funcionalidades de macmon y trabajo planeado.
 
 ## Completado
 
-1. Monitoreo dinamico de procesos desde YAML custom_processes.
-2. Base de i18n para UI y mensajes CLI.
-3. Endurecimiento de confiabilidad para PID y fallback de config.
-4. Sistema de perfiles con cambio en caliente desde CLI y AppKit.
-5. Integracion de analisis IA con API keys en Keychain.
-6. Flujo human in the loop con aprobacion explicita del usuario.
-7. Blocklist inmutable y protecciones de procesos Apple.
-8. Mitigacion de alucinaciones LLM con extraccion de PIDs por regex.
-9. Saneamiento de PIDs contra blocklist y validacion de proceso vivo.
+- Monitoreo dinamico de procesos con umbrales configurables por proceso
+- Soporte de internacionalizacion (ingles y espanol)
+- Manejo de archivo PID con proteccion de lock
+- Recarga de config al detectar cambios y con SIGUSR1
+- Sistema de perfiles con presets (developer, creator, gaming)
+- Analisis opcional de procesos via proveedores externos
+- Blocklist de procesos protegidos con verificacion de firma Apple
 
-## En Progreso
+## Planeado
 
-1. Diagnosticos de UI para calidad de respuesta IA.
-2. Modo dry run para previsualizacion de optimizacion.
+- UI dedicada para editar archivos YAML de perfiles
+- Tests de integracion para el ciclo completo del daemon
+- Modo dry-run para previsualizar optimizaciones
+- Exportar/importar perfiles firmados
+- Automatizacion del checklist de release
 
-## Siguientes Pasos
+## Verificacion
 
-1. UI dedicada para ver y editar YAML de perfiles.
-2. Pruebas de integracion con respuestas mock de proveedores.
-3. Telemetria local opcional para mejorar sugerencias.
-4. Formato firmado para exportar e importar perfiles.
-5. Automatizacion de checklist de release para docs y capturas.
-
-## Checklist de Validacion
-
-1. `make check`
-2. `make test`
-3. `bash tests/swift/run_tests.sh`
-4. `make audit`
-5. `make verify-authors`
+```bash
+make check                    # dependencias + sintaxis + compilacion
+make test                     # tests BATS
+bash tests/swift/run_tests.sh # XCTests de Swift
+make audit                    # shellcheck + CVEs
+```

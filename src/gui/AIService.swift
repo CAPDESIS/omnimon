@@ -24,6 +24,7 @@ final class AIService {
         "WindowServer",
         "coreaudiod",
         "AudioComponentRegistrar",
+        "coremediaiod",
         "VTDecoderXPCService",
         "VTEncoderXPCService",
         "kernel_task",
@@ -31,7 +32,17 @@ final class AIService {
         "syslogd",
         "logd",
         "notifyd",
+        "loginwindow",
+        "bluetoothd",
+        "fseventsd",
+        "mds",
+        "opendirectoryd",
+        "configd",
+        "powerd",
+        "thermalmonitord",
     ]
+
+    static let maxSuggestedPIDs = 20
 
     private init() {}
 
@@ -204,12 +215,14 @@ final class AIService {
         guard !pids.isEmpty else {
             throw NSError(domain: "AIService", code: 422, userInfo: [NSLocalizedDescriptionKey: "AI did not return valid PID candidates"])
         }
-        return Array(Set(pids)).sorted()
+        let unique = Array(Set(pids)).sorted()
+        return Array(unique.prefix(AIService.maxSuggestedPIDs))
     }
 
     static func extractPIDCandidates(from text: String) -> [Int] {
         let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        // Only accept strict JSON: {"pids":[...]}
         if let start = normalized.firstIndex(of: "{"),
            let end = normalized.lastIndex(of: "}") {
             let jsonFragment = String(normalized[start...end])
@@ -219,18 +232,6 @@ final class AIService {
                !pids.isEmpty {
                 return pids.filter { $0 > 1 }
             }
-        }
-
-        if let range = normalized.range(of: #"\[[^\]]*\]"#, options: .regularExpression) {
-            let arrayText = String(normalized[range])
-            let pattern = #"\d+"#
-            let regex = try? NSRegularExpression(pattern: pattern)
-            let matches = regex?.matches(in: arrayText, range: NSRange(location: 0, length: arrayText.utf16.count)) ?? []
-            let values = matches.compactMap { match -> Int? in
-                guard let range = Range(match.range, in: arrayText) else { return nil }
-                return Int(arrayText[range])
-            }
-            return values.filter { $0 > 1 }
         }
 
         return []

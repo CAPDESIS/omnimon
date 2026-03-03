@@ -1,18 +1,37 @@
-# Politica de Contribucion
+# Contribuir
 
-Este repositorio se mantiene por el owner.
+Gracias por tu interes en macmon. Este es un proyecto personal, pero las contribuciones son bienvenidas.
 
-1. La identidad de autor en commits debe ser `chochy2001 <54371626+chochy2001@users.noreply.github.com>`.
-2. La propiedad de codigo se aplica con `.github/CODEOWNERS` y `@chochy2001`.
-3. No se aceptan metadatos de commit generados por asistentes externos.
-4. Antes de hacer push ejecuta `make check`, `make test`, `make audit` y `make verify-authors`.
+## Como Contribuir
 
-## Verificacion de Autor
+1. Haz un fork del repositorio y crea una rama
+2. Haz tus cambios
+3. Ejecuta `make check` para verificar dependencias y compilacion
+4. Ejecuta `make test` para correr los tests
+5. Envia un pull request
 
-Usa:
+## Setup de Desarrollo
 
 ```bash
-make verify-authors
+brew install jq bats-core    # dependencias
+xcode-select --install       # compilador Swift
+
+make check    # verificar que todo funciona
+make test     # correr tests
 ```
 
-CI tambien valida la identidad del autor en cada push y pull request.
+## Lineamientos
+
+- Todo el codigo y mensajes de commit deben estar en ingles
+- Usa el estilo de commit convencional: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`
+- Los scripts de shell deben pasar `bash -n`
+- El codigo Swift debe compilar con `swiftc -O -framework Cocoa` (no se necesita proyecto Xcode)
+- Agrega tests para funcionalidad nueva cuando sea posible
+
+## Reportar Problemas
+
+Abre un issue en GitHub con:
+- Version de macOS
+- Pasos para reproducir
+- Comportamiento esperado vs real
+- Logs relevantes (`macmon log`)

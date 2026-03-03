@@ -40,8 +40,8 @@ log:
 
 # Process collection
 collect:
+  disk_io: true
   batch_lsof_limit: 50
-  chrome_tab_titles: true
 
 # Protected processes (never killed)
 protected:

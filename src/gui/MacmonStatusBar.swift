@@ -34,6 +34,7 @@ struct SystemSnapshot {
             MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride
         )
         let hostPort = mach_host_self()
+        defer { mach_port_deallocate(mach_task_self_, hostPort) }
 
         let result = withUnsafeMutablePointer(to: &stats) { ptr in
             ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { intPtr in
@@ -351,6 +352,7 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         guard ts > lastConfigMTime else { return }
         lastConfigMTime = ts
         signalDaemonReload()
+        rebuildProfileMenu()
     }
 
     private func updateMenuItems() {
@@ -371,7 +373,6 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
 
         // Process count
         processItem.title = LF("statusbar.process.value", snap.processCount)
-        rebuildProfileMenu()
     }
 
     private func rebuildProfileMenu() {
@@ -531,8 +532,8 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
 
             do {
                 try task.run()
-                task.waitUntilExit()
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                task.waitUntilExit()
                 try data.write(to: url)
             } catch {
                 DispatchQueue.main.async { [weak self] in
@@ -572,8 +573,8 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
 
             do {
                 try task.run()
-                task.waitUntilExit()
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                task.waitUntilExit()
                 guard let output = String(data: data, encoding: .utf8), !output.isEmpty else { return }
                 let tmpPath = NSTemporaryDirectory() + "macmon-status.txt"
                 try output.write(toFile: tmpPath, atomically: true, encoding: .utf8)
@@ -633,8 +634,9 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         task.standardError = FileHandle.nullDevice
         do {
             try task.run()
-            task.waitUntilExit()
+            // Read data BEFORE waitUntilExit to avoid deadlock when pipe buffer fills
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            task.waitUntilExit()
             let text = String(data: data, encoding: .utf8) ?? ""
             return text.split(separator: "\n").map { String($0) }.filter { !$0.isEmpty }
         } catch {

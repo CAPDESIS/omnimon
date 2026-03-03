@@ -107,34 +107,6 @@ macmon version          # Show version
 macmon help             # Show all commands
 ```
 
-## Documentation Map
-
-Keep this README short; detailed topics are in docs:
-
-1. English
-   `docs/CONFIGURATION.md`
-   `docs/ARCHITECTURE.md`
-   `docs/VERSIONING.md`
-   `docs/AI_INTEGRATION.md`
-   `docs/IMPLEMENTATION_TRACKER.md`
-   `CONTRIBUTING.md`
-2. Espanol
-   `docs/es/CONFIGURATION.md`
-   `docs/es/ARCHITECTURE.md`
-   `docs/es/AI_INTEGRATION.md`
-   `docs/es/IMPLEMENTATION_TRACKER.md`
-   `docs/es/CONTRIBUTING.md`
-
-If you start from the menu bar UI, use `Open Configuration` to edit thresholds directly in your editor.
-
-## Privacy and Safety Model
-
-1. AI only analyzes process snapshots.
-2. AI never executes shell commands.
-3. User must explicitly approve process checkboxes before optimization is applied.
-4. API keys are stored in macOS Keychain.
-5. Final process termination is executed by native Bash safeguards with protected process checks.
-
 ### Process Picker Keyboard Shortcuts
 
 | Shortcut | Action |
@@ -311,11 +283,13 @@ make uninstall
 
 ## Contributing
 
-This repository is owner maintained.
+1. Fork the repo and create a feature branch
+2. Make your changes
+3. Run `make check` to verify everything passes
+4. Run `make test` to run the test suite
+5. Submit a pull request
 
-1. Review `CONTRIBUTING.md` for repository policy.
-2. Verify local quality gates with `make check`, `make test`, `make audit`, and `make verify-authors`.
-3. Ensure commit author identity is `chochy2001 <54371626+chochy2001@users.noreply.github.com>`.
+All commits should be in English. Follow conventional commit messages: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`.
 
 ## License
 

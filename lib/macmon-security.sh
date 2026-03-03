@@ -3,7 +3,7 @@
 # Immutable blocklist for critical system processes and command patterns.
 
 readonly MACMON_BLOCKED_PROCESSES="WindowServer:coreaudiod:AudioComponentRegistrar:coremediaiod:VTDecoderXPCService:VTEncoderXPCService:kernel_task:launchd:syslogd:logd:notifyd"
-readonly MACMON_BLOCKED_COMMAND_PATTERNS="rm -rf|sudo|launchctl|osascript|curl|sh -c"
+readonly MACMON_BLOCKED_COMMAND_PATTERNS="rm -rf:sudo:launchctl:osascript:curl:sh -c"
 
 macmon_is_blocked_process() {
     local name="$1"
@@ -17,5 +17,10 @@ macmon_is_blocked_process() {
 
 macmon_contains_blocked_command_pattern() {
     local input="$1"
-    [[ "$input" =~ $MACMON_BLOCKED_COMMAND_PATTERNS ]]
+    local IFS=':'
+    local pattern
+    for pattern in $MACMON_BLOCKED_COMMAND_PATTERNS; do
+        [[ "$input" == *"$pattern"* ]] && return 0
+    done
+    return 1
 }

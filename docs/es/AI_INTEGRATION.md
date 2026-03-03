@@ -1,38 +1,35 @@
 # Integracion de IA
 
-macmon v2 mantiene la ejecucion nativa y segura.
+macmon soporta analisis opcional de procesos asistido por IA a traves de proveedores externos. La capa de IA es estrictamente de lectura — sugiere procesos para cerrar, pero nunca ejecuta comandos directamente.
 
-## Flujo de Datos
+## Como Funciona
 
-1. El usuario abre Preferencias y selecciona proveedor y modelo.
-2. La API key se guarda con `SecItemAdd` en Keychain de macOS.
-3. El usuario pulsa Smart Optimize en Process Picker.
-4. Swift construye un snapshot ligero de procesos.
-5. El snapshot se envia al proveedor de IA solo para analisis.
-6. El proveedor devuelve JSON estricto con PIDs candidatos.
-7. La UI marca filas sugeridas y pide aplicar o revisar.
-8. Solo con aprobacion del usuario, los PIDs pasan a Bash.
-9. Bash valida seguridad y envia `kill -15` con fallback `kill -9`.
+1. Abre Preferencias desde la barra de menu y configura tu proveedor, modelo y API key
+2. Las API keys se guardan de forma segura en el Keychain de macOS (nunca en archivos de texto)
+3. Presiona "Smart Optimize" en el Process Picker
+4. macmon envia un snapshot ligero de procesos al proveedor elegido
+5. El proveedor devuelve una lista de PIDs candidatos como JSON
+6. Los procesos sugeridos se resaltan en la tabla para tu revision
+7. Tu eliges cuales cerrar — nada pasa sin aprobacion explicita
+8. Los PIDs seleccionados pasan por las mismas validaciones de seguridad que la seleccion manual
 
-## Reglas de Seguridad
+## Seguridad
 
-1. La salida de IA se trata como entrada no confiable.
-2. Solo se aceptan PIDs de la respuesta.
-3. Ningun comando de IA se ejecuta.
-4. Blocklist y proteccion de procesos Apple siempre se aplican.
-5. Servicios criticos de audio y video permanecen protegidos.
-6. Texto alucinado del LLM se limpia con extraccion de PIDs por regex.
-7. Los PIDs sugeridos se validan contra procesos vivos y blocklist antes de mostrar confirmacion.
+- La salida de IA se trata como entrada no confiable en cada paso
+- Solo se extraen PIDs numericos de las respuestas — nunca se ejecutan comandos
+- Los procesos protegidos (WindowServer, kernel_task, launchd, etc.) no pueden seleccionarse sin importar lo que sugiera la IA
+- La verificacion de firma de codigo Apple aplica a todos los nombres de procesos del sistema
 
-## Proveedores
+## Proveedores Soportados
 
-1. OpenAI
-2. Anthropic
-3. OpenRouter
+| Proveedor | Endpoint |
+|-----------|----------|
+| OpenAI | `api.openai.com/v1/chat/completions` |
+| Anthropic | `api.anthropic.com/v1/messages` |
+| OpenRouter | `openrouter.ai/api/v1/chat/completions` |
 
 ## Almacenamiento en Keychain
 
-1. Service key: `com.macmon.ai`
-2. Account key: nombre del proveedor (`openai`, `anthropic`, `openrouter`)
-3. Valor: bytes de API key, sin guardado en texto plano
-4. Accesibilidad: `kSecAttrAccessibleWhenUnlocked`
+- Service: `com.macmon.ai`
+- Account: nombre del proveedor (`openai`, `anthropic`, `openrouter`)
+- Accesibilidad: `kSecAttrAccessibleWhenUnlocked`

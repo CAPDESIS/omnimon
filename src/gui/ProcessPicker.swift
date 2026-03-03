@@ -682,8 +682,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     }
 
     private func switchProfile(_ profile: String) {
-        dataQueue.async {
-            _ = self.runCLI(args: ["profile", "use", profile])
+        dataQueue.async { [weak self] in
+            _ = self?.runCLI(args: ["profile", "use", profile])
         }
     }
 
@@ -702,8 +702,9 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         task.standardError = FileHandle.nullDevice
         do {
             try task.run()
-            task.waitUntilExit()
+            // Read data BEFORE waitUntilExit to avoid deadlock when pipe buffer fills
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            task.waitUntilExit()
             return String(data: data, encoding: .utf8) ?? ""
         } catch {
             return ""
@@ -864,9 +865,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Set up keyboard shortcuts
         keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self else { return event }
+            let searchFocused = self.controller.window.firstResponder is NSTextView &&
+                self.controller.searchField.currentEditor() != nil
             if event.modifierFlags.contains(.command) {
                 switch event.charactersIgnoringModifiers {
                 case "a":
+                    if searchFocused { return event }
                     self.controller.selectAll(nil)
                     return nil
                 case "f":
@@ -879,11 +883,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     break
                 }
             }
+            if searchFocused { return event }
             if event.keyCode == 51 { // Delete key
-                self.controller.closeSelected(nil)
-                return nil
-            }
-            if event.keyCode == 36 { // Return key
                 self.controller.closeSelected(nil)
                 return nil
             }

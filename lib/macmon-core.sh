@@ -488,13 +488,9 @@ collect_processes_json() {
         json_array=$(printf '%s' "$json_array" | jq 'map(. + {diskReadMB: 0, diskWriteMB: 0})')
     fi
 
-    # Phase 5: Collect system health data
-    local mem_pressure_output
-    mem_pressure_output=$(memory_pressure 2>/dev/null | tail -1 || echo "")
-    local free_pct=0
-    if [[ "$mem_pressure_output" =~ ([0-9]+)% ]]; then
-        free_pct="${BASH_REMATCH[1]}"
-    fi
+    # Phase 5: Collect system health data (uses cached memory_pressure)
+    local free_pct
+    free_pct=$(get_free_ram_percent)
 
     local swap_info
     swap_info=$(sysctl -n vm.swapusage 2>/dev/null || echo "")
@@ -787,17 +783,18 @@ ensure_picker_compiled() {
     local swift_src="${MACMON_HOME}/src/gui/ProcessPicker.swift"
     local swift_model_src="${MACMON_HOME}/src/gui/ProcessPickerModel.swift"
     local swift_i18n_src="${MACMON_HOME}/src/gui/Localization.swift"
+    local swift_ai_src="${MACMON_HOME}/src/gui/AIService.swift"
     local binary="${MACMON_HOME}/ProcessPicker"
 
-    if [[ ! -f "$swift_src" || ! -f "$swift_model_src" || ! -f "$swift_i18n_src" ]]; then
+    if [[ ! -f "$swift_src" || ! -f "$swift_model_src" || ! -f "$swift_i18n_src" || ! -f "$swift_ai_src" ]]; then
         macmon_log "ERROR: Swift source not found at $swift_src"
         return 1
     fi
 
     # Compile if binary missing or source is newer
-    if [[ ! -f "$binary" || "$swift_src" -nt "$binary" || "$swift_model_src" -nt "$binary" || "$swift_i18n_src" -nt "$binary" ]]; then
+    if [[ ! -f "$binary" || "$swift_src" -nt "$binary" || "$swift_model_src" -nt "$binary" || "$swift_i18n_src" -nt "$binary" || "$swift_ai_src" -nt "$binary" ]]; then
         macmon_log "Compiling ProcessPicker..."
-        if swiftc -O -framework Cocoa -o "$binary" "$swift_model_src" "$swift_i18n_src" "$swift_src" 2>&1; then
+        if swiftc -O -framework Cocoa -o "$binary" "$swift_model_src" "$swift_i18n_src" "$swift_ai_src" "$swift_src" 2>&1; then
             macmon_log "ProcessPicker compiled successfully"
         else
             macmon_log "ERROR: Failed to compile ProcessPicker"

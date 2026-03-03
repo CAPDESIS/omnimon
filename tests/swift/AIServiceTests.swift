@@ -7,10 +7,17 @@ class AIServiceExtractionTests: XCTestCase {
         XCTAssertEqual(pids, [123, 456, 789])
     }
 
-    func testExtractPIDCandidatesFromConversationalText() {
+    func testExtractPIDCandidatesRejectsLooseText() {
+        // Loose brackets without {"pids":...} wrapper must be rejected
         let text = "Here are safe candidates: [123, 456] based on your profile."
         let pids = AIService.extractPIDCandidates(from: text)
-        XCTAssertEqual(pids, [123, 456])
+        XCTAssertTrue(pids.isEmpty)
+    }
+
+    func testExtractPIDCandidatesFromWrappedJSON() {
+        let text = "Sure! {\"pids\":[42, 99]} hope that helps."
+        let pids = AIService.extractPIDCandidates(from: text)
+        XCTAssertEqual(pids, [42, 99])
     }
 
     func testSanitizeSuggestedPIDsFiltersProtectedAndUnknown() {
