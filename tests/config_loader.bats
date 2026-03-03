@@ -8,6 +8,10 @@ setup() {
     macmon_load_config ""
 }
 
+teardown() {
+    _macmon_test_teardown
+}
+
 @test "macmon_cfg: reads default RAM threshold" {
     result=$(macmon_cfg "THRESHOLDS_RAM_FREE_PERCENT" "99")
     [ "$result" = "25" ]

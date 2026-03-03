@@ -11,12 +11,26 @@ _macmon_test_setup() {
     # Source config loader first
     source "${MACMON_HOME}/lib/macmon-config.sh"
 
+    # Force-release any stale config lock (from daemon or previous test)
+    rmdir "${_MACMON_CFG_LOCK_DIR}" 2>/dev/null || true
+    _MACMON_CFG_LOCK_DEPTH=0
+
     # Load default config
     export MACMON_CONFIG="${MACMON_HOME}/config/macmon.default.yaml"
     macmon_load_config "$MACMON_CONFIG"
 
     # Source core library (functions only, no side effects)
     source "${MACMON_HOME}/lib/macmon-core.sh"
+
+    # Restore test-safe state after core.sh re-enables strict mode
+    set +euo pipefail
+    rmdir "${_MACMON_CFG_LOCK_DIR}" 2>/dev/null || true
+    _MACMON_CFG_LOCK_DEPTH=0
+}
+
+_macmon_test_teardown() {
+    rmdir "${_MACMON_CFG_LOCK_DIR}" 2>/dev/null || true
+    _MACMON_CFG_LOCK_DEPTH=0
 }
 
 # Mock system commands by prepending a mock directory to PATH
