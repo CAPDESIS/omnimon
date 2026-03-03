@@ -1,19 +1,27 @@
 SHELL := /bin/bash
+SWIFT_MODEL_SRC := src/gui/ProcessPickerModel.swift
 SWIFT_SRC := src/gui/ProcessPicker.swift
 SWIFT_BIN := ProcessPicker
 DISKIO_SRC := src/gui/DiskIOHelper.swift
 DISKIO_BIN := DiskIOHelper
+STATUSBAR_SRC := src/gui/MacmonStatusBar.swift
+STATUSBAR_BIN := MacmonStatusBar
 INSTALL_DIR := $(HOME)/.local/libexec/macmon
 
-.PHONY: build install uninstall clean check test
+.PHONY: build statusbar install uninstall clean check test
 
-build: $(SWIFT_BIN) $(DISKIO_BIN)
+build: $(SWIFT_BIN) $(DISKIO_BIN) $(STATUSBAR_BIN)
 
-$(SWIFT_BIN): $(SWIFT_SRC)
-	swiftc -O -framework Cocoa -o $@ $<
+$(SWIFT_BIN): $(SWIFT_MODEL_SRC) $(SWIFT_SRC)
+	swiftc -O -framework Cocoa -o $@ $(SWIFT_MODEL_SRC) $(SWIFT_SRC)
 
 $(DISKIO_BIN): $(DISKIO_SRC)
 	swiftc -O -o $@ $<
+
+statusbar: $(STATUSBAR_BIN)
+
+$(STATUSBAR_BIN): $(STATUSBAR_SRC)
+	swiftc -O -framework Cocoa -o $@ $<
 
 install: build
 	./install.sh
@@ -22,8 +30,8 @@ uninstall:
 	./uninstall.sh
 
 clean:
-	rm -f $(SWIFT_BIN) $(DISKIO_BIN)
-	rm -rf $(SWIFT_BIN).dSYM $(DISKIO_BIN).dSYM
+	rm -f $(SWIFT_BIN) $(DISKIO_BIN) $(STATUSBAR_BIN)
+	rm -rf $(SWIFT_BIN).dSYM $(DISKIO_BIN).dSYM $(STATUSBAR_BIN).dSYM
 
 test:
 	@command -v bats >/dev/null 2>&1 || { echo "ERROR: bats not found (brew install bats-core)"; exit 1; }

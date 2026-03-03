@@ -44,6 +44,7 @@ chmod +x "$INSTALL_DIR"/scripts/*.sh
 echo "Compiling ProcessPicker..."
 swiftc -O -framework Cocoa \
     -o "$INSTALL_DIR/ProcessPicker" \
+    "$INSTALL_DIR/src/gui/ProcessPickerModel.swift" \
     "$INSTALL_DIR/src/gui/ProcessPicker.swift"
 echo "ProcessPicker compiled successfully"
 
@@ -53,6 +54,13 @@ swiftc -O \
     -o "$INSTALL_DIR/DiskIOHelper" \
     "$INSTALL_DIR/src/gui/DiskIOHelper.swift"
 echo "DiskIOHelper compiled successfully"
+
+# Compile MacmonStatusBar
+echo "Compiling MacmonStatusBar..."
+swiftc -O -framework Cocoa \
+    -o "$INSTALL_DIR/MacmonStatusBar" \
+    "$INSTALL_DIR/src/gui/MacmonStatusBar.swift"
+echo "MacmonStatusBar compiled successfully"
 
 # Create config if absent
 if [[ ! -f "$CONFIG_DIR/macmon.yaml" ]]; then
@@ -91,6 +99,11 @@ echo "  Usage:"
 echo "    macmon              # Open process picker"
 echo "    macmon status       # System health summary"
 echo "    macmon help         # All commands"
+echo ""
+echo "  Menu Bar:"
+echo "    MACMON_HOME=$INSTALL_DIR $INSTALL_DIR/MacmonStatusBar &"
+echo "    # Runs a status bar icon with live RAM/swap/process info."
+echo "    # Add to Login Items for auto-start."
 echo ""
 echo "The daemon is running and will auto-start on login."
 echo "Config: $CONFIG_DIR/macmon.yaml"
