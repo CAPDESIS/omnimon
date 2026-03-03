@@ -2,7 +2,7 @@
 
 # Immutable blocklist for critical system processes and command patterns.
 
-readonly MACMON_BLOCKED_PROCESSES="WindowServer:coreaudiod:VTDecoderXPCService:kernel_task:launchd:syslogd:logd:notifyd"
+readonly MACMON_BLOCKED_PROCESSES="WindowServer:coreaudiod:AudioComponentRegistrar:coremediaiod:VTDecoderXPCService:VTEncoderXPCService:kernel_task:launchd:syslogd:logd:notifyd"
 readonly MACMON_BLOCKED_COMMAND_PATTERNS="rm -rf|sudo|launchctl|osascript|curl|sh -c"
 
 macmon_is_blocked_process() {

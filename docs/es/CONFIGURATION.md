@@ -60,6 +60,7 @@ macmon profile use developer
 ```
 
 El cambio de perfil dispara recarga del daemon en tiempo real.
+El cambio usa escritura atomica con lock para evitar lecturas parciales.
 
 ## Hot Reload
 
@@ -73,3 +74,5 @@ Si el YAML tiene tabs o sintaxis invalida en `custom_processes`, macmon:
 1. Registra advertencia en logs.
 2. Notifica en UI.
 3. Mantiene una configuracion segura por defecto en memoria sin crash.
+
+Los demonios multimedia criticos permanecen blindados, incluyendo `coreaudiod`, `AudioComponentRegistrar`, `VTDecoderXPCService` y `VTEncoderXPCService`.

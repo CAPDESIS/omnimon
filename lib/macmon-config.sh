@@ -49,13 +49,52 @@ macmon_active_profile_file() {
     printf '%s\n' "$HOME/.config/macmon/active_profile"
 }
 
+_MACMON_CFG_LOCK_DEPTH=0
+_MACMON_CFG_LOCK_DIR="${HOME}/.config/macmon/.macmon-config.lock"
+
+_macmon_cfg_lock_acquire() {
+    if (( _MACMON_CFG_LOCK_DEPTH > 0 )); then
+        (( _MACMON_CFG_LOCK_DEPTH++ )) || true
+        return 0
+    fi
+    mkdir -p "${HOME}/.config/macmon"
+    local waited=0
+    while ! mkdir "$_MACMON_CFG_LOCK_DIR" 2>/dev/null; do
+        (( waited++ )) || true
+        if (( waited > 100 )); then
+            return 1
+        fi
+        sleep 0.05
+    done
+    _MACMON_CFG_LOCK_DEPTH=1
+    return 0
+}
+
+_macmon_cfg_lock_release() {
+    if (( _MACMON_CFG_LOCK_DEPTH <= 0 )); then
+        return 0
+    fi
+    (( _MACMON_CFG_LOCK_DEPTH-- )) || true
+    if (( _MACMON_CFG_LOCK_DEPTH == 0 )); then
+        rmdir "$_MACMON_CFG_LOCK_DIR" 2>/dev/null || true
+    fi
+}
+
 macmon_get_active_profile() {
+    _macmon_cfg_lock_acquire || return 1
     local active_file
     active_file=$(macmon_active_profile_file)
-    [[ -f "$active_file" ]] || return 1
+    if [[ ! -f "$active_file" ]]; then
+        _macmon_cfg_lock_release
+        return 1
+    fi
     local name
     name=$(tr -d '[:space:]' < "$active_file" 2>/dev/null || true)
-    [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]] || return 1
+    if [[ ! "$name" =~ ^[A-Za-z0-9._-]+$ ]]; then
+        _macmon_cfg_lock_release
+        return 1
+    fi
+    _macmon_cfg_lock_release
     printf '%s\n' "$name"
 }
 
@@ -84,17 +123,24 @@ macmon_list_profiles() {
 }
 
 macmon_set_active_profile() {
+    _macmon_cfg_lock_acquire || return 1
     local profile="$1"
     local profile_path
-    profile_path=$(macmon_profile_path "$profile" 2>/dev/null) || return 1
-    [[ -f "$profile_path" ]] || return 1
+    profile_path=$(macmon_profile_path "$profile" 2>/dev/null) || { _macmon_cfg_lock_release; return 1; }
+    [[ -f "$profile_path" ]] || { _macmon_cfg_lock_release; return 1; }
     mkdir -p "$HOME/.config/macmon"
-    printf '%s\n' "$profile" > "$(macmon_active_profile_file)"
+    local tmp active_file
+    active_file=$(macmon_active_profile_file)
+    tmp=$(mktemp "$HOME/.config/macmon/.active_profile.XXXXXX")
+    printf '%s\n' "$profile" > "$tmp"
+    mv -f "$tmp" "$active_file"
+    _macmon_cfg_lock_release
 }
 
 MACMON_LOADED_CONFIG_PATH=""
 
 macmon_resolve_config_file() {
+    _macmon_cfg_lock_acquire || return 1
     local requested="${1:-}"
     local default_user="$HOME/.config/macmon/macmon.yaml"
 
@@ -102,6 +148,7 @@ macmon_resolve_config_file() {
         local validated_requested
         validated_requested=$(_validated_config_path "$requested" || true)
         if [[ -n "$validated_requested" ]]; then
+            _macmon_cfg_lock_release
             printf '%s\n' "$validated_requested"
             return 0
         fi
@@ -113,6 +160,7 @@ macmon_resolve_config_file() {
         local profile_file
         profile_file=$(macmon_profile_path "$active" 2>/dev/null || true)
         if [[ -n "$profile_file" && -f "$profile_file" ]]; then
+            _macmon_cfg_lock_release
             printf '%s\n' "$profile_file"
             return 0
         fi
@@ -121,6 +169,7 @@ macmon_resolve_config_file() {
     local validated_default_user
     validated_default_user=$(_validated_config_path "$default_user" || true)
     if [[ -n "$validated_default_user" && -f "$validated_default_user" ]]; then
+        _macmon_cfg_lock_release
         printf '%s\n' "$validated_default_user"
         return 0
     fi
@@ -128,7 +177,13 @@ macmon_resolve_config_file() {
     local default_config="${MACMON_HOME:-}/config/macmon.default.yaml"
     local validated_default
     validated_default=$(_validated_config_path "$default_config" || true)
-    [[ -n "$validated_default" ]] && printf '%s\n' "$validated_default"
+    if [[ -n "$validated_default" ]]; then
+        _macmon_cfg_lock_release
+        printf '%s\n' "$validated_default"
+        return 0
+    fi
+    _macmon_cfg_lock_release
+    return 1
 }
 
 macmon_get_loaded_config_path() {
@@ -214,6 +269,10 @@ _validate_custom_processes_block() {
 }
 
 macmon_load_config() {
+    _macmon_cfg_lock_acquire || {
+        export MACMON_CFG_CONFIG_ERROR="config_lock_timeout"
+        return 1
+    }
     local config_file="${1:-}"
     local default_config="${MACMON_HOME:-}/config/macmon.default.yaml"
     local validated_default=""
@@ -245,6 +304,7 @@ macmon_load_config() {
     [[ -n "$MACMON_LOADED_CONFIG_PATH" ]] || MACMON_LOADED_CONFIG_PATH="$validated_default"
 
     _macmon_config_loaded=1
+    _macmon_cfg_lock_release
 }
 
 _parse_yaml() {
@@ -330,8 +390,10 @@ _custom_processes_cache=""
 _custom_processes_loaded=0
 
 macmon_get_custom_processes() {
+    _macmon_cfg_lock_acquire || return 1
     # Return cache if already parsed
     if [[ "$_custom_processes_loaded" -eq 1 && -n "$_custom_processes_cache" ]]; then
+        _macmon_cfg_lock_release
         printf '%s\n' "$_custom_processes_cache"
         return 0
     fi
@@ -355,7 +417,10 @@ macmon_get_custom_processes() {
         file=$(_validated_config_path "$default_config" || true)
     fi
 
-    [[ -n "$file" && -f "$file" ]] || return 1
+    if [[ -z "$file" || ! -f "$file" ]]; then
+        _macmon_cfg_lock_release
+        return 1
+    fi
 
     local in_custom=0
     local current_name="" max_inst="0" max_ram="0" max_cpu="0"
@@ -431,9 +496,11 @@ macmon_get_custom_processes() {
     _custom_processes_loaded=1
 
     if [[ -n "$results" ]]; then
+        _macmon_cfg_lock_release
         printf '%s\n' "$results"
         return 0
     fi
+    _macmon_cfg_lock_release
     return 1
 }
 

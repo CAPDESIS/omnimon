@@ -68,6 +68,7 @@ macmon profile use developer
 ```
 
 Profile switch triggers daemon reload automatically.
+Profile state changes use lock protected atomic writes to avoid partial reads during daemon checks.
 
 ### Intervals
 
@@ -130,6 +131,7 @@ protected:
 ```
 
 Add your own protected processes by appending to this list.
+Critical multimedia daemons are permanently protected, including `coreaudiod`, `AudioComponentRegistrar`, `VTDecoderXPCService`, and `VTEncoderXPCService`.
 
 ## Metrics Export
 

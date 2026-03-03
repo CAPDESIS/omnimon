@@ -141,7 +141,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     var closeButton: NSButton!
     var cancelButton: NSButton!
     var profilePopup: NSPopUpButton!
-    private let aiBlockedNames: Set<String> = ["WindowServer", "coreaudiod", "VTDecoderXPCService", "kernel_task", "launchd", "syslogd"]
+    private let aiBlockedNames = AIService.immutableProtectedProcessNames
 
     var exitCode: Int32 = 2  // default: cancelled
 
@@ -747,8 +747,11 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     }
 
     private func presentAISuggestions(_ pids: [Int]) {
-        let allowed = Set(viewModel.allProcesses.filter { !$0.isSystem && !aiBlockedNames.contains($0.name) }.map { $0.pid })
-        let safePIDs = pids.filter { allowed.contains($0) }
+        var processTable: [Int: String] = [:]
+        for p in viewModel.allProcesses where !p.isSystem {
+            processTable[p.pid] = p.name
+        }
+        let safePIDs = AIService.sanitizeSuggestedPIDs(pids, processTable: processTable)
         if safePIDs.isEmpty {
             presentAIError(L("picker.ai.no_safe"))
             return

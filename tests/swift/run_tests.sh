@@ -49,7 +49,9 @@ swiftc \
     -Xlinker -bundle \
     "$REPO/src/gui/ProcessPickerModel.swift" \
     "$REPO/src/gui/Localization.swift" \
-    "$DIR/ProcessViewModelTests.swift"
+    "$REPO/src/gui/AIService.swift" \
+    "$DIR/ProcessViewModelTests.swift" \
+    "$DIR/AIServiceTests.swift"
 
 # Run tests using xctest
 xcrun xctest "$BUNDLE_DIR"

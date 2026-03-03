@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import Darwin
 
 enum AIProvider: String, CaseIterable {
     case openai
@@ -19,6 +20,18 @@ final class AIService {
     static let shared = AIService()
 
     private let servicePrefix = "com.macmon.ai"
+    static let immutableProtectedProcessNames: Set<String> = [
+        "WindowServer",
+        "coreaudiod",
+        "AudioComponentRegistrar",
+        "VTDecoderXPCService",
+        "VTEncoderXPCService",
+        "kernel_task",
+        "launchd",
+        "syslogd",
+        "logd",
+        "notifyd",
+    ]
 
     private init() {}
 
@@ -36,7 +49,7 @@ final class AIService {
 
         var addQuery = baseQuery
         addQuery[kSecValueData as String] = data
-        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
         return SecItemAdd(addQuery as CFDictionary, nil) == errSecSuccess
     }
 
@@ -187,19 +200,51 @@ final class AIService {
             text = value
         }
 
-        let extracted = extractFirstJSONObject(text)
-        guard let jsonData = extracted.data(using: .utf8),
-              let obj = try JSONSerialization.jsonObject(with: jsonData, options: []) as? [String: Any],
-              let pids = obj["pids"] as? [Int] else {
-            throw NSError(domain: "AIService", code: 422, userInfo: [NSLocalizedDescriptionKey: "AI did not return strict JSON with pids"])
+        let pids = AIService.extractPIDCandidates(from: text)
+        guard !pids.isEmpty else {
+            throw NSError(domain: "AIService", code: 422, userInfo: [NSLocalizedDescriptionKey: "AI did not return valid PID candidates"])
         }
-        return pids
+        return Array(Set(pids)).sorted()
     }
 
-    private func extractFirstJSONObject(_ text: String) -> String {
-        guard let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}") else {
-            return text
+    static func extractPIDCandidates(from text: String) -> [Int] {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let start = normalized.firstIndex(of: "{"),
+           let end = normalized.lastIndex(of: "}") {
+            let jsonFragment = String(normalized[start...end])
+            if let data = jsonFragment.data(using: .utf8),
+               let obj = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+               let pids = obj["pids"] as? [Int],
+               !pids.isEmpty {
+                return pids.filter { $0 > 1 }
+            }
         }
-        return String(text[start...end])
+
+        if let range = normalized.range(of: #"\[[^\]]*\]"#, options: .regularExpression) {
+            let arrayText = String(normalized[range])
+            let pattern = #"\d+"#
+            let regex = try? NSRegularExpression(pattern: pattern)
+            let matches = regex?.matches(in: arrayText, range: NSRange(location: 0, length: arrayText.utf16.count)) ?? []
+            let values = matches.compactMap { match -> Int? in
+                guard let range = Range(match.range, in: arrayText) else { return nil }
+                return Int(arrayText[range])
+            }
+            return values.filter { $0 > 1 }
+        }
+
+        return []
+    }
+
+    static func sanitizeSuggestedPIDs(_ pids: [Int], processTable: [Int: String]) -> [Int] {
+        var filtered: [Int] = []
+        for pid in pids where pid > 1 {
+            guard let name = processTable[pid], !name.isEmpty else { continue }
+            guard !immutableProtectedProcessNames.contains(name) else { continue }
+            if kill(pid_t(pid), 0) == 0 {
+                filtered.append(pid)
+            }
+        }
+        return Array(Set(filtered)).sorted()
     }
 }

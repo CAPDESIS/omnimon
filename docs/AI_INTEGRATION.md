@@ -21,6 +21,8 @@ macmon v2 keeps execution native and safe.
 3. No command string from AI is executed.
 4. Blocklist and Apple system process protections are always enforced.
 5. Protected audio and video services stay untouchable.
+6. LLM hallucination text is sanitized with regex PID extraction fallback.
+7. Suggested PIDs are validated against live process table and immutable blocklist before UI confirmation.
 
 ## Providers
 
@@ -33,3 +35,4 @@ macmon v2 keeps execution native and safe.
 1. Service key: `com.macmon.ai`
 2. Account key: provider name (`openai`, `anthropic`, `openrouter`)
 3. Value: API key bytes, never plain text file storage
+4. Accessibility: `kSecAttrAccessibleWhenUnlocked`

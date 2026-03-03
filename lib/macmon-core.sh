@@ -279,7 +279,7 @@ _is_apple_system_pid() {
 is_system_process() {
     local name="$1"
     local protected_list
-    protected_list=$(macmon_cfg "PROTECTED" "launchd:kernel_task:WindowServer:loginwindow:coreaudiod:VTDecoderXPCService:bluetoothd:fseventsd:mds:mds_stores:opendirectoryd:syslogd:configd:diskarbitrationd:powerd:thermalmonitord:UserEventAgent:cfprefsd:distnoted:logd:notifyd")
+    protected_list=$(macmon_cfg "PROTECTED" "launchd:kernel_task:WindowServer:AudioComponentRegistrar:coremediaiod:loginwindow:coreaudiod:VTDecoderXPCService:VTEncoderXPCService:bluetoothd:fseventsd:mds:mds_stores:opendirectoryd:syslogd:configd:diskarbitrationd:powerd:thermalmonitord:UserEventAgent:cfprefsd:distnoted:logd:notifyd")
 
     if declare -F macmon_is_blocked_process >/dev/null 2>&1; then
         if macmon_is_blocked_process "$name"; then

@@ -116,11 +116,13 @@ Keep this README short; detailed topics are in docs:
    `docs/ARCHITECTURE.md`
    `docs/VERSIONING.md`
    `docs/AI_INTEGRATION.md`
+   `docs/IMPLEMENTATION_TRACKER.md`
    `CONTRIBUTING.md`
 2. Espanol
    `docs/es/CONFIGURATION.md`
    `docs/es/ARCHITECTURE.md`
    `docs/es/AI_INTEGRATION.md`
+   `docs/es/IMPLEMENTATION_TRACKER.md`
    `docs/es/CONTRIBUTING.md`
 
 If you start from the menu bar UI, use `Open Configuration` to edit thresholds directly in your editor.
