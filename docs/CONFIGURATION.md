@@ -24,13 +24,30 @@ Or simply: `macmon restart`
 
 ```yaml
 thresholds:
-  flutter_process_count: 10    # Alert when flutter_tester count exceeds this
   ram_free_percent: 25         # Alert when free RAM percentage drops below this
   swap_used_mb: 2048           # Alert when swap usage (MB) exceeds this
   process_ram_min_kb: 102400   # Minimum RSS (KB) for a process to appear in picker
   idle_cpu_percent: 1.0        # CPU% below this marks a process as idle
   idle_ram_trigger_percent: 40 # Only suggest idle cleanup when free RAM below this
 ```
+
+### Custom Processes (dynamic)
+
+```yaml
+custom_processes:
+  - name: "flutter_tester"
+    max_instances: 10
+  - name: "gradlew"
+    max_ram_mb: 2048
+  - name: "SourceKitService"
+    max_cpu_percent: 90
+```
+
+Rules:
+- `name` is required and must match the executable name used by `pgrep -x`
+- `max_instances`, `max_ram_mb`, and `max_cpu_percent` are optional
+- Missing threshold fields default to `0` (no limit)
+- The daemon parses this list once and caches it, then evaluates each process each cycle
 
 ### Intervals
 
@@ -123,6 +140,11 @@ The daemon automatically detects orphaned build processes:
 | qemu-system-aarch64 | Android emulator with no Android Studio |
 
 Orphans trigger a native macOS notification offering to open the process picker for cleanup.
+
+## Security Hardening
+
+- **CWE-362 (Race Condition)**: PID file writes now use a lock directory + atomic move to prevent concurrent write/remove races.
+- **TA0004 / Path Traversal**: config loading only accepts canonical `.yaml/.yml` paths under `~/.config/macmon/` or `${MACMON_HOME}/config/`; `..` traversal paths are rejected.
 
 ## Menu Bar Monitor
 

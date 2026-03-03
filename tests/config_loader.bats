@@ -13,9 +13,9 @@ setup() {
     [ "$result" = "25" ]
 }
 
-@test "macmon_cfg: reads default flutter threshold" {
-    result=$(macmon_cfg "THRESHOLDS_FLUTTER_PROCESS_COUNT" "99")
-    [ "$result" = "10" ]
+@test "macmon_get_custom_processes: reads default dynamic process list" {
+    result=$(macmon_get_custom_processes)
+    [[ "$result" == *"flutter_tester:10:0:0"* ]]
 }
 
 @test "macmon_cfg: reads default swap threshold" {

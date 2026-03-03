@@ -1,6 +1,7 @@
 SHELL := /bin/bash
 SWIFT_MODEL_SRC := src/gui/ProcessPickerModel.swift
 SWIFT_SRC := src/gui/ProcessPicker.swift
+SWIFT_I18N_SRC := src/gui/Localization.swift
 SWIFT_BIN := ProcessPicker
 DISKIO_SRC := src/gui/DiskIOHelper.swift
 DISKIO_BIN := DiskIOHelper
@@ -12,16 +13,16 @@ INSTALL_DIR := $(HOME)/.local/libexec/macmon
 
 build: $(SWIFT_BIN) $(DISKIO_BIN) $(STATUSBAR_BIN)
 
-$(SWIFT_BIN): $(SWIFT_MODEL_SRC) $(SWIFT_SRC)
-	swiftc -O -framework Cocoa -o $@ $(SWIFT_MODEL_SRC) $(SWIFT_SRC)
+$(SWIFT_BIN): $(SWIFT_MODEL_SRC) $(SWIFT_SRC) $(SWIFT_I18N_SRC)
+	swiftc -O -framework Cocoa -o $@ $(SWIFT_MODEL_SRC) $(SWIFT_I18N_SRC) $(SWIFT_SRC)
 
 $(DISKIO_BIN): $(DISKIO_SRC)
 	swiftc -O -o $@ $<
 
 statusbar: $(STATUSBAR_BIN)
 
-$(STATUSBAR_BIN): $(STATUSBAR_SRC)
-	swiftc -O -framework Cocoa -o $@ $<
+$(STATUSBAR_BIN): $(STATUSBAR_SRC) $(SWIFT_I18N_SRC)
+	swiftc -O -framework Cocoa -o $@ $(SWIFT_I18N_SRC) $(STATUSBAR_SRC)
 
 install: build
 	./install.sh

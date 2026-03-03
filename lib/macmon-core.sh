@@ -607,35 +607,96 @@ kill_processes() {
     done
 }
 
-# --- Flutter Tester Management ---
+# --- Dynamic Process Monitoring ---
+# Technology-agnostic: reads custom_processes from YAML config
+# Each entry can define: max_instances, max_ram_mb, max_cpu_percent
 
-check_flutter_tester() {
-    local threshold
-    threshold=$(macmon_cfg "THRESHOLDS_FLUTTER_PROCESS_COUNT" "10")
-    local count
-    count=$(pgrep -x flutter_tester 2>/dev/null | wc -l | tr -d ' ')
+# Check all custom_processes for threshold violations.
+# Returns violations as lines: "name:violation_type:current_value:threshold"
+check_custom_processes() {
+    local violations=""
 
-    if (( count > threshold )); then
-        macmon_log "Flutter tester accumulation detected: $count processes (threshold: $threshold)"
-        return 0  # alert needed
+    while IFS=: read -r proc_name max_inst max_ram max_cpu; do
+        [[ -z "$proc_name" ]] && continue
+
+        local pids pids_csv count
+        pids=$(pgrep -x "$proc_name" 2>/dev/null || true)
+        count=0
+        if [[ -n "$pids" ]]; then
+            count=$(printf '%s\n' "$pids" | wc -l | tr -d ' ')
+        fi
+
+        # Check max_instances
+        if (( max_inst > 0 )); then
+            if (( count > max_inst )); then
+                violations="${violations}${proc_name}:instances:${count}:${max_inst}"$'\n'
+                macmon_log "Custom process alert: $proc_name has $count instances (max: $max_inst)"
+            fi
+        fi
+
+        if [[ -n "$pids" && ( $max_ram -gt 0 || $max_cpu -gt 0 ) ]]; then
+            pids_csv=$(printf '%s\n' "$pids" | paste -sd, -)
+            local total_rss_kb=0 highest_cpu=0 line rss_val cpu_val
+            while IFS= read -r line; do
+                [[ -n "$line" ]] || continue
+                read -r rss_val cpu_val <<< "$line"
+                [[ "$rss_val" =~ ^[0-9]+$ ]] && (( total_rss_kb += rss_val )) || true
+                [[ "$cpu_val" =~ ^[0-9]+\.?[0-9]*$ ]] || continue
+                if awk "BEGIN {exit !(${cpu_val} > ${highest_cpu})}"; then
+                    highest_cpu="$cpu_val"
+                fi
+            done < <(ps -p "$pids_csv" -o rss=,pcpu= 2>/dev/null || true)
+
+            # Check max_ram_mb (sum of all instances)
+            if (( max_ram > 0 )); then
+                local total_ram_mb=$(( total_rss_kb / 1024 ))
+                if (( total_ram_mb > max_ram )); then
+                    violations="${violations}${proc_name}:ram:${total_ram_mb}:${max_ram}"$'\n'
+                    macmon_log "Custom process alert: $proc_name using ${total_ram_mb}MB RAM (max: ${max_ram}MB)"
+                fi
+            fi
+
+            # Check max_cpu_percent (highest single instance)
+            if (( max_cpu > 0 )); then
+                local highest_int
+                highest_int=$(printf '%.0f' "$highest_cpu")
+                if (( highest_int > max_cpu )); then
+                    violations="${violations}${proc_name}:cpu:${highest_int}:${max_cpu}"$'\n'
+                    macmon_log "Custom process alert: $proc_name at ${highest_int}% CPU (max: ${max_cpu}%)"
+                fi
+            fi
+        fi
+    done < <(macmon_get_custom_processes)
+
+    violations="${violations%$'\n'}"
+    if [[ -n "$violations" ]]; then
+        printf '%s\n' "$violations"
+        return 0
     fi
-    return 1  # no alert needed
+    return 1
 }
 
-kill_flutter_testers() {
+# Kill all instances of a named process (SIGTERM then SIGKILL)
+kill_process_by_name() {
+    local proc_name="$1"
     local pids
-    pids=$(pgrep -x flutter_tester 2>/dev/null || true)
+    pids=$(pgrep -x "$proc_name" 2>/dev/null || true)
     [[ -z "$pids" ]] && return 0
 
-    macmon_log "Killing flutter_tester processes"
+    macmon_log "Killing $proc_name processes"
     local pid
     while IFS= read -r pid; do
-        [[ -n "$pid" ]] && kill -TERM "$pid" 2>/dev/null || true
+        [[ -n "$pid" ]] || continue
+        if is_system_process "$proc_name"; then
+            macmon_log "BLOCKED: refusing to kill system process $proc_name (PID $pid)"
+            continue
+        fi
+        kill -TERM "$pid" 2>/dev/null || true
     done <<< "$pids"
 
     sleep 2
 
-    pids=$(pgrep -x flutter_tester 2>/dev/null || true)
+    pids=$(pgrep -x "$proc_name" 2>/dev/null || true)
     while IFS= read -r pid; do
         [[ -n "$pid" ]] && kill -KILL "$pid" 2>/dev/null || true
     done <<< "$pids"
@@ -712,17 +773,19 @@ kill_orphan_by_pattern() {
 
 ensure_picker_compiled() {
     local swift_src="${MACMON_HOME}/src/gui/ProcessPicker.swift"
+    local swift_model_src="${MACMON_HOME}/src/gui/ProcessPickerModel.swift"
+    local swift_i18n_src="${MACMON_HOME}/src/gui/Localization.swift"
     local binary="${MACMON_HOME}/ProcessPicker"
 
-    if [[ ! -f "$swift_src" ]]; then
+    if [[ ! -f "$swift_src" || ! -f "$swift_model_src" || ! -f "$swift_i18n_src" ]]; then
         macmon_log "ERROR: Swift source not found at $swift_src"
         return 1
     fi
 
     # Compile if binary missing or source is newer
-    if [[ ! -f "$binary" || "$swift_src" -nt "$binary" ]]; then
+    if [[ ! -f "$binary" || "$swift_src" -nt "$binary" || "$swift_model_src" -nt "$binary" || "$swift_i18n_src" -nt "$binary" ]]; then
         macmon_log "Compiling ProcessPicker..."
-        if swiftc -O -framework Cocoa -o "$binary" "$swift_src" 2>&1; then
+        if swiftc -O -framework Cocoa -o "$binary" "$swift_model_src" "$swift_i18n_src" "$swift_src" 2>&1; then
             macmon_log "ProcessPicker compiled successfully"
         else
             macmon_log "ERROR: Failed to compile ProcessPicker"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # macmond.sh - macmon background daemon
-# Monitors RAM pressure, swap, flutter_tester accumulation, and idle processes
+# Monitors RAM pressure, swap, custom process thresholds, and idle processes
 
 set -euo pipefail
 
@@ -20,26 +20,43 @@ mkdir -p "$MACMON_LOG_DIR"
 
 # --- PID File (symlink-safe) ---
 PID_FILE="${MACMON_TMPDIR}/macmond.pid"
+PID_LOCK_DIR="${MACMON_TMPDIR}/macmond.pid.lock"
 
 write_pid() {
-    # Prevent symlink attacks: remove any existing file/symlink first,
-    # then create with restrictive umask
-    rm -f "$PID_FILE"
-    (umask 077; echo $$ > "$PID_FILE")
-    # Verify it's a regular file, not a symlink
-    if [[ -L "$PID_FILE" ]]; then
-        macmon_log "SECURITY: PID file is a symlink, refusing to continue"
+    local lock_wait=0
+    while ! mkdir "$PID_LOCK_DIR" 2>/dev/null; do
+        (( lock_wait++ )) || true
+        if (( lock_wait > 50 )); then
+            macmon_log "SECURITY: could not acquire PID lock"
+            exit 1
+        fi
+        sleep 0.1
+    done
+
+    local tmp_pid
+    tmp_pid=$(mktemp "${MACMON_TMPDIR}/macmond.pid.XXXXXX")
+    (umask 077; printf '%s\n' "$$" > "$tmp_pid")
+    mv -f "$tmp_pid" "$PID_FILE"
+
+    if [[ -L "$PID_FILE" || ! -f "$PID_FILE" ]]; then
+        macmon_log "SECURITY: invalid PID file type, refusing to continue"
         rm -f "$PID_FILE"
+        rmdir "$PID_LOCK_DIR" 2>/dev/null || true
         exit 1
     fi
+    rmdir "$PID_LOCK_DIR" 2>/dev/null || true
 }
 
 remove_pid() {
+    while ! mkdir "$PID_LOCK_DIR" 2>/dev/null; do
+        sleep 0.1
+    done
     rm -f "$PID_FILE"
+    rmdir "$PID_LOCK_DIR" 2>/dev/null || true
 }
 
 # --- Cooldown State ---
-LAST_FLUTTER_ALERT=0
+LAST_CUSTOM_ALERT=0
 LAST_RAM_ALERT=0
 LAST_IDLE_ALERT=0
 LAST_ORPHAN_ALERT=0
@@ -75,6 +92,7 @@ cleanup() {
 reload_config() {
     macmon_log "Reloading configuration (SIGUSR1)"
     macmon_load_config "${MACMON_CONFIG:-$HOME/.config/macmon/macmon.yaml}"
+    macmon_invalidate_custom_processes_cache
     # Re-read intervals in case they changed
     check_interval=$(macmon_cfg "INTERVALS_CHECK" "60")
     idle_interval=$(macmon_cfg "INTERVALS_IDLE_CHECK" "600")
@@ -88,20 +106,39 @@ trap reload_config SIGUSR1
 
 # --- Monitoring Checks ---
 
-do_check_flutter() {
-    cooldown_elapsed "$LAST_FLUTTER_ALERT" || return 0
+do_check_custom_processes() {
+    cooldown_elapsed "$LAST_CUSTOM_ALERT" || return 0
 
-    if check_flutter_tester; then
-        local count
-        count=$(pgrep -x flutter_tester 2>/dev/null | wc -l | tr -d ' ')
-        LAST_FLUTTER_ALERT=$(date +%s)
+    local violations
+    if violations=$(check_custom_processes); then
+        LAST_CUSTOM_ALERT=$(date +%s)
 
-        if macmon_ask_yes_no "macmon" "Detected $count flutter_tester processes. Kill them all?"; then
-            kill_flutter_testers
-            macmon_notify "macmon" "Killed $count flutter_tester processes"
-            macmon_log "User approved: killed $count flutter_tester processes"
+        # Build a human-readable summary
+        local summary="" violation_count=0
+        while IFS=: read -r vname vtype vcurrent vthreshold; do
+            [[ -z "$vname" ]] && continue
+            (( violation_count++ )) || true
+            case "$vtype" in
+                instances) summary="${summary}\n- ${vname}: ${vcurrent} instances (max ${vthreshold})" ;;
+                ram)       summary="${summary}\n- ${vname}: ${vcurrent}MB RAM (max ${vthreshold}MB)" ;;
+                cpu)       summary="${summary}\n- ${vname}: ${vcurrent}% CPU (max ${vthreshold}%)" ;;
+            esac
+        done <<< "$violations"
+
+        if macmon_ask_yes_no "macmon - Process Alert" "Detected ${violation_count} process threshold violation(s):${summary}\n\nKill offending processes?"; then
+            local killed_names=":"
+            while IFS=: read -r vname vtype vcurrent vthreshold; do
+                [[ -z "$vname" ]] && continue
+                if [[ "$killed_names" == *":${vname}:"* ]]; then
+                    continue
+                fi
+                killed_names+="${vname}:"
+                kill_process_by_name "$vname"
+            done <<< "$violations"
+            macmon_notify "macmon" "Cleaned up ${violation_count} process violation(s)"
+            macmon_log "User approved: cleaned up $violation_count custom process violations"
         else
-            macmon_log "User declined flutter_tester cleanup ($count processes)"
+            macmon_log "User declined custom process cleanup ($violation_count violations)"
         fi
     fi
 }
@@ -244,7 +281,7 @@ while $RUNNING; do
     rotate_log
 
     # Run checks
-    do_check_flutter
+    do_check_custom_processes
     do_check_orphans
     do_check_ram
 

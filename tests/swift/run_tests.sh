@@ -48,6 +48,7 @@ swiftc \
     -Xlinker -rpath -Xlinker "$USR_LIB_DIR" \
     -Xlinker -bundle \
     "$REPO/src/gui/ProcessPickerModel.swift" \
+    "$REPO/src/gui/Localization.swift" \
     "$DIR/ProcessViewModelTests.swift"
 
 # Run tests using xctest

@@ -170,13 +170,13 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         if let button = statusItem.button {
             // Try SF Symbols first (macOS 11+), fall back to text
             if let image = NSImage(systemSymbolName: "memorychip",
-                                   accessibilityDescription: "macmon") {
+                                   accessibilityDescription: L("statusbar.accessibility")) {
                 let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
                 button.image = image.withSymbolConfiguration(config)
             } else {
                 button.title = "M"
             }
-            button.toolTip = "macmon - System Monitor"
+            button.toolTip = L("statusbar.tooltip")
         }
 
         buildMenu()
@@ -203,17 +203,17 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         menu.autoenablesItems = false
 
         // RAM item (placeholder, updated on refresh)
-        ramItem = NSMenuItem(title: "RAM: --", action: nil, keyEquivalent: "")
+        ramItem = NSMenuItem(title: L("statusbar.ram.placeholder"), action: nil, keyEquivalent: "")
         ramItem.isEnabled = false
         menu.addItem(ramItem)
 
         // Swap item
-        swapItem = NSMenuItem(title: "Swap: --", action: nil, keyEquivalent: "")
+        swapItem = NSMenuItem(title: L("statusbar.swap.placeholder"), action: nil, keyEquivalent: "")
         swapItem.isEnabled = false
         menu.addItem(swapItem)
 
         // Process count item
-        processItem = NSMenuItem(title: "Processes: --", action: nil, keyEquivalent: "")
+        processItem = NSMenuItem(title: L("statusbar.process.placeholder"), action: nil, keyEquivalent: "")
         processItem.isEnabled = false
         menu.addItem(processItem)
 
@@ -222,7 +222,7 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
 
         // Open Process Picker
         let pickerItem = NSMenuItem(
-            title: "Open Process Picker",
+            title: L("statusbar.menu.open_picker"),
             action: #selector(openProcessPicker),
             keyEquivalent: "p"
         )
@@ -231,10 +231,10 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(pickerItem)
 
         // Export Snapshot submenu
-        let exportItem = NSMenuItem(title: "Export Snapshot...", action: nil, keyEquivalent: "")
+        let exportItem = NSMenuItem(title: L("statusbar.menu.export"), action: nil, keyEquivalent: "")
         let exportMenu = NSMenu()
         let jsonExport = NSMenuItem(
-            title: "JSON",
+            title: L("statusbar.menu.export.json"),
             action: #selector(exportJSON),
             keyEquivalent: ""
         )
@@ -242,7 +242,7 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         exportMenu.addItem(jsonExport)
 
         let csvExport = NSMenuItem(
-            title: "CSV",
+            title: L("statusbar.menu.export.csv"),
             action: #selector(exportCSV),
             keyEquivalent: ""
         )
@@ -257,7 +257,7 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
 
         // Status...
         let statusActionItem = NSMenuItem(
-            title: "Status...",
+            title: L("statusbar.menu.status"),
             action: #selector(openStatus),
             keyEquivalent: "s"
         )
@@ -270,7 +270,7 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
 
         // Quit
         let quitItem = NSMenuItem(
-            title: "Quit macmon",
+            title: L("statusbar.menu.quit"),
             action: #selector(quitApp),
             keyEquivalent: "q"
         )
@@ -291,7 +291,7 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         guard let snap = snapshot else { return }
 
         // RAM item with color
-        let ramText = "RAM: \(snap.freePercent)% free of \(String(format: "%.0f", snap.totalMemGB))GB"
+        let ramText = LF("statusbar.ram.value", snap.freePercent, snap.totalMemGB)
         let ramAttr = NSMutableAttributedString(string: ramText)
         let color = ramColor(freePercent: snap.freePercent)
         ramAttr.addAttribute(.foregroundColor, value: color,
@@ -301,10 +301,10 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         ramItem.attributedTitle = ramAttr
 
         // Swap item
-        swapItem.title = "Swap: \(snap.swapUsedMB)MB used"
+        swapItem.title = LF("statusbar.swap.value", snap.swapUsedMB)
 
         // Process count
-        processItem.title = "Processes: \(snap.processCount) total"
+        processItem.title = LF("statusbar.process.value", snap.processCount)
     }
 
     private func updateStatusBarTitle() {
@@ -344,8 +344,8 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
             try? task.run()
         } else {
             showAlert(
-                title: "ProcessPicker Not Found",
-                message: "Could not find ProcessPicker at:\n\(pickerPath)\n\nMake sure macmon is installed."
+                title: L("statusbar.alert.picker_missing_title"),
+                message: LF("statusbar.alert.picker_missing_message", pickerPath)
             )
         }
     }
@@ -362,16 +362,16 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         let macmonBin = findMacmonCLI()
         guard FileManager.default.isExecutableFile(atPath: macmonBin) else {
             showAlert(
-                title: "macmon Not Found",
-                message: "Could not find macmon CLI.\nExpected at: \(macmonBin)"
+                title: L("statusbar.alert.cli_missing_title"),
+                message: LF("statusbar.alert.cli_missing_message", macmonBin)
             )
             return
         }
 
         // Use NSSavePanel to let the user choose where to save
         let panel = NSSavePanel()
-        panel.title = "Export macmon Snapshot"
-        panel.nameFieldStringValue = "macmon-snapshot.\(format)"
+        panel.title = L("statusbar.export.panel.title")
+        panel.nameFieldStringValue = LF("statusbar.export.panel.filename", format)
         if format == "json" {
             panel.allowedContentTypes = [.json]
         }
@@ -399,8 +399,8 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
             try data.write(to: url)
         } catch {
             showAlert(
-                title: "Export Failed",
-                message: "Could not export snapshot: \(error.localizedDescription)"
+                title: L("statusbar.alert.export_failed_title"),
+                message: LF("statusbar.alert.export_failed_message", error.localizedDescription)
             )
         }
     }
@@ -409,8 +409,8 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         let macmonBin = findMacmonCLI()
         guard FileManager.default.isExecutableFile(atPath: macmonBin) else {
             showAlert(
-                title: "macmon Not Found",
-                message: "Could not find macmon CLI to show status."
+                title: L("statusbar.alert.cli_missing_title"),
+                message: L("statusbar.alert.status_missing_message")
             )
             return
         }
@@ -481,7 +481,7 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         alert.messageText = title
         alert.informativeText = message
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: L("statusbar.alert.ok"))
         alert.runModal()
     }
 }
@@ -502,8 +502,13 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
 
 // MARK: - Main
 
-let app = NSApplication.shared
-app.setActivationPolicy(.accessory) // Menu bar only, no dock icon
-let delegate = StatusBarAppDelegate()
-app.delegate = delegate
-app.run()
+@main
+struct MacmonStatusBarApp {
+    static func main() {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.accessory) // Menu bar only, no dock icon
+        let delegate = StatusBarAppDelegate()
+        app.delegate = delegate
+        app.run()
+    }
+}

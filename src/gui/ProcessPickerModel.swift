@@ -182,7 +182,7 @@ class ProcessViewModel {
         var groupMap: [String: [Int]] = [:]
         var seenOrder: [String] = []
         for idx in filteredIndices {
-            let g = allProcesses[idx].group.isEmpty ? "Other" : allProcesses[idx].group
+            let g = allProcesses[idx].group.isEmpty ? L("group.other") : allProcesses[idx].group
             if groupMap[g] == nil { seenOrder.append(g) }
             groupMap[g, default: []].append(idx)
         }

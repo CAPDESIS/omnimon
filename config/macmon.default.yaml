@@ -3,12 +3,27 @@
 
 # Monitoring thresholds
 thresholds:
-  flutter_process_count: 10
   ram_free_percent: 25
   swap_used_mb: 2048
   process_ram_min_kb: 102400
   idle_cpu_percent: 1.0
   idle_ram_trigger_percent: 40
+
+# Dynamic process monitoring (technology-agnostic)
+# Each entry defines a process name and its thresholds.
+# Fields: name (required), max_instances, max_ram_mb, max_cpu_percent
+custom_processes:
+  - name: flutter_tester
+    max_instances: 10
+  - name: gradlew
+    max_ram_mb: 2048
+  - name: SourceKitService
+    max_cpu_percent: 90
+    max_instances: 5
+  - name: node
+    max_ram_mb: 4096
+  - name: java
+    max_ram_mb: 4096
 
 # Timing (seconds)
 intervals:

@@ -1,6 +1,6 @@
 # macmon
 
-A lightweight macOS system monitor that watches RAM pressure, swap usage, orphan build daemons, and idle processes. Includes a native AppKit process picker, a menu bar monitor, a background daemon, and a CLI — all built without Xcode.
+A lightweight macOS system monitor that watches RAM pressure, swap usage, custom process thresholds, orphan build daemons, and idle processes. Includes a native AppKit process picker, a menu bar monitor, a background daemon, and a CLI — all built without Xcode.
 
 [![CI](https://github.com/chochy2001/macmon/actions/workflows/ci.yml/badge.svg)](https://github.com/chochy2001/macmon/actions/workflows/ci.yml)
 
@@ -39,7 +39,7 @@ A lightweight macOS system monitor that watches RAM pressure, swap usage, orphan
 | Working directory per process | Yes | No |
 | Chrome tab titles | Yes | No |
 | Orphan build daemon detection (SourceKit, Gradle, xcodebuild) | Yes | No |
-| Flutter tester accumulation alert | Yes | No |
+| Dynamic per-process threshold alerts | Yes | No |
 | Per-process disk I/O (lifetime read/write) | Yes | No |
 | Metrics export (JSON/CSV) | Yes | No |
 | Proactive memory pressure notifications | Yes | No |
@@ -147,12 +147,19 @@ Edit `~/.config/macmon/macmon.yaml` (or run `macmon config edit`):
 
 ```yaml
 thresholds:
-  flutter_process_count: 10    # alert when flutter_tester count exceeds this
   ram_free_percent: 25         # alert when free RAM % drops below this
   swap_used_mb: 2048           # alert when swap usage exceeds this (MB)
   process_ram_min_kb: 102400   # minimum RAM to show a process in picker (KB)
   idle_cpu_percent: 1.0        # CPU % below this marks a process as idle
   idle_ram_trigger_percent: 40 # only suggest idle cleanup when free RAM below this
+
+custom_processes:
+  - name: "flutter_tester"
+    max_instances: 10
+  - name: "gradlew"
+    max_ram_mb: 2048
+  - name: "SourceKitService"
+    max_cpu_percent: 90
 
 intervals:
   check: 60          # seconds between monitoring cycles
@@ -180,7 +187,7 @@ macmon consists of four components:
 <!-- SCREENSHOT: Native macOS notification
      Capture a macOS notification banner from macmon showing either:
      - Memory pressure alert: "RAM is low (XX% free). Open process picker to free memory?"
-     - OR flutter_tester alert: "Detected XX flutter_tester processes. Kill them all?"
+     - OR dynamic process alert: "Detected X process threshold violation(s). Kill offending processes?"
      - OR orphan daemon alert: "Found X orphan build daemon(s)"
      Use tools/simulate_load.sh to trigger the notification, then capture it.
      Save as: docs/images/notification.png

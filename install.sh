@@ -61,6 +61,7 @@ echo "Compiling ProcessPicker..."
 swiftc -O -framework Cocoa \
     -o "$INSTALL_DIR/ProcessPicker" \
     "$INSTALL_DIR/src/gui/ProcessPickerModel.swift" \
+    "$INSTALL_DIR/src/gui/Localization.swift" \
     "$INSTALL_DIR/src/gui/ProcessPicker.swift"
 echo "ProcessPicker compiled successfully"
 
@@ -75,6 +76,7 @@ echo "DiskIOHelper compiled successfully"
 echo "Compiling MacmonStatusBar..."
 swiftc -O -framework Cocoa \
     -o "$INSTALL_DIR/MacmonStatusBar" \
+    "$INSTALL_DIR/src/gui/Localization.swift" \
     "$INSTALL_DIR/src/gui/MacmonStatusBar.swift"
 echo "MacmonStatusBar compiled successfully"
 

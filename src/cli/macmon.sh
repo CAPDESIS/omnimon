@@ -14,6 +14,31 @@ MACMON_LOG_DIR=$(macmon_cfg "LOG_DIR" "$HOME/.local/log/macmon")
 MACMON_LOG_FILE="${MACMON_LOG_DIR}/macmond.log"
 export MACMON_LOG_DIR MACMON_LOG_FILE
 
+# --- Message Catalog (CLI i18n-ready) ---
+# Future language packs can override these variables before sourcing commands.
+MSG_CLOSED_PROCESSES="Closed"
+MSG_STATUS_TITLE="macmon"
+MSG_DAEMON_ALREADY_RUNNING="Daemon is already running"
+MSG_DAEMON_NOT_RUNNING="Daemon is not running"
+MSG_DAEMON_STARTED="Daemon started"
+MSG_DAEMON_STOPPED="Daemon stopped"
+MSG_LAUNCHAGENT_MISSING="Error: LaunchAgent plist not found at"
+MSG_RUN_INSTALL_FIRST="Run 'macmon install' or the install.sh script first"
+MSG_CREATED_CONFIG="Created config at"
+MSG_RESET_CONFIG="Config reset to defaults at"
+MSG_NO_CONFIG="\# No user config found. Using defaults:"
+MSG_CREATE_CONFIG_HINT="\# (Create with: macmon config edit)"
+MSG_NO_LOG="No log file found at"
+MSG_COLLECTING="Collecting process data..."
+MSG_EXPORTED="Exported to"
+MSG_NO_PEAKS="No peak data found. Start the daemon to collect peaks."
+MSG_PEAK_FILES="Peak data files:"
+MSG_LATEST_PEAKS="Latest peaks:"
+MSG_EXPORT_USAGE="Usage: macmon export [json|csv|--peaks]"
+MSG_VERSION="macmon"
+MSG_UNKNOWN_COMMAND="Unknown command:"
+MSG_RUN_HELP="Run 'macmon help' for usage"
+
 # --- Subcommands ---
 
 cmd_picker() {
@@ -30,13 +55,13 @@ cmd_picker() {
             ' > "$kill_file"
             kill_processes "$kill_file"
             rm -f "$kill_file"
-            echo "Closed $count process(es)"
+            echo "$MSG_CLOSED_PROCESSES $count process(es)"
         fi
     fi
 }
 
 cmd_status() {
-    echo "macmon v${MACMON_VERSION} - System Status"
+    echo "$MSG_STATUS_TITLE v${MACMON_VERSION} - System Status"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     # Memory
@@ -83,17 +108,29 @@ cmd_status() {
     total_procs=$(ps -Ae -o pid= 2>/dev/null | wc -l | tr -d ' ')
     printf "  Procs:   %s total\n" "$total_procs"
 
-    # Flutter testers
-    local flutter_count
-    flutter_count=$(pgrep -x flutter_tester 2>/dev/null | wc -l | tr -d ' ')
-    if (( flutter_count > 0 )); then
-        local flutter_threshold
-        flutter_threshold=$(macmon_cfg "THRESHOLDS_FLUTTER_PROCESS_COUNT" "10")
-        local fc_color="\033[32m"
-        if (( flutter_count > flutter_threshold )); then
-            fc_color="\033[31m"
-        fi
-        printf "  Flutter: ${fc_color}%s\033[0m flutter_tester processes\n" "$flutter_count"
+    # Custom process thresholds
+    local custom_lines
+    if custom_lines=$(macmon_get_custom_processes 2>/dev/null); then
+        while IFS=: read -r proc_name max_inst max_ram max_cpu; do
+            [[ -n "$proc_name" ]] || continue
+            local proc_count
+            proc_count=$(pgrep -x "$proc_name" 2>/dev/null | wc -l | tr -d ' ')
+            (( proc_count > 0 )) || continue
+            local color="\033[32m"
+            if (( max_inst > 0 && proc_count > max_inst )); then
+                color="\033[31m"
+            fi
+            printf "  Custom:  ${color}%s\033[0m %s" "$proc_count" "$proc_name"
+            local limits=()
+            (( max_inst > 0 )) && limits+=("max_instances=${max_inst}")
+            (( max_ram > 0 )) && limits+=("max_ram_mb=${max_ram}")
+            (( max_cpu > 0 )) && limits+=("max_cpu_percent=${max_cpu}")
+            if (( ${#limits[@]} > 0 )); then
+                local IFS=', '
+                printf " [%s]" "${limits[*]}"
+            fi
+            printf "\n"
+        done <<< "$custom_lines"
     fi
 
     # Orphan build daemons
@@ -127,25 +164,25 @@ cmd_status() {
 
 cmd_start() {
     if launchctl list "$PLIST_LABEL" &>/dev/null; then
-        echo "Daemon is already running"
+        echo "$MSG_DAEMON_ALREADY_RUNNING"
         return 0
     fi
     if [[ ! -f "$PLIST_PATH" ]]; then
-        echo "Error: LaunchAgent plist not found at $PLIST_PATH"
-        echo "Run 'macmon install' or the install.sh script first"
+        echo "$MSG_LAUNCHAGENT_MISSING $PLIST_PATH"
+        echo "$MSG_RUN_INSTALL_FIRST"
         return 1
     fi
     launchctl load -w "$PLIST_PATH"
-    echo "Daemon started"
+    echo "$MSG_DAEMON_STARTED"
 }
 
 cmd_stop() {
     if ! launchctl list "$PLIST_LABEL" &>/dev/null; then
-        echo "Daemon is not running"
+        echo "$MSG_DAEMON_NOT_RUNNING"
         return 0
     fi
     launchctl unload "$PLIST_PATH"
-    echo "Daemon stopped"
+    echo "$MSG_DAEMON_STOPPED"
 }
 
 cmd_restart() {
@@ -156,11 +193,13 @@ cmd_restart() {
 
 cmd_config() {
     local config_file="${MACMON_CONFIG:-$HOME/.config/macmon/macmon.yaml}"
+    local safe_config=""
+    safe_config=$(_validated_config_path "$config_file" || true)
     if [[ "${1:-}" == "edit" ]]; then
         if [[ ! -f "$config_file" ]]; then
             mkdir -p "$(dirname "$config_file")"
             cp "${MACMON_HOME}/config/macmon.default.yaml" "$config_file"
-            echo "Created config at $config_file"
+            echo "$MSG_CREATED_CONFIG $config_file"
         fi
         ${EDITOR:-nano} "$config_file"
     elif [[ "${1:-}" == "path" ]]; then
@@ -168,14 +207,14 @@ cmd_config() {
     elif [[ "${1:-}" == "reset" ]]; then
         mkdir -p "$(dirname "$config_file")"
         cp "${MACMON_HOME}/config/macmon.default.yaml" "$config_file"
-        echo "Config reset to defaults at $config_file"
+        echo "$MSG_RESET_CONFIG $config_file"
     else
-        if [[ -f "$config_file" ]]; then
+        if [[ -n "$safe_config" && -f "$safe_config" ]]; then
             echo "# Active config: $config_file"
-            cat "$config_file"
+            cat "$safe_config"
         else
-            echo "# No user config found. Using defaults:"
-            echo "# (Create with: macmon config edit)"
+            echo "$MSG_NO_CONFIG"
+            echo "$MSG_CREATE_CONFIG_HINT"
             cat "${MACMON_HOME}/config/macmon.default.yaml"
         fi
     fi
@@ -184,7 +223,7 @@ cmd_config() {
 cmd_log() {
     local log_file="$MACMON_LOG_FILE"
     if [[ ! -f "$log_file" ]]; then
-        echo "No log file found at $log_file"
+        echo "$MSG_NO_LOG $log_file"
         return 1
     fi
     if [[ "${1:-}" == "--follow" || "${1:-}" == "-f" ]]; then
@@ -202,7 +241,7 @@ cmd_export() {
 
     mkdir -p "$output_dir"
 
-    echo "Collecting process data..."
+    echo "$MSG_COLLECTING"
     local json
     json=$(collect_processes_json \
         "$(macmon_cfg "THRESHOLDS_PROCESS_RAM_MIN_KB" "102400")" \
@@ -215,7 +254,7 @@ cmd_export() {
                 timestamp: $ts,
                 snapshot: .
             }' > "$outfile"
-            echo "Exported to $outfile"
+            echo "$MSG_EXPORTED $outfile"
             ;;
         csv)
             local outfile="${output_dir}/macmon-${timestamp}.csv"
@@ -224,33 +263,33 @@ cmd_export() {
                 (.processes[] | [.pid,.name,.ramMB,.cpuPct,.uptime,.uptimeSeconds,.idle,.group,.state,.cwd,.detail])
                 | @csv
             ' > "$outfile"
-            echo "Exported to $outfile"
+            echo "$MSG_EXPORTED $outfile"
             ;;
         --peaks)
             local peak_dir="${MACMON_LOG_DIR}"
             local peak_files
             peak_files=$(ls -1 "$peak_dir"/peaks-*.json 2>/dev/null || true)
             if [[ -z "$peak_files" ]]; then
-                echo "No peak data found. Start the daemon to collect peaks."
+                echo "$MSG_NO_PEAKS"
                 return 1
             fi
-            echo "Peak data files:"
+            echo "$MSG_PEAK_FILES"
             echo "$peak_files"
             echo ""
-            echo "Latest peaks:"
+            echo "$MSG_LATEST_PEAKS"
             local latest
             latest=$(echo "$peak_files" | tail -1)
             jq '.' "$latest"
             ;;
         *)
-            echo "Usage: macmon export [json|csv|--peaks]"
+            echo "$MSG_EXPORT_USAGE"
             return 1
             ;;
     esac
 }
 
 cmd_version() {
-    echo "macmon v${MACMON_VERSION}"
+    echo "$MSG_VERSION v${MACMON_VERSION}"
 }
 
 cmd_help() {
@@ -303,8 +342,8 @@ case "${1:-}" in
     help|--help|-h) cmd_help ;;
     "")             cmd_picker ;;
     *)
-        echo "Unknown command: $1"
-        echo "Run 'macmon help' for usage"
+        echo "$MSG_UNKNOWN_COMMAND $1"
+        echo "$MSG_RUN_HELP"
         exit 1
         ;;
 esac

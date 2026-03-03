@@ -41,7 +41,7 @@ class MemoryPressureGauge: NSView {
         fillPath.fill()
 
         // Label
-        let label = String(format: "RAM: %d%% used of %.0fGB", usedPercent, physMemGB)
+        let label = LF("picker.memory.label", usedPercent, physMemGB)
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .medium),
             .foregroundColor: NSColor.labelColor
@@ -96,8 +96,8 @@ class SystemSummaryView: NSView {
         memGauge.physMemGB = health.physMemGB
         memGauge.swapUsedMB = health.swapUsedMB
 
-        let stats = String(format: "Swap: %dMB  |  Procs: %d  |  Monitored: %d  |  Idle: %d",
-                           health.swapUsedMB, health.totalProcesses, health.monitoredCount, health.idleCount)
+        let stats = LF("picker.stats.label",
+                       health.swapUsedMB, health.totalProcesses, health.monitoredCount, health.idleCount)
         statsLabel.stringValue = stats
     }
 }
@@ -147,7 +147,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
                           styleMask: [.titled, .closable, .resizable, .miniaturizable],
                           backing: .buffered,
                           defer: false)
-        window.title = "macmon - Process Picker"
+        window.title = L("picker.window.title")
         window.minSize = NSSize(width: 700, height: 350)
         window.setFrameAutosaveName("macmon.ProcessPicker")
         window.isReleasedWhenClosed = false
@@ -164,7 +164,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         // Search field
         searchField = NSSearchField(frame: .zero)
         searchField.translatesAutoresizingMaskIntoConstraints = false
-        searchField.placeholderString = "Filter by name, PID, detail, directory..."
+        searchField.placeholderString = L("picker.search.placeholder")
         searchField.delegate = self
         searchField.sendsSearchStringImmediately = true
         searchField.sendsWholeSearchString = false
@@ -190,19 +190,19 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         // Define columns
         let columns: [(NSUserInterfaceItemIdentifier, String, CGFloat, CGFloat)] = [
             (ColCheck, "", 30, 30),
-            (ColName, "Name", 160, 80),
-            (ColRAM, "RAM (MB)", 80, 60),
-            (ColCPU, "CPU %", 65, 50),
-            (ColUptime, "Uptime", 85, 60),
-            (ColPID, "PID", 65, 45),
-            (ColDetail, "Detail", 200, 80),
-            (ColCWD, "Directory", 200, 80),
-            (ColIdle, "Idle", 40, 35),
-            (ColGroup, "Group", 100, 60),
-            (ColDiskR, "Disk R (MB)", 85, 60),
-            (ColDiskW, "Disk W (MB)", 85, 60),
-            (ColState, "State", 50, 40),
-            (ColTTY, "TTY", 70, 50),
+            (ColName, L("picker.column.name"), 160, 80),
+            (ColRAM, L("picker.column.ram"), 80, 60),
+            (ColCPU, L("picker.column.cpu"), 65, 50),
+            (ColUptime, L("picker.column.uptime"), 85, 60),
+            (ColPID, L("picker.column.pid"), 65, 45),
+            (ColDetail, L("picker.column.detail"), 200, 80),
+            (ColCWD, L("picker.column.directory"), 200, 80),
+            (ColIdle, L("picker.column.idle"), 40, 35),
+            (ColGroup, L("picker.column.group"), 100, 60),
+            (ColDiskR, L("picker.column.disk_r"), 85, 60),
+            (ColDiskW, L("picker.column.disk_w"), 85, 60),
+            (ColState, L("picker.column.state"), 50, 40),
+            (ColTTY, L("picker.column.tty"), 70, 50),
         ]
 
         for (id, title, width, minWidth) in columns {
@@ -234,12 +234,12 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         contentView.addSubview(statusLabel)
 
         // Buttons
-        let btnSelectAll = NSButton(title: "Select All", target: self, action: #selector(selectAll))
-        let btnSelectNone = NSButton(title: "Select None", target: self, action: #selector(selectNone))
-        let btnSelectIdle = NSButton(title: "Select Idle", target: self, action: #selector(selectIdle))
-        let btnToggleGroups = NSButton(title: "Groups", target: self, action: #selector(toggleGrouping))
-        let btnCancel = NSButton(title: "Cancel", target: self, action: #selector(cancelAction))
-        let btnClose = NSButton(title: "Close Selected", target: self, action: #selector(closeSelected))
+        let btnSelectAll = NSButton(title: L("picker.button.select_all"), target: self, action: #selector(selectAll))
+        let btnSelectNone = NSButton(title: L("picker.button.select_none"), target: self, action: #selector(selectNone))
+        let btnSelectIdle = NSButton(title: L("picker.button.select_idle"), target: self, action: #selector(selectIdle))
+        let btnToggleGroups = NSButton(title: L("picker.button.groups"), target: self, action: #selector(toggleGrouping))
+        let btnCancel = NSButton(title: L("picker.button.cancel"), target: self, action: #selector(cancelAction))
+        let btnClose = NSButton(title: L("picker.button.close_selected"), target: self, action: #selector(closeSelected))
 
         btnClose.bezelColor = NSColor.systemRed
         btnCancel.keyEquivalent = "\u{1b}"  // Escape
@@ -300,7 +300,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
 
     func loadData(from file: String) -> Bool {
         guard let data = FileManager.default.contents(atPath: file) else {
-            fputs("Error: Cannot read file \(file)\n", stderr)
+            fputs(LF("picker.error.read_file", file), stderr)
             return false
         }
 
@@ -315,7 +315,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             updateStatus()
             return true
         } catch {
-            fputs("Error: Failed to parse JSON: \(error)\n", stderr)
+            fputs(LF("picker.error.parse_json", error.localizedDescription), stderr)
             return false
         }
     }
@@ -340,7 +340,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             if column.identifier == ColName {
                 let cell = recycleOrCreateTextCell(tableView, id: CellGroupHeader)
                 let arrow = collapsed ? "▶" : "▼"
-                cell.stringValue = "\(arrow) \(name) (\(count) processes, \(String(format: "%.0f", totalRAM)) MB)"
+                cell.stringValue = "\(arrow) " + LF("picker.group.header", name, count, totalRAM)
                 cell.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
                 cell.textColor = .labelColor
                 return cell
@@ -627,13 +627,13 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         let ramTotal = viewModel.selectedRAM
         let idleCount = viewModel.allProcesses.filter { $0.idle }.count
 
-        var text = "\(total) processes"
+        var text = LF("picker.status.processes", total)
         if !viewModel.searchText.isEmpty {
-            text += " (filtered from \(viewModel.allProcesses.count))"
+            text += LF("picker.status.filtered", viewModel.allProcesses.count)
         }
-        text += "  |  \(idleCount) idle"
+        text += LF("picker.status.idle", idleCount)
         if selected > 0 {
-            text += String(format: "  |  %d selected (%.0f MB)", selected, ramTotal)
+            text += LF("picker.status.selected", selected, ramTotal)
         }
         statusLabel.stringValue = text
     }
@@ -649,7 +649,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         controller.setupWindow()
 
         guard let file = inputFile else {
-            fputs("Error: No input file specified. Use --file <path>\n", stderr)
+            fputs(L("picker.error.no_file"), stderr)
             exit(1)
         }
 

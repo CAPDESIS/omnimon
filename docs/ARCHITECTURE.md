@@ -43,7 +43,7 @@ macmon is structured as five cooperating components with a shared library:
 ## Components
 
 ### 1. Daemon (`macmond.sh`)
-Background loop that checks RAM, swap, flutter_tester accumulation, orphan build daemons, and idle processes every 60 seconds. Shows native macOS notifications when thresholds are crossed. Supports signal-based config reload (SIGUSR1) and clean shutdown (SIGTERM/SIGINT).
+Background loop that checks RAM, swap, dynamic `custom_processes` thresholds, orphan build daemons, and idle processes every 60 seconds. Shows native macOS notifications when thresholds are crossed. Supports signal-based config reload (SIGUSR1) and clean shutdown (SIGTERM/SIGINT).
 
 ### 2. CLI (`macmon.sh`)
 User-facing entry point with subcommands: `status`, `start/stop/restart`, `config`, `export`, `log`, `version`, `help`. Launches the process picker as the default action.
@@ -139,4 +139,4 @@ thresholds:
 ```
 Becomes: `MACMON_CFG_THRESHOLDS_RAM_FREE_PERCENT=25`
 
-Default config is loaded first, then user config overlays it. List values (like protected processes) use `:` as delimiter. The `~` prefix in paths is automatically expanded to `$HOME`.
+Default config is loaded first, then user config overlays it. List values (like protected processes) use `:` as delimiter. The `~` prefix in paths is automatically expanded to `$HOME`. Dynamic `custom_processes` are parsed from YAML list entries into `name:max_instances:max_ram_mb:max_cpu_percent` records with cache invalidation on config reload.
