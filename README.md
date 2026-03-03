@@ -115,9 +115,11 @@ Keep this README short; detailed topics are in docs:
    `docs/CONFIGURATION.md`
    `docs/ARCHITECTURE.md`
    `docs/VERSIONING.md`
+   `CONTRIBUTING.md`
 2. Espanol
    `docs/es/CONFIGURATION.md`
    `docs/es/ARCHITECTURE.md`
+   `docs/es/CONTRIBUTING.md`
 
 If you start from the menu bar UI, use `Open Configuration` to edit thresholds directly in your editor.
 
@@ -297,13 +299,11 @@ make uninstall
 
 ## Contributing
 
-1. Fork the repo and create a feature branch
-2. Make your changes
-3. Run `make check` to verify everything passes
-4. Run `make test` to run the test suite
-5. Submit a pull request
+This repository is owner maintained.
 
-All commits should be in English. Follow conventional commit messages: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`.
+1. Review `CONTRIBUTING.md` for repository policy.
+2. Verify local quality gates with `make check`, `make test`, `make audit`, and `make verify-authors`.
+3. Ensure commit author identity is `chochy2001 <54371626+chochy2001@users.noreply.github.com>`.
 
 ## License
 

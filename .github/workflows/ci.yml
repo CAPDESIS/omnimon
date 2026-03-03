@@ -12,6 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify commit authors
+        run: make verify-authors
+
       - name: Install dependencies
         run: brew install jq bats-core
 
