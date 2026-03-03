@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install jq bats-core
+
+      - name: Syntax check all shell scripts
+        run: |
+          bash -n lib/macmon-core.sh
+          bash -n lib/macmon-config.sh
+          bash -n src/daemon/macmond.sh
+          bash -n src/cli/macmon.sh
+          bash -n scripts/chrome-tabs.sh
+          bash -n scripts/graceful-quit.sh
+
+      - name: Compile Swift binaries
+        run: make build
+
+      - name: Run BATS tests
+        run: make test
+
+      - name: Cleanup
+        run: make clean
