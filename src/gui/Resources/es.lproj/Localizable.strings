@@ -4,6 +4,8 @@
 "statusbar.swap.placeholder" = "Swap: --";
 "statusbar.process.placeholder" = "Procesos: --";
 "statusbar.menu.open_picker" = "Abrir selector de procesos";
+"statusbar.menu.open_config" = "Abrir configuracion";
+"statusbar.menu.reload_config" = "Recargar configuracion";
 "statusbar.menu.export" = "Exportar captura...";
 "statusbar.menu.export.json" = "JSON";
 "statusbar.menu.export.csv" = "CSV";
@@ -19,12 +21,16 @@
 "statusbar.alert.export_failed_title" = "Fallo la exportacion";
 "statusbar.alert.export_failed_message" = "No se pudo exportar la captura: %@";
 "statusbar.alert.status_missing_message" = "No se encontro el CLI de macmon para mostrar estado.";
+"statusbar.alert.config_missing_title" = "Configuracion no encontrada";
+"statusbar.alert.config_missing_message" = "No se encontro el archivo de configuracion en:\n%@";
 "statusbar.alert.ok" = "OK";
 "statusbar.export.panel.title" = "Exportar captura de macmon";
 "statusbar.export.panel.filename" = "macmon-snapshot.%@";
 
 "picker.window.title" = "macmon - Selector de procesos";
 "picker.search.placeholder" = "Filtrar por nombre, PID, detalle, directorio...";
+"picker.a11y.search" = "Filtro de procesos";
+"picker.a11y.table" = "Tabla de procesos";
 "picker.column.name" = "Nombre";
 "picker.column.ram" = "RAM (MB)";
 "picker.column.cpu" = "CPU %%";

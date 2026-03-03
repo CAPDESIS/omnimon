@@ -51,6 +51,73 @@ _validated_config_path() {
     printf '%s\n' "$resolved"
 }
 
+_config_has_tab_indentation() {
+    local file="$1"
+    local line
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" == *$'\t'* ]] && return 0
+    done < "$file"
+    return 1
+}
+
+_validate_custom_processes_block() {
+    local file="$1"
+    local in_custom=0
+    local seen_item=0
+    local line val
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+
+        if [[ "$line" =~ ^custom_processes:[[:space:]]*$ ]]; then
+            in_custom=1
+            continue
+        fi
+
+        if [[ "$in_custom" -eq 1 && "$line" =~ ^[a-zA-Z_] ]]; then
+            break
+        fi
+
+        [[ "$in_custom" -eq 1 ]] || continue
+
+        if [[ "$line" =~ ^[[:space:]]+-[[:space:]]+name:[[:space:]]*(.*)$ ]]; then
+            val="${BASH_REMATCH[1]}"
+            val="${val%%#*}"
+            val="${val#\"}"; val="${val%\"}"
+            val="${val#\'}"; val="${val%\'}"
+            [[ -n "${val//[[:space:]]/}" ]] || return 1
+            seen_item=1
+            continue
+        fi
+
+        if [[ "$line" =~ ^[[:space:]]+-[[:space:]]+ ]]; then
+            return 1
+        fi
+
+        if [[ "$line" =~ ^[[:space:]]+max_instances:[[:space:]]+(.*)$ ]]; then
+            val="${BASH_REMATCH[1]}"; val="${val%%#*}"; val="${val//[[:space:]]/}"
+            [[ "$val" =~ ^[0-9]+$ ]] || return 1
+            continue
+        fi
+        if [[ "$line" =~ ^[[:space:]]+max_ram_mb:[[:space:]]+(.*)$ ]]; then
+            val="${BASH_REMATCH[1]}"; val="${val%%#*}"; val="${val//[[:space:]]/}"
+            [[ "$val" =~ ^[0-9]+$ ]] || return 1
+            continue
+        fi
+        if [[ "$line" =~ ^[[:space:]]+max_cpu_percent:[[:space:]]+(.*)$ ]]; then
+            val="${BASH_REMATCH[1]}"; val="${val%%#*}"; val="${val//[[:space:]]/}"
+            [[ "$val" =~ ^[0-9]+$ ]] || return 1
+            continue
+        fi
+    done < "$file"
+
+    if grep -qE '^[[:space:]]*custom_processes:[[:space:]]*$' "$file" 2>/dev/null; then
+        [[ "$seen_item" -eq 1 ]] || return 1
+    fi
+    return 0
+}
+
 macmon_load_config() {
     local config_file="${1:-}"
     local default_config="${MACMON_HOME:-}/config/macmon.default.yaml"
@@ -63,9 +130,19 @@ macmon_load_config() {
     fi
     if [[ -n "$config_file" ]]; then
         if validated_user=$(_validated_config_path "$config_file"); then
-            _parse_yaml "$validated_user"
+            if _config_has_tab_indentation "$validated_user"; then
+                echo "macmon: WARNING: config contains tab indentation, using safe defaults" >&2
+                export MACMON_CFG_CONFIG_ERROR="tabs_in_yaml"
+            elif ! _validate_custom_processes_block "$validated_user"; then
+                echo "macmon: WARNING: invalid custom_processes syntax, using safe defaults" >&2
+                export MACMON_CFG_CONFIG_ERROR="invalid_custom_processes"
+            else
+                _parse_yaml "$validated_user"
+                export MACMON_CFG_CONFIG_ERROR=""
+            fi
         elif [[ -f "$config_file" ]]; then
             echo "macmon: WARNING: blocked unsafe config path: $config_file" >&2
+            export MACMON_CFG_CONFIG_ERROR="unsafe_config_path"
         fi
     fi
 
@@ -170,7 +247,7 @@ macmon_get_custom_processes() {
     if [[ -n "$config_file" && -f "$config_file" ]]; then
         local validated_user
         validated_user=$(_validated_config_path "$config_file" || true)
-        if [[ -n "$validated_user" ]] && grep -qE '^[[:space:]]*custom_processes:[[:space:]]*$' "$validated_user" 2>/dev/null; then
+        if [[ -n "$validated_user" ]] && grep -qE '^[[:space:]]*custom_processes:[[:space:]]*$' "$validated_user" 2>/dev/null && _validate_custom_processes_block "$validated_user" && ! _config_has_tab_indentation "$validated_user"; then
             file="$validated_user"
         fi
     fi

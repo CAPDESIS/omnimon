@@ -52,3 +52,35 @@ setup() {
     result=$(macmon_cfg "LOG_MAX_SIZE_MB" "99")
     [ "$result" = "10" ]
 }
+
+@test "macmon_load_config: falls back on tab-indented YAML" {
+    mkdir -p "$HOME/.config/macmon"
+    tmp_cfg=$(mktemp "$HOME/.config/macmon/macmon-tabcfg.XXXXXX.yaml")
+    cat > "$tmp_cfg" <<'EOF'
+thresholds:
+	ram_free_percent: 5
+EOF
+
+    macmon_load_config "$tmp_cfg"
+    result=$(macmon_cfg "THRESHOLDS_RAM_FREE_PERCENT" "99")
+    [ "$result" = "25" ]
+    [ "${MACMON_CFG_CONFIG_ERROR}" = "tabs_in_yaml" ]
+    rm -f "$tmp_cfg"
+}
+
+@test "macmon_get_custom_processes: invalid custom_processes falls back to defaults" {
+    mkdir -p "$HOME/.config/macmon"
+    tmp_cfg=$(mktemp "$HOME/.config/macmon/macmon-badcustom.XXXXXX.yaml")
+    cat > "$tmp_cfg" <<'EOF'
+custom_processes:
+  - wrong_key: "node"
+EOF
+
+    export MACMON_CONFIG="$tmp_cfg"
+    macmon_load_config "$tmp_cfg"
+    result=$(macmon_get_custom_processes)
+    [[ "$result" == *"flutter_tester:10:0:0"* ]]
+    [ "${MACMON_CFG_CONFIG_ERROR}" = "invalid_custom_processes" ]
+    rm -f "$tmp_cfg"
+    unset MACMON_CONFIG
+}

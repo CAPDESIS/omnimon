@@ -54,7 +54,7 @@ Native AppKit window using MVVM architecture:
 - **View** (`ProcessPicker.swift`) — AppKit layer with `NSTableView`, `NSSearchField`, `MemoryPressureGauge`, keyboard shortcuts, and cell recycling.
 
 ### 4. Menu Bar (`MacmonStatusBar.swift`)
-Persistent `NSStatusItem` showing live RAM usage. Collects data natively via `host_statistics64` and `sysctlbyname` (no subprocess spawning). Provides quick access to the picker, export, and status.
+Persistent `NSStatusItem` showing live RAM usage. Collects data natively via `host_statistics64` and `sysctlbyname` (no subprocess spawning). Metrics collection runs on a background queue and applies UI updates on the main thread. Provides quick access to picker, config editing, export, and status.
 
 ### 5. Disk I/O Helper (`DiskIOHelper.swift`)
 Standalone binary that reads per-process disk I/O via `proc_pid_rusage` with `RUSAGE_INFO_V4`. Takes PIDs as arguments or via `--stdin`, outputs JSON. Does not require root.
@@ -129,6 +129,8 @@ brew/
 The daemon handles:
 - `SIGTERM` / `SIGINT` — clean shutdown (remove PID file, clean temp files)
 - `SIGUSR1` — reload configuration without restart
+
+The daemon also watches config file mtime and triggers the same reload path automatically when `macmon.yaml` changes.
 
 ## Configuration System
 

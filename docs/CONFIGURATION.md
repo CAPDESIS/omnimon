@@ -18,6 +18,8 @@ kill -USR1 $(cat ${TMPDIR}/macmond.pid)
 
 Or simply: `macmon restart`
 
+Hot-reload is also enabled automatically: the daemon watches the config file mtime and reloads thresholds when the file changes.
+
 ## All Options
 
 ### Thresholds
@@ -145,6 +147,11 @@ Orphans trigger a native macOS notification offering to open the process picker 
 
 - **CWE-362 (Race Condition)**: PID file writes now use a lock directory + atomic move to prevent concurrent write/remove races.
 - **TA0004 / Path Traversal**: config loading only accepts canonical `.yaml/.yml` paths under `~/.config/macmon/` or `${MACMON_HOME}/config/`; `..` traversal paths are rejected.
+
+## Reliability Fallbacks
+
+- If config uses tab indentation or has malformed `custom_processes` entries, macmon logs a warning and keeps safe defaults in memory.
+- Daemon remains running; invalid config never crashes monitoring.
 
 ## Menu Bar Monitor
 

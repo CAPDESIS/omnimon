@@ -6,19 +6,19 @@ setup() {
     _macmon_test_setup
 }
 
-@test "friendly_name: Claude CLI by binary name" {
-    result=$(friendly_name "claude" "")
-    [ "$result" = "Claude CLI" ]
+@test "friendly_name: generic binary passthrough" {
+    result=$(friendly_name "helper-tool" "")
+    [ "$result" = "helper-tool" ]
 }
 
-@test "friendly_name: Claude CLI by args pattern" {
-    result=$(friendly_name "node" "/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js")
-    [ "$result" = "Claude CLI" ]
+@test "friendly_name: node script path labeling" {
+    result=$(friendly_name "node" "/usr/local/lib/node_modules/my-tool/cli.js")
+    [ "$result" = "Node: cli.js" ]
 }
 
-@test "friendly_name: OpenCode" {
-    result=$(friendly_name "opencode" "")
-    [ "$result" = "OpenCode" ]
+@test "friendly_name: plain binary with no mapping" {
+    result=$(friendly_name "agent-runner" "")
+    [ "$result" = "agent-runner" ]
 }
 
 @test "friendly_name: Warp Terminal (stable binary)" {

@@ -131,12 +131,15 @@ private let ColDiskW = NSUserInterfaceItemIdentifier("diskWriteMB")
 class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
     let viewModel = ProcessViewModel()
     var systemHealth: SystemHealth?
+    private let dataQueue = DispatchQueue(label: "com.macmon.processpicker.data", qos: .userInitiated)
 
     weak var tableView: NSTableView!
     var window: NSWindow!
     var statusLabel: NSTextField!
     var summaryView: SystemSummaryView!
     var searchField: NSSearchField!
+    var closeButton: NSButton!
+    var cancelButton: NSButton!
 
     var exitCode: Int32 = 2  // default: cancelled
 
@@ -168,6 +171,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         searchField.delegate = self
         searchField.sendsSearchStringImmediately = true
         searchField.sendsWholeSearchString = false
+        searchField.setAccessibilityLabel(L("picker.a11y.search"))
         contentView.addSubview(searchField)
 
         // Table view
@@ -185,6 +189,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         table.intercellSpacing = NSSize(width: 8, height: 0)
         table.dataSource = self
         table.delegate = self
+        table.setAccessibilityRole(.table)
+        table.setAccessibilityLabel(L("picker.a11y.table"))
         self.tableView = table
 
         // Define columns
@@ -240,6 +246,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         let btnToggleGroups = NSButton(title: L("picker.button.groups"), target: self, action: #selector(toggleGrouping))
         let btnCancel = NSButton(title: L("picker.button.cancel"), target: self, action: #selector(cancelAction))
         let btnClose = NSButton(title: L("picker.button.close_selected"), target: self, action: #selector(closeSelected))
+        cancelButton = btnCancel
+        closeButton = btnClose
 
         btnClose.bezelColor = NSColor.systemRed
         btnCancel.keyEquivalent = "\u{1b}"  // Escape
@@ -249,8 +257,19 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         for btn in buttons {
             btn.translatesAutoresizingMaskIntoConstraints = false
             btn.bezelStyle = .rounded
+            btn.setAccessibilityRole(.button)
+            btn.setAccessibilityLabel(btn.title)
             contentView.addSubview(btn)
         }
+
+        searchField.nextKeyView = table
+        table.nextKeyView = btnSelectAll
+        btnSelectAll.nextKeyView = btnSelectNone
+        btnSelectNone.nextKeyView = btnSelectIdle
+        btnSelectIdle.nextKeyView = btnToggleGroups
+        btnToggleGroups.nextKeyView = btnCancel
+        btnCancel.nextKeyView = btnClose
+        btnClose.nextKeyView = searchField
 
         // Layout
         NSLayoutConstraint.activate([
@@ -307,16 +326,51 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         let decoder = JSONDecoder()
         do {
             let processData = try decoder.decode(ProcessData.self, from: data)
-            viewModel.load(from: processData)
-            systemHealth = processData.system
-            if let health = systemHealth {
-                summaryView.update(health: health)
-            }
-            updateStatus()
+            applyLoadedData(processData)
             return true
         } catch {
             fputs(LF("picker.error.parse_json", error.localizedDescription), stderr)
             return false
+        }
+    }
+
+    private func applyLoadedData(_ processData: ProcessData) {
+        viewModel.load(from: processData)
+        systemHealth = processData.system
+        if let health = systemHealth {
+            summaryView.update(health: health)
+        }
+        updateStatus()
+    }
+
+    func loadDataAsync(from file: String, completion: @escaping (Bool) -> Void) {
+        dataQueue.async { [weak self] in
+            guard let self = self else {
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            guard let data = FileManager.default.contents(atPath: file) else {
+                DispatchQueue.main.async {
+                    fputs(LF("picker.error.read_file", file), stderr)
+                    completion(false)
+                }
+                return
+            }
+            let decoder = JSONDecoder()
+            let decoded: ProcessData
+            do {
+                decoded = try decoder.decode(ProcessData.self, from: data)
+            } catch {
+                DispatchQueue.main.async {
+                    fputs(LF("picker.error.parse_json", error.localizedDescription), stderr)
+                    completion(false)
+                }
+                return
+            }
+            DispatchQueue.main.async {
+                self.applyLoadedData(decoded)
+                completion(true)
+            }
         }
     }
 
@@ -622,6 +676,12 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     // MARK: - Status
 
     func updateStatus() {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.updateStatus()
+            }
+            return
+        }
         let total = viewModel.filteredIndices.count
         let selected = viewModel.selectedCount
         let ramTotal = viewModel.selectedRAM
@@ -644,6 +704,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
 class AppDelegate: NSObject, NSApplicationDelegate {
     let controller = ProcessPickerController()
     var inputFile: String?
+    private var keyboardMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         controller.setupWindow()
@@ -653,15 +714,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             exit(1)
         }
 
-        if !controller.loadData(from: file) {
-            exit(1)
+        controller.loadDataAsync(from: file) { [weak self] ok in
+            guard let self = self else { return }
+            if !ok {
+                exit(1)
+            }
+            self.controller.tableView.reloadData()
+            self.controller.window.makeKeyAndOrderFront(nil)
+            self.controller.window.makeFirstResponder(self.controller.searchField)
         }
 
-        controller.tableView.reloadData()
-        controller.window.makeKeyAndOrderFront(nil)
-
         // Set up keyboard shortcuts
-        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self else { return event }
             if event.modifierFlags.contains(.command) {
                 switch event.charactersIgnoringModifiers {
@@ -682,6 +746,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.controller.closeSelected(nil)
                 return nil
             }
+            if event.keyCode == 36 { // Return key
+                self.controller.closeSelected(nil)
+                return nil
+            }
             return event
         }
     }
@@ -691,6 +759,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if let monitor = keyboardMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyboardMonitor = nil
+        }
         exit(controller.exitCode)
     }
 }

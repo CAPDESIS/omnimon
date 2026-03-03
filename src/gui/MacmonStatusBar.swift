@@ -100,6 +100,9 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var menu: NSMenu!
     private var refreshTimer: Timer?
+    private let metricsQueue = DispatchQueue(label: "com.macmon.statusbar.metrics", qos: .utility)
+    private let configPath: String
+    private var lastConfigMTime: TimeInterval = 0
 
     // Menu items that get updated
     private var ramItem: NSMenuItem!
@@ -119,6 +122,11 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
             candidate = envHome
         } else {
             candidate = NSHomeDirectory() + "/.local/libexec/macmon"
+        }
+        if let explicitConfig = ProcessInfo.processInfo.environment["MACMON_CONFIG"], !explicitConfig.isEmpty {
+            configPath = explicitConfig
+        } else {
+            configPath = NSHomeDirectory() + "/.config/macmon/macmon.yaml"
         }
         // Security: validate MACMON_HOME — must be an absolute path owned by current user,
         // not a symlink to a different owner's directory, and must not contain shell metacharacters
@@ -177,6 +185,8 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
                 button.title = "M"
             }
             button.toolTip = L("statusbar.tooltip")
+            button.setAccessibilityRole(.button)
+            button.setAccessibilityLabel(L("statusbar.accessibility"))
         }
 
         buildMenu()
@@ -186,15 +196,13 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         refreshData()
 
         // Refresh every 30 seconds
-        refreshTimer = Timer.scheduledTimer(
-            timeInterval: 30.0,
-            target: self,
-            selector: #selector(refreshData),
-            userInfo: nil,
-            repeats: true
-        )
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+            self?.refreshData()
+        }
         // Allow timer to fire even during menu tracking
-        RunLoop.current.add(refreshTimer!, forMode: .common)
+        if let timer = refreshTimer {
+            RunLoop.current.add(timer, forMode: .common)
+        }
     }
 
     private func buildMenu() {
@@ -229,6 +237,24 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         pickerItem.keyEquivalentModifierMask = [.command]
         pickerItem.target = self
         menu.addItem(pickerItem)
+
+        let configItem = NSMenuItem(
+            title: L("statusbar.menu.open_config"),
+            action: #selector(openConfiguration),
+            keyEquivalent: ","
+        )
+        configItem.keyEquivalentModifierMask = [.command]
+        configItem.target = self
+        menu.addItem(configItem)
+
+        let reloadItem = NSMenuItem(
+            title: L("statusbar.menu.reload_config"),
+            action: #selector(reloadConfigurationNow),
+            keyEquivalent: "r"
+        )
+        reloadItem.keyEquivalentModifierMask = [.command]
+        reloadItem.target = self
+        menu.addItem(reloadItem)
 
         // Export Snapshot submenu
         let exportItem = NSMenuItem(title: L("statusbar.menu.export"), action: nil, keyEquivalent: "")
@@ -282,9 +308,30 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
     // MARK: - Data Refresh
 
     @objc func refreshData() {
-        snapshot = SystemSnapshot.collect()
-        updateMenuItems()
-        updateStatusBarTitle()
+        metricsQueue.async { [weak self] in
+            guard let self = self else { return }
+            let collected = SystemSnapshot.collect()
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                self.snapshot = collected
+                self.updateMenuItems()
+                self.updateStatusBarTitle()
+                self.autoReloadIfConfigChanged()
+            }
+        }
+    }
+
+    private func autoReloadIfConfigChanged() {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: configPath),
+              let modified = attrs[.modificationDate] as? Date else { return }
+        let ts = modified.timeIntervalSince1970
+        if lastConfigMTime == 0 {
+            lastConfigMTime = ts
+            return
+        }
+        guard ts > lastConfigMTime else { return }
+        lastConfigMTime = ts
+        signalDaemonReload()
     }
 
     private func updateMenuItems() {
@@ -358,6 +405,32 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         runMacmonExport(format: "csv")
     }
 
+    @objc func openConfiguration() {
+        let url = URL(fileURLWithPath: configPath)
+        if FileManager.default.fileExists(atPath: configPath) {
+            NSWorkspace.shared.open(url)
+        } else {
+            showAlert(
+                title: L("statusbar.alert.config_missing_title"),
+                message: LF("statusbar.alert.config_missing_message", configPath)
+            )
+        }
+    }
+
+    @objc func reloadConfigurationNow() {
+        signalDaemonReload()
+    }
+
+    private func signalDaemonReload() {
+        let pidPath = NSTemporaryDirectory() + "macmond.pid"
+        guard let content = try? String(contentsOfFile: pidPath, encoding: .utf8),
+              let pid = Int32(content.trimmingCharacters(in: .whitespacesAndNewlines)),
+              pid > 1 else {
+            return
+        }
+        _ = Darwin.kill(pid, SIGUSR1)
+    }
+
     private func runMacmonExport(format: String) {
         let macmonBin = findMacmonCLI()
         guard FileManager.default.isExecutableFile(atPath: macmonBin) else {
@@ -380,28 +453,32 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         let response = panel.runModal()
         guard response == .OK, let url = panel.url else { return }
 
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: macmonBin)
-        task.arguments = ["export", format]
-        var env = ProcessInfo.processInfo.environment
-        env["MACMON_HOME"] = macmonHome
-        task.environment = env
+        metricsQueue.async { [weak self] in
+            guard let self = self else { return }
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: macmonBin)
+            task.arguments = ["export", format]
+            var env = ProcessInfo.processInfo.environment
+            env["MACMON_HOME"] = self.macmonHome
+            task.environment = env
 
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = FileHandle.nullDevice
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = FileHandle.nullDevice
 
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            try data.write(to: url)
-        } catch {
-            showAlert(
-                title: L("statusbar.alert.export_failed_title"),
-                message: LF("statusbar.alert.export_failed_message", error.localizedDescription)
-            )
+            do {
+                try task.run()
+                task.waitUntilExit()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                try data.write(to: url)
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    self?.showAlert(
+                        title: L("statusbar.alert.export_failed_title"),
+                        message: LF("statusbar.alert.export_failed_message", error.localizedDescription)
+                    )
+                }
+            }
         }
     }
 
@@ -418,38 +495,39 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         // Security: avoid AppleScript string interpolation of MACMON_HOME (Finding #2).
         // Use Process API with argument arrays and pipe output to a temporary file,
         // then open that file in Terminal via a safe, fixed AppleScript command.
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: macmonBin)
-        task.arguments = ["status"]
-        var env = ProcessInfo.processInfo.environment
-        env["MACMON_HOME"] = macmonHome
-        task.environment = env
+        metricsQueue.async {
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: macmonBin)
+            task.arguments = ["status"]
+            var env = ProcessInfo.processInfo.environment
+            env["MACMON_HOME"] = self.macmonHome
+            task.environment = env
 
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = FileHandle.nullDevice
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = FileHandle.nullDevice
 
-        do {
-            try task.run()
-            task.waitUntilExit()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if let output = String(data: data, encoding: .utf8), !output.isEmpty {
-                // Write to a temp file and open in Terminal
+            do {
+                try task.run()
+                task.waitUntilExit()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                guard let output = String(data: data, encoding: .utf8), !output.isEmpty else { return }
                 let tmpPath = NSTemporaryDirectory() + "macmon-status.txt"
                 try output.write(toFile: tmpPath, atomically: true, encoding: .utf8)
-                // Safe AppleScript: no variable interpolation, uses hardcoded temp path
-                let script = """
-                    tell application "Terminal"
-                        activate
-                        do script "cat '\(tmpPath.replacingOccurrences(of: "'", with: "'\\''"))' ; rm -f '\(tmpPath.replacingOccurrences(of: "'", with: "'\\''"))'"
-                    end tell
-                """
-                let appleScript = NSAppleScript(source: script)
-                var errorDict: NSDictionary?
-                appleScript?.executeAndReturnError(&errorDict)
+                DispatchQueue.main.async {
+                    let script = """
+                        tell application "Terminal"
+                            activate
+                            do script "cat '\(tmpPath.replacingOccurrences(of: "'", with: "'\\''"))' ; rm -f '\(tmpPath.replacingOccurrences(of: "'", with: "'\\''"))'"
+                        end tell
+                    """
+                    let appleScript = NSAppleScript(source: script)
+                    var errorDict: NSDictionary?
+                    appleScript?.executeAndReturnError(&errorDict)
+                }
+            } catch {
+                fputs("Warning: Could not run macmon status: \(error)\n", stderr)
             }
-        } catch {
-            fputs("Warning: Could not run macmon status: \(error)\n", stderr)
         }
     }
 
@@ -457,6 +535,10 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         refreshTimer?.invalidate()
         refreshTimer = nil
         NSApp.terminate(nil)
+    }
+
+    deinit {
+        refreshTimer?.invalidate()
     }
 
     // MARK: - Helpers
@@ -477,6 +559,12 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
     }
 
     private func showAlert(title: String, message: String) {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.showAlert(title: title, message: message)
+            }
+            return
+        }
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message

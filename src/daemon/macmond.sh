@@ -21,6 +21,8 @@ mkdir -p "$MACMON_LOG_DIR"
 # --- PID File (symlink-safe) ---
 PID_FILE="${MACMON_TMPDIR}/macmond.pid"
 PID_LOCK_DIR="${MACMON_TMPDIR}/macmond.pid.lock"
+WATCHED_CONFIG_FILE=""
+LAST_CONFIG_MTIME=0
 
 write_pid() {
     local lock_wait=0
@@ -98,7 +100,29 @@ reload_config() {
     idle_interval=$(macmon_cfg "INTERVALS_IDLE_CHECK" "600")
     [[ "$check_interval" =~ ^[0-9]+$ ]] || check_interval=60
     [[ "$idle_interval" =~ ^[0-9]+$ ]] || idle_interval=600
+    WATCHED_CONFIG_FILE=$(_validated_config_path "${MACMON_CONFIG:-$HOME/.config/macmon/macmon.yaml}" || true)
+    if [[ -z "$WATCHED_CONFIG_FILE" ]]; then
+        WATCHED_CONFIG_FILE=$(_validated_config_path "${MACMON_HOME}/config/macmon.default.yaml" || true)
+    fi
+    if [[ -n "$WATCHED_CONFIG_FILE" && -f "$WATCHED_CONFIG_FILE" ]]; then
+        LAST_CONFIG_MTIME=$(stat -f %m "$WATCHED_CONFIG_FILE" 2>/dev/null || echo 0)
+    fi
+    if [[ -n "${MACMON_CFG_CONFIG_ERROR:-}" ]]; then
+        macmon_log "CONFIG WARNING: ${MACMON_CFG_CONFIG_ERROR}; defaults remain active"
+        macmon_notify "macmon - Config Warning" "Invalid configuration detected (${MACMON_CFG_CONFIG_ERROR}). Using safe defaults."
+    fi
     macmon_log "Configuration reloaded (check=${check_interval}s, idle=${idle_interval}s)"
+}
+
+watch_config_changes() {
+    [[ -n "$WATCHED_CONFIG_FILE" && -f "$WATCHED_CONFIG_FILE" ]] || return 0
+    local current_mtime
+    current_mtime=$(stat -f %m "$WATCHED_CONFIG_FILE" 2>/dev/null || echo 0)
+    [[ "$current_mtime" =~ ^[0-9]+$ ]] || return 0
+    (( current_mtime > LAST_CONFIG_MTIME )) || return 0
+    LAST_CONFIG_MTIME="$current_mtime"
+    macmon_log "Config file changed on disk: $WATCHED_CONFIG_FILE"
+    reload_config
 }
 
 trap cleanup SIGTERM SIGINT
@@ -119,13 +143,16 @@ do_check_custom_processes() {
             [[ -z "$vname" ]] && continue
             (( violation_count++ )) || true
             case "$vtype" in
-                instances) summary="${summary}\n- ${vname}: ${vcurrent} instances (max ${vthreshold})" ;;
-                ram)       summary="${summary}\n- ${vname}: ${vcurrent}MB RAM (max ${vthreshold}MB)" ;;
-                cpu)       summary="${summary}\n- ${vname}: ${vcurrent}% CPU (max ${vthreshold}%)" ;;
+                instances) summary+=$'\n'; summary+="- ${vname}: ${vcurrent} instances (max ${vthreshold})" ;;
+                ram)       summary+=$'\n'; summary+="- ${vname}: ${vcurrent}MB RAM (max ${vthreshold}MB)" ;;
+                cpu)       summary+=$'\n'; summary+="- ${vname}: ${vcurrent}% CPU (max ${vthreshold}%)" ;;
             esac
         done <<< "$violations"
 
-        if macmon_ask_yes_no "macmon - Process Alert" "Detected ${violation_count} process threshold violation(s):${summary}\n\nKill offending processes?"; then
+        local prompt
+        prompt="Detected ${violation_count} process threshold violation(s):${summary}"
+        prompt+=$'\n\nKill offending processes?'
+        if macmon_ask_yes_no "macmon - Process Alert" "$prompt"; then
             local killed_names=":"
             while IFS=: read -r vname vtype vcurrent vthreshold; do
                 [[ -z "$vname" ]] && continue
@@ -204,13 +231,17 @@ do_check_orphans() {
         local orphan_summary=""
         local orphan_count=0
         while IFS=: read -r name count reason; do
-            orphan_summary="${orphan_summary}\n- ${name}: ${count} (${reason})"
+            orphan_summary+=$'\n'
+            orphan_summary+="- ${name}: ${count} (${reason})"
             (( orphan_count += count )) || true
         done <<< "$orphans"
 
         macmon_log "Orphan daemons detected: $orphan_count total"
 
-        if macmon_ask_yes_no "macmon - Orphan Processes" "Found ${orphan_count} orphan build daemon(s):${orphan_summary}\n\nClean them up?"; then
+        local orphan_prompt
+        orphan_prompt="Found ${orphan_count} orphan build daemon(s):${orphan_summary}"
+        orphan_prompt+=$'\n\nClean them up?'
+        if macmon_ask_yes_no "macmon - Orphan Processes" "$orphan_prompt"; then
             while IFS=: read -r name count reason; do
                 case "$name" in
                     SourceKitService) kill_orphan_by_pattern "SourceKitService" ;;
@@ -279,6 +310,7 @@ now=0
 
 while $RUNNING; do
     rotate_log
+    watch_config_changes
 
     # Run checks
     do_check_custom_processes

@@ -137,18 +137,6 @@ friendly_name() {
     local base
     base=$(basename "$comm")
 
-    # Claude CLI
-    if [[ "$base" == "claude" || "$args" == *"/@anthropic-ai/claude-code"* ]]; then
-        echo "Claude CLI"
-        return
-    fi
-
-    # OpenCode
-    if [[ "$base" == "opencode" ]]; then
-        echo "OpenCode"
-        return
-    fi
-
     # Warp terminal (binary is called "stable")
     if [[ "$base" == "stable" && "$args" == *"Warp.app"* ]]; then
         echo "Warp Terminal"
@@ -392,12 +380,6 @@ collect_processes_json() {
                 local tab_id
                 tab_id=$(printf '%s' "${args_arr[$i]}" | grep -o '\-\-renderer-client-id=[0-9]*' | head -1 | cut -d= -f2)
                 detail="Tab ID: ${tab_id:-unknown}"
-                ;;
-            "Claude CLI")
-                [[ -n "$cwd" ]] && detail="Project: $(basename "$cwd")"
-                ;;
-            "OpenCode")
-                [[ -n "$cwd" ]] && detail="Dir: $(basename "$cwd")"
                 ;;
             *)
                 if [[ "${tty_arr[$i]}" != "??" && "${tty_arr[$i]}" != "-" ]]; then
