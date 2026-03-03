@@ -56,9 +56,14 @@ cooldown_elapsed() {
 
 # --- Signal Handlers ---
 RUNNING=true
+SLEEP_PID=""
 
 cleanup() {
     RUNNING=false
+    # Kill any sleeping child so the loop exits immediately
+    [[ -n "$SLEEP_PID" ]] && kill "$SLEEP_PID" 2>/dev/null || true
+    # Reap all background children (prevents zombie accumulation)
+    wait 2>/dev/null || true
     macmon_log "Daemon shutting down (PID $$)"
     macmon_notify "macmon" "Daemon stopped" 2>/dev/null || true
     remove_pid
@@ -70,7 +75,12 @@ cleanup() {
 reload_config() {
     macmon_log "Reloading configuration (SIGUSR1)"
     macmon_load_config "${MACMON_CONFIG:-$HOME/.config/macmon/macmon.yaml}"
-    macmon_log "Configuration reloaded"
+    # Re-read intervals in case they changed
+    check_interval=$(macmon_cfg "INTERVALS_CHECK" "60")
+    idle_interval=$(macmon_cfg "INTERVALS_IDLE_CHECK" "600")
+    [[ "$check_interval" =~ ^[0-9]+$ ]] || check_interval=60
+    [[ "$idle_interval" =~ ^[0-9]+$ ]] || idle_interval=600
+    macmon_log "Configuration reloaded (check=${check_interval}s, idle=${idle_interval}s)"
 }
 
 trap cleanup SIGTERM SIGINT
@@ -215,6 +225,9 @@ do_check_idle() {
 
 # --- Main Loop ---
 
+# Close stdin (daemon runs headless, no interactive input)
+exec 0</dev/null
+
 macmon_log "Daemon started (PID $$, version ${MACMON_VERSION})"
 write_pid
 macmon_notify "macmon" "Daemon started (v${MACMON_VERSION})"
@@ -226,7 +239,6 @@ idle_interval=$(macmon_cfg "INTERVALS_IDLE_CHECK" "600")
 last_idle_check=0
 
 now=0
-i=0
 
 while $RUNNING; do
     rotate_log
@@ -243,13 +255,20 @@ while $RUNNING; do
         last_idle_check=$now
     fi
 
+    # Reap any background children from graceful-quit.sh invocations
+    # (prevents zombie process accumulation over days of uptime)
+    wait 2>/dev/null || true
+
     # Invalidate memory pressure cache for next cycle
     _cached_mem_pressure=""
     _cached_mem_pressure_time=0
 
-    # Sleep in small increments so signals are handled promptly
-    for (( i = 0; i < check_interval; i++ )); do
-        $RUNNING || break
-        sleep 1
-    done
+    # Energy-efficient sleep: single sleep call instead of 1-second ticks.
+    # Signals (SIGTERM/SIGINT/SIGUSR1) interrupt the sleep immediately
+    # because we trap them and kill the sleep child.
+    $RUNNING || break
+    sleep "$check_interval" &
+    SLEEP_PID=$!
+    wait "$SLEEP_PID" 2>/dev/null || true
+    SLEEP_PID=""
 done
