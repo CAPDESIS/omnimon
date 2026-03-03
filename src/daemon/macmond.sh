@@ -18,11 +18,20 @@ export MACMON_LOG_DIR MACMON_LOG_FILE
 
 mkdir -p "$MACMON_LOG_DIR"
 
-# --- PID File ---
+# --- PID File (symlink-safe) ---
 PID_FILE="${MACMON_TMPDIR}/macmond.pid"
 
 write_pid() {
-    echo $$ > "$PID_FILE"
+    # Prevent symlink attacks: remove any existing file/symlink first,
+    # then create with restrictive umask
+    rm -f "$PID_FILE"
+    (umask 077; echo $$ > "$PID_FILE")
+    # Verify it's a regular file, not a symlink
+    if [[ -L "$PID_FILE" ]]; then
+        macmon_log "SECURITY: PID file is a symlink, refusing to continue"
+        rm -f "$PID_FILE"
+        exit 1
+    fi
 }
 
 remove_pid() {

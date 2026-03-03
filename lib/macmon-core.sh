@@ -4,8 +4,44 @@
 
 set -euo pipefail
 
-MACMON_VERSION="1.2.0"
+export MACMON_VERSION="1.2.0"
 MACMON_HOME="${MACMON_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+
+# --- Validate MACMON_HOME (MITRE T1574 - Hijack Execution Flow) ---
+# Prevent path injection and privilege escalation via tampered MACMON_HOME
+_validate_macmon_home() {
+    local path="$1"
+    # Must be an absolute path
+    if [[ "$path" != /* ]]; then
+        echo "macmon: ERROR: MACMON_HOME must be an absolute path" >&2
+        return 1
+    fi
+    # Reject shell metacharacters
+    if [[ "$path" =~ [\'\"\\\`\$\!\;\|\&\(\)] ]]; then
+        echo "macmon: ERROR: MACMON_HOME contains forbidden characters" >&2
+        return 1
+    fi
+    # Must be a directory
+    if [[ ! -d "$path" ]]; then
+        echo "macmon: ERROR: MACMON_HOME does not exist: $path" >&2
+        return 1
+    fi
+    # Must be owned by current user (no other user can plant malicious scripts)
+    local dir_owner
+    dir_owner=$(stat -f%u "$path" 2>/dev/null) || return 1
+    if [[ "$dir_owner" != "$(id -u)" ]]; then
+        echo "macmon: ERROR: MACMON_HOME not owned by current user" >&2
+        return 1
+    fi
+    # Must not be world-writable
+    local perms
+    perms=$(stat -f%Lp "$path" 2>/dev/null) || return 1
+    if [[ "${perms: -1}" =~ [2367] ]]; then
+        echo "macmon: ERROR: MACMON_HOME is world-writable" >&2
+        return 1
+    fi
+}
+_validate_macmon_home "$MACMON_HOME" || exit 1
 
 # Source config loader
 # shellcheck source=macmon-config.sh
@@ -23,7 +59,10 @@ macmon_log() {
     local dir
     dir="$(dirname "$log_file")"
     [[ -d "$dir" ]] || mkdir -p "$dir"
-    printf '%s [macmon] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$log_file"
+    # Strip ANSI escape sequences to prevent log injection via terminal rendering
+    local msg
+    msg=$(printf '%s' "$*" | sed $'s/\x1b\[[0-9;]*[a-zA-Z]//g')
+    printf '%s [macmon] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$msg" >> "$log_file"
 }
 
 rotate_log() {
@@ -78,6 +117,8 @@ macmon_ask_yes_no() {
     title=$(_applescript_escape "${1:-macmon}")
     body=$(_applescript_escape "${2:-Continue?}")
     timeout="${3:-30}"
+    # Validate timeout is numeric to prevent AppleScript injection
+    [[ "$timeout" =~ ^[0-9]+$ ]] || timeout=30
     local result
     result=$(osascript <<EOF 2>/dev/null || echo "No"
 display dialog "$body" with title "$title" buttons {"No", "Yes"} default button "No" giving up after $timeout
@@ -248,13 +289,18 @@ is_system_process() {
 # --- PID Verification ---
 
 # Verify a PID still belongs to the expected process before killing
+# Uses exact basename match to prevent name spoofing (Finding #6)
 verify_pid() {
     local pid="$1"
     local expected_name="$2"
-    local current_name
-    current_name=$(ps -p "$pid" -o comm= 2>/dev/null) || return 1
-    current_name=$(basename "$current_name")
-    [[ "$current_name" == *"$expected_name"* ]] || [[ "$expected_name" == *"$current_name"* ]]
+    local current_comm
+    current_comm=$(ps -p "$pid" -o comm= 2>/dev/null) || return 1
+    local current_base
+    current_base=$(basename "$current_comm")
+    local expected_base
+    expected_base=$(basename "$expected_name")
+    # Exact match on basenames
+    [[ "$current_base" == "$expected_base" ]]
 }
 
 # --- Process Collection (Batch) ---

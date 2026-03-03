@@ -14,6 +14,7 @@ _to_upper() {
 _expand_tilde() {
     local val="$1"
     case "$val" in
+        # shellcheck disable=SC2088
         "~/"*) val="${HOME}/${val#\~/}" ;;
         "~")   val="$HOME" ;;
     esac
@@ -53,7 +54,8 @@ _parse_yaml() {
             val="${val%%#*}"    # strip inline comments
             val="${val%"${val##*[![:space:]]}"}"  # trim trailing
             if [[ -n "$section" ]]; then
-                local list_var="MACMON_CFG_$(_to_upper "$section")"
+                local list_var
+                list_var="MACMON_CFG_$(_to_upper "$section")"
                 local existing="${!list_var:-}"
                 if [[ -n "$existing" ]]; then
                     export "$list_var=${existing}:${val}"
@@ -99,7 +101,8 @@ _parse_yaml() {
 
 # Get a config value with fallback default
 macmon_cfg() {
-    local key="MACMON_CFG_$(_to_upper "$1")"
+    local key
+    key="MACMON_CFG_$(_to_upper "$1")"
     local default="${2:-}"
     echo "${!key:-$default}"
 }

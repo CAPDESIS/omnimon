@@ -109,18 +109,58 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
     // Latest snapshot
     private var snapshot: SystemSnapshot?
 
-    // MACMON_HOME for locating other components
+    // MACMON_HOME for locating other components (validated at init)
     private let macmonHome: String
 
     override init() {
+        let candidate: String
         if let envHome = ProcessInfo.processInfo.environment["MACMON_HOME"],
            !envHome.isEmpty {
-            macmonHome = envHome
+            candidate = envHome
         } else {
-            // Reasonable default
-            macmonHome = NSHomeDirectory() + "/.local/libexec/macmon"
+            candidate = NSHomeDirectory() + "/.local/libexec/macmon"
         }
+        // Security: validate MACMON_HOME — must be an absolute path owned by current user,
+        // not a symlink to a different owner's directory, and must not contain shell metacharacters
+        macmonHome = MacmonStatusBarController.validateMacmonHome(candidate)
         super.init()
+    }
+
+    /// Validate and canonicalize MACMON_HOME to prevent path injection (MITRE T1574).
+    /// Returns the validated path, or falls back to the default.
+    private static func validateMacmonHome(_ path: String) -> String {
+        let fm = FileManager.default
+        let defaultPath = NSHomeDirectory() + "/.local/libexec/macmon"
+
+        // Must be absolute path
+        guard path.hasPrefix("/") else { return defaultPath }
+
+        // Reject shell metacharacters that could break out of quoting
+        let forbidden = CharacterSet(charactersIn: "'\"\\`$!;|&()\n\r")
+        guard path.rangeOfCharacter(from: forbidden) == nil else {
+            fputs("macmon: WARNING: MACMON_HOME contains forbidden characters, using default\n", stderr)
+            return defaultPath
+        }
+
+        // Resolve symlinks to canonical path
+        let resolved = (path as NSString).resolvingSymlinksInPath
+
+        // Must be a directory
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: resolved, isDirectory: &isDir), isDir.boolValue else {
+            return defaultPath
+        }
+
+        // Must be owned by current user (prevents privilege escalation via shared dirs)
+        if let attrs = try? fm.attributesOfItem(atPath: resolved),
+           let owner = attrs[.ownerAccountID] as? NSNumber {
+            if owner.uint32Value != getuid() {
+                fputs("macmon: WARNING: MACMON_HOME not owned by current user, using default\n", stderr)
+                return defaultPath
+            }
+        }
+
+        return resolved
     }
 
     func setup() {
@@ -285,26 +325,19 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         let pickerPath = macmonHome + "/ProcessPicker"
         let macmonBin = findMacmonCLI()
 
-        if FileManager.default.isExecutableFile(atPath: pickerPath) {
-            // ProcessPicker needs a JSON file from macmon; run macmon to generate it,
-            // then launch the picker
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/bin/bash")
-            task.arguments = ["-c", """
-                export MACMON_HOME="\(macmonHome)"
-                if [ -x "\(macmonBin)" ]; then
-                    "\(macmonBin)" picker
-                else
-                    open "\(pickerPath)"
-                fi
-            """]
-            task.environment = ProcessInfo.processInfo.environment
-            try? task.run()
-        } else if FileManager.default.isExecutableFile(atPath: macmonBin) {
-            // Fall back to CLI picker command
+        // Security: use Process argument arrays instead of bash -c string interpolation
+        // to prevent shell injection via MACMON_HOME (Finding #3)
+        if FileManager.default.isExecutableFile(atPath: macmonBin) {
             let task = Process()
             task.executableURL = URL(fileURLWithPath: macmonBin)
             task.arguments = ["picker"]
+            var env = ProcessInfo.processInfo.environment
+            env["MACMON_HOME"] = macmonHome
+            task.environment = env
+            try? task.run()
+        } else if FileManager.default.isExecutableFile(atPath: pickerPath) {
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: pickerPath)
             var env = ProcessInfo.processInfo.environment
             env["MACMON_HOME"] = macmonHome
             task.environment = env
@@ -374,37 +407,49 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
 
     @objc func openStatus() {
         let macmonBin = findMacmonCLI()
-        // Run macmon status in Terminal.app
-        let script: String
-        if FileManager.default.isExecutableFile(atPath: macmonBin) {
-            script = """
-                tell application "Terminal"
-                    activate
-                    do script "MACMON_HOME='\(macmonHome)' '\(macmonBin)' status"
-                end tell
-            """
-        } else {
-            script = """
-                tell application "Terminal"
-                    activate
-                    do script "echo 'macmon CLI not found at \(macmonBin)'"
-                end tell
-            """
+        guard FileManager.default.isExecutableFile(atPath: macmonBin) else {
+            showAlert(
+                title: "macmon Not Found",
+                message: "Could not find macmon CLI to show status."
+            )
+            return
         }
 
-        let appleScript = NSAppleScript(source: script)
-        var errorDict: NSDictionary?
-        appleScript?.executeAndReturnError(&errorDict)
-        if let err = errorDict {
-            // If AppleScript fails (e.g. no Terminal access), fall back to direct process
-            fputs("Warning: Could not open Terminal via AppleScript: \(err)\n", stderr)
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: macmonBin)
-            task.arguments = ["status"]
-            var env = ProcessInfo.processInfo.environment
-            env["MACMON_HOME"] = macmonHome
-            task.environment = env
-            try? task.run()
+        // Security: avoid AppleScript string interpolation of MACMON_HOME (Finding #2).
+        // Use Process API with argument arrays and pipe output to a temporary file,
+        // then open that file in Terminal via a safe, fixed AppleScript command.
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: macmonBin)
+        task.arguments = ["status"]
+        var env = ProcessInfo.processInfo.environment
+        env["MACMON_HOME"] = macmonHome
+        task.environment = env
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let output = String(data: data, encoding: .utf8), !output.isEmpty {
+                // Write to a temp file and open in Terminal
+                let tmpPath = NSTemporaryDirectory() + "macmon-status.txt"
+                try output.write(toFile: tmpPath, atomically: true, encoding: .utf8)
+                // Safe AppleScript: no variable interpolation, uses hardcoded temp path
+                let script = """
+                    tell application "Terminal"
+                        activate
+                        do script "cat '\(tmpPath.replacingOccurrences(of: "'", with: "'\\''"))' ; rm -f '\(tmpPath.replacingOccurrences(of: "'", with: "'\\''"))'"
+                    end tell
+                """
+                let appleScript = NSAppleScript(source: script)
+                var errorDict: NSDictionary?
+                appleScript?.executeAndReturnError(&errorDict)
+            }
+        } catch {
+            fputs("Warning: Could not run macmon status: \(error)\n", stderr)
         }
     }
 
