@@ -16,7 +16,7 @@ macmon is structured as three cooperating components with a shared library:
        │                   │                      ▲
        └───────┬───────────┘                      │
                ▼                                  │
-       ┌───────────────┐              ┌───────────┴───────┐
+       ┌────────────-───┐              ┌───────────┴───────┐
        │ macmon-core.sh │              │  JSON temp file   │
        │ (shared lib)   │─────────────▶│  (process data)   │
        │                │              └───────────────────┘
@@ -25,7 +25,7 @@ macmon is structured as three cooperating components with a shared library:
        │ - Kill logic   │
        └───────┬────────┘
                │
-       ┌───────▼────────┐
+       ┌───────▼──────-──┐
        │macmon-config.sh │
        │ (YAML loader)   │
        └─────────────────┘
