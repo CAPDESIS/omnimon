@@ -5,6 +5,8 @@
 "statusbar.process.placeholder" = "Procesos: --";
 "statusbar.menu.open_picker" = "Abrir selector de procesos";
 "statusbar.menu.open_config" = "Abrir configuracion";
+"statusbar.menu.profile" = "Perfil";
+"statusbar.menu.preferences" = "Preferencias";
 "statusbar.menu.reload_config" = "Recargar configuracion";
 "statusbar.menu.export" = "Exportar captura...";
 "statusbar.menu.export.json" = "JSON";
@@ -23,6 +25,7 @@
 "statusbar.alert.status_missing_message" = "No se encontro el CLI de macmon para mostrar estado.";
 "statusbar.alert.config_missing_title" = "Configuracion no encontrada";
 "statusbar.alert.config_missing_message" = "No se encontro el archivo de configuracion en:\n%@";
+"statusbar.profile.none" = "No se encontraron perfiles";
 "statusbar.alert.ok" = "OK";
 "statusbar.export.panel.title" = "Exportar captura de macmon";
 "statusbar.export.panel.filename" = "macmon-snapshot.%@";
@@ -48,6 +51,7 @@
 "picker.button.select_none" = "Deseleccionar";
 "picker.button.select_idle" = "Seleccionar idle";
 "picker.button.groups" = "Grupos";
+"picker.button.smart_optimize" = "Smart Optimize";
 "picker.button.cancel" = "Cancelar";
 "picker.button.close_selected" = "Cerrar seleccionados";
 "picker.group.header" = "%@ (%d procesos, %.0f MB)";
@@ -60,4 +64,19 @@
 "picker.error.no_file" = "Error: No se especifico archivo de entrada. Usa --file <ruta>\n";
 "picker.error.read_file" = "Error: No se puede leer el archivo %@\n";
 "picker.error.parse_json" = "Error: Fallo al parsear JSON: %@\n";
+"picker.ai.error_title" = "Error en Smart Optimize";
+"picker.ai.no_safe" = "No se devolvieron sugerencias seguras.";
+"picker.ai.review_title" = "Sugerencias de IA listas";
+"picker.ai.review_hint" = "Revisa los procesos seleccionados. Pulsa Aplicar Optimización para cerrar ahora, o Revisar primero para ajustar manualmente.";
+"picker.ai.apply" = "Aplicar Optimización";
+"picker.ai.review" = "Revisar primero";
+
+"prefs.window.title" = "Preferencias de macmon";
+"prefs.provider" = "Proveedor IA";
+"prefs.model" = "Modelo";
+"prefs.api_key" = "API Key";
+"prefs.save" = "Guardar";
+"prefs.status.saved" = "Guardado en Keychain";
+"prefs.status.invalid" = "Proveedor, modelo y key son obligatorios";
+"prefs.status.keychain_error" = "No se pudo guardar en Keychain";
 "group.other" = "Otros";

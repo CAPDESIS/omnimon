@@ -115,13 +115,23 @@ Keep this README short; detailed topics are in docs:
    `docs/CONFIGURATION.md`
    `docs/ARCHITECTURE.md`
    `docs/VERSIONING.md`
+   `docs/AI_INTEGRATION.md`
    `CONTRIBUTING.md`
 2. Espanol
    `docs/es/CONFIGURATION.md`
    `docs/es/ARCHITECTURE.md`
+   `docs/es/AI_INTEGRATION.md`
    `docs/es/CONTRIBUTING.md`
 
 If you start from the menu bar UI, use `Open Configuration` to edit thresholds directly in your editor.
+
+## Privacy and Safety Model
+
+1. AI only analyzes process snapshots.
+2. AI never executes shell commands.
+3. User must explicitly approve process checkboxes before optimization is applied.
+4. API keys are stored in macOS Keychain.
+5. Final process termination is executed by native Bash safeguards with protected process checks.
 
 ### Process Picker Keyboard Shortcuts
 

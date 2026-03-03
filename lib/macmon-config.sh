@@ -36,9 +36,104 @@ _is_allowed_config_path() {
     local resolved="$1"
     [[ "$resolved" == *.yaml || "$resolved" == *.yml ]] || return 1
     case "$resolved" in
-        "$HOME/.config/macmon/"*|"${MACMON_HOME:-}/config/"*) return 0 ;;
+        "$HOME/.config/macmon/"*|"$HOME/.config/macmon/profiles/"*|"${MACMON_HOME:-}/config/"*) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+macmon_profiles_dir() {
+    printf '%s\n' "$HOME/.config/macmon/profiles"
+}
+
+macmon_active_profile_file() {
+    printf '%s\n' "$HOME/.config/macmon/active_profile"
+}
+
+macmon_get_active_profile() {
+    local active_file
+    active_file=$(macmon_active_profile_file)
+    [[ -f "$active_file" ]] || return 1
+    local name
+    name=$(tr -d '[:space:]' < "$active_file" 2>/dev/null || true)
+    [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]] || return 1
+    printf '%s\n' "$name"
+}
+
+macmon_profile_path() {
+    local profile="$1"
+    [[ "$profile" =~ ^[A-Za-z0-9._-]+$ ]] || return 1
+    local path
+    path="$(macmon_profiles_dir)/${profile}.yaml"
+    _validated_config_path "$path"
+}
+
+macmon_list_profiles() {
+    local dir
+    dir=$(macmon_profiles_dir)
+    [[ -d "$dir" ]] || return 0
+    local f
+    for f in "$dir"/*.yaml "$dir"/*.yml; do
+        [[ -f "$f" ]] || continue
+        local base
+        base=$(basename "$f")
+        base="${base%.yaml}"
+        base="${base%.yml}"
+        [[ "$base" =~ ^[A-Za-z0-9._-]+$ ]] || continue
+        printf '%s\n' "$base"
+    done
+}
+
+macmon_set_active_profile() {
+    local profile="$1"
+    local profile_path
+    profile_path=$(macmon_profile_path "$profile" 2>/dev/null) || return 1
+    [[ -f "$profile_path" ]] || return 1
+    mkdir -p "$HOME/.config/macmon"
+    printf '%s\n' "$profile" > "$(macmon_active_profile_file)"
+}
+
+MACMON_LOADED_CONFIG_PATH=""
+
+macmon_resolve_config_file() {
+    local requested="${1:-}"
+    local default_user="$HOME/.config/macmon/macmon.yaml"
+
+    if [[ -n "$requested" ]]; then
+        local validated_requested
+        validated_requested=$(_validated_config_path "$requested" || true)
+        if [[ -n "$validated_requested" ]]; then
+            printf '%s\n' "$validated_requested"
+            return 0
+        fi
+    fi
+
+    local active
+    active=$(macmon_get_active_profile 2>/dev/null || true)
+    if [[ -n "$active" ]]; then
+        local profile_file
+        profile_file=$(macmon_profile_path "$active" 2>/dev/null || true)
+        if [[ -n "$profile_file" && -f "$profile_file" ]]; then
+            printf '%s\n' "$profile_file"
+            return 0
+        fi
+    fi
+
+    local validated_default_user
+    validated_default_user=$(_validated_config_path "$default_user" || true)
+    if [[ -n "$validated_default_user" && -f "$validated_default_user" ]]; then
+        printf '%s\n' "$validated_default_user"
+        return 0
+    fi
+
+    local default_config="${MACMON_HOME:-}/config/macmon.default.yaml"
+    local validated_default
+    validated_default=$(_validated_config_path "$default_config" || true)
+    [[ -n "$validated_default" ]] && printf '%s\n' "$validated_default"
+}
+
+macmon_get_loaded_config_path() {
+    [[ -n "$MACMON_LOADED_CONFIG_PATH" ]] || return 1
+    printf '%s\n' "$MACMON_LOADED_CONFIG_PATH"
 }
 
 _validated_config_path() {
@@ -122,29 +217,32 @@ macmon_load_config() {
     local config_file="${1:-}"
     local default_config="${MACMON_HOME:-}/config/macmon.default.yaml"
     local validated_default=""
-    local validated_user=""
+    local resolved_user=""
+    MACMON_LOADED_CONFIG_PATH=""
 
     # Load defaults first, then user overrides
     if validated_default=$(_validated_config_path "$default_config"); then
         _parse_yaml "$validated_default"
     fi
-    if [[ -n "$config_file" ]]; then
-        if validated_user=$(_validated_config_path "$config_file"); then
-            if _config_has_tab_indentation "$validated_user"; then
+    resolved_user=$(macmon_resolve_config_file "$config_file" || true)
+    if [[ -n "$resolved_user" ]]; then
+        if _config_has_tab_indentation "$resolved_user"; then
                 echo "macmon: WARNING: config contains tab indentation, using safe defaults" >&2
                 export MACMON_CFG_CONFIG_ERROR="tabs_in_yaml"
-            elif ! _validate_custom_processes_block "$validated_user"; then
+        elif ! _validate_custom_processes_block "$resolved_user"; then
                 echo "macmon: WARNING: invalid custom_processes syntax, using safe defaults" >&2
                 export MACMON_CFG_CONFIG_ERROR="invalid_custom_processes"
-            else
-                _parse_yaml "$validated_user"
-                export MACMON_CFG_CONFIG_ERROR=""
-            fi
-        elif [[ -f "$config_file" ]]; then
-            echo "macmon: WARNING: blocked unsafe config path: $config_file" >&2
-            export MACMON_CFG_CONFIG_ERROR="unsafe_config_path"
+        else
+            _parse_yaml "$resolved_user"
+            MACMON_LOADED_CONFIG_PATH="$resolved_user"
+            export MACMON_CFG_CONFIG_ERROR=""
         fi
+    elif [[ -n "$config_file" && -f "$config_file" ]]; then
+        echo "macmon: WARNING: blocked unsafe config path: $config_file" >&2
+        export MACMON_CFG_CONFIG_ERROR="unsafe_config_path"
     fi
+
+    [[ -n "$MACMON_LOADED_CONFIG_PATH" ]] || MACMON_LOADED_CONFIG_PATH="$validated_default"
 
     _macmon_config_loaded=1
 }
@@ -242,11 +340,13 @@ macmon_get_custom_processes() {
     local default_config="${MACMON_HOME:-}/config/macmon.default.yaml"
     local file=""
 
-    # Use user config if it exists and defines custom_processes, otherwise default.
+    # Use resolved active config if it defines custom_processes, otherwise default.
     # Both paths go through validation to avoid traversal/path injection.
-    if [[ -n "$config_file" && -f "$config_file" ]]; then
+    local resolved
+    resolved=$(macmon_resolve_config_file "$config_file" || true)
+    if [[ -n "$resolved" && -f "$resolved" ]]; then
         local validated_user
-        validated_user=$(_validated_config_path "$config_file" || true)
+        validated_user=$(_validated_config_path "$resolved" || true)
         if [[ -n "$validated_user" ]] && grep -qE '^[[:space:]]*custom_processes:[[:space:]]*$' "$validated_user" 2>/dev/null && _validate_custom_processes_block "$validated_user" && ! _config_has_tab_indentation "$validated_user"; then
             file="$validated_user"
         fi

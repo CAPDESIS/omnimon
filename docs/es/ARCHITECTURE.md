@@ -7,12 +7,14 @@ macmon se compone de CLI + daemon + UI nativa AppKit con libreria compartida:
 3. `src/gui/ProcessPicker.swift`: interfaz para seleccionar/cerrar procesos.
 4. `src/gui/MacmonStatusBar.swift`: icono de menu bar con acciones rapidas.
 5. `lib/macmon-core.sh`: funciones compartidas de seguridad, parser, recoleccion y kill.
+6. `src/gui/AIService.swift`: capa de analisis IA con Keychain nativo.
 
 ## Confiabilidad
 
 1. Recarga en caliente de config por cambio de archivo.
 2. PID file con lock + escritura atomica para evitar race conditions.
 3. Verificacion de procesos y protecciones de sistema antes de enviar señales.
+4. Resolucion dinamica de perfiles desde `~/.config/macmon/profiles/`.
 
 ## Rendimiento
 

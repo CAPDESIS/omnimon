@@ -38,6 +38,9 @@ MSG_EXPORT_USAGE="Usage: macmon export [json|csv|--peaks]"
 MSG_VERSION="macmon"
 MSG_UNKNOWN_COMMAND="Unknown command:"
 MSG_RUN_HELP="Run 'macmon help' for usage"
+MSG_PROFILE_CURRENT="Active profile:"
+MSG_PROFILE_SWITCHED="Switched profile:"
+MSG_PROFILE_MISSING="Profile not found:"
 
 # --- Subcommands ---
 
@@ -107,6 +110,9 @@ cmd_status() {
     local total_procs
     total_procs=$(ps -Ae -o pid= 2>/dev/null | wc -l | tr -d ' ')
     printf "  Procs:   %s total\n" "$total_procs"
+    local active_profile
+    active_profile=$(macmon_get_active_profile 2>/dev/null || echo "default")
+    printf "  Profile: %s\n" "$active_profile"
 
     # Custom process thresholds
     local custom_lines
@@ -160,6 +166,46 @@ cmd_status() {
     fi
 
     echo ""
+}
+
+signal_daemon_reload_if_running() {
+    local pid_file="${TMPDIR:-/tmp}/macmond.pid"
+    [[ -f "$pid_file" ]] || return 0
+    local daemon_pid
+    daemon_pid=$(tr -d '[:space:]' < "$pid_file" 2>/dev/null || true)
+    [[ "$daemon_pid" =~ ^[0-9]+$ ]] || return 0
+    kill -USR1 "$daemon_pid" 2>/dev/null || true
+}
+
+cmd_profile() {
+    case "${1:-}" in
+        list)
+            macmon_list_profiles
+            ;;
+        current|"")
+            local current
+            current=$(macmon_get_active_profile 2>/dev/null || echo "default")
+            echo "$MSG_PROFILE_CURRENT $current"
+            ;;
+        use)
+            local profile_name="${2:-}"
+            if [[ -z "$profile_name" ]]; then
+                echo "Usage: macmon profile use <name>"
+                return 1
+            fi
+            if ! macmon_set_active_profile "$profile_name"; then
+                echo "$MSG_PROFILE_MISSING $profile_name"
+                return 1
+            fi
+            macmon_load_config ""
+            signal_daemon_reload_if_running
+            echo "$MSG_PROFILE_SWITCHED $profile_name"
+            ;;
+        *)
+            echo "Usage: macmon profile [list|current|use <name>]"
+            return 1
+            ;;
+    esac
 }
 
 cmd_start() {
@@ -310,6 +356,9 @@ Commands:
   export [json]   Export current snapshot as JSON
   export csv      Export current snapshot as CSV
   export --peaks  Show daily peak consumption data
+  profile         Show active profile
+  profile list    List available profiles
+  profile use X   Switch active profile
   log             Show last 50 lines of daemon log
   log -f          Follow daemon log (tail -f)
   version         Show version
@@ -337,6 +386,7 @@ case "${1:-}" in
     restart)        cmd_restart ;;
     config)         shift; cmd_config "$@" ;;
     export)         shift; cmd_export "$@" ;;
+    profile)        shift; cmd_profile "$@" ;;
     log)            shift; cmd_log "$@" ;;
     version|--version|-v)  cmd_version ;;
     help|--help|-h) cmd_help ;;

@@ -140,6 +140,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     var searchField: NSSearchField!
     var closeButton: NSButton!
     var cancelButton: NSButton!
+    var profilePopup: NSPopUpButton!
+    private let aiBlockedNames: Set<String> = ["WindowServer", "coreaudiod", "VTDecoderXPCService", "kernel_task", "launchd", "syslogd"]
 
     var exitCode: Int32 = 2  // default: cancelled
 
@@ -173,6 +175,13 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         searchField.sendsWholeSearchString = false
         searchField.setAccessibilityLabel(L("picker.a11y.search"))
         contentView.addSubview(searchField)
+
+        profilePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+        profilePopup.translatesAutoresizingMaskIntoConstraints = false
+        profilePopup.target = self
+        profilePopup.action = #selector(profileChanged(_:))
+        contentView.addSubview(profilePopup)
+        reloadProfiles()
 
         // Table view
         let scrollView = NSScrollView(frame: .zero)
@@ -244,6 +253,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         let btnSelectNone = NSButton(title: L("picker.button.select_none"), target: self, action: #selector(selectNone))
         let btnSelectIdle = NSButton(title: L("picker.button.select_idle"), target: self, action: #selector(selectIdle))
         let btnToggleGroups = NSButton(title: L("picker.button.groups"), target: self, action: #selector(toggleGrouping))
+        let btnSmartOptimize = NSButton(title: L("picker.button.smart_optimize"), target: self, action: #selector(smartOptimize))
         let btnCancel = NSButton(title: L("picker.button.cancel"), target: self, action: #selector(cancelAction))
         let btnClose = NSButton(title: L("picker.button.close_selected"), target: self, action: #selector(closeSelected))
         cancelButton = btnCancel
@@ -253,7 +263,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         btnCancel.keyEquivalent = "\u{1b}"  // Escape
         btnClose.keyEquivalent = "\r"       // Enter
 
-        let buttons = [btnSelectAll, btnSelectNone, btnSelectIdle, btnToggleGroups, btnCancel, btnClose]
+        let buttons = [btnSelectAll, btnSelectNone, btnSelectIdle, btnToggleGroups, btnSmartOptimize, btnCancel, btnClose]
         for btn in buttons {
             btn.translatesAutoresizingMaskIntoConstraints = false
             btn.bezelStyle = .rounded
@@ -268,7 +278,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         btnSelectNone.nextKeyView = btnSelectIdle
         btnSelectIdle.nextKeyView = btnToggleGroups
         btnToggleGroups.nextKeyView = btnCancel
-        btnCancel.nextKeyView = btnClose
+        btnCancel.nextKeyView = btnSmartOptimize
+        btnSmartOptimize.nextKeyView = btnClose
         btnClose.nextKeyView = searchField
 
         // Layout
@@ -282,7 +293,11 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             // Search field
             searchField.topAnchor.constraint(equalTo: summaryView.bottomAnchor, constant: 8),
             searchField.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 8),
-            searchField.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -8),
+            searchField.trailingAnchor.constraint(equalTo: profilePopup.leadingAnchor, constant: -8),
+
+            profilePopup.centerYAnchor.constraint(equalTo: searchField.centerYAnchor),
+            profilePopup.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -8),
+            profilePopup.widthAnchor.constraint(equalToConstant: 220),
 
             // Table
             scrollView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 8),
@@ -306,6 +321,9 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
 
             btnToggleGroups.leadingAnchor.constraint(equalTo: btnSelectIdle.trailingAnchor, constant: 4),
             btnToggleGroups.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+
+            btnSmartOptimize.leadingAnchor.constraint(equalTo: btnToggleGroups.trailingAnchor, constant: 4),
+            btnSmartOptimize.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
 
             btnClose.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -8),
             btnClose.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
@@ -640,6 +658,122 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         viewModel.groupingEnabled.toggle()
         viewModel.applyFilterAndSort()
         tableView.reloadData()
+    }
+
+    @objc func profileChanged(_ sender: NSPopUpButton) {
+        guard let profile = sender.titleOfSelectedItem else { return }
+        switchProfile(profile)
+    }
+
+    private func reloadProfiles() {
+        profilePopup.removeAllItems()
+        let output = runCLI(args: ["profile", "list"])
+        let profiles = output.split(separator: "\n").map { String($0) }.filter { !$0.isEmpty }
+        if profiles.isEmpty {
+            profilePopup.addItem(withTitle: "default")
+            return
+        }
+        profilePopup.addItems(withTitles: profiles)
+        let currentRaw = runCLI(args: ["profile", "current"])
+        if let idx = currentRaw.lastIndex(of: ":") {
+            let current = currentRaw[currentRaw.index(after: idx)...].trimmingCharacters(in: .whitespacesAndNewlines)
+            profilePopup.selectItem(withTitle: current)
+        }
+    }
+
+    private func switchProfile(_ profile: String) {
+        dataQueue.async {
+            _ = self.runCLI(args: ["profile", "use", profile])
+        }
+    }
+
+    private func runCLI(args: [String]) -> String {
+        guard let home = ProcessInfo.processInfo.environment["MACMON_HOME"] else { return "" }
+        let cliPath = home + "/src/cli/macmon.sh"
+        guard FileManager.default.isExecutableFile(atPath: cliPath) else { return "" }
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: cliPath)
+        task.arguments = args
+        var env = ProcessInfo.processInfo.environment
+        env["MACMON_HOME"] = home
+        task.environment = env
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        do {
+            try task.run()
+            task.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            return String(data: data, encoding: .utf8) ?? ""
+        } catch {
+            return ""
+        }
+    }
+
+    @objc func smartOptimize(_ sender: Any?) {
+        let providerRaw = UserDefaults.standard.string(forKey: "macmon.ai.provider") ?? AIProvider.openai.rawValue
+        let model = UserDefaults.standard.string(forKey: "macmon.ai.model") ?? "gpt-4o-mini"
+        let provider = AIProvider(rawValue: providerRaw) ?? .openai
+        let currentProfile = profilePopup.titleOfSelectedItem ?? "default"
+
+        let top = viewModel.allProcesses
+            .filter { !$0.isSystem && !aiBlockedNames.contains($0.name) }
+            .sorted { ($0.cpuPct + $0.ramMB / 1024.0) > ($1.cpuPct + $1.ramMB / 1024.0) }
+            .prefix(50)
+
+        let summary: [[String: Any]] = top.map {
+            ["pid": $0.pid, "name": $0.name, "cpuPct": $0.cpuPct, "ramMB": $0.ramMB, "isSystem": $0.isSystem]
+        }
+
+        AIService.shared.analyzeTopProcesses(provider: provider, model: model, profile: currentProfile, processSummary: summary) { [weak self] result in
+            guard let self = self else { return }
+            DispatchQueue.main.async {
+                switch result {
+                case .failure(let error):
+                    self.presentAIError(error.localizedDescription)
+                case .success(let suggested):
+                    self.presentAISuggestions(suggested)
+                }
+            }
+        }
+    }
+
+    private func presentAIError(_ message: String) {
+        let alert = NSAlert()
+        alert.messageText = L("picker.ai.error_title")
+        alert.informativeText = message
+        alert.addButton(withTitle: L("statusbar.alert.ok"))
+        alert.runModal()
+    }
+
+    private func presentAISuggestions(_ pids: [Int]) {
+        let allowed = Set(viewModel.allProcesses.filter { !$0.isSystem && !aiBlockedNames.contains($0.name) }.map { $0.pid })
+        let safePIDs = pids.filter { allowed.contains($0) }
+        if safePIDs.isEmpty {
+            presentAIError(L("picker.ai.no_safe"))
+            return
+        }
+
+        for i in 0..<viewModel.allProcesses.count {
+            if safePIDs.contains(viewModel.allProcesses[i].pid) {
+                viewModel.allProcesses[i].selected = true
+            }
+        }
+        tableView.reloadData()
+        updateStatus()
+
+        let alert = NSAlert()
+        alert.messageText = L("picker.ai.review_title")
+        let names = viewModel.allProcesses
+            .filter { safePIDs.contains($0.pid) }
+            .map { "\($0.name) (PID \($0.pid))" }
+            .joined(separator: "\n")
+        alert.informativeText = names + "\n\n" + L("picker.ai.review_hint")
+        alert.addButton(withTitle: L("picker.ai.apply"))
+        alert.addButton(withTitle: L("picker.ai.review"))
+        if alert.runModal() == .alertFirstButtonReturn {
+            closeSelected(nil)
+        }
     }
 
     @objc func cancelAction(_ sender: Any?) {

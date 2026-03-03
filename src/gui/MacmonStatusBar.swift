@@ -108,9 +108,13 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
     private var ramItem: NSMenuItem!
     private var swapItem: NSMenuItem!
     private var processItem: NSMenuItem!
+    private var profileParentItem: NSMenuItem!
+    private var profileMenu: NSMenu!
+    private var preferencesWindowController: PreferencesWindowController?
 
     // Latest snapshot
     private var snapshot: SystemSnapshot?
+    private var activeProfileName: String = "default"
 
     // MACMON_HOME for locating other components (validated at init)
     private let macmonHome: String
@@ -247,6 +251,12 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         configItem.target = self
         menu.addItem(configItem)
 
+        profileParentItem = NSMenuItem(title: L("statusbar.menu.profile"), action: nil, keyEquivalent: "")
+        profileMenu = NSMenu()
+        profileParentItem.submenu = profileMenu
+        menu.addItem(profileParentItem)
+        rebuildProfileMenu()
+
         let reloadItem = NSMenuItem(
             title: L("statusbar.menu.reload_config"),
             action: #selector(reloadConfigurationNow),
@@ -255,6 +265,15 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
         reloadItem.keyEquivalentModifierMask = [.command]
         reloadItem.target = self
         menu.addItem(reloadItem)
+
+        let prefsItem = NSMenuItem(
+            title: L("statusbar.menu.preferences"),
+            action: #selector(openPreferences),
+            keyEquivalent: ";"
+        )
+        prefsItem.keyEquivalentModifierMask = [.command]
+        prefsItem.target = self
+        menu.addItem(prefsItem)
 
         // Export Snapshot submenu
         let exportItem = NSMenuItem(title: L("statusbar.menu.export"), action: nil, keyEquivalent: "")
@@ -352,6 +371,29 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
 
         // Process count
         processItem.title = LF("statusbar.process.value", snap.processCount)
+        rebuildProfileMenu()
+    }
+
+    private func rebuildProfileMenu() {
+        profileMenu.removeAllItems()
+        let macmonBin = findMacmonCLI()
+        guard FileManager.default.isExecutableFile(atPath: macmonBin) else { return }
+        let profiles = runCLIAndCaptureLines(binary: macmonBin, args: ["profile", "list"])
+        let currentLine = runCLIAndCaptureLines(binary: macmonBin, args: ["profile", "current"]).first ?? ""
+        if let idx = currentLine.lastIndex(of: ":") {
+            activeProfileName = currentLine[currentLine.index(after: idx)...].trimmingCharacters(in: .whitespaces)
+        }
+        for profile in profiles {
+            let item = NSMenuItem(title: profile, action: #selector(selectProfile(_:)), keyEquivalent: "")
+            item.target = self
+            item.state = (profile == activeProfileName) ? .on : .off
+            profileMenu.addItem(item)
+        }
+        if profiles.isEmpty {
+            let empty = NSMenuItem(title: L("statusbar.profile.none"), action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            profileMenu.addItem(empty)
+        }
     }
 
     private func updateStatusBarTitle() {
@@ -419,6 +461,27 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
 
     @objc func reloadConfigurationNow() {
         signalDaemonReload()
+    }
+
+    @objc func openPreferences() {
+        if preferencesWindowController == nil {
+            preferencesWindowController = PreferencesWindowController()
+        }
+        preferencesWindowController?.showWindow(nil)
+        preferencesWindowController?.window?.makeKeyAndOrderFront(nil)
+    }
+
+    @objc func selectProfile(_ sender: NSMenuItem) {
+        let profile = sender.title
+        let macmonBin = findMacmonCLI()
+        guard FileManager.default.isExecutableFile(atPath: macmonBin) else { return }
+        metricsQueue.async {
+            _ = self.runCLIAndCaptureLines(binary: macmonBin, args: ["profile", "use", profile])
+            DispatchQueue.main.async {
+                self.activeProfileName = profile
+                self.rebuildProfileMenu()
+            }
+        }
     }
 
     private func signalDaemonReload() {
@@ -556,6 +619,27 @@ class MacmonStatusBarController: NSObject, NSMenuDelegate {
             }
         }
         return candidates[1] // default to ~/.local/bin/macmon
+    }
+
+    private func runCLIAndCaptureLines(binary: String, args: [String]) -> [String] {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: binary)
+        task.arguments = args
+        var env = ProcessInfo.processInfo.environment
+        env["MACMON_HOME"] = macmonHome
+        task.environment = env
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        do {
+            try task.run()
+            task.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let text = String(data: data, encoding: .utf8) ?? ""
+            return text.split(separator: "\n").map { String($0) }.filter { !$0.isEmpty }
+        } catch {
+            return []
+        }
     }
 
     private func showAlert(title: String, message: String) {

@@ -22,6 +22,7 @@ jobs:
         run: |
           bash -n lib/macmon-core.sh
           bash -n lib/macmon-config.sh
+          bash -n lib/macmon-security.sh
           bash -n src/daemon/macmond.sh
           bash -n src/cli/macmon.sh
           bash -n scripts/chrome-tabs.sh

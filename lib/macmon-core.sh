@@ -46,6 +46,8 @@ _validate_macmon_home "$MACMON_HOME" || exit 1
 # Source config loader
 # shellcheck source=macmon-config.sh
 source "${MACMON_HOME}/lib/macmon-config.sh"
+# shellcheck source=macmon-security.sh
+source "${MACMON_HOME}/lib/macmon-security.sh"
 
 # --- Temp directory (per-user private) ---
 MACMON_TMPDIR="${TMPDIR:-/tmp}"
@@ -258,13 +260,32 @@ _verify_apple_signed() {
     codesign --verify --verbose=0 -R='anchor apple' "$comm" 2>/dev/null
 }
 
+_is_apple_system_pid() {
+    local pid="$1"
+    local comm
+    comm=$(ps -p "$pid" -o comm= 2>/dev/null || true)
+    [[ -n "$comm" ]] || return 1
+    case "$comm" in
+        /System/*|/usr/libexec/*|/usr/sbin/*)
+            _verify_apple_signed "$pid"
+            ;;
+        *) return 1 ;;
+    esac
+}
+
 # --- System Process Protection ---
 
 # Check if a process name is a protected system process
 is_system_process() {
     local name="$1"
     local protected_list
-    protected_list=$(macmon_cfg "PROTECTED" "launchd:kernel_task:WindowServer:loginwindow:coreaudiod:bluetoothd:fseventsd:mds:mds_stores:opendirectoryd:syslogd:configd:diskarbitrationd:powerd:thermalmonitord:UserEventAgent:cfprefsd:distnoted:logd:notifyd")
+    protected_list=$(macmon_cfg "PROTECTED" "launchd:kernel_task:WindowServer:loginwindow:coreaudiod:VTDecoderXPCService:bluetoothd:fseventsd:mds:mds_stores:opendirectoryd:syslogd:configd:diskarbitrationd:powerd:thermalmonitord:UserEventAgent:cfprefsd:distnoted:logd:notifyd")
+
+    if declare -F macmon_is_blocked_process >/dev/null 2>&1; then
+        if macmon_is_blocked_process "$name"; then
+            return 0
+        fi
+    fi
 
     local IFS=':'
     local proc
@@ -547,6 +568,11 @@ kill_processes() {
             fi
         fi
 
+        if _is_apple_system_pid "$pid"; then
+            macmon_log "BLOCKED: refusing to kill Apple system binary (PID $pid)"
+            continue
+        fi
+
         # Verify PID still matches expected process
         if ! verify_pid "$pid" "$name"; then
             macmon_log "SKIP: PID $pid no longer matches '$name' (PID reuse detected)"
@@ -669,8 +695,12 @@ kill_process_by_name() {
     local pid
     while IFS= read -r pid; do
         [[ -n "$pid" ]] || continue
-        if is_system_process "$proc_name"; then
+        if macmon_is_blocked_process "$proc_name" || is_system_process "$proc_name"; then
             macmon_log "BLOCKED: refusing to kill system process $proc_name (PID $pid)"
+            continue
+        fi
+        if _is_apple_system_pid "$pid"; then
+            macmon_log "BLOCKED: refusing to kill Apple system binary (PID $pid)"
             continue
         fi
         kill -TERM "$pid" 2>/dev/null || true

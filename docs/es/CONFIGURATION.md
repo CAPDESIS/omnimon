@@ -43,6 +43,24 @@ intervals:
 3. Si falta un campo, se asume `0` (sin limite).
 4. El daemon cachea la lista y la invalida al recargar config.
 
+## Perfiles
+
+Los presets se cargan desde `~/.config/macmon/profiles/`.
+
+1. `developer.yaml`
+2. `creator.yaml`
+3. `gaming-performance.yaml`
+
+Comandos:
+
+```bash
+macmon profile list
+macmon profile current
+macmon profile use developer
+```
+
+El cambio de perfil dispara recarga del daemon en tiempo real.
+
 ## Hot Reload
 
 1. El daemon detecta cambios en `macmon.yaml` y recarga automaticamente.

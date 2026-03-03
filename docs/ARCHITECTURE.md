@@ -56,6 +56,9 @@ Native AppKit window using MVVM architecture:
 ### 4. Menu Bar (`MacmonStatusBar.swift`)
 Persistent `NSStatusItem` showing live RAM usage. Collects data natively via `host_statistics64` and `sysctlbyname` (no subprocess spawning). Metrics collection runs on a background queue and applies UI updates on the main thread. Provides quick access to picker, config editing, export, and status.
 
+### 5. AI Analysis Layer (`AIService.swift`)
+Keychain backed API key storage with provider support for OpenAI, Anthropic, and OpenRouter. This layer is analysis only and returns PID suggestions as strict JSON for user review.
+
 ### 5. Disk I/O Helper (`DiskIOHelper.swift`)
 Standalone binary that reads per-process disk I/O via `proc_pid_rusage` with `RUSAGE_INFO_V4`. Takes PIDs as arguments or via `--stdin`, outputs JSON. Does not require root.
 
@@ -131,6 +134,8 @@ The daemon handles:
 - `SIGUSR1` — reload configuration without restart
 
 The daemon also watches config file mtime and triggers the same reload path automatically when `macmon.yaml` changes.
+
+Profiles are resolved from `~/.config/macmon/profiles/` through `active_profile`, and profile changes also trigger daemon reload.
 
 ## Configuration System
 

@@ -12,7 +12,8 @@ _macmon_test_setup() {
     source "${MACMON_HOME}/lib/macmon-config.sh"
 
     # Load default config
-    macmon_load_config ""
+    export MACMON_CONFIG="${MACMON_HOME}/config/macmon.default.yaml"
+    macmon_load_config "$MACMON_CONFIG"
 
     # Source core library (functions only, no side effects)
     source "${MACMON_HOME}/lib/macmon-core.sh"

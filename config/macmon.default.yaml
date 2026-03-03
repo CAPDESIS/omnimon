@@ -48,6 +48,7 @@ protected:
   - launchd
   - kernel_task
   - WindowServer
+  - VTDecoderXPCService
   - loginwindow
   - coreaudiod
   - bluetoothd

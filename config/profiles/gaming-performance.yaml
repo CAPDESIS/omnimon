@@ -1,0 +1,20 @@
+thresholds:
+  ram_free_percent: 30
+  swap_used_mb: 1536
+  process_ram_min_kb: 102400
+  idle_cpu_percent: 2.0
+  idle_ram_trigger_percent: 50
+
+custom_processes:
+  - name: "Steam Helper"
+    max_instances: 3
+  - name: "EpicGamesLauncher"
+    max_instances: 1
+  - name: "Discord"
+    max_cpu_percent: 30
+
+intervals:
+  check: 30
+  idle_check: 300
+  cooldown: 180
+  kill_grace: 2

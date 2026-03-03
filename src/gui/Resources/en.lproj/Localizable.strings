@@ -5,6 +5,8 @@
 "statusbar.process.placeholder" = "Processes: --";
 "statusbar.menu.open_picker" = "Open Process Picker";
 "statusbar.menu.open_config" = "Open Configuration";
+"statusbar.menu.profile" = "Profile";
+"statusbar.menu.preferences" = "Preferences";
 "statusbar.menu.reload_config" = "Reload Configuration";
 "statusbar.menu.export" = "Export Snapshot...";
 "statusbar.menu.export.json" = "JSON";
@@ -23,6 +25,7 @@
 "statusbar.alert.status_missing_message" = "Could not find macmon CLI to show status.";
 "statusbar.alert.config_missing_title" = "Configuration Not Found";
 "statusbar.alert.config_missing_message" = "Could not find config file at:\n%@";
+"statusbar.profile.none" = "No profiles found";
 "statusbar.alert.ok" = "OK";
 "statusbar.export.panel.title" = "Export macmon Snapshot";
 "statusbar.export.panel.filename" = "macmon-snapshot.%@";
@@ -48,6 +51,7 @@
 "picker.button.select_none" = "Select None";
 "picker.button.select_idle" = "Select Idle";
 "picker.button.groups" = "Groups";
+"picker.button.smart_optimize" = "Smart Optimize";
 "picker.button.cancel" = "Cancel";
 "picker.button.close_selected" = "Close Selected";
 "picker.group.header" = "%@ (%d processes, %.0f MB)";
@@ -60,4 +64,19 @@
 "picker.error.no_file" = "Error: No input file specified. Use --file <path>\n";
 "picker.error.read_file" = "Error: Cannot read file %@\n";
 "picker.error.parse_json" = "Error: Failed to parse JSON: %@\n";
+"picker.ai.error_title" = "Smart Optimize Error";
+"picker.ai.no_safe" = "No safe process suggestions were returned.";
+"picker.ai.review_title" = "AI Suggestions Ready";
+"picker.ai.review_hint" = "Review selected rows. Press Apply Optimization to close now, or Review First to adjust checkboxes manually.";
+"picker.ai.apply" = "Apply Optimization";
+"picker.ai.review" = "Review First";
+
+"prefs.window.title" = "macmon Preferences";
+"prefs.provider" = "AI Provider";
+"prefs.model" = "Model";
+"prefs.api_key" = "API Key";
+"prefs.save" = "Save";
+"prefs.status.saved" = "Saved in Keychain";
+"prefs.status.invalid" = "Provider, model, and key are required";
+"prefs.status.keychain_error" = "Could not save to Keychain";
 "group.other" = "Other";

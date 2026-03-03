@@ -51,6 +51,24 @@ Rules:
 3. Missing threshold fields default to `0` (no limit)
 4. The daemon parses this list once and caches it, then evaluates each process each cycle
 
+### Profiles
+
+Profile presets are loaded from `~/.config/macmon/profiles/`.
+
+1. `developer.yaml`
+2. `creator.yaml`
+3. `gaming-performance.yaml`
+
+Commands:
+
+```bash
+macmon profile list
+macmon profile current
+macmon profile use developer
+```
+
+Profile switch triggers daemon reload automatically.
+
 ### Intervals
 
 ```yaml

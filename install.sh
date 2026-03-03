@@ -37,7 +37,9 @@ fi
 # User-only for sensitive directories to prevent other users from planting malicious scripts
 mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$PLIST_DIR"
 mkdir -p "$CONFIG_DIR" "$LOG_DIR"
+mkdir -p "$CONFIG_DIR/profiles"
 chmod 700 "$CONFIG_DIR" "$LOG_DIR"
+chmod 700 "$CONFIG_DIR/profiles"
 chmod 755 "$INSTALL_DIR" "$BIN_DIR"
 
 # Copy project files
@@ -62,6 +64,7 @@ swiftc -O -framework Cocoa \
     -o "$INSTALL_DIR/ProcessPicker" \
     "$INSTALL_DIR/src/gui/ProcessPickerModel.swift" \
     "$INSTALL_DIR/src/gui/Localization.swift" \
+    "$INSTALL_DIR/src/gui/AIService.swift" \
     "$INSTALL_DIR/src/gui/ProcessPicker.swift"
 echo "ProcessPicker compiled successfully"
 
@@ -77,6 +80,8 @@ echo "Compiling MacmonStatusBar..."
 swiftc -O -framework Cocoa \
     -o "$INSTALL_DIR/MacmonStatusBar" \
     "$INSTALL_DIR/src/gui/Localization.swift" \
+    "$INSTALL_DIR/src/gui/AIService.swift" \
+    "$INSTALL_DIR/src/gui/PreferencesWindow.swift" \
     "$INSTALL_DIR/src/gui/MacmonStatusBar.swift"
 echo "MacmonStatusBar compiled successfully"
 
@@ -89,6 +94,16 @@ if [[ ! -f "$CONFIG_DIR/macmon.yaml" ]]; then
     chmod 600 "$CONFIG_DIR/macmon.yaml"
     echo "Created default config at $CONFIG_DIR/macmon.yaml"
 fi
+
+# Install default profiles if missing
+for profile in "$INSTALL_DIR"/config/profiles/*.yaml; do
+    [[ -f "$profile" ]] || continue
+    base=$(basename "$profile")
+    if [[ ! -f "$CONFIG_DIR/profiles/$base" ]]; then
+        cp "$profile" "$CONFIG_DIR/profiles/$base"
+        chmod 600 "$CONFIG_DIR/profiles/$base"
+    fi
+done
 
 # Generate plist from template
 echo "Installing LaunchAgent..."

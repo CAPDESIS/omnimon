@@ -2,6 +2,8 @@ SHELL := /bin/bash
 SWIFT_MODEL_SRC := src/gui/ProcessPickerModel.swift
 SWIFT_SRC := src/gui/ProcessPicker.swift
 SWIFT_I18N_SRC := src/gui/Localization.swift
+SWIFT_AI_SRC := src/gui/AIService.swift
+SWIFT_PREFS_SRC := src/gui/PreferencesWindow.swift
 SWIFT_BIN := ProcessPicker
 DISKIO_SRC := src/gui/DiskIOHelper.swift
 DISKIO_BIN := DiskIOHelper
@@ -13,16 +15,16 @@ INSTALL_DIR := $(HOME)/.local/libexec/macmon
 
 build: $(SWIFT_BIN) $(DISKIO_BIN) $(STATUSBAR_BIN)
 
-$(SWIFT_BIN): $(SWIFT_MODEL_SRC) $(SWIFT_SRC) $(SWIFT_I18N_SRC)
-	swiftc -O -framework Cocoa -o $@ $(SWIFT_MODEL_SRC) $(SWIFT_I18N_SRC) $(SWIFT_SRC)
+$(SWIFT_BIN): $(SWIFT_MODEL_SRC) $(SWIFT_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC)
+	swiftc -O -framework Cocoa -o $@ $(SWIFT_MODEL_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_SRC)
 
 $(DISKIO_BIN): $(DISKIO_SRC)
 	swiftc -O -o $@ $<
 
 statusbar: $(STATUSBAR_BIN)
 
-$(STATUSBAR_BIN): $(STATUSBAR_SRC) $(SWIFT_I18N_SRC)
-	swiftc -O -framework Cocoa -o $@ $(SWIFT_I18N_SRC) $(STATUSBAR_SRC)
+$(STATUSBAR_BIN): $(STATUSBAR_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_PREFS_SRC)
+	swiftc -O -framework Cocoa -o $@ $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_PREFS_SRC) $(STATUSBAR_SRC)
 
 install: build
 	./install.sh
@@ -50,6 +52,7 @@ check:
 	@echo "Checking shell scripts..."
 	@bash -n lib/macmon-core.sh && echo "  lib/macmon-core.sh: OK"
 	@bash -n lib/macmon-config.sh && echo "  lib/macmon-config.sh: OK"
+	@bash -n lib/macmon-security.sh && echo "  lib/macmon-security.sh: OK"
 	@bash -n src/daemon/macmond.sh && echo "  src/daemon/macmond.sh: OK"
 	@bash -n src/cli/macmon.sh && echo "  src/cli/macmon.sh: OK"
 	@bash -n scripts/chrome-tabs.sh && echo "  scripts/chrome-tabs.sh: OK"
@@ -73,6 +76,7 @@ audit:
 	@command -v shellcheck >/dev/null 2>&1 || { echo "  shellcheck not installed (brew install shellcheck)"; exit 0; }
 	@shellcheck -e SC1091,SC2034 lib/macmon-core.sh && echo "  lib/macmon-core.sh: CLEAN"
 	@shellcheck -e SC1091 lib/macmon-config.sh && echo "  lib/macmon-config.sh: CLEAN"
+	@shellcheck -e SC1091 lib/macmon-security.sh && echo "  lib/macmon-security.sh: CLEAN"
 	@shellcheck -e SC1091 src/daemon/macmond.sh && echo "  src/daemon/macmond.sh: CLEAN"
 	@shellcheck -e SC1091 src/cli/macmon.sh && echo "  src/cli/macmon.sh: CLEAN"
 	@shellcheck -e SC1091 scripts/chrome-tabs.sh && echo "  scripts/chrome-tabs.sh: CLEAN"

@@ -10,7 +10,7 @@ MACMON_HOME="${MACMON_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 source "${MACMON_HOME}/lib/macmon-core.sh"
 
 # --- Configuration ---
-macmon_load_config "${MACMON_CONFIG:-$HOME/.config/macmon/macmon.yaml}"
+macmon_load_config ""
 
 MACMON_LOG_DIR=$(macmon_cfg "LOG_DIR" "$HOME/.local/log/macmon")
 MACMON_LOG_FILE="${MACMON_LOG_DIR}/macmond.log"
@@ -93,16 +93,16 @@ cleanup() {
 
 reload_config() {
     macmon_log "Reloading configuration (SIGUSR1)"
-    macmon_load_config "${MACMON_CONFIG:-$HOME/.config/macmon/macmon.yaml}"
+    macmon_load_config ""
     macmon_invalidate_custom_processes_cache
     # Re-read intervals in case they changed
     check_interval=$(macmon_cfg "INTERVALS_CHECK" "60")
     idle_interval=$(macmon_cfg "INTERVALS_IDLE_CHECK" "600")
     [[ "$check_interval" =~ ^[0-9]+$ ]] || check_interval=60
     [[ "$idle_interval" =~ ^[0-9]+$ ]] || idle_interval=600
-    WATCHED_CONFIG_FILE=$(_validated_config_path "${MACMON_CONFIG:-$HOME/.config/macmon/macmon.yaml}" || true)
+    WATCHED_CONFIG_FILE=$(macmon_get_loaded_config_path 2>/dev/null || true)
     if [[ -z "$WATCHED_CONFIG_FILE" ]]; then
-        WATCHED_CONFIG_FILE=$(_validated_config_path "${MACMON_HOME}/config/macmon.default.yaml" || true)
+        WATCHED_CONFIG_FILE=$(macmon_resolve_config_file "" || true)
     fi
     if [[ -n "$WATCHED_CONFIG_FILE" && -f "$WATCHED_CONFIG_FILE" ]]; then
         LAST_CONFIG_MTIME=$(stat -f %m "$WATCHED_CONFIG_FILE" 2>/dev/null || echo 0)

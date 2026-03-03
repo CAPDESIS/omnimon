@@ -1,0 +1,22 @@
+thresholds:
+  ram_free_percent: 28
+  swap_used_mb: 2048
+  process_ram_min_kb: 102400
+  idle_cpu_percent: 1.5
+  idle_ram_trigger_percent: 45
+
+custom_processes:
+  - name: "SourceKitService"
+    max_instances: 6
+  - name: "xcodebuild"
+    max_cpu_percent: 95
+  - name: "gradlew"
+    max_ram_mb: 3072
+  - name: "simctl"
+    max_instances: 3
+
+intervals:
+  check: 60
+  idle_check: 600
+  cooldown: 240
+  kill_grace: 3
