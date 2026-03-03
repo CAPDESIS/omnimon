@@ -2,7 +2,7 @@
 
 ## Overview
 
-macmon is structured as three cooperating components with a shared library:
+macmon is structured as five cooperating components with a shared library:
 
 ```
 ┌────────────-─┐    ┌─────────────-┐    ┌──────────────────┐
@@ -29,15 +29,43 @@ macmon is structured as three cooperating components with a shared library:
        │macmon-config.sh │
        │ (YAML loader)   │
        └─────────────────┘
+
+┌────────────────┐    ┌──────────────────┐
+│ MacmonStatusBar│    │  DiskIOHelper    │
+│ (Swift/AppKit) │    │  (Swift/CLI)     │
+│                │    │                  │
+│ Menu bar with  │    │ proc_pid_rusage  │
+│ live RAM/swap  │    │ per-process I/O  │
+│ & quick actions│    │ → JSON output    │
+└────────────────┘    └──────────────────┘
 ```
+
+## Components
+
+### 1. Daemon (`macmond.sh`)
+Background loop that checks RAM, swap, flutter_tester accumulation, orphan build daemons, and idle processes every 60 seconds. Shows native macOS notifications when thresholds are crossed. Supports signal-based config reload (SIGUSR1) and clean shutdown (SIGTERM/SIGINT).
+
+### 2. CLI (`macmon.sh`)
+User-facing entry point with subcommands: `status`, `start/stop/restart`, `config`, `export`, `log`, `version`, `help`. Launches the process picker as the default action.
+
+### 3. Process Picker (`ProcessPicker.swift` + `ProcessPickerModel.swift`)
+Native AppKit window using MVVM architecture:
+- **Model** (`ProcessPickerModel.swift`) — Foundation-only, contains `ProcessEntry`, `SystemHealth`, `ProcessData`, `ProcessViewModel` with filter/sort/group pipeline. Fully testable with XCTest.
+- **View** (`ProcessPicker.swift`) — AppKit layer with `NSTableView`, `NSSearchField`, `MemoryPressureGauge`, keyboard shortcuts, and cell recycling.
+
+### 4. Menu Bar (`MacmonStatusBar.swift`)
+Persistent `NSStatusItem` showing live RAM usage. Collects data natively via `host_statistics64` and `sysctlbyname` (no subprocess spawning). Provides quick access to the picker, export, and status.
+
+### 5. Disk I/O Helper (`DiskIOHelper.swift`)
+Standalone binary that reads per-process disk I/O via `proc_pid_rusage` with `RUSAGE_INFO_V4`. Takes PIDs as arguments or via `--stdin`, outputs JSON. Does not require root.
 
 ## Data Flow
 
-1. **Collection**: `collect_processes_json()` runs 3 batched `ps` calls + 1 batched `lsof` call, enriches data, and outputs JSON via `jq`
+1. **Collection**: `collect_processes_json()` runs 3 batched `ps` calls + 1 batched `lsof` call, enriches data with disk I/O from DiskIOHelper, and outputs JSON via `jq`
 2. **Transfer**: JSON written to a temp file in `$TMPDIR` (per-user private directory)
 3. **Display**: Swift picker reads JSON via `Codable`, presents in `NSTableView` with cell recycling
 4. **Selection**: User selects processes; picker outputs PIDs to stdout
-5. **Killing**: `kill_processes()` verifies PID identity, checks system process protection, uses graceful quit for apps/Chrome tabs
+5. **Killing**: `kill_processes()` verifies PID identity, checks system process protection and code signatures, uses graceful quit for apps/Chrome tabs
 
 ## Security Model
 
@@ -45,9 +73,11 @@ macmon is structured as three cooperating components with a shared library:
 - All strings interpolated into AppleScript go through `_applescript_escape()` (strips control chars, escapes `\` and `"`)
 - All JSON construction uses `jq` (no string concatenation)
 - Temp files use `$TMPDIR` (macOS per-user private directory, not world-readable `/tmp`)
+- CPU and interval values validated with regex before use in arithmetic
 
 ### Process Protection
 - `is_system_process()` checks against a configurable protected list before any kill
+- `_verify_apple_signed()` verifies Apple code signatures on protected process names to prevent spoofing
 - `verify_pid()` confirms process identity matches before sending signals (prevents PID reuse race condition)
 - `pgrep -x` / `pkill -x` for exact match (no substring matching)
 
@@ -61,6 +91,8 @@ macmon is structured as three cooperating components with a shared library:
 |-----------|--------|-------|
 | Process collection | ~300 subprocess spawns | 3 `ps` + 1 `lsof` call |
 | Memory pressure check | Called 2x per cycle | Cached with 30s TTL |
+| Disk I/O collection | N/A | Single DiskIOHelper invocation for all PIDs |
+| Menu bar refresh | N/A | Native `host_statistics64`, no subprocesses |
 | Table view rendering | New views per cell per reload | `makeView(withIdentifier:)` recycling |
 | Checkbox toggle | Full table reload | Single row reload |
 
@@ -68,19 +100,28 @@ macmon is structured as three cooperating components with a shared library:
 
 ```
 lib/
-  macmon-core.sh       # Shared functions (security, collection, kill, picker)
-  macmon-config.sh     # Flat YAML parser → MACMON_CFG_* env vars
+  macmon-core.sh                 # Shared functions (security, collection, kill, picker)
+  macmon-config.sh               # Flat YAML parser → MACMON_CFG_* env vars
 src/
-  daemon/macmond.sh    # Background loop with signal handlers
-  cli/macmon.sh        # CLI subcommand dispatcher
-  gui/ProcessPicker.swift  # Native AppKit picker
+  daemon/macmond.sh              # Background loop with signal handlers
+  cli/macmon.sh                  # CLI subcommand dispatcher
+  gui/ProcessPickerModel.swift   # Model layer (Foundation only, testable)
+  gui/ProcessPicker.swift        # AppKit UI layer
+  gui/MacmonStatusBar.swift      # Menu bar status item
+  gui/DiskIOHelper.swift         # Disk I/O via proc_pid_rusage
 scripts/
-  chrome-tabs.sh       # Chrome tab enumeration via AppleScript
-  graceful-quit.sh     # Safe app/tab closing
+  chrome-tabs.sh                 # Chrome tab enumeration via AppleScript
+  graceful-quit.sh               # Safe app/tab closing
 config/
-  macmon.default.yaml  # Default configuration reference
+  macmon.default.yaml            # Default configuration reference
 templates/
-  com.macmon.daemon.plist.in  # LaunchAgent template
+  com.macmon.daemon.plist.in     # LaunchAgent template
+tests/
+  *.bats                         # BATS shell script tests (46 tests)
+  swift/ProcessViewModelTests.swift  # XCTest suite (12 tests)
+  swift/run_tests.sh             # XCTest runner script
+brew/
+  macmon.rb                      # Homebrew formula
 ```
 
 ## Signal Handling
@@ -98,4 +139,4 @@ thresholds:
 ```
 Becomes: `MACMON_CFG_THRESHOLDS_RAM_FREE_PERCENT=25`
 
-Default config is loaded first, then user config overlays it. List values (like protected processes) use `:` as delimiter.
+Default config is loaded first, then user config overlays it. List values (like protected processes) use `:` as delimiter. The `~` prefix in paths is automatically expanded to `$HOME`.

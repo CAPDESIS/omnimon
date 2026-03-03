@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.2.0 (2026-03-03)
+
+### Features
+- Menu bar monitor (`MacmonStatusBar`) — NSStatusItem with live RAM/swap display, native data collection via `host_statistics64`, quick access to picker and export
+- MVVM refactor — extracted `ProcessPickerModel.swift` (Foundation-only) from ProcessPicker for testable model layer
+- Homebrew formula (`brew/macmon.rb`) for tap-based distribution
+- Release workflow (`.github/workflows/release.yml`) — automatic GitHub Releases on version tags
+- Semantic versioning with `docs/VERSIONING.md`
+
+### Testing
+- XCTest suite: 12 tests covering JSON parsing, filter/sort, grouping, collapse, selection, system process skip
+- XCTest runner script (`tests/swift/run_tests.sh`) compiles and runs tests without Xcode
+
+### Documentation
+- Complete README rewrite with CI badge, feature comparison table, FAQ, versioning section
+- Updated ARCHITECTURE.md with all 5 components
+- Updated CONFIGURATION.md with disk I/O, orphan daemons, export, menu bar sections
+
 ## 1.1.0 (2026-03-03)
 
 ### Features

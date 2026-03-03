@@ -42,26 +42,31 @@ intervals:
   kill_grace: 3      # Seconds to wait after SIGTERM before SIGKILL
 ```
 
-### Logging
-
-```yaml
-log:
-  max_size_mb: 10    # Rotate log when it exceeds this size
-  max_files: 5       # Keep this many rotated log files
-  dir: ~/.local/log/macmon  # Log directory
-```
-
 ### Process Collection
 
 ```yaml
 collect:
-  batch_lsof_limit: 50     # Max processes for batch lsof (skip if more)
-  chrome_tab_titles: true   # Resolve Chrome tab titles via AppleScript
+  disk_io: true              # Collect per-process disk I/O via proc_pid_rusage
+  batch_lsof_limit: 50       # Max processes for batch lsof (skip if more)
+  chrome_tab_titles: true    # Resolve Chrome tab titles via AppleScript
 ```
+
+The `disk_io` option enables the DiskIOHelper binary which uses `proc_pid_rusage` with `RUSAGE_INFO_V4` to collect per-process disk read/write bytes. This does not require root or elevated privileges.
+
+### Logging
+
+```yaml
+log:
+  max_size_mb: 10              # Rotate log when it exceeds this size
+  max_files: 5                 # Keep this many rotated log files
+  dir: ~/.local/log/macmon     # Log directory
+```
+
+The `~` prefix is automatically expanded to `$HOME`. Log rotation happens at the start of each daemon cycle.
 
 ### Protected Processes
 
-Processes in this list can never be killed through macmon:
+Processes in this list can never be killed through macmon. Additionally, macmon verifies Apple code signatures on processes claiming protected names to prevent spoofing:
 
 ```yaml
 protected:
@@ -88,6 +93,51 @@ protected:
 ```
 
 Add your own protected processes by appending to this list.
+
+## Metrics Export
+
+Export current system snapshots or historical peaks:
+
+```bash
+macmon export           # JSON snapshot (stdout)
+macmon export json      # JSON snapshot
+macmon export csv       # CSV format (spreadsheet-friendly)
+macmon export --peaks   # Daily peak RAM/CPU per process
+```
+
+JSON output includes both a `system` object (free RAM %, swap, process count) and a `processes` array with all fields including disk I/O.
+
+CSV output includes columns: PID, Name, RAM_MB, CPU_Pct, Uptime, State, Idle, DiskRead_MB, DiskWrite_MB, Group, CWD.
+
+Peak tracking stores the highest RAM and CPU values seen per process per day in `$LOG_DIR/peaks.json`.
+
+## Orphan Daemon Detection
+
+The daemon automatically detects orphaned build processes:
+
+| Process | Detection Logic |
+|---------|----------------|
+| SourceKitService | Running but Xcode is not |
+| GradleDaemon | Java process with GradleDaemon in args, no Android Studio |
+| xcodebuild | Still running after Xcode closes |
+| qemu-system-aarch64 | Android emulator with no Android Studio |
+
+Orphans trigger a native macOS notification offering to open the process picker for cleanup.
+
+## Menu Bar Monitor
+
+The menu bar icon (`MacmonStatusBar`) displays live RAM usage and refreshes every 30 seconds using native `host_statistics64` calls (no subprocess spawning).
+
+Launch it manually:
+```bash
+MACMON_HOME=~/.local/libexec/macmon ~/.local/libexec/macmon/MacmonStatusBar &
+```
+
+Or add it to Login Items for auto-start. The menu provides:
+- RAM usage (color-coded: green ≥40%, yellow ≥20%, red <20%)
+- Swap usage
+- Total process count
+- Quick actions: Open Picker, Export (JSON/CSV), Status, Quit
 
 ## Default Values
 

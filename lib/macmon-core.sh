@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-MACMON_VERSION="1.1.0"
+MACMON_VERSION="1.2.0"
 MACMON_HOME="${MACMON_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 # Source config loader
