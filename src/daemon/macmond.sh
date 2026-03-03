@@ -51,6 +51,7 @@ RUNNING=true
 cleanup() {
     RUNNING=false
     macmon_log "Daemon shutting down (PID $$)"
+    macmon_notify "macmon" "Daemon stopped" 2>/dev/null || true
     remove_pid
     # Clean temp files
     rm -f "${MACMON_TMPDIR}"/macmon-*.json 2>/dev/null || true
@@ -127,9 +128,13 @@ do_check_ram() {
                     ' > "$kill_file"
                     kill_processes "$kill_file"
                     rm -f "$kill_file"
+                    macmon_notify "macmon" "Freed memory from selected processes"
                     macmon_log "Killed user-selected processes"
                 fi
             fi
+        else
+            macmon_notify "macmon" "Warning: RAM at ${free_pct}% free. Check macmon status for details."
+            macmon_log "User declined picker, sent passive notification"
         fi
     fi
 }
@@ -192,6 +197,7 @@ do_check_idle() {
                 ' > "$kill_file"
                 kill_processes "$kill_file"
                 rm -f "$kill_file"
+                macmon_notify "macmon" "Cleaned up idle processes"
                 macmon_log "Killed idle processes selected by user"
             fi
         fi
@@ -202,6 +208,7 @@ do_check_idle() {
 
 macmon_log "Daemon started (PID $$, version ${MACMON_VERSION})"
 write_pid
+macmon_notify "macmon" "Daemon started (v${MACMON_VERSION})"
 
 check_interval=$(macmon_cfg "INTERVALS_CHECK" "60")
 idle_interval=$(macmon_cfg "INTERVALS_IDLE_CHECK" "600")
