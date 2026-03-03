@@ -10,6 +10,16 @@ _to_upper() {
     printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
 }
 
+# Expand ~ to $HOME in config values
+_expand_tilde() {
+    local val="$1"
+    case "$val" in
+        "~/"*) val="${HOME}/${val#\~/}" ;;
+        "~")   val="$HOME" ;;
+    esac
+    printf '%s' "$val"
+}
+
 # Parse a flat YAML file into MACMON_CFG_SECTION_KEY variables
 # Supports: key: value (nested one level with section prefix)
 macmon_load_config() {
@@ -67,6 +77,7 @@ _parse_yaml() {
             val="${val%%#*}"    # strip inline comments
             val="${val%"${val##*[![:space:]]}"}"  # trim trailing
             if [[ -n "$section" ]]; then
+                val=$(_expand_tilde "$val")
                 export "MACMON_CFG_$(_to_upper "$section")_$(_to_upper "$key")=${val}"
             fi
             continue
@@ -78,6 +89,7 @@ _parse_yaml() {
             val="${BASH_REMATCH[2]}"
             val="${val%%#*}"
             val="${val%"${val##*[![:space:]]}"}"
+            val=$(_expand_tilde "$val")
             section=""
             export "MACMON_CFG_$(_to_upper "$key")=${val}"
             continue

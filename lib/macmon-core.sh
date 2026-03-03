@@ -602,34 +602,30 @@ kill_flutter_testers() {
 check_orphan_daemons() {
     local -a results=()
 
-    # SourceKitService: flag if >4GB RAM or running >2h without Xcode
-    local sk_pids sk_count
-    sk_pids=$(pgrep -x SourceKitService 2>/dev/null || true)
-    sk_count=$(echo "$sk_pids" | grep -c '[0-9]' 2>/dev/null || echo 0)
+    # SourceKitService: flag if running without Xcode
+    local sk_count
+    sk_count=$(pgrep -x SourceKitService 2>/dev/null | wc -l | tr -d ' ')
     if (( sk_count > 0 )) && ! pgrep -x Xcode >/dev/null 2>&1; then
         results+=("SourceKitService:$sk_count:orphan (Xcode not running)")
     fi
 
-    # Gradle daemons: flag if >3 or any older than 8h
-    local gradle_pids gradle_count
-    gradle_pids=$(pgrep -f 'GradleDaemon' 2>/dev/null || true)
-    gradle_count=$(echo "$gradle_pids" | grep -c '[0-9]' 2>/dev/null || echo 0)
+    # Gradle daemons: flag if >3
+    local gradle_count
+    gradle_count=$(pgrep -f 'GradleDaemon' 2>/dev/null | wc -l | tr -d ' ')
     if (( gradle_count > 3 )); then
         results+=("GradleDaemon:$gradle_count:excessive count")
     fi
 
-    # xcodebuild: flag if running >60min without Xcode
-    local xb_pids xb_count
-    xb_pids=$(pgrep -x xcodebuild 2>/dev/null || true)
-    xb_count=$(echo "$xb_pids" | grep -c '[0-9]' 2>/dev/null || echo 0)
+    # xcodebuild: flag if running without Xcode
+    local xb_count
+    xb_count=$(pgrep -x xcodebuild 2>/dev/null | wc -l | tr -d ' ')
     if (( xb_count > 0 )) && ! pgrep -x Xcode >/dev/null 2>&1; then
         results+=("xcodebuild:$xb_count:orphan (Xcode not running)")
     fi
 
     # Android emulator (qemu-system): flag if >2 instances
-    local qemu_pids qemu_count
-    qemu_pids=$(pgrep -f 'qemu-system' 2>/dev/null || true)
-    qemu_count=$(echo "$qemu_pids" | grep -c '[0-9]' 2>/dev/null || echo 0)
+    local qemu_count
+    qemu_count=$(pgrep -f 'qemu-system' 2>/dev/null | wc -l | tr -d ' ')
     if (( qemu_count > 2 )); then
         results+=("qemu-system:$qemu_count:excessive count")
     fi

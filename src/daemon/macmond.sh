@@ -209,6 +209,9 @@ idle_interval=$(macmon_cfg "INTERVALS_IDLE_CHECK" "600")
 [[ "$idle_interval" =~ ^[0-9]+$ ]] || idle_interval=600
 last_idle_check=0
 
+now=0
+i=0
+
 while $RUNNING; do
     rotate_log
 
@@ -218,7 +221,6 @@ while $RUNNING; do
     do_check_ram
 
     # Idle check at its own interval
-    local now
     now=$(date +%s)
     if (( now - last_idle_check >= idle_interval )); then
         do_check_idle
@@ -230,8 +232,8 @@ while $RUNNING; do
     _cached_mem_pressure_time=0
 
     # Sleep in small increments so signals are handled promptly
-    local i
-    for (( i = 0; i < check_interval && RUNNING; i++ )); do
+    for (( i = 0; i < check_interval; i++ )); do
+        $RUNNING || break
         sleep 1
     done
 done
