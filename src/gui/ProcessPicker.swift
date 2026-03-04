@@ -382,8 +382,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         table.autosaveName = "macmon.ProcessPicker.Columns"
         table.autosaveTableColumns = true
         table.allowsMultipleSelection = false
-        table.rowHeight = 28
-        table.intercellSpacing = NSSize(width: 8, height: 0)
+        table.rowHeight = 20
+        table.intercellSpacing = NSSize(width: 4, height: 0)
         table.dataSource = self
         table.delegate = self
         table.target = self
@@ -918,6 +918,15 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             }
 
             DispatchQueue.main.async {
+                // Remove processes whose PIDs no longer exist
+                let livePIDs = Set(metrics.keys)
+                let beforeCount = self.viewModel.allProcesses.count
+                self.viewModel.allProcesses.removeAll { !livePIDs.contains($0.pid) }
+                let removed = beforeCount - self.viewModel.allProcesses.count
+                if removed > 0 {
+                    pickerLog("Live refresh: removed \(removed) dead process(es)")
+                }
+                // Update metrics for surviving processes
                 for i in 0..<self.viewModel.allProcesses.count {
                     let pid = self.viewModel.allProcesses[i].pid
                     guard let m = metrics[pid] else { continue }
@@ -980,10 +989,10 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     }
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-        guard row < viewModel.displayRows.count else { return 28 }
+        guard row < viewModel.displayRows.count else { return 20 }
         switch viewModel.displayRows[row] {
-        case .groupHeader: return 32
-        case .process: return 28
+        case .groupHeader: return 22
+        case .process: return 20
         }
     }
 
