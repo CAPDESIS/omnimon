@@ -13,13 +13,14 @@ on sanitizeText(inputText)
 end sanitizeText
 
 tell application "Google Chrome"
+    set sep to (character id 31)
     set output to ""
     repeat with w in windows
         repeat with t in tabs of w
             set tabID to (id of t as text)
             set tabTitle to my sanitizeText(title of t as text)
             set tabURL to my sanitizeText(URL of t as text)
-            set output to output & tabID & tab & tabTitle & tab & tabURL & linefeed
+            set output to output & tabID & sep & tabTitle & sep & tabURL & linefeed
         end repeat
     end repeat
     return output
@@ -36,7 +37,7 @@ if [[ "${1:-}" == "--json" ]]; then
     # Output as JSON array
     enumerate_tabs | jq -R -s '
         split("\n") | map(select(length > 0)) |
-        map(split("\t") | {id: .[0], title: (.[1] // ""), url: (.[2] // "")})
+        map(split("\u001f") | {id: .[0], title: (.[1] // ""), url: (.[2] // "")})
     '
 else
     enumerate_tabs

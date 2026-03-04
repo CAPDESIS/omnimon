@@ -666,22 +666,23 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
                 fallbackIndex += 1
             }
             guard let tabInfo = tab else { return p }
+            let normalizedURL = normalizeChromeTabURL(tabInfo.url)
 
-            let domain = domainFromURL(tabInfo.url)
+            let domain = domainFromURL(normalizedURL)
             let betterDetail: String
-            if !tabInfo.title.isEmpty && !tabInfo.url.isEmpty {
-                betterDetail = "\(tabInfo.title) — \(tabInfo.url)"
+            if !tabInfo.title.isEmpty && !normalizedURL.isEmpty {
+                betterDetail = "\(tabInfo.title) — \(normalizedURL)"
             } else if !tabInfo.title.isEmpty && !domain.isEmpty {
                 betterDetail = "\(tabInfo.title) [\(domain)]"
             } else if !tabInfo.title.isEmpty {
                 betterDetail = tabInfo.title
-            } else if !tabInfo.url.isEmpty {
-                betterDetail = tabInfo.url
+            } else if !normalizedURL.isEmpty {
+                betterDetail = normalizedURL
             } else {
                 betterDetail = p.detail
             }
             let betterGroup = domain.isEmpty ? p.group : "Chrome: \(domain)"
-            let betterCWD = tabInfo.url.isEmpty ? p.cwd : tabInfo.url
+            let betterCWD = normalizedURL.isEmpty ? p.cwd : normalizedURL
 
             return ProcessEntry(
                 pid: p.pid,
@@ -744,6 +745,19 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         guard let u = URL(string: url), let host = u.host else { return "" }
         if host.hasPrefix("www.") { return String(host.dropFirst(4)) }
         return host
+    }
+
+    private func normalizeChromeTabURL(_ url: String) -> String {
+        guard !url.isEmpty else { return "" }
+        guard let parsed = URL(string: url) else { return url }
+        if parsed.scheme == "chrome-extension",
+           let comps = URLComponents(url: parsed, resolvingAgainstBaseURL: false),
+           let raw = comps.queryItems?.first(where: { $0.name == "uri" })?.value,
+           let decoded = raw.removingPercentEncoding,
+           !decoded.isEmpty {
+            return decoded
+        }
+        return url
     }
 
     func loadDataAsync(from file: String, completion: @escaping (Bool) -> Void) {
@@ -1223,7 +1237,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             }
             let lines = normalized.prefix(30).map { tab -> String in
                 let title = tab.title.isEmpty ? L("chrome.tabs.untitled") : tab.title
-                let url = tab.url.isEmpty ? L("chrome.tabs.no_url") : tab.url
+                let resolved = normalizeChromeTabURL(tab.url)
+                let url = resolved.isEmpty ? L("chrome.tabs.no_url") : resolved
                 if tab.id.isEmpty {
                     return "• \(title)\n  \(url)"
                 }
