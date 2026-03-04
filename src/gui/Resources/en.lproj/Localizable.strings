@@ -184,6 +184,11 @@
 "picker.metrics.title" = "System Insights";
 "picker.metrics.help" = "Click to view detailed metrics and recommendations";
 "picker.metrics.body" = "RAM free: %d%%\nSwap used: %d MB\nTotal processes: %d\nMonitored: %d\nIdle: %d\n\nRecommendation: %@";
+"picker.metrics.body.richer" = "RAM used: %d%%  %@\nSwap used: %d MB  %@\nProcesses: %d  %@\nMonitored: %d\nIdle: %d\n\nWhy: %@\n\nRecommendation: %@";
+"picker.metrics.why.low_ram" = "Free RAM is under the safe threshold (20%%).";
+"picker.metrics.why.swap" = "Swap usage is high, indicating memory pressure.";
+"picker.metrics.why.idle" = "Many processes are idle and likely safe candidates.";
+"picker.metrics.why.healthy" = "RAM, swap, and process pressure are within normal range.";
 "picker.metrics.rec.low_ram" = "Low free RAM. Close high-RAM idle processes first.";
 "picker.metrics.rec.swap" = "Swap is elevated. Review top memory consumers and browser tabs.";
 "picker.metrics.rec.idle" = "Many idle processes detected. Safe cleanup could free memory.";

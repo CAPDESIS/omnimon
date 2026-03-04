@@ -184,6 +184,11 @@
 "picker.metrics.title" = "Insights del sistema";
 "picker.metrics.help" = "Haz clic para ver metricas y recomendaciones";
 "picker.metrics.body" = "RAM libre: %d%%\nSwap usado: %d MB\nProcesos totales: %d\nMonitoreados: %d\nIdle: %d\n\nRecomendacion: %@";
+"picker.metrics.body.richer" = "RAM usada: %d%%  %@\nSwap usado: %d MB  %@\nProcesos: %d  %@\nMonitoreados: %d\nIdle: %d\n\nPor que: %@\n\nRecomendacion: %@";
+"picker.metrics.why.low_ram" = "La RAM libre esta por debajo del umbral seguro (20%%).";
+"picker.metrics.why.swap" = "El uso de swap es alto, indicando presion de memoria.";
+"picker.metrics.why.idle" = "Hay muchos procesos idle y son candidatos probables.";
+"picker.metrics.why.healthy" = "RAM, swap y presion de procesos estan en rango normal.";
 "picker.metrics.rec.low_ram" = "RAM libre baja. Cierra primero procesos idle con RAM alta.";
 "picker.metrics.rec.swap" = "Swap elevado. Revisa consumidores altos de memoria y tabs del navegador.";
 "picker.metrics.rec.idle" = "Hay muchos procesos idle. Una limpieza segura puede liberar memoria.";

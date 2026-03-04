@@ -352,8 +352,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         // Define columns
         let columns: [(NSUserInterfaceItemIdentifier, String, CGFloat, CGFloat)] = [
             (ColCheck, "", 30, 30),
-            (ColGroup, L("picker.column.group"), 160, 110),
             (ColName, L("picker.column.name"), 280, 180),
+            (ColGroup, L("picker.column.group"), 160, 110),
             (ColRAM, L("picker.column.ram"), 80, 60),
             (ColCPU, L("picker.column.cpu"), 65, 50),
             (ColUptime, L("picker.column.uptime"), 85, 60),
@@ -1562,19 +1562,38 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     @objc func showSummaryInsights(_ sender: Any?) {
         guard let health = systemHealth else { return }
         let recommendation: String
+        let reason: String
         if health.freePercent < 20 {
             recommendation = L("picker.metrics.rec.low_ram")
+            reason = L("picker.metrics.why.low_ram")
         } else if health.swapUsedMB > 3072 {
             recommendation = L("picker.metrics.rec.swap")
+            reason = L("picker.metrics.why.swap")
         } else if health.idleCount > 50 {
             recommendation = L("picker.metrics.rec.idle")
+            reason = L("picker.metrics.why.idle")
         } else {
             recommendation = L("picker.metrics.rec.healthy")
+            reason = L("picker.metrics.why.healthy")
         }
+
+        let ramUsed = max(0, min(100, 100 - health.freePercent))
+        let ramBar = String(repeating: "■", count: max(1, ramUsed / 10)) + String(repeating: "□", count: max(0, 10 - (ramUsed / 10)))
+        let swapBarValue = min(10, health.swapUsedMB / 512)
+        let swapBar = String(repeating: "■", count: max(1, swapBarValue)) + String(repeating: "□", count: max(0, 10 - swapBarValue))
+        let procBarValue = min(10, health.totalProcesses / 100)
+        let procBar = String(repeating: "■", count: max(1, procBarValue)) + String(repeating: "□", count: max(0, 10 - procBarValue))
+        let body = LF("picker.metrics.body.richer",
+                      ramUsed, ramBar,
+                      health.swapUsedMB, swapBar,
+                      health.totalProcesses, procBar,
+                      health.monitoredCount, health.idleCount,
+                      reason,
+                      recommendation)
 
         let alert = NSAlert()
         alert.messageText = L("picker.metrics.title")
-        alert.informativeText = LF("picker.metrics.body", health.freePercent, health.swapUsedMB, health.totalProcesses, health.monitoredCount, health.idleCount, recommendation)
+        alert.informativeText = body
         alert.addButton(withTitle: L("statusbar.alert.ok"))
         alert.runModal()
     }
@@ -1775,7 +1794,10 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         // Output selected processes as JSON to stdout
         let selected = viewModel.allProcesses
             .filter { $0.selected }
-            .map { ["pid": $0.pid, "name": $0.execName] }
+            .map { p -> [String: Any] in
+                let safeName = (p.name == "Chrome Tab") ? p.name : p.execName
+                return ["pid": p.pid, "name": safeName]
+            }
         if let data = try? JSONSerialization.data(withJSONObject: selected, options: []),
            let json = String(data: data, encoding: .utf8) {
             print(json)
