@@ -3,7 +3,8 @@ import Cocoa
 final class PreferencesWindowController: NSWindowController {
     private let providerPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let modelField = NSTextField(string: "gpt-4o-mini")
-    private var keyField = NSSecureTextField(string: "")
+    private let keySecureField = NSSecureTextField(string: "")
+    private let keyPlainField = NSTextField(string: "")
     private let statusLabel = NSTextField(labelWithString: "")
 
     convenience init() {
@@ -37,11 +38,12 @@ final class PreferencesWindowController: NSWindowController {
         securityNote.textColor = .secondaryLabelColor
         securityNote.font = NSFont.systemFont(ofSize: 11)
         securityNote.maximumNumberOfLines = 2
+        keyPlainField.isHidden = true
         pasteModelButton.bezelStyle = .rounded
         pasteKeyButton.bezelStyle = .rounded
         revealKeyButton.setButtonType(.switch)
 
-        let fields: [NSView] = [providerLabel, providerPopup, modelLabel, modelField, keyLabel, keyField, pasteModelButton, pasteKeyButton, revealKeyButton, securityNote, saveButton, statusLabel]
+        let fields: [NSView] = [providerLabel, providerPopup, modelLabel, modelField, keyLabel, keySecureField, keyPlainField, pasteModelButton, pasteKeyButton, revealKeyButton, securityNote, saveButton, statusLabel]
         for view in fields {
             view.translatesAutoresizingMaskIntoConstraints = false
             content.addSubview(view)
@@ -72,16 +74,20 @@ final class PreferencesWindowController: NSWindowController {
             keyLabel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
             keyLabel.widthAnchor.constraint(equalToConstant: 110),
 
-            keyField.centerYAnchor.constraint(equalTo: keyLabel.centerYAnchor),
-            keyField.leadingAnchor.constraint(equalTo: keyLabel.trailingAnchor, constant: 10),
-            keyField.trailingAnchor.constraint(equalTo: pasteKeyButton.leadingAnchor, constant: -8),
+            keySecureField.centerYAnchor.constraint(equalTo: keyLabel.centerYAnchor),
+            keySecureField.leadingAnchor.constraint(equalTo: keyLabel.trailingAnchor, constant: 10),
+            keySecureField.trailingAnchor.constraint(equalTo: pasteKeyButton.leadingAnchor, constant: -8),
 
-            pasteKeyButton.centerYAnchor.constraint(equalTo: keyField.centerYAnchor),
+            keyPlainField.centerYAnchor.constraint(equalTo: keyLabel.centerYAnchor),
+            keyPlainField.leadingAnchor.constraint(equalTo: keyLabel.trailingAnchor, constant: 10),
+            keyPlainField.trailingAnchor.constraint(equalTo: pasteKeyButton.leadingAnchor, constant: -8),
+
+            pasteKeyButton.centerYAnchor.constraint(equalTo: keySecureField.centerYAnchor),
             pasteKeyButton.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
             pasteKeyButton.widthAnchor.constraint(equalToConstant: 72),
 
-            revealKeyButton.topAnchor.constraint(equalTo: keyField.bottomAnchor, constant: 6),
-            revealKeyButton.leadingAnchor.constraint(equalTo: keyField.leadingAnchor),
+            revealKeyButton.topAnchor.constraint(equalTo: keySecureField.bottomAnchor, constant: 6),
+            revealKeyButton.leadingAnchor.constraint(equalTo: keySecureField.leadingAnchor),
 
             securityNote.topAnchor.constraint(equalTo: revealKeyButton.bottomAnchor, constant: 8),
             securityNote.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
@@ -100,7 +106,7 @@ final class PreferencesWindowController: NSWindowController {
 
     @objc private func providerChanged() {
         let provider = selectedProvider()
-        keyField.stringValue = AIService.shared.loadAPIKey(provider: provider) ?? ""
+        setKeyValue(AIService.shared.loadAPIKey(provider: provider) ?? "")
         let current = modelField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         if current.isEmpty || current == AIProvider.openai.defaultModel || current == AIProvider.anthropic.defaultModel || current == AIProvider.openrouter.defaultModel || current == AIProvider.gemini.defaultModel {
             modelField.stringValue = provider.defaultModel
@@ -115,15 +121,28 @@ final class PreferencesWindowController: NSWindowController {
 
     @objc private func pasteKey() {
         if let text = NSPasteboard.general.string(forType: .string) {
-            keyField.stringValue = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            setKeyValue(text.trimmingCharacters(in: .whitespacesAndNewlines))
         }
     }
 
     @objc private func toggleKeyVisibility(_ sender: NSButton) {
         let show = (sender.state == .on)
-        if let cell = keyField.cell as? NSSecureTextFieldCell {
-            cell.echosBullets = !show
+        keyPlainField.isHidden = !show
+        keySecureField.isHidden = show
+        if show {
+            keyPlainField.stringValue = keySecureField.stringValue
+        } else {
+            keySecureField.stringValue = keyPlainField.stringValue
         }
+    }
+
+    private func currentKeyValue() -> String {
+        return keyPlainField.isHidden ? keySecureField.stringValue : keyPlainField.stringValue
+    }
+
+    private func setKeyValue(_ value: String) {
+        keySecureField.stringValue = value
+        keyPlainField.stringValue = value
     }
 
     private func selectedProvider() -> AIProvider {
@@ -138,14 +157,14 @@ final class PreferencesWindowController: NSWindowController {
         if let provider = AIProvider(rawValue: providerRaw),
            let idx = AIProvider.allCases.firstIndex(of: provider) {
             providerPopup.selectItem(at: idx)
-            keyField.stringValue = AIService.shared.loadAPIKey(provider: provider) ?? ""
+            setKeyValue(AIService.shared.loadAPIKey(provider: provider) ?? "")
         }
         modelField.stringValue = model
     }
 
     @objc private func savePreferences() {
         let provider = selectedProvider()
-        let key = keyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let key = currentKeyValue().trimmingCharacters(in: .whitespacesAndNewlines)
         let model = modelField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty, !model.isEmpty else {
             statusLabel.stringValue = L("prefs.status.invalid")

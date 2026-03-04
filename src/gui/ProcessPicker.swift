@@ -229,6 +229,11 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         summaryView = SystemSummaryView(frame: .zero)
         summaryView.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(summaryView)
+        let chartClick = NSClickGestureRecognizer(target: self, action: #selector(showSummaryInsights(_:)))
+        summaryView.chartView.addGestureRecognizer(chartClick)
+        summaryView.chartView.setAccessibilityRole(.button)
+        summaryView.chartView.setAccessibilityLabel(L("picker.metrics.title"))
+        summaryView.chartView.setAccessibilityHelp(L("picker.metrics.help"))
 
         // Search field
         searchField = NSSearchField(frame: .zero)
@@ -549,10 +554,44 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         let enriched = enrichChromeRows(processData)
         viewModel.load(from: enriched)
         systemHealth = enriched.system
+        persistUsageSnapshot(enriched)
         if let health = systemHealth {
             summaryView.update(health: health)
         }
         updateStatus()
+    }
+
+    private func persistUsageSnapshot(_ processData: ProcessData) {
+        let fm = FileManager.default
+        let logDir = NSHomeDirectory() + "/.local/log/macmon"
+        let file = logDir + "/usage-history.jsonl"
+        try? fm.createDirectory(atPath: logDir, withIntermediateDirectories: true)
+        let topRAM = processData.processes.max(by: { $0.ramMB < $1.ramMB })
+        let topCPU = processData.processes.max(by: { $0.cpuPct < $1.cpuPct })
+        let record: [String: Any] = [
+            "ts": Int(Date().timeIntervalSince1970),
+            "freePercent": processData.system.freePercent,
+            "swapUsedMB": processData.system.swapUsedMB,
+            "totalProcesses": processData.system.totalProcesses,
+            "monitored": processData.system.monitoredCount,
+            "idle": processData.system.idleCount,
+            "topRAM": topRAM?.name ?? "",
+            "topRAMMB": topRAM?.ramMB ?? 0,
+            "topCPU": topCPU?.name ?? "",
+            "topCPUPct": topCPU?.cpuPct ?? 0,
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: record),
+              let line = String(data: data, encoding: .utf8) else { return }
+        if !fm.fileExists(atPath: file) {
+            fm.createFile(atPath: file, contents: nil)
+        }
+        if let fh = FileHandle(forWritingAtPath: file) {
+            fh.seekToEndOfFile()
+            if let out = (line + "\n").data(using: .utf8) {
+                fh.write(out)
+            }
+            try? fh.close()
+        }
     }
 
     private func enrichChromeRows(_ data: ProcessData) -> ProcessData {
@@ -1020,11 +1059,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     func performCommand(_ command: String) {
         switch command {
         case "open_config":
-            let path = runCLI(args: ["config", "path"]).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !path.isEmpty {
-                let url = URL(fileURLWithPath: path)
-                _ = NSWorkspace.shared.open(url)
-            }
+            openConfigEditorWindow()
         case "edit_config_gui":
             openConfigEditorWindow()
         case "preferences":
@@ -1145,7 +1180,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             }
             let body = lines.joined(separator: "\n")
             if body.isEmpty {
-                showCommandResult(L("chrome.tabs.empty"))
+                showCommandResult(L("chrome.tabs.empty_help"))
             } else {
                 let alert = NSAlert()
                 alert.messageText = L("chrome.tabs.title")
@@ -1373,6 +1408,26 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         reloadProfiles()
     }
 
+    @objc func showSummaryInsights(_ sender: Any?) {
+        guard let health = systemHealth else { return }
+        let recommendation: String
+        if health.freePercent < 20 {
+            recommendation = L("picker.metrics.rec.low_ram")
+        } else if health.swapUsedMB > 3072 {
+            recommendation = L("picker.metrics.rec.swap")
+        } else if health.idleCount > 50 {
+            recommendation = L("picker.metrics.rec.idle")
+        } else {
+            recommendation = L("picker.metrics.rec.healthy")
+        }
+
+        let alert = NSAlert()
+        alert.messageText = L("picker.metrics.title")
+        alert.informativeText = LF("picker.metrics.body", health.freePercent, health.swapUsedMB, health.totalProcesses, health.monitoredCount, health.idleCount, recommendation)
+        alert.addButton(withTitle: L("statusbar.alert.ok"))
+        alert.runModal()
+    }
+
     private func showCommandResult(_ output: String) {
         let cleaned = stripANSI(output).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return }
@@ -1517,7 +1572,15 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         alert.messageText = L("picker.ai.review_title")
         let names = viewModel.allProcesses
             .filter { safePIDs.contains($0.pid) }
-            .map { "\($0.name) (PID \($0.pid))" }
+            .map { p -> String in
+                var reasons: [String] = []
+                if p.ramMB >= 1024 { reasons.append(String(format: L("picker.ai.reason.ram"), p.ramMB)) }
+                if p.cpuPct >= 20 { reasons.append(String(format: L("picker.ai.reason.cpu"), p.cpuPct)) }
+                if p.idle { reasons.append(L("picker.ai.reason.idle")) }
+                if p.name == "Chrome Tab" { reasons.append(L("picker.ai.reason.chrome")) }
+                if reasons.isEmpty { reasons.append(L("picker.ai.reason.generic")) }
+                return "\(p.name) (PID \(p.pid)) — " + reasons.joined(separator: ", ")
+            }
             .joined(separator: "\n")
         alert.informativeText = names + "\n\n" + L("picker.ai.review_hint")
         let applyBtn = alert.addButton(withTitle: L("picker.ai.apply"))
