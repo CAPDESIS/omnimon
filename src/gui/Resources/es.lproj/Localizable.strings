@@ -68,6 +68,8 @@
 "picker.button.select_top_cpu.help" = "Selecciona los 5 procesos de usuario con mayor CPU.";
 "picker.button.groups" = "Grupos";
 "picker.button.groups.help" = "Contrae o expande los grupos de procesos.";
+"picker.button.details" = "Ver detalles";
+"picker.button.details.help" = "Muestra los detalles completos del proceso seleccionado.";
 "picker.button.smart_optimize" = "Smart Optimize";
 "picker.button.smart_optimize.help" = "Pide a la IA sugerencias seguras de optimizacion.";
 "picker.button.cancel" = "Cancelar";

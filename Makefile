@@ -5,6 +5,7 @@ SWIFT_I18N_SRC := src/gui/Localization.swift
 SWIFT_AI_SRC := src/gui/AIService.swift
 SWIFT_PREFS_SRC := src/gui/PreferencesWindow.swift
 SWIFT_TELEMETRY_SRC := src/gui/TelemetryRecorder.swift
+SWIFT_KILLER_SRC := src/gui/ProcessKiller.swift
 SWIFT_BIN := ProcessPicker
 DISKIO_SRC := src/gui/DiskIOHelper.swift
 DISKIO_BIN := DiskIOHelper
@@ -13,7 +14,14 @@ STATUSBAR_BIN := MacmonStatusBar
 INSTALL_DIR := $(HOME)/.local/libexec/macmon
 
 # Shared Swift sources used by both ProcessPicker and MacmonStatusBar
-SWIFT_SHARED := $(SWIFT_MODEL_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_PREFS_SRC) $(SWIFT_TELEMETRY_SRC)
+SWIFT_SHARED := $(SWIFT_MODEL_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_PREFS_SRC) $(SWIFT_TELEMETRY_SRC) $(SWIFT_KILLER_SRC)
+
+# Version (read from macmon-core.sh)
+VERSION := $(shell grep -o 'MACMON_VERSION="[^"]*"' lib/macmon-core.sh | cut -d'"' -f2)
+
+# .app bundle paths
+APP_NAME := macmon.app
+APP_DIR := build/$(APP_NAME)
 
 # XCTest sources
 XCTEST_SRCS := tests/swift/AIServiceTests.swift tests/swift/ProcessViewModelTests.swift

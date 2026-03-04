@@ -300,6 +300,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     private var isRefreshingLiveData = false
 
     var exitCode: Int32 = 2  // default: cancelled
+    var standaloneMode = false
 
     func setupWindow() {
         // Window
@@ -463,6 +464,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         let btnSelectTopRAM = NSButton(title: L("picker.button.select_top_ram"), target: self, action: #selector(selectTopRAM))
         let btnSelectTopCPU = NSButton(title: L("picker.button.select_top_cpu"), target: self, action: #selector(selectTopCPU))
         let btnToggleGroups = NSButton(title: L("picker.button.groups"), target: self, action: #selector(toggleGrouping))
+        let btnDetails = NSButton(title: L("picker.button.details"), target: self, action: #selector(showSelectedProcessDetails(_:)))
         let btnSmartOptimize = NSButton(title: L("picker.button.smart_optimize"), target: self, action: #selector(smartOptimize))
         smartOptimizeButton = btnSmartOptimize
         let spinner = NSProgressIndicator()
@@ -505,7 +507,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         btnCancel.keyEquivalent = "\u{1b}"  // Escape
         btnClose.keyEquivalent = "\r"       // Enter
 
-        let buttons = [btnSelectAll, btnSelectNone, btnSelectIdle, btnSelectStale, btnSelectTopRAM, btnSelectTopCPU, btnToggleGroups, btnSmartOptimize, btnCancel, btnClose]
+        let buttons = [btnSelectAll, btnSelectNone, btnSelectIdle, btnSelectStale, btnSelectTopRAM, btnSelectTopCPU, btnToggleGroups, btnDetails, btnSmartOptimize, btnCancel, btnClose]
         for btn in buttons {
             btn.translatesAutoresizingMaskIntoConstraints = false
             btn.bezelStyle = .rounded
@@ -517,6 +519,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         btnSelectTopCPU.toolTip = L("picker.button.select_top_cpu.help")
         btnSelectStale.toolTip = L("picker.button.select_stale.help")
         btnToggleGroups.toolTip = L("picker.button.groups.help")
+        btnDetails.toolTip = L("picker.button.details.help")
         btnSmartOptimize.toolTip = L("picker.button.smart_optimize.help")
         btnSmartOptimize.setAccessibilityHelp(L("picker.ai.a11y.button_help"))
         commandPopup.translatesAutoresizingMaskIntoConstraints = false
@@ -606,7 +609,10 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             btnToggleGroups.leadingAnchor.constraint(equalTo: btnSelectTopCPU.trailingAnchor, constant: 4),
             btnToggleGroups.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
 
-            btnSmartOptimize.leadingAnchor.constraint(equalTo: btnToggleGroups.trailingAnchor, constant: 4),
+            btnDetails.leadingAnchor.constraint(equalTo: btnToggleGroups.trailingAnchor, constant: 4),
+            btnDetails.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+
+            btnSmartOptimize.leadingAnchor.constraint(equalTo: btnDetails.trailingAnchor, constant: 4),
             btnSmartOptimize.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
 
             spinner.leadingAnchor.constraint(equalTo: btnSmartOptimize.trailingAnchor, constant: 4),
@@ -1337,6 +1343,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         idleOnlyCheckbox.state = (idleOnlyCheckbox.state == .on) ? .off : .on
         filterToggled(idleOnlyCheckbox)
     }
+    @objc func menuShowDetails(_ sender: Any?) { showSelectedProcessDetails(sender) }
 
     private func stripANSI(_ text: String) -> String {
         guard let regex = try? NSRegularExpression(pattern: "\\u{001B}\\[[0-9;]*[A-Za-z]", options: []) else {
@@ -1940,8 +1947,10 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         let pids = viewModel.selectedPIDs
         if pids.isEmpty {
             pickerLog("Close selected requested with empty selection")
-            exitCode = 0
-            NSApp.terminate(nil)
+            if !standaloneMode {
+                exitCode = 0
+                NSApp.terminate(nil)
+            }
             return
         }
         // Record telemetry for each closed process
@@ -1950,27 +1959,47 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             let reason = aiReasonMap[p.pid] ?? "manual selection"
             TelemetryRecorder.shared.recordKill(pid: p.pid, name: p.name, ramMB: p.ramMB, reason: reason)
         }
-        // Output selected processes as JSON to stdout
-        let selected = viewModel.allProcesses
-            .filter { $0.selected }
-            .map { p -> [String: Any] in
-                let safeName = (p.name == "Chrome Tab") ? p.name : p.execName
-                if p.name == "Chrome Tab" {
-                    return ["pid": p.pid, "name": safeName, "url": p.cwd]
-                }
-                return ["pid": p.pid, "name": safeName]
-            }
         let summary = viewModel.allProcesses
             .filter { $0.selected }
             .map { "\($0.name)(\($0.pid))" }
             .joined(separator: ", ")
         pickerLog("Close selected payload: \(summary)")
-        if let data = try? JSONSerialization.data(withJSONObject: selected, options: []),
-           let json = String(data: data, encoding: .utf8) {
-            print(json)
+
+        if standaloneMode {
+            // Kill in-process and stay open
+            let selectedEntries = viewModel.allProcesses.filter { $0.selected }
+            closeButton?.isEnabled = false
+            closeButton?.title = L("picker.kill.in_progress")
+            ProcessKiller.shared.killProcesses(selectedEntries) { [weak self] count, killedPIDs in
+                guard let self = self else { return }
+                // Remove dead processes from the model
+                let killedSet = Set(killedPIDs)
+                self.viewModel.allProcesses.removeAll { killedSet.contains($0.pid) }
+                self.viewModel.applyFilterAndSort()
+                self.tableView.reloadData()
+                self.updateStatus()
+                self.closeButton?.isEnabled = true
+                self.closeButton?.title = L("picker.button.close_selected")
+                pickerLog("Standalone kill complete: \(count) processes handled")
+            }
+        } else {
+            // Legacy mode: output JSON to stdout for shell to handle
+            let selected = viewModel.allProcesses
+                .filter { $0.selected }
+                .map { p -> [String: Any] in
+                    let safeName = (p.name == "Chrome Tab") ? p.name : p.execName
+                    if p.name == "Chrome Tab" {
+                        return ["pid": p.pid, "name": safeName, "url": p.cwd]
+                    }
+                    return ["pid": p.pid, "name": safeName]
+                }
+            if let data = try? JSONSerialization.data(withJSONObject: selected, options: []),
+               let json = String(data: data, encoding: .utf8) {
+                print(json)
+            }
+            exitCode = 0
+            NSApp.terminate(nil)
         }
-        exitCode = 0
-        NSApp.terminate(nil)
     }
 
     // MARK: - Search
@@ -1993,7 +2022,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         updateInspector()
     }
 
-    @objc private func showSelectedProcessDetails(_ sender: Any?) {
+    @objc func showSelectedProcessDetails(_ sender: Any?) {
         let row = tableView.clickedRow >= 0 ? tableView.clickedRow : tableView.selectedRow
         guard row >= 0, row < viewModel.displayRows.count else { return }
         guard case .process(let idx) = viewModel.displayRows[row], idx < viewModel.allProcesses.count else { return }
@@ -2072,6 +2101,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
 class AppDelegate: NSObject, NSApplicationDelegate {
     let controller = ProcessPickerController()
     var inputFile: String?
+    var standaloneMode = false
     private var keyboardMonitor: Any?
 
     private func setupMainMenu() {
@@ -2143,6 +2173,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         mainMenu.addItem(actionsItem)
         let actionsMenu = NSMenu(title: L("menu.actions"))
         actionsItem.submenu = actionsMenu
+        let details = NSMenuItem(title: L("picker.button.details"), action: #selector(ProcessPickerController.menuShowDetails(_:)), keyEquivalent: "i")
+        details.keyEquivalentModifierMask = [.command]
+        details.target = controller
+        actionsMenu.addItem(details)
         let smart = NSMenuItem(title: L("picker.button.smart_optimize"), action: #selector(ProcessPickerController.smartOptimize(_:)), keyEquivalent: "o")
         smart.target = controller
         actionsMenu.addItem(smart)
@@ -2165,7 +2199,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         applyAppIconIfAvailable()
-        pickerLog("ProcessPicker launched")
+        pickerLog("ProcessPicker launched (standalone=\(standaloneMode))")
+        controller.standaloneMode = standaloneMode
         setupMainMenu()
         controller.setupWindow()
 
@@ -2202,6 +2237,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 case "g":
                     self.controller.toggleGrouping(nil)
                     return nil
+                case "i":
+                    self.controller.showSelectedProcessDetails(nil)
+                    return nil
                 default:
                     break
                 }
@@ -2236,12 +2274,16 @@ struct ProcessPickerApp {
     static func main() {
         let args = CommandLine.arguments
         var inputFile: String?
+        var standalone = false
 
         var i = 1
         while i < args.count {
             if args[i] == "--file" && i + 1 < args.count {
                 inputFile = args[i + 1]
                 i += 2
+            } else if args[i] == "--standalone" {
+                standalone = true
+                i += 1
             } else {
                 i += 1
             }
@@ -2251,6 +2293,7 @@ struct ProcessPickerApp {
         app.setActivationPolicy(.regular)
         let delegate = AppDelegate()
         delegate.inputFile = inputFile
+        delegate.standaloneMode = standalone
         app.delegate = delegate
         app.run()
     }

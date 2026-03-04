@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-export MACMON_VERSION="3.1.4"
+export MACMON_VERSION="3.2.0"
 MACMON_HOME="${MACMON_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 # --- Validate MACMON_HOME (MITRE T1574 - Hijack Execution Flow) ---
@@ -951,6 +951,7 @@ ensure_picker_compiled() {
     local swift_ai_src="${MACMON_HOME}/src/gui/AIService.swift"
     local swift_prefs_src="${MACMON_HOME}/src/gui/PreferencesWindow.swift"
     local swift_telemetry_src="${MACMON_HOME}/src/gui/TelemetryRecorder.swift"
+    local swift_killer_src="${MACMON_HOME}/src/gui/ProcessKiller.swift"
     local binary="${MACMON_HOME}/ProcessPicker"
 
     if [[ ! -f "$swift_src" || ! -f "$swift_model_src" || ! -f "$swift_i18n_src" || ! -f "$swift_ai_src" ]]; then
@@ -959,10 +960,10 @@ ensure_picker_compiled() {
     fi
 
     # Compile if binary missing or source is newer
-    if [[ ! -f "$binary" || "$swift_src" -nt "$binary" || "$swift_model_src" -nt "$binary" || "$swift_i18n_src" -nt "$binary" || "$swift_ai_src" -nt "$binary" || "$swift_prefs_src" -nt "$binary" || "$swift_telemetry_src" -nt "$binary" ]]; then
+    if [[ ! -f "$binary" || "$swift_src" -nt "$binary" || "$swift_model_src" -nt "$binary" || "$swift_i18n_src" -nt "$binary" || "$swift_ai_src" -nt "$binary" || "$swift_prefs_src" -nt "$binary" || "$swift_telemetry_src" -nt "$binary" || "$swift_killer_src" -nt "$binary" ]]; then
         macmon_log "Compiling ProcessPicker (universal)..."
-        if swiftc -O -target arm64-apple-macos13 -framework Cocoa -o "${binary}-arm64" "$swift_model_src" "$swift_i18n_src" "$swift_ai_src" "$swift_prefs_src" "$swift_telemetry_src" "$swift_src" 2>&1 \
-           && swiftc -O -target x86_64-apple-macos13 -framework Cocoa -o "${binary}-x86_64" "$swift_model_src" "$swift_i18n_src" "$swift_ai_src" "$swift_prefs_src" "$swift_telemetry_src" "$swift_src" 2>&1 \
+        if swiftc -O -target arm64-apple-macos13 -framework Cocoa -o "${binary}-arm64" "$swift_model_src" "$swift_i18n_src" "$swift_ai_src" "$swift_prefs_src" "$swift_telemetry_src" "$swift_killer_src" "$swift_src" 2>&1 \
+           && swiftc -O -target x86_64-apple-macos13 -framework Cocoa -o "${binary}-x86_64" "$swift_model_src" "$swift_i18n_src" "$swift_ai_src" "$swift_prefs_src" "$swift_telemetry_src" "$swift_killer_src" "$swift_src" 2>&1 \
            && lipo -create -output "$binary" "${binary}-arm64" "${binary}-x86_64" 2>&1; then
             rm -f "${binary}-arm64" "${binary}-x86_64"
             macmon_log "ProcessPicker compiled successfully"
@@ -976,7 +977,13 @@ ensure_picker_compiled() {
 }
 
 # Show the process picker UI and return selected PIDs
+# Usage: show_process_picker [--standalone]
 show_process_picker() {
+    local standalone_flag=""
+    if [[ "${1:-}" == "--standalone" ]]; then
+        standalone_flag="--standalone"
+    fi
+
     ensure_picker_compiled || return 1
 
     local json_file
@@ -999,6 +1006,19 @@ show_process_picker() {
 
     # Launch picker
     local binary="${MACMON_HOME}/ProcessPicker"
+
+    if [[ -n "$standalone_flag" ]]; then
+        # Standalone mode: picker kills processes internally, no stdout capture
+        "$binary" --file "$json_file" --standalone 2>/dev/null
+        local exit_code=$?
+        rm -f "$json_file"
+        if (( exit_code == 2 )); then
+            macmon_log "Picker cancelled by user"
+        fi
+        return "$exit_code"
+    fi
+
+    # Legacy mode: capture JSON output from picker
     local result
     result=$("$binary" --file "$json_file" 2>/dev/null) || {
         local exit_code=$?

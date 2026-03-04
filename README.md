@@ -129,9 +129,12 @@ macmon help             # Show all commands
 | Cmd+A | Select all non-system processes |
 | Cmd+F | Focus search field |
 | Cmd+G | Toggle process grouping |
+| Cmd+I | View selected process details |
 | Delete | Close selected processes |
 | Enter | Close selected processes |
 | Escape | Cancel and close |
+
+Tip: double-click any process row to open full details (PID, RAM, CPU, uptime, state, and directory/URL).
 
 ### AI Quick Start (GUI)
 

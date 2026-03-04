@@ -68,6 +68,8 @@
 "picker.button.select_top_cpu.help" = "Select the 5 highest-CPU user processes.";
 "picker.button.groups" = "Groups";
 "picker.button.groups.help" = "Collapse or expand process groups.";
+"picker.button.details" = "View Details";
+"picker.button.details.help" = "Show full details for the selected process.";
 "picker.button.smart_optimize" = "Smart Optimize";
 "picker.button.smart_optimize.help" = "Ask AI to suggest safe optimization candidates.";
 "picker.button.cancel" = "Cancel";

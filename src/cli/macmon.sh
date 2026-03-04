@@ -60,20 +60,13 @@ MSG_OPT_FAILED="Optimize failed"
 # --- Subcommands ---
 
 cmd_picker() {
-    local selected
-    if selected=$(show_process_picker); then
-        if [[ -n "$selected" ]]; then
-            local count
-            count=$(echo "$selected" | wc -l | tr -d ' ')
-            local kill_file
-            kill_file=$(mktemp "${MACMON_TMPDIR}/macmon-kill.XXXXXX.json")
-            build_kill_payload_json "$selected" "$kill_file"
-            count=$(jq 'length' "$kill_file" 2>/dev/null || echo 0)
-            kill_processes "$kill_file"
-            rm -f "$kill_file"
-            echo "$MSG_CLOSED_PROCESSES $count process(es)"
-        fi
-    fi
+    show_process_picker --standalone
+}
+
+cmd_collect_json() {
+    collect_processes_json \
+        "$(macmon_cfg "THRESHOLDS_PROCESS_RAM_MIN_KB" "102400")" \
+        "$(macmon_cfg "THRESHOLDS_IDLE_CPU_PERCENT" "1.0")"
 }
 
 cmd_status() {
@@ -710,6 +703,7 @@ Commands:
   export csv      Export current snapshot as CSV
   export --peaks  Show daily peak consumption data
   snapshot        Print raw snapshot JSON (internal/tooling)
+  collect-json    Output process data JSON to stdout (for .app refresh)
   profile         Show active profile
   profile list    List available profiles
   profile use X   Switch active profile
@@ -748,6 +742,7 @@ case "${1:-}" in
     profile)        shift; cmd_profile "$@" ;;
     log)            shift; cmd_log "$@" ;;
     optimize)       cmd_optimize ;;
+    collect-json)   cmd_collect_json ;;
     update)         cmd_update ;;
     version|--version|-v)  cmd_version ;;
     help|--help|-h) cmd_help ;;
