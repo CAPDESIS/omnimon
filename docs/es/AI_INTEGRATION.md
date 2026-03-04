@@ -27,9 +27,10 @@ macmon soporta analisis opcional de procesos asistido por IA a traves de proveed
 | OpenAI | `api.openai.com/v1/chat/completions` |
 | Anthropic | `api.anthropic.com/v1/messages` |
 | OpenRouter | `openrouter.ai/api/v1/chat/completions` |
+| Gemini | `generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` |
 
 ## Almacenamiento en Keychain
 
 - Service: `com.macmon.ai`
-- Account: nombre del proveedor (`openai`, `anthropic`, `openrouter`)
+- Account: nombre del proveedor (`openai`, `anthropic`, `openrouter`, `gemini`)
 - Accesibilidad: `kSecAttrAccessibleWhenUnlocked`

@@ -540,23 +540,33 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
 
     private func enrichChromeRows(_ data: ProcessData) -> ProcessData {
         guard let tabMap = fetchChromeTabMap(), !tabMap.isEmpty else { return data }
+        let fallbackTabs = tabMap.values.filter { !$0.url.isEmpty || !$0.title.isEmpty }
+        var fallbackIndex = 0
         let enriched = data.processes.map { p -> ProcessEntry in
-            guard p.name == "Chrome Tab",
-                  let tabID = extractTabID(from: p.detail),
-                  let tab = tabMap[tabID]
-            else { return p }
+            guard p.name == "Chrome Tab" else { return p }
 
-            let domain = domainFromURL(tab.url)
+            var tab: (title: String, url: String)? = nil
+            if let tabID = extractTabID(from: p.detail), let exact = tabMap[tabID] {
+                tab = exact
+            } else if fallbackIndex < fallbackTabs.count {
+                tab = fallbackTabs[fallbackIndex]
+                fallbackIndex += 1
+            }
+            guard let tabInfo = tab else { return p }
+
+            let domain = domainFromURL(tabInfo.url)
             let betterDetail: String
-            if !tab.title.isEmpty && !domain.isEmpty {
-                betterDetail = "\(tab.title) [\(domain)]"
-            } else if !tab.title.isEmpty {
-                betterDetail = tab.title
+            if !tabInfo.title.isEmpty && !domain.isEmpty {
+                betterDetail = "\(tabInfo.title) [\(domain)]"
+            } else if !tabInfo.title.isEmpty {
+                betterDetail = tabInfo.title
+            } else if !tabInfo.url.isEmpty {
+                betterDetail = tabInfo.url
             } else {
                 betterDetail = p.detail
             }
             let betterGroup = domain.isEmpty ? p.group : "Chrome: \(domain)"
-            let betterCWD = tab.url.isEmpty ? p.cwd : tab.url
+            let betterCWD = tabInfo.url.isEmpty ? p.cwd : tabInfo.url
 
             return ProcessEntry(
                 pid: p.pid,

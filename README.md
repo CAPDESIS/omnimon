@@ -24,6 +24,7 @@ A lightweight macOS system monitor that watches RAM pressure, swap usage, custom
 - **CLI** — `macmon status`, `macmon start/stop/restart`, `macmon config`, `macmon log`, `macmon export`
 - **Guided config editor** — quick settings form in GUI for non-technical users + YAML preview
 - **AI settings in GUI** — provider/model/API key configuration from `Preferences...` (Keychain-backed)
+- **Multi-provider AI** — OpenAI, Anthropic, OpenRouter, and Gemini
 - **Orphan daemon detection** — SourceKitService (when Xcode closes), Gradle daemons, hanging xcodebuild, zombie Android emulators
 - **Disk I/O metrics** — per-process disk read/write via `proc_pid_rusage` (no root required)
 - **Metrics export** — `macmon export json/csv` for profiling and `--peaks` for daily peak tracking
@@ -120,6 +121,19 @@ macmon help             # Show all commands
 | Delete | Close selected processes |
 | Enter | Close selected processes |
 | Escape | Cancel and close |
+
+### AI Quick Start (GUI)
+
+1. Open `ProcessPicker -> Preferences...` (or `Actions -> AI Settings`).
+2. Choose provider (OpenAI / Anthropic / OpenRouter / Gemini).
+3. Paste model + API key, click `Save` (`Saved in Keychain` confirms success).
+4. In the Process Picker, click `Smart Optimize` to request safe PID suggestions.
+5. Review suggestions and confirm manually (human-in-the-loop).
+
+Notes:
+- Keys are stored in macOS Keychain.
+- AI never executes shell commands directly.
+- Suggestions still pass protected-process and signature safety checks.
 
 ### Menu Bar Monitor
 

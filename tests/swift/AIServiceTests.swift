@@ -1,6 +1,11 @@
 import XCTest
 
 class AIServiceExtractionTests: XCTestCase {
+    func testProviderListIncludesGemini() {
+        XCTAssertTrue(AIProvider.allCases.contains(.gemini))
+        XCTAssertEqual(AIProvider.gemini.displayName, "Gemini")
+    }
+
     func testExtractPIDCandidatesFromStrictJSON() {
         let text = "{\"pids\":[123,456,789]}"
         let pids = AIService.extractPIDCandidates(from: text)

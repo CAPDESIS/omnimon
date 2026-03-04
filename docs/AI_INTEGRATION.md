@@ -27,9 +27,10 @@ macmon supports optional AI-assisted process analysis through external providers
 | OpenAI | `api.openai.com/v1/chat/completions` |
 | Anthropic | `api.anthropic.com/v1/messages` |
 | OpenRouter | `openrouter.ai/api/v1/chat/completions` |
+| Gemini | `generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` |
 
 ## Keychain Storage
 
 - Service: `com.macmon.ai`
-- Account: provider name (`openai`, `anthropic`, `openrouter`)
+- Account: provider name (`openai`, `anthropic`, `openrouter`, `gemini`)
 - Accessibility: `kSecAttrAccessibleWhenUnlocked`

@@ -138,6 +138,8 @@
 "prefs.model" = "Model";
 "prefs.api_key" = "API Key";
 "prefs.save" = "Save";
+"prefs.paste" = "Paste";
+"prefs.show_key" = "Show key";
 "prefs.security.note" = "API keys are stored in the macOS Keychain (encrypted). macmon only sends telemetry to the provider you choose and never auto-kills without your review.";
 "config.editor.title" = "macmon Config Editor";
 "config.editor.helper" = "Quick settings for normal users. Apply Guided updates values and previews YAML below.";

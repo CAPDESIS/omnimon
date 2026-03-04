@@ -6,12 +6,23 @@ enum AIProvider: String, CaseIterable {
     case openai
     case anthropic
     case openrouter
+    case gemini
 
     var displayName: String {
         switch self {
         case .openai: return "OpenAI"
         case .anthropic: return "Anthropic"
         case .openrouter: return "OpenRouter"
+        case .gemini: return "Gemini"
+        }
+    }
+
+    var defaultModel: String {
+        switch self {
+        case .openai: return "gpt-4o-mini"
+        case .anthropic: return "claude-3-5-sonnet-latest"
+        case .openrouter: return "openai/gpt-4o-mini"
+        case .gemini: return "gemini-1.5-flash"
         }
     }
 }
@@ -95,7 +106,7 @@ final class AIService {
         }
 
         let payload = buildRequest(provider: provider, model: model, profile: profile, processSummary: processSummary)
-        let endpoint = endpointURL(provider: provider)
+        let endpoint = endpointURL(provider: provider, model: model, apiKey: apiKey)
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -107,6 +118,8 @@ final class AIService {
         case .anthropic:
             request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
             request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        case .gemini:
+            break
         }
         request.timeoutInterval = 30
 
@@ -135,7 +148,7 @@ final class AIService {
         }.resume()
     }
 
-    private func endpointURL(provider: AIProvider) -> URL {
+    private func endpointURL(provider: AIProvider, model: String, apiKey: String) -> URL {
         switch provider {
         case .openai:
             return URL(string: "https://api.openai.com/v1/chat/completions")!
@@ -143,6 +156,10 @@ final class AIService {
             return URL(string: "https://api.anthropic.com/v1/messages")!
         case .openrouter:
             return URL(string: "https://openrouter.ai/api/v1/chat/completions")!
+        case .gemini:
+            let encodedModel = model.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? model
+            let encodedKey = apiKey.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? apiKey
+            return URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(encodedModel):generateContent?key=\(encodedKey)")!
         }
     }
 
@@ -185,6 +202,19 @@ final class AIService {
                     ["role": "user", "content": msg],
                 ],
             ]
+        case .gemini:
+            return [
+                "generationConfig": [
+                    "temperature": 0,
+                    "maxOutputTokens": 512,
+                ],
+                "contents": [
+                    [
+                        "role": "user",
+                        "parts": [["text": msg]],
+                    ],
+                ],
+            ]
         }
     }
 
@@ -206,6 +236,17 @@ final class AIService {
                   let content = dict["content"] as? [[String: Any]],
                   let first = content.first,
                   let value = first["text"] as? String else {
+                throw NSError(domain: "AIService", code: 422, userInfo: [NSLocalizedDescriptionKey: "Invalid AI response shape"])
+            }
+            text = value
+        case .gemini:
+            guard let dict = root as? [String: Any],
+                  let candidates = dict["candidates"] as? [[String: Any]],
+                  let first = candidates.first,
+                  let content = first["content"] as? [String: Any],
+                  let parts = content["parts"] as? [[String: Any]],
+                  let part = parts.first,
+                  let value = part["text"] as? String else {
                 throw NSError(domain: "AIService", code: 422, userInfo: [NSLocalizedDescriptionKey: "Invalid AI response shape"])
             }
             text = value

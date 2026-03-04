@@ -3,7 +3,7 @@ import Cocoa
 final class PreferencesWindowController: NSWindowController {
     private let providerPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let modelField = NSTextField(string: "gpt-4o-mini")
-    private let keyField = NSSecureTextField(string: "")
+    private var keyField = NSSecureTextField(string: "")
     private let statusLabel = NSTextField(labelWithString: "")
 
     convenience init() {
@@ -25,15 +25,23 @@ final class PreferencesWindowController: NSWindowController {
         let modelLabel = NSTextField(labelWithString: L("prefs.model"))
         let keyLabel = NSTextField(labelWithString: L("prefs.api_key"))
         let saveButton = NSButton(title: L("prefs.save"), target: self, action: #selector(savePreferences))
+        let pasteModelButton = NSButton(title: L("prefs.paste"), target: self, action: #selector(pasteModel))
+        let pasteKeyButton = NSButton(title: L("prefs.paste"), target: self, action: #selector(pasteKey))
+        let revealKeyButton = NSButton(checkboxWithTitle: L("prefs.show_key"), target: self, action: #selector(toggleKeyVisibility))
         let securityNote = NSTextField(wrappingLabelWithString: L("prefs.security.note"))
 
         AIProvider.allCases.forEach { providerPopup.addItem(withTitle: $0.displayName) }
+        providerPopup.target = self
+        providerPopup.action = #selector(providerChanged)
         statusLabel.textColor = .secondaryLabelColor
         securityNote.textColor = .secondaryLabelColor
         securityNote.font = NSFont.systemFont(ofSize: 11)
         securityNote.maximumNumberOfLines = 2
+        pasteModelButton.bezelStyle = .rounded
+        pasteKeyButton.bezelStyle = .rounded
+        revealKeyButton.setButtonType(.switch)
 
-        let fields: [NSView] = [providerLabel, providerPopup, modelLabel, modelField, keyLabel, keyField, securityNote, saveButton, statusLabel]
+        let fields: [NSView] = [providerLabel, providerPopup, modelLabel, modelField, keyLabel, keyField, pasteModelButton, pasteKeyButton, revealKeyButton, securityNote, saveButton, statusLabel]
         for view in fields {
             view.translatesAutoresizingMaskIntoConstraints = false
             content.addSubview(view)
@@ -54,7 +62,11 @@ final class PreferencesWindowController: NSWindowController {
 
             modelField.centerYAnchor.constraint(equalTo: modelLabel.centerYAnchor),
             modelField.leadingAnchor.constraint(equalTo: modelLabel.trailingAnchor, constant: 10),
-            modelField.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
+            modelField.trailingAnchor.constraint(equalTo: pasteModelButton.leadingAnchor, constant: -8),
+
+            pasteModelButton.centerYAnchor.constraint(equalTo: modelField.centerYAnchor),
+            pasteModelButton.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
+            pasteModelButton.widthAnchor.constraint(equalToConstant: 72),
 
             keyLabel.topAnchor.constraint(equalTo: modelLabel.bottomAnchor, constant: 16),
             keyLabel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
@@ -62,9 +74,16 @@ final class PreferencesWindowController: NSWindowController {
 
             keyField.centerYAnchor.constraint(equalTo: keyLabel.centerYAnchor),
             keyField.leadingAnchor.constraint(equalTo: keyLabel.trailingAnchor, constant: 10),
-            keyField.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
+            keyField.trailingAnchor.constraint(equalTo: pasteKeyButton.leadingAnchor, constant: -8),
 
-            securityNote.topAnchor.constraint(equalTo: keyLabel.bottomAnchor, constant: 14),
+            pasteKeyButton.centerYAnchor.constraint(equalTo: keyField.centerYAnchor),
+            pasteKeyButton.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
+            pasteKeyButton.widthAnchor.constraint(equalToConstant: 72),
+
+            revealKeyButton.topAnchor.constraint(equalTo: keyField.bottomAnchor, constant: 6),
+            revealKeyButton.leadingAnchor.constraint(equalTo: keyField.leadingAnchor),
+
+            securityNote.topAnchor.constraint(equalTo: revealKeyButton.bottomAnchor, constant: 8),
             securityNote.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
             securityNote.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
 
@@ -77,6 +96,34 @@ final class PreferencesWindowController: NSWindowController {
         ])
 
         restoreSavedValues()
+    }
+
+    @objc private func providerChanged() {
+        let provider = selectedProvider()
+        keyField.stringValue = AIService.shared.loadAPIKey(provider: provider) ?? ""
+        let current = modelField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if current.isEmpty || current == AIProvider.openai.defaultModel || current == AIProvider.anthropic.defaultModel || current == AIProvider.openrouter.defaultModel || current == AIProvider.gemini.defaultModel {
+            modelField.stringValue = provider.defaultModel
+        }
+    }
+
+    @objc private func pasteModel() {
+        if let text = NSPasteboard.general.string(forType: .string) {
+            modelField.stringValue = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    @objc private func pasteKey() {
+        if let text = NSPasteboard.general.string(forType: .string) {
+            keyField.stringValue = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    @objc private func toggleKeyVisibility(_ sender: NSButton) {
+        let show = (sender.state == .on)
+        if let cell = keyField.cell as? NSSecureTextFieldCell {
+            cell.echosBullets = !show
+        }
     }
 
     private func selectedProvider() -> AIProvider {
