@@ -1,28 +1,16 @@
 class Macmon < Formula
   desc "Lightweight macOS system monitor with native process picker UI"
   homepage "https://github.com/chochy2001/macmon"
-  url "https://github.com/chochy2001/macmon/archive/refs/tags/v1.1.0.tar.gz"
-  sha256 "" # Updated by release workflow
+  url "https://github.com/chochy2001/macmon/releases/download/v2.1.1/macmon-2.1.1-macos-universal.tar.gz"
+  sha256 "9e1893c91891479b8bd682ae9af1ffebecd6ea8b39a4aae652926a4bafee8486"
   license "MIT"
-  head "https://github.com/chochy2001/macmon.git", branch: "main"
+  version "2.1.1"
 
   depends_on "jq"
   depends_on :macos => :ventura
 
   def install
-    # Compile Swift binaries
-    system "swiftc", "-O", "-framework", "Cocoa",
-           "-o", "ProcessPicker",
-           "src/gui/ProcessPickerModel.swift",
-           "src/gui/ProcessPicker.swift"
-    system "swiftc", "-O",
-           "-o", "DiskIOHelper",
-           "src/gui/DiskIOHelper.swift"
-    system "swiftc", "-O", "-framework", "Cocoa",
-           "-o", "MacmonStatusBar",
-           "src/gui/MacmonStatusBar.swift"
-
-    # Install to libexec (not directly to bin)
+    # The tarball contains pre-compiled universal binaries (arm64 + x86_64)
     libexec.install "ProcessPicker"
     libexec.install "DiskIOHelper"
     libexec.install "MacmonStatusBar"
@@ -30,56 +18,82 @@ class Macmon < Formula
     libexec.install "src"
     libexec.install "scripts"
     libexec.install "config"
+    libexec.install "templates"
 
-    # Create wrapper script
+    # Localization resources
+    resource_src = buildpath/"src/gui/Resources"
+    if resource_src.exist?
+      (libexec/"Resources").install resource_src.children
+    end
+
+    # CLI wrapper
     (bin/"macmon").write <<~EOS
       #!/usr/bin/env bash
       export MACMON_HOME="#{libexec}"
       export MACMON_CONFIG="${HOME}/.config/macmon/macmon.yaml"
       exec "#{libexec}/src/cli/macmon.sh" "$@"
     EOS
-
-    # Install default config
-    etc.install "config/macmon.default.yaml" => "macmon/macmon.default.yaml"
-
-    # Install LaunchAgent plist template
-    prefix.install "templates/com.macmon.daemon.plist.in"
   end
 
   def post_install
-    # Create user config if absent
+    # Create user config directory with restrictive permissions
     config_dir = Pathname.new("#{ENV["HOME"]}/.config/macmon")
     config_dir.mkpath
+    config_dir.chmod 0700
+
+    profiles_dir = config_dir/"profiles"
+    profiles_dir.mkpath
+    profiles_dir.chmod 0700
+
+    # Install default config if absent
     config_file = config_dir/"macmon.yaml"
     unless config_file.exist?
-      cp etc/"macmon/macmon.default.yaml", config_file
+      cp libexec/"config/macmon.default.yaml", config_file
+      config_file.chmod 0600
+    end
+
+    # Install default profiles if absent
+    Dir[libexec/"config/profiles/*.yaml"].each do |profile|
+      dest = profiles_dir/File.basename(profile)
+      unless dest.exist?
+        cp profile, dest
+        dest.chmod 0600
+      end
     end
 
     # Create log directory
     log_dir = Pathname.new("#{ENV["HOME"]}/.local/log/macmon")
     log_dir.mkpath
+    log_dir.chmod 0700
+  end
+
+  service do
+    run ["/bin/bash", opt_libexec/"src/daemon/macmond.sh"]
+    keep_alive true
+    process_type :background
+    environment_variables MACMON_HOME: opt_libexec,
+                          MACMON_CONFIG: "#{ENV["HOME"]}/.config/macmon/macmon.yaml"
+    log_path "#{ENV["HOME"]}/.local/log/macmon/macmond.stdout.log"
+    error_log_path "#{ENV["HOME"]}/.local/log/macmon/macmond.stderr.log"
   end
 
   def caveats
     <<~EOS
-      To start the macmon daemon:
-        macmon start
+      macmon is installed. To get started:
 
-      To install the LaunchAgent for auto-start on login:
-        cp #{prefix}/com.macmon.daemon.plist.in ~/Library/LaunchAgents/com.macmon.daemon.plist
-        # Edit the plist to replace @@PLACEHOLDERS@@
-        launchctl load -w ~/Library/LaunchAgents/com.macmon.daemon.plist
+        brew services start macmon    # start the background daemon
+        macmon                        # open the native process picker
+        macmon status                 # system health summary
 
-      To launch the menu bar monitor:
-        #{libexec}/MacmonStatusBar &
+      Menu bar monitor:
+        MACMON_HOME="#{opt_libexec}" "#{opt_libexec}/MacmonStatusBar" &
 
       Configuration: ~/.config/macmon/macmon.yaml
-      Logs: ~/.local/log/macmon/macmond.log
+      Logs:          ~/.local/log/macmon/macmond.log
     EOS
   end
 
   test do
     assert_match "macmon v", shell_output("#{bin}/macmon version")
-    system "#{libexec}/DiskIOHelper", "1"
   end
 end

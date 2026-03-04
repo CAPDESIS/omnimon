@@ -61,6 +61,16 @@ A lightweight macOS system monitor that watches RAM pressure, swap usage, custom
 
 ## Installation
 
+### Homebrew (recommended)
+
+```bash
+brew tap chochy2001/tap
+brew install macmon
+brew services start macmon
+```
+
+This installs macmon, sets up the background daemon, and creates the `macmon` CLI in your PATH. Done.
+
 ### From source
 
 ```bash
@@ -80,13 +90,6 @@ The installer will:
 Make sure `~/.local/bin` is in your PATH:
 ```bash
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-```
-
-### From Homebrew (coming soon)
-
-```bash
-brew tap chochy2001/tap
-brew install macmon
 ```
 
 ## Usage
