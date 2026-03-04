@@ -171,6 +171,8 @@
 "prefs.status.keychain_error" = "No se pudo guardar en Keychain";
 "chrome.tabs.title" = "Tabs abiertas de Chrome";
 "chrome.tabs.window.help" = "Revisa titulo y URL de cada tab. Puedes redimensionar esta ventana y copiar cualquier URL.";
+"chrome.tabs.summarize" = "Resumen IA";
+"chrome.tabs.summary.title" = "Resumen IA de tabs";
 "chrome.tabs.empty" = "No se encontraron tabs abiertas de Chrome.";
 "chrome.tabs.empty_help" = "No se encontro metadata de tabs. Abre ventanas de Chrome y permite automatizacion en Configuracion del Sistema -> Privacidad y seguridad -> Automatizacion.";
 "chrome.tabs.unavailable" = "Metadata de tabs de Chrome no disponible (Chrome cerrado o falta permiso de AppleScript).";

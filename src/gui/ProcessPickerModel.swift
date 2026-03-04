@@ -115,7 +115,7 @@ class ProcessViewModel {
     // Display rows: either flat indices or group headers + entries
     var displayRows: [DisplayRow] = []
 
-    var sortColumn: SortColumn = .group
+    var sortColumn: SortColumn = .name
     var sortOrder: SortOrder = .ascending
     var searchText: String = ""
     var hideSystemProcesses: Bool = false

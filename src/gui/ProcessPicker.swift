@@ -253,6 +253,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     var configPath: String = ""
     var chromeTabsWindow: NSWindow?
     var chromeTabsTextView: NSTextView?
+    var chromeTabsCache: [(id: String, title: String, url: String)] = []
     var configFields: [String: NSTextField] = [:]
     var configDiskIOCheckbox: NSButton?
     private let aiBlockedNames = AIService.immutableProtectedProcessNames
@@ -1300,6 +1301,11 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             helper.font = NSFont.systemFont(ofSize: 12)
             content.addSubview(helper)
 
+            let summarizeBtn = NSButton(title: L("chrome.tabs.summarize"), target: self, action: #selector(summarizeChromeTabs))
+            summarizeBtn.translatesAutoresizingMaskIntoConstraints = false
+            summarizeBtn.bezelStyle = .rounded
+            content.addSubview(summarizeBtn)
+
             let scroll = NSScrollView(frame: .zero)
             scroll.translatesAutoresizingMaskIntoConstraints = false
             scroll.hasVerticalScroller = true
@@ -1320,7 +1326,10 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
 
                 helper.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 4),
                 helper.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
-                helper.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
+                helper.trailingAnchor.constraint(lessThanOrEqualTo: summarizeBtn.leadingAnchor, constant: -10),
+
+                summarizeBtn.centerYAnchor.constraint(equalTo: helper.centerYAnchor),
+                summarizeBtn.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
 
                 scroll.topAnchor.constraint(equalTo: helper.bottomAnchor, constant: 8),
                 scroll.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
@@ -1339,9 +1348,36 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             }
             return "[\(tab.id)] \(title)\n  \(url)"
         }
+        chromeTabsCache = tabs
         chromeTabsTextView?.string = lines.joined(separator: "\n\n")
         chromeTabsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func summarizeChromeTabs(_ sender: Any?) {
+        guard !chromeTabsCache.isEmpty else {
+            showCommandResult(L("chrome.tabs.empty_help"))
+            return
+        }
+        let providerRaw = UserDefaults.standard.string(forKey: "macmon.ai.provider") ?? AIProvider.openai.rawValue
+        let model = UserDefaults.standard.string(forKey: "macmon.ai.model") ?? AIProvider.openai.defaultModel
+        let provider = AIProvider(rawValue: providerRaw) ?? .openai
+        let tabs = chromeTabsCache.map { (title: $0.title, url: $0.url) }
+
+        AIService.shared.summarizeTabs(provider: provider, model: model, tabs: tabs) { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let text):
+                    let alert = NSAlert()
+                    alert.messageText = L("chrome.tabs.summary.title")
+                    alert.informativeText = text
+                    alert.addButton(withTitle: L("statusbar.alert.ok"))
+                    alert.runModal()
+                case .failure(let error):
+                    self?.showCommandResult(error.localizedDescription)
+                }
+            }
+        }
     }
 
     private func openConfigEditorWindow() {

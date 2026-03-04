@@ -180,6 +180,62 @@ final class AIService {
         }.resume()
     }
 
+    func summarizeTabs(provider: AIProvider,
+                       model: String,
+                       tabs: [(title: String, url: String)],
+                       completion: @escaping (Result<String, Error>) -> Void) {
+        guard let apiKey = loadAPIKey(provider: provider) else {
+            completion(.failure(NSError(domain: "AIService", code: 401, userInfo: [NSLocalizedDescriptionKey: "Missing API key in Keychain"])))
+            return
+        }
+
+        let payload = buildTabSummaryRequest(provider: provider, model: model, tabs: tabs)
+        let endpoint = endpointURL(provider: provider, model: model, apiKey: apiKey)
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        switch provider {
+        case .openai, .openrouter:
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        case .anthropic:
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        case .gemini:
+            request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+        }
+        request.timeoutInterval = 30
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
+        } catch {
+            completion(.failure(error))
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            guard let data = data else {
+                completion(.failure(NSError(domain: "AIService", code: 500, userInfo: [NSLocalizedDescriptionKey: "Empty AI response"])))
+                return
+            }
+            if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
+                completion(.failure(NSError(domain: "AIService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "API Error (\(httpResponse.statusCode))"])))
+                return
+            }
+
+            do {
+                let root = try JSONSerialization.jsonObject(with: data, options: [])
+                let text = try self.extractProviderText(provider: provider, root: root)
+                completion(.success(text))
+            } catch {
+                completion(.failure(error))
+            }
+        }.resume()
+    }
+
     private func endpointURL(provider: AIProvider, model: String, apiKey: String) -> URL {
         switch provider {
         case .openai:
@@ -250,8 +306,68 @@ final class AIService {
         }
     }
 
+    private func buildTabSummaryRequest(provider: AIProvider,
+                                        model: String,
+                                        tabs: [(title: String, url: String)]) -> [String: Any] {
+        let compact = Array(tabs.prefix(25)).map { ["title": $0.title, "url": $0.url] }
+        let data = (try? JSONSerialization.data(withJSONObject: compact, options: [.sortedKeys])) ?? Data()
+        let tabsJSON = String(data: data, encoding: .utf8) ?? "[]"
+        let msg = "Summarize these browser tabs in Spanish for the user. Include: 1) key themes, 2) likely active tasks, 3) what can be closed safely first. Keep under 8 lines. Tabs: \(tabsJSON)"
+        switch provider {
+        case .openai, .openrouter:
+            return [
+                "model": model,
+                "temperature": 0.2,
+                "messages": [
+                    ["role": "system", "content": "Be concise and practical."],
+                    ["role": "user", "content": msg],
+                ],
+            ]
+        case .anthropic:
+            return [
+                "model": model,
+                "max_tokens": 300,
+                "temperature": 0.2,
+                "messages": [
+                    ["role": "user", "content": msg],
+                ],
+            ]
+        case .gemini:
+            return [
+                "generationConfig": [
+                    "temperature": 0.2,
+                    "maxOutputTokens": 300,
+                ],
+                "contents": [
+                    [
+                        "role": "user",
+                        "parts": [["text": msg]],
+                    ],
+                ],
+            ]
+        }
+    }
+
     private func parseSuggestions(provider: AIProvider, data: Data) throws -> [AISuggestion] {
         let root = try JSONSerialization.jsonObject(with: data, options: [])
+        let text = try extractProviderText(provider: provider, root: root)
+
+        let suggestions = AIService.extractSuggestions(from: text)
+        guard !suggestions.isEmpty else {
+            throw NSError(domain: "AIService", code: 422, userInfo: [NSLocalizedDescriptionKey: "AI did not return valid PID candidates"])
+        }
+        var seen = Set<Int>()
+        var unique: [AISuggestion] = []
+        for s in suggestions {
+            if !seen.contains(s.pid) {
+                seen.insert(s.pid)
+                unique.append(s)
+            }
+        }
+        return Array(unique.prefix(AIService.maxSuggestedPIDs))
+    }
+
+    private func extractProviderText(provider: AIProvider, root: Any) throws -> String {
         let text: String
         switch provider {
         case .openai, .openrouter:
@@ -283,20 +399,7 @@ final class AIService {
             }
             text = value
         }
-
-        let suggestions = AIService.extractSuggestions(from: text)
-        guard !suggestions.isEmpty else {
-            throw NSError(domain: "AIService", code: 422, userInfo: [NSLocalizedDescriptionKey: "AI did not return valid PID candidates"])
-        }
-        var seen = Set<Int>()
-        var unique: [AISuggestion] = []
-        for s in suggestions {
-            if !seen.contains(s.pid) {
-                seen.insert(s.pid)
-                unique.append(s)
-            }
-        }
-        return Array(unique.prefix(AIService.maxSuggestedPIDs))
+        return text
     }
 
     static func extractSuggestions(from text: String) -> [AISuggestion] {
@@ -312,14 +415,14 @@ final class AIService {
         if let arr = obj["suggestions"] as? [[String: Any]], !arr.isEmpty {
             return arr.compactMap { entry in
                 guard let pid = entry["pid"] as? Int, pid > 1 else { return nil }
-                let reason = entry["reason"] as? String ?? L("picker.ai.reason.generic")
+                let reason = entry["reason"] as? String ?? "optimization candidate"
                 return AISuggestion(pid: pid, reason: reason)
             }
         }
 
         // Backward compat: {"pids":[123,456]}
         if let pids = obj["pids"] as? [Int], !pids.isEmpty {
-            return pids.filter { $0 > 1 }.map { AISuggestion(pid: $0, reason: L("picker.ai.reason.generic")) }
+            return pids.filter { $0 > 1 }.map { AISuggestion(pid: $0, reason: "optimization candidate") }
         }
 
         return []
