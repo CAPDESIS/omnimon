@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-export MACMON_VERSION="3.1.3"
+export MACMON_VERSION="3.1.4"
 MACMON_HOME="${MACMON_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 # --- Validate MACMON_HOME (MITRE T1574 - Hijack Execution Flow) ---
