@@ -251,6 +251,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     var configWindow: NSWindow?
     var configTextView: NSTextView?
     var configPath: String = ""
+    var chromeTabsWindow: NSWindow?
+    var chromeTabsTextView: NSTextView?
     var configFields: [String: NSTextField] = [:]
     var configDiskIOCheckbox: NSButton?
     private let aiBlockedNames = AIService.immutableProtectedProcessNames
@@ -750,12 +752,22 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     private func normalizeChromeTabURL(_ url: String) -> String {
         guard !url.isEmpty else { return "" }
         guard let parsed = URL(string: url) else { return url }
-        if parsed.scheme == "chrome-extension",
-           let comps = URLComponents(url: parsed, resolvingAgainstBaseURL: false),
-           let raw = comps.queryItems?.first(where: { $0.name == "uri" })?.value,
-           let decoded = raw.removingPercentEncoding,
-           !decoded.isEmpty {
-            return decoded
+        if parsed.scheme == "chrome-extension" {
+            if let comps = URLComponents(url: parsed, resolvingAgainstBaseURL: false),
+               let raw = comps.queryItems?.first(where: { $0.name == "uri" })?.value,
+               let decoded = raw.removingPercentEncoding,
+               !decoded.isEmpty {
+                return decoded
+            }
+            if let fragment = parsed.fragment {
+                for pair in fragment.split(separator: "&") {
+                    let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
+                    guard parts.count == 2 else { continue }
+                    if parts[0] == "uri", let decoded = parts[1].removingPercentEncoding, !decoded.isEmpty {
+                        return decoded
+                    }
+                }
+            }
         }
         return url
     }
@@ -1231,32 +1243,85 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             let normalized = json.compactMap { item -> (id: String, title: String, url: String)? in
                 let id = ((item["id"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 let title = ((item["title"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                let url = ((item["url"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let rawURL = ((item["url"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let url = normalizeChromeTabURL(rawURL)
                 if title.isEmpty && url.isEmpty { return nil }
                 return (id: id, title: title, url: url)
             }
-            let lines = normalized.prefix(30).map { tab -> String in
-                let title = tab.title.isEmpty ? L("chrome.tabs.untitled") : tab.title
-                let resolved = normalizeChromeTabURL(tab.url)
-                let url = resolved.isEmpty ? L("chrome.tabs.no_url") : resolved
-                if tab.id.isEmpty {
-                    return "• \(title)\n  \(url)"
-                }
-                return "• [\(tab.id)] \(title)\n  \(url)"
-            }
-            let body = lines.joined(separator: "\n")
-            if body.isEmpty {
+            if normalized.isEmpty {
                 showCommandResult(L("chrome.tabs.empty_help"))
             } else {
-                let alert = NSAlert()
-                alert.messageText = L("chrome.tabs.title")
-                alert.informativeText = body
-                alert.addButton(withTitle: L("statusbar.alert.ok"))
-                alert.runModal()
+                openChromeTabsWindow(with: Array(normalized.prefix(80)))
             }
         } catch {
             showCommandResult(L("chrome.tabs.unavailable"))
         }
+    }
+
+    private func openChromeTabsWindow(with tabs: [(id: String, title: String, url: String)]) {
+        if chromeTabsWindow == nil {
+            let rect = NSRect(x: 0, y: 0, width: 920, height: 560)
+            let win = NSWindow(contentRect: rect,
+                               styleMask: [.titled, .closable, .resizable, .miniaturizable],
+                               backing: .buffered,
+                               defer: false)
+            win.title = L("chrome.tabs.title")
+            let content = NSView(frame: rect)
+            win.contentView = content
+
+            let header = NSTextField(labelWithString: L("chrome.tabs.title"))
+            header.translatesAutoresizingMaskIntoConstraints = false
+            header.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
+            content.addSubview(header)
+
+            let helper = NSTextField(labelWithString: L("chrome.tabs.window.help"))
+            helper.translatesAutoresizingMaskIntoConstraints = false
+            helper.textColor = .secondaryLabelColor
+            helper.font = NSFont.systemFont(ofSize: 12)
+            content.addSubview(helper)
+
+            let scroll = NSScrollView(frame: .zero)
+            scroll.translatesAutoresizingMaskIntoConstraints = false
+            scroll.hasVerticalScroller = true
+            scroll.hasHorizontalScroller = false
+            let textView = NSTextView(frame: .zero)
+            textView.isEditable = false
+            textView.isSelectable = true
+            textView.isRichText = false
+            textView.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+            scroll.documentView = textView
+            chromeTabsTextView = textView
+            content.addSubview(scroll)
+
+            NSLayoutConstraint.activate([
+                header.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
+                header.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
+                header.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
+
+                helper.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 4),
+                helper.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
+                helper.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
+
+                scroll.topAnchor.constraint(equalTo: helper.bottomAnchor, constant: 8),
+                scroll.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+                scroll.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+                scroll.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -12),
+            ])
+
+            chromeTabsWindow = win
+        }
+
+        let lines = tabs.map { tab -> String in
+            let title = tab.title.isEmpty ? L("chrome.tabs.untitled") : tab.title
+            let url = tab.url.isEmpty ? L("chrome.tabs.no_url") : tab.url
+            if tab.id.isEmpty {
+                return "\(title)\n  \(url)"
+            }
+            return "[\(tab.id)] \(title)\n  \(url)"
+        }
+        chromeTabsTextView?.string = lines.joined(separator: "\n\n")
+        chromeTabsWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func openConfigEditorWindow() {

@@ -168,6 +168,7 @@
 "prefs.status.invalid" = "Provider, model, and key are required";
 "prefs.status.keychain_error" = "Could not save to Keychain";
 "chrome.tabs.title" = "Open Chrome Tabs";
+"chrome.tabs.window.help" = "Review tab title and URL. You can resize this window and copy any URL.";
 "chrome.tabs.empty" = "No open Chrome tabs found.";
 "chrome.tabs.empty_help" = "No tab metadata found. Open Chrome windows and allow automation in System Settings -> Privacy & Security -> Automation.";
 "chrome.tabs.unavailable" = "Chrome tab metadata unavailable (Chrome closed or AppleScript permission missing).";
