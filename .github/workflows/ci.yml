@@ -13,7 +13,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: brew install jq bats-core
+        run: |
+          brew install jq 2>/dev/null || true
+          brew install bats-core 2>/dev/null || true
 
       - name: Syntax check all shell scripts
         run: |
