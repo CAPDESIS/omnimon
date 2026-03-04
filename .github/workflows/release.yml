@@ -17,13 +17,28 @@ jobs:
       - name: Install dependencies
         run: brew install jq bats-core
 
-      - name: Run tests
+      - name: Verify tag matches source version
         run: |
-          make test
-          make check
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          SRC_VERSION=$(grep -o 'MACMON_VERSION="[^"]*"' lib/macmon-core.sh | cut -d'"' -f2)
+          echo "Tag version: $TAG_VERSION"
+          echo "Source version: $SRC_VERSION"
+          if [[ "$TAG_VERSION" != "$SRC_VERSION" ]]; then
+            echo "ERROR: Tag $GITHUB_REF_NAME does not match MACMON_VERSION=$SRC_VERSION"
+            exit 1
+          fi
+
+      - name: Run BATS tests
+        run: make test
+
+      - name: Run XCTests
+        run: make swift-test
+
+      - name: Check shell syntax
+        run: make check
 
       - name: Build universal binaries
-        run: make build
+        run: make clean && make build
 
       - name: Create release archive
         run: |
@@ -33,6 +48,7 @@ jobs:
             --exclude='.git' \
             --exclude='.github' \
             --exclude='dist' \
+            --exclude='build' \
             --exclude='*.dSYM' \
             -s '/^\./macmon/' \
             .
@@ -41,6 +57,7 @@ jobs:
         run: |
           cd dist
           shasum -a 256 *.tar.gz > checksums-sha256.txt
+          cat checksums-sha256.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

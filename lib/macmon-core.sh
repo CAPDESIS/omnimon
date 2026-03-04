@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-export MACMON_VERSION="2.1.2"
+export MACMON_VERSION="3.0.0"
 MACMON_HOME="${MACMON_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 # --- Validate MACMON_HOME (MITRE T1574 - Hijack Execution Flow) ---
@@ -931,6 +931,8 @@ ensure_picker_compiled() {
     local swift_model_src="${MACMON_HOME}/src/gui/ProcessPickerModel.swift"
     local swift_i18n_src="${MACMON_HOME}/src/gui/Localization.swift"
     local swift_ai_src="${MACMON_HOME}/src/gui/AIService.swift"
+    local swift_prefs_src="${MACMON_HOME}/src/gui/PreferencesWindow.swift"
+    local swift_telemetry_src="${MACMON_HOME}/src/gui/TelemetryRecorder.swift"
     local binary="${MACMON_HOME}/ProcessPicker"
 
     if [[ ! -f "$swift_src" || ! -f "$swift_model_src" || ! -f "$swift_i18n_src" || ! -f "$swift_ai_src" ]]; then
@@ -939,10 +941,10 @@ ensure_picker_compiled() {
     fi
 
     # Compile if binary missing or source is newer
-    if [[ ! -f "$binary" || "$swift_src" -nt "$binary" || "$swift_model_src" -nt "$binary" || "$swift_i18n_src" -nt "$binary" || "$swift_ai_src" -nt "$binary" ]]; then
+    if [[ ! -f "$binary" || "$swift_src" -nt "$binary" || "$swift_model_src" -nt "$binary" || "$swift_i18n_src" -nt "$binary" || "$swift_ai_src" -nt "$binary" || "$swift_prefs_src" -nt "$binary" || "$swift_telemetry_src" -nt "$binary" ]]; then
         macmon_log "Compiling ProcessPicker (universal)..."
-        if swiftc -O -target arm64-apple-macos13 -framework Cocoa -o "${binary}-arm64" "$swift_model_src" "$swift_i18n_src" "$swift_ai_src" "$swift_src" 2>&1 \
-           && swiftc -O -target x86_64-apple-macos13 -framework Cocoa -o "${binary}-x86_64" "$swift_model_src" "$swift_i18n_src" "$swift_ai_src" "$swift_src" 2>&1 \
+        if swiftc -O -target arm64-apple-macos13 -framework Cocoa -o "${binary}-arm64" "$swift_model_src" "$swift_i18n_src" "$swift_ai_src" "$swift_prefs_src" "$swift_telemetry_src" "$swift_src" 2>&1 \
+           && swiftc -O -target x86_64-apple-macos13 -framework Cocoa -o "${binary}-x86_64" "$swift_model_src" "$swift_i18n_src" "$swift_ai_src" "$swift_prefs_src" "$swift_telemetry_src" "$swift_src" 2>&1 \
            && lipo -create -output "$binary" "${binary}-arm64" "${binary}-x86_64" 2>&1; then
             rm -f "${binary}-arm64" "${binary}-x86_64"
             macmon_log "ProcessPicker compiled successfully"

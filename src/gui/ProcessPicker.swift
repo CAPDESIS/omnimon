@@ -5,10 +5,30 @@ import Foundation
 
 class MemoryPressureGauge: NSView {
     var freePercent: Int = 100 {
-        didSet { needsDisplay = true }
+        didSet { needsDisplay = true; updateTooltipText() }
     }
-    var physMemGB: Double = 0
-    var swapUsedMB: Int = 0
+    var physMemGB: Double = 0 {
+        didSet { updateTooltipText() }
+    }
+    var swapUsedMB: Int = 0 {
+        didSet { updateTooltipText() }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas { removeTrackingArea(area) }
+        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
+        addTrackingArea(area)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        updateTooltipText()
+    }
+
+    private func updateTooltipText() {
+        let usedGB = physMemGB * Double(max(0, min(100, 100 - freePercent))) / 100.0
+        toolTip = LF("picker.tooltip.memory", usedGB, physMemGB, freePercent, swapUsedMB)
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -56,6 +76,32 @@ class MemoryPressureGauge: NSView {
 class MiniBarChartView: NSView {
     var values: [Double] = [0, 0, 0] { didSet { needsDisplay = true } }
     var labels: [String] = ["RAM", "Swap", "Proc"]
+    var rawLabels: [String] = []
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas { removeTrackingArea(area) }
+        let area = NSTrackingArea(rect: bounds, options: [.mouseMoved, .activeAlways], owner: self, userInfo: nil)
+        addTrackingArea(area)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        let loc = convert(event.locationInWindow, from: nil)
+        let barWidth: CGFloat = 48
+        let gap: CGFloat = 8
+        for i in 0..<values.count {
+            let x = CGFloat(i) * (barWidth + gap)
+            if loc.x >= x && loc.x <= x + barWidth {
+                if i < rawLabels.count {
+                    toolTip = LF("picker.tooltip.bar", labels[i], rawLabels[i])
+                } else {
+                    toolTip = LF("picker.tooltip.bar", labels[i], String(format: "%.0f%%", values[i] * 100))
+                }
+                return
+            }
+        }
+        toolTip = nil
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -148,6 +194,11 @@ class SystemSummaryView: NSView {
         let swapRatio = min(1.0, Double(max(0, health.swapUsedMB)) / 3072.0)
         let procRatio = min(1.0, Double(max(0, health.totalProcesses)) / 1000.0)
         chartView.values = [ramUsedRatio, swapRatio, procRatio]
+        chartView.rawLabels = [
+            String(format: "%d%% used", max(0, min(100, 100 - health.freePercent))),
+            String(format: "%d MB", health.swapUsedMB),
+            String(format: "%d", health.totalProcesses),
+        ]
     }
 }
 
@@ -1549,16 +1600,22 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         alert.runModal()
     }
 
-    private func presentAISuggestions(_ pids: [Int]) {
+    private var lastAISuggestions: [AISuggestion] = []
+
+    private func presentAISuggestions(_ suggestions: [AISuggestion]) {
         var processTable: [Int: String] = [:]
         for p in viewModel.allProcesses where !p.isSystem {
             processTable[p.pid] = p.name
         }
-        let safePIDs = AIService.sanitizeSuggestedPIDs(pids, processTable: processTable)
-        if safePIDs.isEmpty {
+        let safeSuggestions = AIService.sanitizeSuggestions(suggestions, processTable: processTable)
+        if safeSuggestions.isEmpty {
             presentAIError(L("picker.ai.no_safe"))
             return
         }
+
+        lastAISuggestions = safeSuggestions
+        let safePIDs = Set(safeSuggestions.map { $0.pid })
+        let reasonMap = Dictionary(uniqueKeysWithValues: safeSuggestions.map { ($0.pid, $0.reason) })
 
         for i in 0..<viewModel.allProcesses.count {
             if safePIDs.contains(viewModel.allProcesses[i].pid) {
@@ -1573,6 +1630,11 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         let names = viewModel.allProcesses
             .filter { safePIDs.contains($0.pid) }
             .map { p -> String in
+                let aiReason = reasonMap[p.pid] ?? ""
+                if !aiReason.isEmpty {
+                    return "\(p.name) (PID \(p.pid)) — \(aiReason)"
+                }
+                // Fallback to local heuristic reasons if AI reason is empty
                 var reasons: [String] = []
                 if p.ramMB >= 1024 { reasons.append(String(format: L("picker.ai.reason.ram"), p.ramMB)) }
                 if p.cpuPct >= 20 { reasons.append(String(format: L("picker.ai.reason.cpu"), p.cpuPct)) }
@@ -1603,6 +1665,12 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             exitCode = 0
             NSApp.terminate(nil)
             return
+        }
+        // Record telemetry for each closed process
+        let aiReasonMap = Dictionary(uniqueKeysWithValues: lastAISuggestions.map { ($0.pid, $0.reason) })
+        for p in viewModel.allProcesses where p.selected {
+            let reason = aiReasonMap[p.pid] ?? "manual selection"
+            TelemetryRecorder.shared.recordKill(pid: p.pid, name: p.name, ramMB: p.ramMB, reason: reason)
         }
         // Output selected processes as JSON to stdout
         let selected = viewModel.allProcesses

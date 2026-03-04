@@ -31,5 +31,17 @@ jobs:
       - name: Run BATS tests
         run: make test
 
+      - name: Run XCTests
+        run: make swift-test
+
+      - name: Verify version consistency
+        run: |
+          VERSION=$(grep -o 'MACMON_VERSION="[^"]*"' lib/macmon-core.sh | cut -d'"' -f2)
+          echo "Version in macmon-core.sh: $VERSION"
+          if [[ -z "$VERSION" ]]; then
+            echo "ERROR: Could not extract MACMON_VERSION"
+            exit 1
+          fi
+
       - name: Cleanup
         run: make clean

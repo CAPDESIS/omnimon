@@ -185,4 +185,9 @@
 "picker.metrics.rec.swap" = "Swap is elevated. Review top memory consumers and browser tabs.";
 "picker.metrics.rec.idle" = "Many idle processes detected. Safe cleanup could free memory.";
 "picker.metrics.rec.healthy" = "System is within healthy thresholds.";
+"prefs.tab.ai_settings" = "AI Settings";
+"prefs.tab.rules" = "Rules";
+"prefs.rules.save" = "Save Rules";
+"picker.tooltip.memory" = "Used: %.1f GB / %.1f GB (%d%% free) | Swap: %d MB";
+"picker.tooltip.bar" = "%@: %@";
 "group.other" = "Other";

@@ -97,6 +97,7 @@ else
         "$STAGING_DIR/src/gui/Localization.swift" \
         "$STAGING_DIR/src/gui/AIService.swift" \
         "$STAGING_DIR/src/gui/PreferencesWindow.swift" \
+        "$STAGING_DIR/src/gui/TelemetryRecorder.swift" \
         "$STAGING_DIR/src/gui/ProcessPicker.swift"
     echo "ProcessPicker compiled successfully"
 
@@ -110,9 +111,11 @@ else
     echo "Compiling MacmonStatusBar..."
     compile_universal "$STAGING_DIR/MacmonStatusBar" \
         -framework Cocoa \
+        "$STAGING_DIR/src/gui/ProcessPickerModel.swift" \
         "$STAGING_DIR/src/gui/Localization.swift" \
         "$STAGING_DIR/src/gui/AIService.swift" \
         "$STAGING_DIR/src/gui/PreferencesWindow.swift" \
+        "$STAGING_DIR/src/gui/TelemetryRecorder.swift" \
         "$STAGING_DIR/src/gui/MacmonStatusBar.swift"
     echo "MacmonStatusBar compiled successfully"
 fi

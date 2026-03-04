@@ -2,6 +2,11 @@ import Foundation
 import Security
 import Darwin
 
+struct AISuggestion {
+    let pid: Int
+    let reason: String
+}
+
 enum AIProvider: String, CaseIterable {
     case openai
     case anthropic
@@ -99,7 +104,7 @@ final class AIService {
                              model: String,
                              profile: String,
                              processSummary: [[String: Any]],
-                             completion: @escaping (Result<[Int], Error>) -> Void) {
+                             completion: @escaping (Result<[AISuggestion], Error>) -> Void) {
         guard let apiKey = loadAPIKey(provider: provider) else {
             completion(.failure(NSError(domain: "AIService", code: 401, userInfo: [NSLocalizedDescriptionKey: "Missing API key in Keychain"])))
             return
@@ -167,8 +172,8 @@ final class AIService {
                 return
             }
             do {
-                let pids = try self.parseSuggestedPIDs(provider: provider, data: data)
-                completion(.success(pids))
+                let suggestions = try self.parseSuggestions(provider: provider, data: data)
+                completion(.success(suggestions))
             } catch {
                 completion(.failure(error))
             }
@@ -197,8 +202,9 @@ final class AIService {
         Constraints:
         1) Never output shell commands.
         2) Never include Apple system processes or audio/video critical services.
-        3) Return only this shape: {"pids":[123,456]}
+        3) Return only this shape: {"suggestions":[{"pid":123,"reason":"short explanation"}]}
         4) Include only non critical user space PIDs.
+        5) Each reason must be a brief, human-readable explanation (e.g. "high RAM usage while idle").
         Current profile: \(profile)
         Processes: \(jsonString)
         """
@@ -244,7 +250,7 @@ final class AIService {
         }
     }
 
-    private func parseSuggestedPIDs(provider: AIProvider, data: Data) throws -> [Int] {
+    private func parseSuggestions(provider: AIProvider, data: Data) throws -> [AISuggestion] {
         let root = try JSONSerialization.jsonObject(with: data, options: [])
         let text: String
         switch provider {
@@ -278,41 +284,58 @@ final class AIService {
             text = value
         }
 
-        let pids = AIService.extractPIDCandidates(from: text)
-        guard !pids.isEmpty else {
+        let suggestions = AIService.extractSuggestions(from: text)
+        guard !suggestions.isEmpty else {
             throw NSError(domain: "AIService", code: 422, userInfo: [NSLocalizedDescriptionKey: "AI did not return valid PID candidates"])
         }
-        let unique = Array(Set(pids)).sorted()
+        var seen = Set<Int>()
+        var unique: [AISuggestion] = []
+        for s in suggestions {
+            if !seen.contains(s.pid) {
+                seen.insert(s.pid)
+                unique.append(s)
+            }
+        }
         return Array(unique.prefix(AIService.maxSuggestedPIDs))
     }
 
-    static func extractPIDCandidates(from text: String) -> [Int] {
+    static func extractSuggestions(from text: String) -> [AISuggestion] {
         let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Only accept strict JSON: {"pids":[...]}
-        if let start = normalized.firstIndex(of: "{"),
-           let end = normalized.lastIndex(of: "}") {
-            let jsonFragment = String(normalized[start...end])
-            if let data = jsonFragment.data(using: .utf8),
-               let obj = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
-               let pids = obj["pids"] as? [Int],
-               !pids.isEmpty {
-                return pids.filter { $0 > 1 }
+        guard let start = normalized.firstIndex(of: "{"),
+              let end = normalized.lastIndex(of: "}") else { return [] }
+        let jsonFragment = String(normalized[start...end])
+        guard let data = jsonFragment.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else { return [] }
+
+        // New format: {"suggestions":[{"pid":123,"reason":"..."}]}
+        if let arr = obj["suggestions"] as? [[String: Any]], !arr.isEmpty {
+            return arr.compactMap { entry in
+                guard let pid = entry["pid"] as? Int, pid > 1 else { return nil }
+                let reason = entry["reason"] as? String ?? L("picker.ai.reason.generic")
+                return AISuggestion(pid: pid, reason: reason)
             }
+        }
+
+        // Backward compat: {"pids":[123,456]}
+        if let pids = obj["pids"] as? [Int], !pids.isEmpty {
+            return pids.filter { $0 > 1 }.map { AISuggestion(pid: $0, reason: L("picker.ai.reason.generic")) }
         }
 
         return []
     }
 
-    static func sanitizeSuggestedPIDs(_ pids: [Int], processTable: [Int: String]) -> [Int] {
-        var filtered: [Int] = []
-        for pid in pids where pid > 1 {
-            guard let name = processTable[pid], !name.isEmpty else { continue }
+    static func sanitizeSuggestions(_ suggestions: [AISuggestion], processTable: [Int: String]) -> [AISuggestion] {
+        var filtered: [AISuggestion] = []
+        var seen = Set<Int>()
+        for s in suggestions where s.pid > 1 {
+            guard let name = processTable[s.pid], !name.isEmpty else { continue }
             guard !immutableProtectedProcessNames.contains(name) else { continue }
-            if kill(pid_t(pid), 0) == 0 {
-                filtered.append(pid)
+            if kill(pid_t(s.pid), 0) == 0 && !seen.contains(s.pid) {
+                seen.insert(s.pid)
+                filtered.append(s)
             }
         }
-        return Array(Set(filtered)).sorted()
+        return filtered
     }
 }

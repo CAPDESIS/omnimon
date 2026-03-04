@@ -4,12 +4,20 @@ SWIFT_SRC := src/gui/ProcessPicker.swift
 SWIFT_I18N_SRC := src/gui/Localization.swift
 SWIFT_AI_SRC := src/gui/AIService.swift
 SWIFT_PREFS_SRC := src/gui/PreferencesWindow.swift
+SWIFT_TELEMETRY_SRC := src/gui/TelemetryRecorder.swift
 SWIFT_BIN := ProcessPicker
 DISKIO_SRC := src/gui/DiskIOHelper.swift
 DISKIO_BIN := DiskIOHelper
 STATUSBAR_SRC := src/gui/MacmonStatusBar.swift
 STATUSBAR_BIN := MacmonStatusBar
 INSTALL_DIR := $(HOME)/.local/libexec/macmon
+
+# Shared Swift sources used by both ProcessPicker and MacmonStatusBar
+SWIFT_SHARED := $(SWIFT_MODEL_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_PREFS_SRC) $(SWIFT_TELEMETRY_SRC)
+
+# XCTest sources
+XCTEST_SRCS := tests/swift/AIServiceTests.swift tests/swift/ProcessViewModelTests.swift
+XCTEST_BUNDLE := build/MacmonTests.xctest
 
 # Universal binary helper: compile for each arch, merge with lipo
 define universal_swiftc
@@ -19,20 +27,20 @@ define universal_swiftc
 	rm -f $(2)-arm64 $(2)-x86_64
 endef
 
-.PHONY: build statusbar install uninstall clean check test audit
+.PHONY: build statusbar install uninstall clean check test swift-test audit
 
 build: $(SWIFT_BIN) $(DISKIO_BIN) $(STATUSBAR_BIN)
 
-$(SWIFT_BIN): $(SWIFT_MODEL_SRC) $(SWIFT_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_PREFS_SRC)
-	$(call universal_swiftc,-framework Cocoa,$@,$(SWIFT_MODEL_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_PREFS_SRC) $(SWIFT_SRC))
+$(SWIFT_BIN): $(SWIFT_SHARED) $(SWIFT_SRC)
+	$(call universal_swiftc,-framework Cocoa,$@,$(SWIFT_SHARED) $(SWIFT_SRC))
 
 $(DISKIO_BIN): $(DISKIO_SRC)
 	$(call universal_swiftc,,$@,$<)
 
 statusbar: $(STATUSBAR_BIN)
 
-$(STATUSBAR_BIN): $(STATUSBAR_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_PREFS_SRC)
-	$(call universal_swiftc,-framework Cocoa,$@,$(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_PREFS_SRC) $(STATUSBAR_SRC))
+$(STATUSBAR_BIN): $(STATUSBAR_SRC) $(SWIFT_SHARED)
+	$(call universal_swiftc,-framework Cocoa,$@,$(SWIFT_SHARED) $(STATUSBAR_SRC))
 
 install: build
 	./install.sh
@@ -46,10 +54,38 @@ clean:
 	rm -f $(DISKIO_BIN)-arm64 $(DISKIO_BIN)-x86_64
 	rm -f $(STATUSBAR_BIN)-arm64 $(STATUSBAR_BIN)-x86_64
 	rm -rf $(SWIFT_BIN).dSYM $(DISKIO_BIN).dSYM $(STATUSBAR_BIN).dSYM
+	rm -rf build/
 
 test:
 	@command -v bats >/dev/null 2>&1 || { echo "ERROR: bats not found (brew install bats-core)"; exit 1; }
 	bats tests/
+
+swift-test:
+	@echo "Running XCTests..."
+	@mkdir -p build/MacmonTests.xctest/Contents/MacOS
+	@PLATFORM_PATH=$$(xcrun --show-sdk-platform-path); \
+	XCTEST_FW="$$PLATFORM_PATH/Developer/Library/Frameworks"; \
+	XCTEST_LIB="$$PLATFORM_PATH/Developer/usr/lib"; \
+	xcrun swiftc \
+		-F "$$XCTEST_FW" \
+		-I "$$XCTEST_LIB" \
+		-L "$$XCTEST_LIB" \
+		-Xlinker -F -Xlinker "$$XCTEST_FW" \
+		-Xlinker -rpath -Xlinker "$$XCTEST_FW" \
+		-lXCTestSwiftSupport \
+		-emit-library \
+		-framework XCTest -framework Cocoa \
+		-module-name MacmonTests \
+		$(SWIFT_SHARED) \
+		$(XCTEST_SRCS) \
+		-o build/MacmonTests.xctest/Contents/MacOS/MacmonTests
+	@/usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string MacmonTests" \
+		-c "Add :CFBundleIdentifier string com.macmon.tests" \
+		-c "Add :CFBundleInfoDictionaryVersion string 6.0" \
+		-c "Add :CFBundlePackageType string BNDL" \
+		-c "Add :CFBundleVersion string 1" \
+		build/MacmonTests.xctest/Contents/Info.plist 2>/dev/null || true
+	@xcrun xctest build/MacmonTests.xctest
 
 check:
 	@echo "Checking dependencies..."

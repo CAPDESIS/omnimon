@@ -477,7 +477,7 @@ cmd_optimize() {
     current_profile=$(macmon_get_active_profile 2>/dev/null || echo "default")
 
     local prompt
-    prompt="You are a macOS optimization assistant. Analyze process data and return strict JSON only. Constraints: 1) Never output shell commands. 2) Never include Apple system processes or audio/video critical services. 3) Return only this shape: {\"pids\":[123,456]} 4) Include only non critical user space PIDs. Current profile: ${current_profile}. Processes: ${summary}"
+    prompt="You are a macOS optimization assistant. Analyze process data and return strict JSON only. Constraints: 1) Never output shell commands. 2) Never include Apple system processes or audio/video critical services. 3) Return only this shape: {\"suggestions\":[{\"pid\":123,\"reason\":\"short explanation\"}]} 4) Include only non critical user space PIDs. 5) Each reason must be a brief, human-readable explanation. Current profile: ${current_profile}. Processes: ${summary}"
 
     echo "$MSG_OPT_ANALYZING"
 
@@ -561,11 +561,23 @@ cmd_optimize() {
         return 0
     fi
 
-    # Extract PIDs from AI response (strict JSON: {"pids":[...]})
-    local ai_pids
+    # Extract suggestions from AI response
+    # New format: {"suggestions":[{"pid":123,"reason":"..."}]}
+    # Fallback: {"pids":[123,456]}
+    local ai_pids ai_reasons
     ai_pids=$(printf '%s' "$content" | jq -r '
-        if type == "object" and has("pids") then
+        if type == "object" and has("suggestions") then
+            .suggestions[] | select(.pid > 1) | .pid | tostring
+        elif type == "object" and has("pids") then
             .pids[] | select(. > 1) | tostring
+        else empty end
+    ' 2>/dev/null || true)
+
+    ai_reasons=$(printf '%s' "$content" | jq -r '
+        if type == "object" and has("suggestions") then
+            .suggestions[] | select(.pid > 1) | (.reason // "optimization candidate")
+        elif type == "object" and has("pids") then
+            .pids[] | select(. > 1) | "optimization candidate"
         else empty end
     ' 2>/dev/null || true)
 
@@ -574,27 +586,36 @@ cmd_optimize() {
         return 0
     fi
 
+    # Build parallel arrays of PIDs and reasons
+    local -a all_pids_arr=() all_reasons_arr=()
+    while IFS= read -r line; do all_pids_arr+=("$line"); done <<< "$ai_pids"
+    while IFS= read -r line; do all_reasons_arr+=("$line"); done <<< "$ai_reasons"
+
     # Validate and display each suggested process
-    local valid_pids=() valid_names=()
+    local valid_pids=() valid_names=() valid_reasons=()
     local pid proc_name
     echo ""
     echo "AI suggests closing these processes:"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    while IFS= read -r pid; do
-        [[ -n "$pid" ]] || continue
+    local idx=0
+    for pid in "${all_pids_arr[@]}"; do
+        [[ -n "$pid" ]] || { (( idx++ )) || true; continue; }
         proc_name=$(ps -p "$pid" -o comm= 2>/dev/null | xargs basename 2>/dev/null || true)
-        [[ -n "$proc_name" ]] || continue
+        [[ -n "$proc_name" ]] || { (( idx++ )) || true; continue; }
         # Skip blocked/system processes
-        if macmon_is_blocked_process "$proc_name"; then continue; fi
-        if is_system_process "$proc_name"; then continue; fi
-        if _is_apple_system_pid "$pid" 2>/dev/null; then continue; fi
-        local ram_mb cpu_pct
+        if macmon_is_blocked_process "$proc_name"; then (( idx++ )) || true; continue; fi
+        if is_system_process "$proc_name"; then (( idx++ )) || true; continue; fi
+        if _is_apple_system_pid "$pid" 2>/dev/null; then (( idx++ )) || true; continue; fi
+        local ram_mb cpu_pct reason
         ram_mb=$(ps -p "$pid" -o rss= 2>/dev/null | awk '{printf "%.0f", $1/1024}' || echo "?")
         cpu_pct=$(ps -p "$pid" -o pcpu= 2>/dev/null | tr -d ' ' || echo "?")
-        printf "  PID %-7s %-25s RAM: %sMB  CPU: %s%%\n" "$pid" "$proc_name" "$ram_mb" "$cpu_pct"
+        reason="${all_reasons_arr[$idx]:-optimization candidate}"
+        printf "  PID %-7s %-25s RAM: %sMB  CPU: %s%%  (%s)\n" "$pid" "$proc_name" "$ram_mb" "$cpu_pct" "$reason"
         valid_pids+=("$pid")
         valid_names+=("$proc_name")
-    done <<< "$ai_pids"
+        valid_reasons+=("$reason")
+        (( idx++ )) || true
+    done
     echo ""
 
     if [[ ${#valid_pids[@]} -eq 0 ]]; then
