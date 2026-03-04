@@ -221,6 +221,9 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         table.style = .plain
         table.usesAlternatingRowBackgroundColors = true
         table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
+        table.allowsColumnReordering = true
+        table.autosaveName = "macmon.ProcessPicker.Columns"
+        table.autosaveTableColumns = true
         table.allowsMultipleSelection = false
         table.rowHeight = 28
         table.intercellSpacing = NSSize(width: 8, height: 0)
@@ -274,6 +277,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
         statusLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
         statusLabel.textColor = .secondaryLabelColor
+        statusLabel.lineBreakMode = .byTruncatingTail
+        statusLabel.maximumNumberOfLines = 1
         contentView.addSubview(statusLabel)
 
         inspectorLabel = NSTextField(wrappingLabelWithString: "")
@@ -289,6 +294,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         helperLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
         helperLabel.textColor = .secondaryLabelColor
         helperLabel.lineBreakMode = .byTruncatingTail
+        helperLabel.maximumNumberOfLines = 1
         contentView.addSubview(helperLabel)
 
         // Buttons
@@ -380,7 +386,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             scrollView.topAnchor.constraint(equalTo: hideSystemCheckbox.bottomAnchor, constant: 8),
             scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: statusLabel.topAnchor, constant: -4),
+            scrollView.bottomAnchor.constraint(equalTo: inspectorLabel.topAnchor, constant: -4),
 
             // Status
             statusLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 8),
@@ -389,10 +395,16 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             inspectorLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 8),
             inspectorLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -8),
             inspectorLabel.bottomAnchor.constraint(equalTo: statusLabel.topAnchor, constant: -2),
+            inspectorLabel.heightAnchor.constraint(equalToConstant: 30),
+
+            statusLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -8),
+            statusLabel.bottomAnchor.constraint(equalTo: helperLabel.topAnchor, constant: -2),
+            statusLabel.heightAnchor.constraint(equalToConstant: 16),
 
             helperLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 8),
-            helperLabel.trailingAnchor.constraint(lessThanOrEqualTo: btnSmartOptimize.leadingAnchor, constant: -8),
-            helperLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -10),
+            helperLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -8),
+            helperLabel.bottomAnchor.constraint(equalTo: btnClose.topAnchor, constant: -6),
+            helperLabel.heightAnchor.constraint(equalToConstant: 16),
 
             // Buttons (bottom row)
             btnSelectAll.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 8),
@@ -819,6 +831,11 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             return
         }
 
+        performCommand(command)
+        sender.selectItem(at: 0)
+    }
+
+    func performCommand(_ command: String) {
         switch command {
         case "open_config":
             let path = runCLI(args: ["config", "path"]).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -847,8 +864,22 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         default:
             break
         }
+    }
 
-        sender.selectItem(at: 0)
+    @objc func menuOpenConfig(_ sender: Any?) { performCommand("open_config") }
+    @objc func menuResetConfig(_ sender: Any?) { performCommand("reset_config") }
+    @objc func menuRestartDaemon(_ sender: Any?) { performCommand("restart") }
+    @objc func menuExportJSON(_ sender: Any?) { performCommand("export_json") }
+    @objc func menuExportCSV(_ sender: Any?) { performCommand("export_csv") }
+    @objc func menuUpdate(_ sender: Any?) { performCommand("update") }
+    @objc func menuFocusSearch(_ sender: Any?) { window.makeFirstResponder(searchField) }
+    @objc func menuToggleHideSystem(_ sender: Any?) {
+        hideSystemCheckbox.state = (hideSystemCheckbox.state == .on) ? .off : .on
+        filterToggled(hideSystemCheckbox)
+    }
+    @objc func menuToggleIdleOnly(_ sender: Any?) {
+        idleOnlyCheckbox.state = (idleOnlyCheckbox.state == .on) ? .off : .on
+        filterToggled(idleOnlyCheckbox)
     }
 
     private func stripANSI(_ text: String) -> String {
@@ -1092,7 +1123,83 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var inputFile: String?
     private var keyboardMonitor: Any?
 
+    private func setupMainMenu() {
+        let mainMenu = NSMenu()
+
+        let appItem = NSMenuItem()
+        mainMenu.addItem(appItem)
+        let appMenu = NSMenu()
+        appItem.submenu = appMenu
+        appMenu.addItem(withTitle: L("menu.app.about"), action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(NSMenuItem.separator())
+        appMenu.addItem(withTitle: L("menu.app.quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+
+        let fileItem = NSMenuItem()
+        fileItem.title = L("menu.file")
+        mainMenu.addItem(fileItem)
+        let fileMenu = NSMenu(title: L("menu.file"))
+        fileItem.submenu = fileMenu
+        let openConfig = NSMenuItem(title: L("picker.commands.open_config"), action: #selector(ProcessPickerController.menuOpenConfig(_:)), keyEquivalent: ",")
+        openConfig.target = controller
+        fileMenu.addItem(openConfig)
+        let exportJSON = NSMenuItem(title: L("picker.commands.export_json"), action: #selector(ProcessPickerController.menuExportJSON(_:)), keyEquivalent: "j")
+        exportJSON.target = controller
+        fileMenu.addItem(exportJSON)
+        let exportCSV = NSMenuItem(title: L("picker.commands.export_csv"), action: #selector(ProcessPickerController.menuExportCSV(_:)), keyEquivalent: "e")
+        exportCSV.target = controller
+        fileMenu.addItem(exportCSV)
+
+        let editItem = NSMenuItem()
+        editItem.title = L("menu.edit")
+        mainMenu.addItem(editItem)
+        let editMenu = NSMenu(title: L("menu.edit"))
+        editItem.submenu = editMenu
+        let focusSearch = NSMenuItem(title: L("menu.edit.search"), action: #selector(ProcessPickerController.menuFocusSearch(_:)), keyEquivalent: "f")
+        focusSearch.target = controller
+        editMenu.addItem(focusSearch)
+        let selectAll = NSMenuItem(title: L("picker.button.select_all"), action: #selector(ProcessPickerController.selectAll(_:)), keyEquivalent: "a")
+        selectAll.target = controller
+        editMenu.addItem(selectAll)
+        let selectNone = NSMenuItem(title: L("picker.button.select_none"), action: #selector(ProcessPickerController.selectNone(_:)), keyEquivalent: "")
+        selectNone.target = controller
+        editMenu.addItem(selectNone)
+
+        let viewItem = NSMenuItem()
+        viewItem.title = L("menu.view")
+        mainMenu.addItem(viewItem)
+        let viewMenu = NSMenu(title: L("menu.view"))
+        viewItem.submenu = viewMenu
+        let toggleGroup = NSMenuItem(title: L("picker.button.groups"), action: #selector(ProcessPickerController.toggleGrouping(_:)), keyEquivalent: "g")
+        toggleGroup.target = controller
+        viewMenu.addItem(toggleGroup)
+        let hideSystem = NSMenuItem(title: L("picker.filter.hide_system"), action: #selector(ProcessPickerController.menuToggleHideSystem(_:)), keyEquivalent: "h")
+        hideSystem.target = controller
+        viewMenu.addItem(hideSystem)
+        let idleOnly = NSMenuItem(title: L("picker.filter.only_idle"), action: #selector(ProcessPickerController.menuToggleIdleOnly(_:)), keyEquivalent: "i")
+        idleOnly.target = controller
+        viewMenu.addItem(idleOnly)
+
+        let actionsItem = NSMenuItem()
+        actionsItem.title = L("menu.actions")
+        mainMenu.addItem(actionsItem)
+        let actionsMenu = NSMenu(title: L("menu.actions"))
+        actionsItem.submenu = actionsMenu
+        let smart = NSMenuItem(title: L("picker.button.smart_optimize"), action: #selector(ProcessPickerController.smartOptimize(_:)), keyEquivalent: "o")
+        smart.target = controller
+        actionsMenu.addItem(smart)
+        let restart = NSMenuItem(title: L("picker.commands.daemon_restart"), action: #selector(ProcessPickerController.menuRestartDaemon(_:)), keyEquivalent: "r")
+        restart.keyEquivalentModifierMask = [.command, .shift]
+        restart.target = controller
+        actionsMenu.addItem(restart)
+        let update = NSMenuItem(title: L("picker.commands.update"), action: #selector(ProcessPickerController.menuUpdate(_:)), keyEquivalent: "u")
+        update.target = controller
+        actionsMenu.addItem(update)
+
+        NSApplication.shared.mainMenu = mainMenu
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        setupMainMenu()
         controller.setupWindow()
 
         guard let file = inputFile else {

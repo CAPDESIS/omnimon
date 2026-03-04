@@ -86,12 +86,12 @@
 "picker.ai.review_hint" = "Review selected rows. Press Apply Optimization to close now, or Review First to adjust checkboxes manually.";
 "picker.ai.apply" = "Apply Optimization";
 "picker.ai.review" = "Review First";
-"picker.smart_optimize.help_inline" = "Smart Optimize uses your selected profile + telemetry and returns safe PID suggestions for manual review.";
+"picker.smart_optimize.help_inline" = "Smart Optimize suggests safe PID candidates based on profile + telemetry. You always review before closing.";
 "picker.idle.yes" = "Idle";
 "picker.idle.no" = "-";
 "picker.inspector.empty" = "Select a process to view full details (PID, RAM, CPU, uptime, group, idle state, TTY, detail, and directory).";
 "picker.inspector.group" = "Group row selected. Expand/collapse to inspect individual processes.";
-"picker.inspector.value" = "%@ (PID %d)  |  RAM: %.1f MB  |  CPU: %.1f%%  |  Uptime: %@  |  Group: %@  |  Idle: %@  |  TTY: %@\nDetail: %@  |  Directory: %@";
+"picker.inspector.value" = "%@ (PID %d)  |  RAM: %.1f MB  |  CPU: %.1f%%  |  Uptime: %@  |  Group: %@  |  Idle: %@  |  TTY: %@  |  Detail: %@  |  Directory: %@";
 "picker.commands.title" = "Actions";
 "picker.commands.help" = "Run CLI actions from GUI";
 "picker.commands.open_config" = "Open Config";
@@ -115,6 +115,13 @@
 "picker.profile.developer" = "Prioritizes IDE, compilers, and terminal workflows.";
 "picker.profile.creator" = "Prioritizes creative apps and media render pipelines.";
 "picker.profile.gaming" = "Prioritizes FPS stability and low-latency gameplay.";
+"menu.app.about" = "About macmon";
+"menu.app.quit" = "Quit macmon";
+"menu.file" = "File";
+"menu.edit" = "Edit";
+"menu.edit.search" = "Find";
+"menu.view" = "View";
+"menu.actions" = "Actions";
 
 "prefs.window.title" = "macmon Preferences";
 "prefs.provider" = "AI Provider";
