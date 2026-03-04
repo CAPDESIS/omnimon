@@ -7,11 +7,19 @@ set -euo pipefail
 
 enumerate_tabs() {
     osascript <<'APPLESCRIPT' 2>/dev/null || true
+on sanitizeText(inputText)
+    set t to inputText as text
+    return do shell script "printf %s " & quoted form of t & " | tr '\t\r\n' '   '"
+end sanitizeText
+
 tell application "Google Chrome"
     set output to ""
     repeat with w in windows
         repeat with t in tabs of w
-            set output to output & (id of t) & tab & (title of t) & tab & (URL of t) & linefeed
+            set tabID to (id of t as text)
+            set tabTitle to my sanitizeText(title of t as text)
+            set tabURL to my sanitizeText(URL of t as text)
+            set output to output & tabID & tab & tabTitle & tab & tabURL & linefeed
         end repeat
     end repeat
     return output

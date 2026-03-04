@@ -556,14 +556,20 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     }
 
     private func enrichChromeRows(_ data: ProcessData) -> ProcessData {
-        guard let tabMap = fetchChromeTabMap(), !tabMap.isEmpty else { return data }
-        let fallbackTabs = tabMap.values.filter { !$0.url.isEmpty || !$0.title.isEmpty }
+        guard let tabs = fetchChromeTabs(), !tabs.isEmpty else { return data }
+        var tabsByID: [Int: (title: String, url: String)] = [:]
+        for tab in tabs {
+            if let id = tab.id {
+                tabsByID[id] = (title: tab.title, url: tab.url)
+            }
+        }
+        let fallbackTabs = tabs.map { (title: $0.title, url: $0.url) }.filter { !$0.url.isEmpty || !$0.title.isEmpty }
         var fallbackIndex = 0
         let enriched = data.processes.map { p -> ProcessEntry in
             guard p.name == "Chrome Tab" else { return p }
 
             var tab: (title: String, url: String)? = nil
-            if let tabID = extractTabID(from: p.detail), let exact = tabMap[tabID] {
+            if let tabID = extractTabID(from: p.detail), let exact = tabsByID[tabID] {
                 tab = exact
             } else if fallbackIndex < fallbackTabs.count {
                 tab = fallbackTabs[fallbackIndex]
@@ -573,7 +579,9 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
 
             let domain = domainFromURL(tabInfo.url)
             let betterDetail: String
-            if !tabInfo.title.isEmpty && !domain.isEmpty {
+            if !tabInfo.title.isEmpty && !tabInfo.url.isEmpty {
+                betterDetail = "\(tabInfo.title) — \(tabInfo.url)"
+            } else if !tabInfo.title.isEmpty && !domain.isEmpty {
                 betterDetail = "\(tabInfo.title) [\(domain)]"
             } else if !tabInfo.title.isEmpty {
                 betterDetail = tabInfo.title
@@ -607,7 +615,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         return ProcessData(processes: enriched, system: data.system)
     }
 
-    private func fetchChromeTabMap() -> [Int: (title: String, url: String)]? {
+    private func fetchChromeTabs() -> [(id: Int?, title: String, url: String)]? {
         guard let home = ProcessInfo.processInfo.environment["MACMON_HOME"] else { return nil }
         let script = home + "/scripts/chrome-tabs.sh"
         guard FileManager.default.isExecutableFile(atPath: script) else { return nil }
@@ -622,12 +630,13 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             task.waitUntilExit()
             guard let json = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
-            var out: [Int: (title: String, url: String)] = [:]
+            var out: [(id: Int?, title: String, url: String)] = []
             for item in json {
-                guard let idRaw = item["id"] as? String, let id = Int(idRaw) else { continue }
+                let idRaw = (item["id"] as? String) ?? ""
+                let id = Int(idRaw)
                 let title = (item["title"] as? String) ?? ""
                 let url = (item["url"] as? String) ?? ""
-                out[id] = (title, url)
+                out.append((id: id, title: title, url: url))
             }
             return out
         } catch {
@@ -873,6 +882,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             if proc.cwd.isEmpty {
                 cell.stringValue = "-"
                 cell.textColor = .tertiaryLabelColor
+            } else if proc.cwd.hasPrefix("http://") || proc.cwd.hasPrefix("https://") {
+                cell.stringValue = proc.cwd
             } else {
                 // Show last 2 path components
                 let components = proc.cwd.split(separator: "/")
