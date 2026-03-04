@@ -95,6 +95,7 @@
 "picker.commands.title" = "Acciones";
 "picker.commands.help" = "Ejecutar acciones CLI desde la GUI";
 "picker.commands.open_config" = "Abrir config";
+"picker.commands.edit_config_gui" = "Editar config";
 "picker.commands.ai_settings" = "Ajustes de IA";
 "picker.commands.reset_config" = "Reset config";
 "picker.commands.daemon_start" = "Iniciar daemon";
@@ -103,6 +104,9 @@
 "picker.commands.export_json" = "Exportar JSON";
 "picker.commands.export_csv" = "Exportar CSV";
 "picker.commands.status" = "Mostrar estado";
+"picker.commands.log_tail" = "Ver logs";
+"picker.commands.version" = "Ver version";
+"picker.commands.help" = "Ver ayuda";
 "picker.commands.update" = "Buscar updates";
 "picker.commands.result.title" = "Salida del comando";
 "picker.filter.hide_system" = "Ocultar sistema";
@@ -131,6 +135,12 @@
 "prefs.api_key" = "API Key";
 "prefs.save" = "Guardar";
 "prefs.security.note" = "Las API keys se guardan cifradas en el Keychain de macOS. macmon solo envia telemetria al proveedor elegido y nunca cierra procesos automaticamente sin tu revision.";
+"config.editor.title" = "Editor de Configuracion macmon";
+"config.editor.reload" = "Recargar";
+"config.editor.save" = "Guardar";
+"config.editor.reset" = "Reset";
+"config.editor.saved" = "Configuracion guardada";
+"config.editor.error" = "No se pudo guardar la configuracion";
 "prefs.status.saved" = "Guardado en Keychain";
 "prefs.status.invalid" = "Proveedor, modelo y key son obligatorios";
 "prefs.status.keychain_error" = "No se pudo guardar en Keychain";

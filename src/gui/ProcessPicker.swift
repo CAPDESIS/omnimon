@@ -197,6 +197,9 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     var commandPopup: NSPopUpButton!
     var profilePopup: NSPopUpButton!
     var preferencesWindowController: PreferencesWindowController?
+    var configWindow: NSWindow?
+    var configTextView: NSTextView?
+    var configPath: String = ""
     private let aiBlockedNames = AIService.immutableProtectedProcessNames
 
     var exitCode: Int32 = 2  // default: cancelled
@@ -363,14 +366,18 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         commandPopup.addItem(withTitle: L("picker.commands.title"))
         commandPopup.lastItem?.representedObject = ""
         addCommandMenuItem(L("picker.commands.open_config"), command: "open_config")
+        addCommandMenuItem(L("picker.commands.edit_config_gui"), command: "edit_config_gui")
         addCommandMenuItem(L("picker.commands.ai_settings"), command: "preferences")
         addCommandMenuItem(L("picker.commands.reset_config"), command: "reset_config")
         addCommandMenuItem(L("picker.commands.daemon_start"), command: "start")
         addCommandMenuItem(L("picker.commands.daemon_stop"), command: "stop")
         addCommandMenuItem(L("picker.commands.daemon_restart"), command: "restart")
+        addCommandMenuItem(L("picker.commands.log_tail"), command: "log_tail")
         addCommandMenuItem(L("picker.commands.export_json"), command: "export_json")
         addCommandMenuItem(L("picker.commands.export_csv"), command: "export_csv")
         addCommandMenuItem(L("picker.commands.status"), command: "status")
+        addCommandMenuItem(L("picker.commands.version"), command: "version")
+        addCommandMenuItem(L("picker.commands.help"), command: "help")
         addCommandMenuItem(L("picker.commands.update"), command: "update")
         commandPopup.setAccessibilityLabel(L("picker.commands.title"))
         commandPopup.toolTip = L("picker.commands.help")
@@ -894,12 +901,16 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
                 let url = URL(fileURLWithPath: path)
                 _ = NSWorkspace.shared.open(url)
             }
+        case "edit_config_gui":
+            openConfigEditorWindow()
         case "preferences":
             openPreferencesWindow()
         case "reset_config":
             let out = runCLI(args: ["config", "reset"])
             showCommandResult(out)
             reloadProfiles()
+        case "log_tail":
+            showCommandResult(runCLI(args: ["log"]))
         case "start":
             showCommandResult(runCLI(args: ["start"]))
         case "stop":
@@ -912,6 +923,10 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             showCommandResult(runCLI(args: ["export", "csv"]))
         case "status":
             showCommandResult(runCLI(args: ["status"]))
+        case "version":
+            showCommandResult(runCLI(args: ["version"]))
+        case "help":
+            showCommandResult(runCLI(args: ["help"]))
         case "update":
             showCommandResult(runCLI(args: ["update"]))
         default:
@@ -920,6 +935,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     }
 
     @objc func menuOpenConfig(_ sender: Any?) { performCommand("open_config") }
+    @objc func menuOpenConfigEditor(_ sender: Any?) { performCommand("edit_config_gui") }
     @objc func menuOpenPreferences(_ sender: Any?) { performCommand("preferences") }
     @objc func menuResetConfig(_ sender: Any?) { performCommand("reset_config") }
     @objc func menuRestartDaemon(_ sender: Any?) { performCommand("restart") }
@@ -951,6 +967,106 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         preferencesWindowController?.showWindow(nil)
         preferencesWindowController?.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func openConfigEditorWindow() {
+        if configWindow == nil {
+            let rect = NSRect(x: 0, y: 0, width: 780, height: 520)
+            let win = NSWindow(contentRect: rect,
+                               styleMask: [.titled, .closable, .resizable],
+                               backing: .buffered,
+                               defer: false)
+            win.title = L("config.editor.title")
+            let content = NSView(frame: rect)
+            win.contentView = content
+
+            let pathLabel = NSTextField(labelWithString: "")
+            pathLabel.translatesAutoresizingMaskIntoConstraints = false
+            pathLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+            pathLabel.textColor = .secondaryLabelColor
+            pathLabel.tag = 901
+            content.addSubview(pathLabel)
+
+            let scroll = NSScrollView(frame: .zero)
+            scroll.translatesAutoresizingMaskIntoConstraints = false
+            scroll.hasVerticalScroller = true
+            scroll.hasHorizontalScroller = true
+            let text = NSTextView(frame: .zero)
+            text.isRichText = false
+            text.isAutomaticQuoteSubstitutionEnabled = false
+            text.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+            scroll.documentView = text
+            content.addSubview(scroll)
+            configTextView = text
+
+            let reloadBtn = NSButton(title: L("config.editor.reload"), target: self, action: #selector(reloadConfigEditor))
+            let saveBtn = NSButton(title: L("config.editor.save"), target: self, action: #selector(saveConfigEditor))
+            let resetBtn = NSButton(title: L("config.editor.reset"), target: self, action: #selector(resetConfigEditor))
+            for btn in [reloadBtn, saveBtn, resetBtn] {
+                btn.translatesAutoresizingMaskIntoConstraints = false
+                content.addSubview(btn)
+            }
+
+            NSLayoutConstraint.activate([
+                pathLabel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+                pathLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+                pathLabel.topAnchor.constraint(equalTo: content.topAnchor, constant: 10),
+
+                scroll.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+                scroll.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+                scroll.topAnchor.constraint(equalTo: pathLabel.bottomAnchor, constant: 8),
+                scroll.bottomAnchor.constraint(equalTo: saveBtn.topAnchor, constant: -10),
+
+                reloadBtn.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+                reloadBtn.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -10),
+
+                resetBtn.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+                resetBtn.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -10),
+
+                saveBtn.trailingAnchor.constraint(equalTo: resetBtn.leadingAnchor, constant: -8),
+                saveBtn.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -10),
+            ])
+
+            configWindow = win
+        }
+
+        loadConfigIntoEditor()
+        configWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func loadConfigIntoEditor() {
+        let path = runCLI(args: ["config", "path"]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { return }
+        configPath = path
+        if let label = configWindow?.contentView?.viewWithTag(901) as? NSTextField {
+            label.stringValue = path
+        }
+        let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? runCLI(args: ["config"])
+        configTextView?.string = text
+    }
+
+    @objc private func reloadConfigEditor(_ sender: Any?) {
+        loadConfigIntoEditor()
+    }
+
+    @objc private func saveConfigEditor(_ sender: Any?) {
+        guard !configPath.isEmpty, let content = configTextView?.string else { return }
+        do {
+            try content.write(toFile: configPath, atomically: true, encoding: .utf8)
+            _ = runCLI(args: ["profile", "current"])
+            showCommandResult(L("config.editor.saved"))
+            reloadProfiles()
+        } catch {
+            let msg = L("config.editor.error") + ": " + error.localizedDescription
+            showCommandResult(msg)
+        }
+    }
+
+    @objc private func resetConfigEditor(_ sender: Any?) {
+        showCommandResult(runCLI(args: ["config", "reset"]))
+        loadConfigIntoEditor()
+        reloadProfiles()
     }
 
     private func showCommandResult(_ output: String) {
@@ -1208,6 +1324,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let openConfig = NSMenuItem(title: L("picker.commands.open_config"), action: #selector(ProcessPickerController.menuOpenConfig(_:)), keyEquivalent: "")
         openConfig.target = controller
         fileMenu.addItem(openConfig)
+        let editConfig = NSMenuItem(title: L("picker.commands.edit_config_gui"), action: #selector(ProcessPickerController.menuOpenConfigEditor(_:)), keyEquivalent: "")
+        editConfig.target = controller
+        fileMenu.addItem(editConfig)
         let exportJSON = NSMenuItem(title: L("picker.commands.export_json"), action: #selector(ProcessPickerController.menuExportJSON(_:)), keyEquivalent: "j")
         exportJSON.target = controller
         fileMenu.addItem(exportJSON)

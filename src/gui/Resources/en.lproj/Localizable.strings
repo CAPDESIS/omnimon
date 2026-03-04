@@ -95,6 +95,7 @@
 "picker.commands.title" = "Actions";
 "picker.commands.help" = "Run CLI actions from GUI";
 "picker.commands.open_config" = "Open Config";
+"picker.commands.edit_config_gui" = "Edit Config";
 "picker.commands.ai_settings" = "AI Settings";
 "picker.commands.reset_config" = "Reset Config";
 "picker.commands.daemon_start" = "Start Daemon";
@@ -103,6 +104,9 @@
 "picker.commands.export_json" = "Export JSON";
 "picker.commands.export_csv" = "Export CSV";
 "picker.commands.status" = "Show Status";
+"picker.commands.log_tail" = "Show Logs";
+"picker.commands.version" = "Show Version";
+"picker.commands.help" = "Show Help";
 "picker.commands.update" = "Check Updates";
 "picker.commands.result.title" = "Command Output";
 "picker.filter.hide_system" = "Hide system";
@@ -131,6 +135,12 @@
 "prefs.api_key" = "API Key";
 "prefs.save" = "Save";
 "prefs.security.note" = "API keys are stored in the macOS Keychain (encrypted). macmon only sends telemetry to the provider you choose and never auto-kills without your review.";
+"config.editor.title" = "macmon Config Editor";
+"config.editor.reload" = "Reload";
+"config.editor.save" = "Save";
+"config.editor.reset" = "Reset";
+"config.editor.saved" = "Configuration saved";
+"config.editor.error" = "Could not save configuration";
 "prefs.status.saved" = "Saved in Keychain";
 "prefs.status.invalid" = "Provider, model, and key are required";
 "prefs.status.keychain_error" = "Could not save to Keychain";
