@@ -95,6 +95,7 @@
 "picker.commands.title" = "Acciones";
 "picker.commands.help" = "Ejecutar acciones CLI desde la GUI";
 "picker.commands.open_config" = "Abrir config";
+"picker.commands.ai_settings" = "Ajustes de IA";
 "picker.commands.reset_config" = "Reset config";
 "picker.commands.daemon_start" = "Iniciar daemon";
 "picker.commands.daemon_stop" = "Detener daemon";
@@ -116,6 +117,7 @@
 "picker.profile.creator" = "Prioriza apps creativas y pipelines de render de medios.";
 "picker.profile.gaming" = "Prioriza FPS estables y baja latencia en juegos.";
 "menu.app.about" = "Acerca de macmon";
+"menu.app.preferences" = "Preferencias...";
 "menu.app.quit" = "Salir de macmon";
 "menu.file" = "Archivo";
 "menu.edit" = "Editar";
@@ -128,6 +130,7 @@
 "prefs.model" = "Modelo";
 "prefs.api_key" = "API Key";
 "prefs.save" = "Guardar";
+"prefs.security.note" = "Las API keys se guardan cifradas en el Keychain de macOS. macmon solo envia telemetria al proveedor elegido y nunca cierra procesos automaticamente sin tu revision.";
 "prefs.status.saved" = "Guardado en Keychain";
 "prefs.status.invalid" = "Proveedor, modelo y key son obligatorios";
 "prefs.status.keychain_error" = "No se pudo guardar en Keychain";

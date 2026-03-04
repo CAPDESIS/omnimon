@@ -7,7 +7,7 @@ final class PreferencesWindowController: NSWindowController {
     private let statusLabel = NSTextField(labelWithString: "")
 
     convenience init() {
-        let rect = NSRect(x: 0, y: 0, width: 480, height: 220)
+        let rect = NSRect(x: 0, y: 0, width: 520, height: 260)
         let window = NSWindow(contentRect: rect,
                               styleMask: [.titled, .closable],
                               backing: .buffered,
@@ -25,11 +25,15 @@ final class PreferencesWindowController: NSWindowController {
         let modelLabel = NSTextField(labelWithString: L("prefs.model"))
         let keyLabel = NSTextField(labelWithString: L("prefs.api_key"))
         let saveButton = NSButton(title: L("prefs.save"), target: self, action: #selector(savePreferences))
+        let securityNote = NSTextField(wrappingLabelWithString: L("prefs.security.note"))
 
         AIProvider.allCases.forEach { providerPopup.addItem(withTitle: $0.displayName) }
         statusLabel.textColor = .secondaryLabelColor
+        securityNote.textColor = .secondaryLabelColor
+        securityNote.font = NSFont.systemFont(ofSize: 11)
+        securityNote.maximumNumberOfLines = 2
 
-        let fields: [NSView] = [providerLabel, providerPopup, modelLabel, modelField, keyLabel, keyField, saveButton, statusLabel]
+        let fields: [NSView] = [providerLabel, providerPopup, modelLabel, modelField, keyLabel, keyField, securityNote, saveButton, statusLabel]
         for view in fields {
             view.translatesAutoresizingMaskIntoConstraints = false
             content.addSubview(view)
@@ -60,7 +64,11 @@ final class PreferencesWindowController: NSWindowController {
             keyField.leadingAnchor.constraint(equalTo: keyLabel.trailingAnchor, constant: 10),
             keyField.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
 
-            saveButton.topAnchor.constraint(equalTo: keyLabel.bottomAnchor, constant: 20),
+            securityNote.topAnchor.constraint(equalTo: keyLabel.bottomAnchor, constant: 14),
+            securityNote.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
+            securityNote.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
+
+            saveButton.topAnchor.constraint(equalTo: securityNote.bottomAnchor, constant: 14),
             saveButton.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
 
             statusLabel.centerYAnchor.constraint(equalTo: saveButton.centerYAnchor),

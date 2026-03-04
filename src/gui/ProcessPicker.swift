@@ -196,6 +196,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     var cancelButton: NSButton!
     var commandPopup: NSPopUpButton!
     var profilePopup: NSPopUpButton!
+    var preferencesWindowController: PreferencesWindowController?
     private let aiBlockedNames = AIService.immutableProtectedProcessNames
 
     var exitCode: Int32 = 2  // default: cancelled
@@ -362,6 +363,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         commandPopup.addItem(withTitle: L("picker.commands.title"))
         commandPopup.lastItem?.representedObject = ""
         addCommandMenuItem(L("picker.commands.open_config"), command: "open_config")
+        addCommandMenuItem(L("picker.commands.ai_settings"), command: "preferences")
         addCommandMenuItem(L("picker.commands.reset_config"), command: "reset_config")
         addCommandMenuItem(L("picker.commands.daemon_start"), command: "start")
         addCommandMenuItem(L("picker.commands.daemon_stop"), command: "stop")
@@ -892,6 +894,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
                 let url = URL(fileURLWithPath: path)
                 _ = NSWorkspace.shared.open(url)
             }
+        case "preferences":
+            openPreferencesWindow()
         case "reset_config":
             let out = runCLI(args: ["config", "reset"])
             showCommandResult(out)
@@ -916,6 +920,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     }
 
     @objc func menuOpenConfig(_ sender: Any?) { performCommand("open_config") }
+    @objc func menuOpenPreferences(_ sender: Any?) { performCommand("preferences") }
     @objc func menuResetConfig(_ sender: Any?) { performCommand("reset_config") }
     @objc func menuRestartDaemon(_ sender: Any?) { performCommand("restart") }
     @objc func menuExportJSON(_ sender: Any?) { performCommand("export_json") }
@@ -937,6 +942,15 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         }
         let range = NSRange(location: 0, length: (text as NSString).length)
         return regex.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: "")
+    }
+
+    private func openPreferencesWindow() {
+        if preferencesWindowController == nil {
+            preferencesWindowController = PreferencesWindowController()
+        }
+        preferencesWindowController?.showWindow(nil)
+        preferencesWindowController?.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func showCommandResult(_ output: String) {
@@ -1180,6 +1194,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let appMenu = NSMenu()
         appItem.submenu = appMenu
         appMenu.addItem(withTitle: L("menu.app.about"), action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        let prefs = NSMenuItem(title: L("menu.app.preferences"), action: #selector(ProcessPickerController.menuOpenPreferences(_:)), keyEquivalent: ",")
+        prefs.target = controller
+        appMenu.addItem(prefs)
         appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(withTitle: L("menu.app.quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
@@ -1188,7 +1205,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         mainMenu.addItem(fileItem)
         let fileMenu = NSMenu(title: L("menu.file"))
         fileItem.submenu = fileMenu
-        let openConfig = NSMenuItem(title: L("picker.commands.open_config"), action: #selector(ProcessPickerController.menuOpenConfig(_:)), keyEquivalent: ",")
+        let openConfig = NSMenuItem(title: L("picker.commands.open_config"), action: #selector(ProcessPickerController.menuOpenConfig(_:)), keyEquivalent: "")
         openConfig.target = controller
         fileMenu.addItem(openConfig)
         let exportJSON = NSMenuItem(title: L("picker.commands.export_json"), action: #selector(ProcessPickerController.menuExportJSON(_:)), keyEquivalent: "j")

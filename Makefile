@@ -23,8 +23,8 @@ endef
 
 build: $(SWIFT_BIN) $(DISKIO_BIN) $(STATUSBAR_BIN)
 
-$(SWIFT_BIN): $(SWIFT_MODEL_SRC) $(SWIFT_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC)
-	$(call universal_swiftc,-framework Cocoa,$@,$(SWIFT_MODEL_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_SRC))
+$(SWIFT_BIN): $(SWIFT_MODEL_SRC) $(SWIFT_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_PREFS_SRC)
+	$(call universal_swiftc,-framework Cocoa,$@,$(SWIFT_MODEL_SRC) $(SWIFT_I18N_SRC) $(SWIFT_AI_SRC) $(SWIFT_PREFS_SRC) $(SWIFT_SRC))
 
 $(DISKIO_BIN): $(DISKIO_SRC)
 	$(call universal_swiftc,,$@,$<)
