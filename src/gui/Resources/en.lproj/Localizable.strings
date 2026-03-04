@@ -87,6 +87,11 @@
 "picker.ai.apply" = "Apply Optimization";
 "picker.ai.review" = "Review First";
 "picker.ai.analyzing" = "Analyzing...";
+"picker.ai.a11y.spinner" = "Analyzing processes with AI, please wait";
+"picker.ai.a11y.button_help" = "Ask AI to suggest safe optimization candidates based on current profile and resource usage";
+"picker.ai.a11y.busy" = "AI analysis in progress, please wait";
+"picker.ai.a11y.apply_help" = "Close the suggested processes now";
+"picker.ai.a11y.review_help" = "Go back and review the selected checkboxes before closing";
 "picker.smart_optimize.help_inline" = "Smart Optimize suggests safe PID candidates based on profile + telemetry. You always review before closing.";
 "picker.idle.yes" = "Idle";
 "picker.idle.no" = "-";

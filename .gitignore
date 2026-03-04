@@ -1,6 +1,9 @@
 # Compiled binaries
 ProcessPicker
 DiskIOHelper
+MacmonStatusBar
+*-arm64
+*-x86_64
 *.o
 *.dSYM/
 

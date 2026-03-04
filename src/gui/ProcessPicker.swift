@@ -369,6 +369,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         spinner.controlSize = .small
         spinner.isDisplayedWhenStopped = false
         spinner.translatesAutoresizingMaskIntoConstraints = false
+        spinner.setAccessibilityRole(.progressIndicator)
+        spinner.setAccessibilityLabel(L("picker.ai.a11y.spinner"))
         contentView.addSubview(spinner)
         aiSpinner = spinner
         let btnCancel = NSButton(title: L("picker.button.cancel"), target: self, action: #selector(cancelAction))
@@ -414,6 +416,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         btnSelectTopCPU.toolTip = L("picker.button.select_top_cpu.help")
         btnToggleGroups.toolTip = L("picker.button.groups.help")
         btnSmartOptimize.toolTip = L("picker.button.smart_optimize.help")
+        btnSmartOptimize.setAccessibilityHelp(L("picker.ai.a11y.button_help"))
         commandPopup.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(commandPopup)
 
@@ -1436,7 +1439,9 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         isAnalyzingAI = true
         smartOptimizeButton?.isEnabled = false
         smartOptimizeButton?.title = L("picker.ai.analyzing")
+        smartOptimizeButton?.setAccessibilityHelp(L("picker.ai.a11y.busy"))
         aiSpinner?.startAnimation(nil)
+        NSAccessibility.post(element: smartOptimizeButton as Any, notification: .valueChanged)
 
         let providerRaw = UserDefaults.standard.string(forKey: "macmon.ai.provider") ?? AIProvider.openai.rawValue
         let model = UserDefaults.standard.string(forKey: "macmon.ai.model") ?? "gpt-4o-mini"
@@ -1458,6 +1463,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
                 self.isAnalyzingAI = false
                 self.smartOptimizeButton?.isEnabled = true
                 self.smartOptimizeButton?.title = L("picker.button.smart_optimize")
+                self.smartOptimizeButton?.setAccessibilityHelp(L("picker.ai.a11y.button_help"))
                 self.aiSpinner?.stopAnimation(nil)
                 switch result {
                 case .failure(let error):
@@ -1503,8 +1509,10 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             .map { "\($0.name) (PID \($0.pid))" }
             .joined(separator: "\n")
         alert.informativeText = names + "\n\n" + L("picker.ai.review_hint")
-        alert.addButton(withTitle: L("picker.ai.apply"))
-        alert.addButton(withTitle: L("picker.ai.review"))
+        let applyBtn = alert.addButton(withTitle: L("picker.ai.apply"))
+        applyBtn.setAccessibilityHelp(L("picker.ai.a11y.apply_help"))
+        let reviewBtn = alert.addButton(withTitle: L("picker.ai.review"))
+        reviewBtn.setAccessibilityHelp(L("picker.ai.a11y.review_help"))
         if alert.runModal() == .alertFirstButtonReturn {
             closeSelected(nil)
         }

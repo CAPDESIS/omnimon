@@ -87,6 +87,11 @@
 "picker.ai.apply" = "Aplicar Optimización";
 "picker.ai.review" = "Revisar primero";
 "picker.ai.analyzing" = "Analizando...";
+"picker.ai.a11y.spinner" = "Analizando procesos con IA, por favor espere";
+"picker.ai.a11y.button_help" = "Pide a la IA sugerir procesos seguros para optimizar segun el perfil activo y el uso de recursos";
+"picker.ai.a11y.busy" = "Analisis de IA en curso, por favor espere";
+"picker.ai.a11y.apply_help" = "Cerrar los procesos sugeridos ahora";
+"picker.ai.a11y.review_help" = "Volver y revisar las casillas seleccionadas antes de cerrar";
 "picker.smart_optimize.help_inline" = "Smart Optimize sugiere PID seguros segun perfil + telemetria. Siempre revisas antes de cerrar.";
 "picker.idle.yes" = "Idle";
 "picker.idle.no" = "-";

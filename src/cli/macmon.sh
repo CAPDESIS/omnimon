@@ -48,6 +48,14 @@ MSG_UPDATE_DOWNLOADING="Downloading update..."
 MSG_UPDATE_INSTALLING="Installing update..."
 MSG_UPDATE_DONE="Updated successfully to"
 MSG_UPDATE_FAILED="Update failed"
+MSG_OPT_COLLECTING="Collecting process data..."
+MSG_OPT_ANALYZING="Asking AI to analyze processes..."
+MSG_OPT_NO_KEY="No API key found in Keychain for provider"
+MSG_OPT_HINT="Set one via the GUI: macmon → Smart Optimize → Preferences"
+MSG_OPT_NO_SUGGESTIONS="AI returned no actionable suggestions."
+MSG_OPT_CONFIRM="Proceed? [Y/n]"
+MSG_OPT_CANCELLED="Aborted."
+MSG_OPT_FAILED="Optimize failed"
 
 # --- Subcommands ---
 
@@ -437,6 +445,184 @@ cmd_update() {
     echo "$MSG_UPDATE_DONE v${remote_version}"
 }
 
+cmd_optimize() {
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "$MSG_OPT_FAILED: jq is required (brew install jq)"
+        return 1
+    fi
+
+    local provider model
+    provider=$(macmon_cfg "AI_PROVIDER" "openai")
+    model=$(macmon_cfg "AI_MODEL" "gpt-4o-mini")
+
+    # Read API key from macOS Keychain (same store used by GUI)
+    local api_key
+    api_key=$(security find-generic-password -s "com.macmon.ai" -a "$provider" -w 2>/dev/null) || {
+        echo "$MSG_OPT_NO_KEY '$provider'"
+        echo "$MSG_OPT_HINT"
+        return 1
+    }
+
+    echo "$MSG_OPT_COLLECTING"
+    local json
+    json=$(collect_processes_json \
+        "$(macmon_cfg "THRESHOLDS_PROCESS_RAM_MIN_KB" "102400")" \
+        "$(macmon_cfg "THRESHOLDS_IDLE_CPU_PERCENT" "1.0")")
+
+    # Top 50 non-system processes sorted by resource usage
+    local summary
+    summary=$(printf '%s' "$json" | jq '[.processes[] | select(.isSystem == false)] | sort_by(-(.cpuPct + .ramMB/1024)) | .[0:50] | map({pid, name, cpuPct, ramMB, isSystem})')
+
+    local current_profile
+    current_profile=$(macmon_get_active_profile 2>/dev/null || echo "default")
+
+    local prompt
+    prompt="You are a macOS optimization assistant. Analyze process data and return strict JSON only. Constraints: 1) Never output shell commands. 2) Never include Apple system processes or audio/video critical services. 3) Return only this shape: {\"pids\":[123,456]} 4) Include only non critical user space PIDs. Current profile: ${current_profile}. Processes: ${summary}"
+
+    echo "$MSG_OPT_ANALYZING"
+
+    # Build request and call API
+    local response http_code body endpoint
+    local tmpfile
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/macmon-ai.XXXXXX")
+    trap 'rm -f "$tmpfile"' RETURN
+
+    case "$provider" in
+        openai)     endpoint="https://api.openai.com/v1/chat/completions" ;;
+        openrouter) endpoint="https://openrouter.ai/api/v1/chat/completions" ;;
+        anthropic)  endpoint="https://api.anthropic.com/v1/messages" ;;
+        gemini)     endpoint="https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent" ;;
+        *)          echo "$MSG_OPT_FAILED: unsupported provider '$provider'"; return 1 ;;
+    esac
+
+    local curl_args=(-sS --max-time 30 -w '\n%{http_code}' -H "Content-Type: application/json")
+
+    case "$provider" in
+        openai|openrouter)
+            curl_args+=(-H "Authorization: Bearer $api_key")
+            curl_args+=(-d "$(jq -n --arg model "$model" --arg prompt "$prompt" '{
+                model: $model, temperature: 0,
+                messages: [{role:"system",content:"Return strict JSON only."},{role:"user",content:$prompt}]
+            }')")
+            ;;
+        anthropic)
+            curl_args+=(-H "x-api-key: $api_key" -H "anthropic-version: 2023-06-01")
+            curl_args+=(-d "$(jq -n --arg model "$model" --arg prompt "$prompt" '{
+                model: $model, max_tokens: 512, temperature: 0,
+                messages: [{role:"user",content:$prompt}]
+            }')")
+            ;;
+        gemini)
+            curl_args+=(-H "x-goog-api-key: $api_key")
+            curl_args+=(-d "$(jq -n --arg prompt "$prompt" '{
+                generationConfig: {temperature:0, maxOutputTokens:512},
+                contents: [{role:"user",parts:[{text:$prompt}]}]
+            }')")
+            ;;
+    esac
+
+    response=$(curl "${curl_args[@]}" "$endpoint" 2>/dev/null) || {
+        echo "$MSG_OPT_FAILED: could not reach AI provider"
+        return 1
+    }
+
+    # Split response body and HTTP status code
+    http_code=$(printf '%s' "$response" | tail -1)
+    body=$(printf '%s' "$response" | sed '$d')
+
+    if [[ "$http_code" -ge 400 ]] 2>/dev/null; then
+        local err_msg
+        err_msg=$(printf '%s' "$body" | jq -r '.error.message // .message // "Unknown error"' 2>/dev/null || echo "HTTP $http_code")
+        case "$http_code" in
+            401) echo "$MSG_OPT_FAILED: Invalid API Key — $err_msg" ;;
+            429) echo "$MSG_OPT_FAILED: Rate Limit Exceeded — $err_msg" ;;
+            *)   echo "$MSG_OPT_FAILED: API Error ($http_code) — $err_msg" ;;
+        esac
+        return 1
+    fi
+
+    # Extract AI text content based on provider
+    local content
+    case "$provider" in
+        openai|openrouter)
+            content=$(printf '%s' "$body" | jq -r '.choices[0].message.content // empty') ;;
+        anthropic)
+            content=$(printf '%s' "$body" | jq -r '.content[0].text // empty') ;;
+        gemini)
+            content=$(printf '%s' "$body" | jq -r '.candidates[0].content.parts[0].text // empty') ;;
+    esac
+
+    if [[ -z "$content" ]]; then
+        echo "$MSG_OPT_NO_SUGGESTIONS"
+        return 0
+    fi
+
+    # Extract PIDs from AI response (strict JSON: {"pids":[...]})
+    local ai_pids
+    ai_pids=$(printf '%s' "$content" | jq -r '
+        if type == "object" and has("pids") then
+            .pids[] | select(. > 1) | tostring
+        else empty end
+    ' 2>/dev/null || true)
+
+    if [[ -z "$ai_pids" ]]; then
+        echo "$MSG_OPT_NO_SUGGESTIONS"
+        return 0
+    fi
+
+    # Validate and display each suggested process
+    local valid_pids=() valid_names=()
+    local pid proc_name
+    echo ""
+    echo "AI suggests closing these processes:"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    while IFS= read -r pid; do
+        [[ -n "$pid" ]] || continue
+        proc_name=$(ps -p "$pid" -o comm= 2>/dev/null | xargs basename 2>/dev/null || true)
+        [[ -n "$proc_name" ]] || continue
+        # Skip blocked/system processes
+        if macmon_is_blocked_process "$proc_name"; then continue; fi
+        if is_system_process "$proc_name"; then continue; fi
+        if _is_apple_system_pid "$pid" 2>/dev/null; then continue; fi
+        local ram_mb cpu_pct
+        ram_mb=$(ps -p "$pid" -o rss= 2>/dev/null | awk '{printf "%.0f", $1/1024}' || echo "?")
+        cpu_pct=$(ps -p "$pid" -o pcpu= 2>/dev/null | tr -d ' ' || echo "?")
+        printf "  PID %-7s %-25s RAM: %sMB  CPU: %s%%\n" "$pid" "$proc_name" "$ram_mb" "$cpu_pct"
+        valid_pids+=("$pid")
+        valid_names+=("$proc_name")
+    done <<< "$ai_pids"
+    echo ""
+
+    if [[ ${#valid_pids[@]} -eq 0 ]]; then
+        echo "$MSG_OPT_NO_SUGGESTIONS"
+        return 0
+    fi
+
+    # Ask for confirmation
+    printf '%s ' "$MSG_OPT_CONFIRM"
+    local answer
+    read -r answer </dev/tty || answer="n"
+    case "$answer" in
+        [Nn]*) echo "$MSG_OPT_CANCELLED"; return 0 ;;
+    esac
+
+    # Build kill payload and execute
+    local kill_file
+    kill_file=$(mktemp "${MACMON_TMPDIR}/macmon-kill.XXXXXX.json")
+    local entries="["
+    local idx
+    for (( idx = 0; idx < ${#valid_pids[@]}; idx++ )); do
+        [[ $idx -gt 0 ]] && entries+=","
+        entries+=$(jq -n --argjson pid "${valid_pids[$idx]}" --arg name "${valid_names[$idx]}" '{pid:$pid,name:$name}')
+    done
+    entries+="]"
+    printf '%s' "$entries" > "$kill_file"
+
+    kill_processes "$kill_file"
+    rm -f "$kill_file"
+    echo "$MSG_CLOSED_PROCESSES ${#valid_pids[@]} process(es)"
+}
+
 cmd_version() {
     echo "$MSG_VERSION v${MACMON_VERSION}"
 }
@@ -464,6 +650,7 @@ Commands:
   profile use X   Switch active profile
   log             Show last 50 lines of daemon log
   log -f          Follow daemon log (tail -f)
+  optimize        AI-powered process optimization (Smart Optimize for CLI)
   update          Check for updates and install if available
   version         Show version
   help            Show this help message
@@ -477,6 +664,7 @@ Examples:
   macmon start            # Start monitoring daemon
   macmon config edit      # Customize thresholds
   macmon log -f           # Watch daemon activity
+  macmon optimize         # AI-powered process optimization
   macmon update           # Check and install updates
 
 EOF
@@ -493,6 +681,7 @@ case "${1:-}" in
     export)         shift; cmd_export "$@" ;;
     profile)        shift; cmd_profile "$@" ;;
     log)            shift; cmd_log "$@" ;;
+    optimize)       cmd_optimize ;;
     update)         cmd_update ;;
     version|--version|-v)  cmd_version ;;
     help|--help|-h) cmd_help ;;
