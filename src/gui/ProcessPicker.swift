@@ -417,6 +417,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         let btnSelectAll = NSButton(title: L("picker.button.select_all"), target: self, action: #selector(selectAll))
         let btnSelectNone = NSButton(title: L("picker.button.select_none"), target: self, action: #selector(selectNone))
         let btnSelectIdle = NSButton(title: L("picker.button.select_idle"), target: self, action: #selector(selectIdle))
+        let btnSelectStale = NSButton(title: L("picker.button.select_stale"), target: self, action: #selector(selectStale))
         let btnSelectTopRAM = NSButton(title: L("picker.button.select_top_ram"), target: self, action: #selector(selectTopRAM))
         let btnSelectTopCPU = NSButton(title: L("picker.button.select_top_cpu"), target: self, action: #selector(selectTopCPU))
         let btnToggleGroups = NSButton(title: L("picker.button.groups"), target: self, action: #selector(toggleGrouping))
@@ -462,7 +463,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         btnCancel.keyEquivalent = "\u{1b}"  // Escape
         btnClose.keyEquivalent = "\r"       // Enter
 
-        let buttons = [btnSelectAll, btnSelectNone, btnSelectIdle, btnSelectTopRAM, btnSelectTopCPU, btnToggleGroups, btnSmartOptimize, btnCancel, btnClose]
+        let buttons = [btnSelectAll, btnSelectNone, btnSelectIdle, btnSelectStale, btnSelectTopRAM, btnSelectTopCPU, btnToggleGroups, btnSmartOptimize, btnCancel, btnClose]
         for btn in buttons {
             btn.translatesAutoresizingMaskIntoConstraints = false
             btn.bezelStyle = .rounded
@@ -472,6 +473,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         }
         btnSelectTopRAM.toolTip = L("picker.button.select_top_ram.help")
         btnSelectTopCPU.toolTip = L("picker.button.select_top_cpu.help")
+        btnSelectStale.toolTip = L("picker.button.select_stale.help")
         btnToggleGroups.toolTip = L("picker.button.groups.help")
         btnSmartOptimize.toolTip = L("picker.button.smart_optimize.help")
         btnSmartOptimize.setAccessibilityHelp(L("picker.ai.a11y.button_help"))
@@ -482,7 +484,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         table.nextKeyView = btnSelectAll
         btnSelectAll.nextKeyView = btnSelectNone
         btnSelectNone.nextKeyView = btnSelectIdle
-        btnSelectIdle.nextKeyView = btnToggleGroups
+        btnSelectIdle.nextKeyView = btnSelectStale
+        btnSelectStale.nextKeyView = btnToggleGroups
         btnToggleGroups.nextKeyView = btnCancel
         btnCancel.nextKeyView = btnSmartOptimize
         btnSmartOptimize.nextKeyView = btnClose
@@ -549,7 +552,10 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             btnSelectIdle.leadingAnchor.constraint(equalTo: btnSelectNone.trailingAnchor, constant: 4),
             btnSelectIdle.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
 
-            btnSelectTopRAM.leadingAnchor.constraint(equalTo: btnSelectIdle.trailingAnchor, constant: 4),
+            btnSelectStale.leadingAnchor.constraint(equalTo: btnSelectIdle.trailingAnchor, constant: 4),
+            btnSelectStale.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+
+            btnSelectTopRAM.leadingAnchor.constraint(equalTo: btnSelectStale.trailingAnchor, constant: 4),
             btnSelectTopRAM.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
 
             btnSelectTopCPU.leadingAnchor.constraint(equalTo: btnSelectTopRAM.trailingAnchor, constant: 4),
@@ -1070,6 +1076,20 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     @objc func selectIdle(_ sender: Any?) {
         for i in viewModel.filteredIndices {
             if viewModel.allProcesses[i].idle && !viewModel.allProcesses[i].isSystem {
+                viewModel.allProcesses[i].selected = true
+            }
+        }
+        tableView.reloadData()
+        updateStatus()
+    }
+
+    @objc func selectStale(_ sender: Any?) {
+        let staleThresholdSec = 2 * 24 * 60 * 60
+        for i in viewModel.filteredIndices {
+            let p = viewModel.allProcesses[i]
+            if p.isSystem { continue }
+            let chromeSuspended = (p.name == "Chrome Tab") && (p.cwd.contains("chrome-extension://") || p.detail.contains("suspended"))
+            if (p.idle && p.uptimeSeconds >= staleThresholdSec) || chromeSuspended {
                 viewModel.allProcesses[i].selected = true
             }
         }

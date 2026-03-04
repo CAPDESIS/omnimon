@@ -60,6 +60,8 @@
 "picker.button.select_all" = "Seleccionar todo";
 "picker.button.select_none" = "Deseleccionar";
 "picker.button.select_idle" = "Seleccionar idle";
+"picker.button.select_stale" = "Seleccionar 2d";
+"picker.button.select_stale.help" = "Selecciona procesos idle por 2+ dias y tabs de Chrome suspendidas.";
 "picker.button.select_top_ram" = "Top RAM";
 "picker.button.select_top_ram.help" = "Selecciona los 5 procesos de usuario con mayor RAM.";
 "picker.button.select_top_cpu" = "Top CPU";

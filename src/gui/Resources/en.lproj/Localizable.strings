@@ -60,6 +60,8 @@
 "picker.button.select_all" = "Select All";
 "picker.button.select_none" = "Select None";
 "picker.button.select_idle" = "Select Idle";
+"picker.button.select_stale" = "Select Stale 2d";
+"picker.button.select_stale.help" = "Select processes idle for 2+ days and suspended Chrome tabs.";
 "picker.button.select_top_ram" = "Top RAM";
 "picker.button.select_top_ram.help" = "Select the 5 highest-RAM user processes.";
 "picker.button.select_top_cpu" = "Top CPU";
