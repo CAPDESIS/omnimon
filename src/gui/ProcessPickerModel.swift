@@ -118,6 +118,8 @@ class ProcessViewModel {
     var sortColumn: SortColumn = .ramMB
     var sortOrder: SortOrder = .descending
     var searchText: String = ""
+    var hideSystemProcesses: Bool = false
+    var showOnlyIdle: Bool = false
 
     enum DisplayRow {
         case groupHeader(String, Int, Double, Bool)  // name, count, totalRAM, collapsed
@@ -143,6 +145,14 @@ class ProcessViewModel {
                        p.cwd.lowercased().contains(search) ||
                        p.group.lowercased().contains(search)
             }
+        }
+
+        if hideSystemProcesses {
+            filteredIndices = filteredIndices.filter { !allProcesses[$0].isSystem }
+        }
+
+        if showOnlyIdle {
+            filteredIndices = filteredIndices.filter { allProcesses[$0].idle }
         }
 
         // Sort

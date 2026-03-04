@@ -325,6 +325,18 @@ collect_processes_json() {
     local ps_data
     ps_data=$(ps -Aww -o pid=,rss=,pcpu=,state=,tty=,lstart=,comm=,args= 2>/dev/null) || return 1
 
+    # Separate comm map preserves full command names that may contain spaces
+    local ps_comm_data
+    ps_comm_data=$(ps -Aww -o pid=,comm= 2>/dev/null) || return 1
+    local -a comm_pids=() comm_values=()
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        if [[ "$line" =~ ^[[:space:]]*([0-9]+)[[:space:]]+(.+)$ ]]; then
+            comm_pids+=("${BASH_REMATCH[1]}")
+            comm_values+=("${BASH_REMATCH[2]}")
+        fi
+    done <<< "$ps_comm_data"
+
     # Phase 2: Filter and collect PIDs that meet RAM threshold
     local -a pids=() rss_arr=() cpu_arr=() state_arr=() tty_arr=() lstart_arr=() comm_arr=() args_arr=()
     local line pid rss cpu state tty lstart comm full_args
@@ -384,17 +396,25 @@ collect_processes_json() {
         pid="${pids[$i]}"
         rss="${rss_arr[$i]}"
         cpu="${cpu_arr[$i]}"
+        local exec_comm="${comm_arr[$i]}"
+        local j
+        for (( j = 0; j < ${#comm_pids[@]}; j++ )); do
+            if [[ "${comm_pids[$j]}" == "$pid" ]]; then
+                exec_comm="${comm_values[$j]}"
+                break
+            fi
+        done
         local exec_name
-        exec_name=$(basename "${comm_arr[$i]}")
+        exec_name=$(basename "$exec_comm")
         local name
-        name=$(friendly_name "${comm_arr[$i]}" "${args_arr[$i]}")
+        name=$(friendly_name "$exec_comm" "${args_arr[$i]}")
         local ram_mb
         ram_mb=$(awk "BEGIN {printf \"%.1f\", ${rss}/1024}")
         local uptime_str uptime_sec
         uptime_str=$(calc_uptime "${lstart_arr[$i]}" 2>/dev/null || echo "?")
         uptime_sec=$(uptime_seconds "${lstart_arr[$i]}" 2>/dev/null || echo "0")
         local cwd=""
-        local j
+        j=0
         for (( j = 0; j < ${#cwd_pids[@]}; j++ )); do
             if [[ "${cwd_pids[$j]}" == "$pid" ]]; then
                 cwd="${cwd_values[$j]}"
@@ -423,8 +443,8 @@ collect_processes_json() {
 
         # Determine process group
         local group=""
-        if [[ "${comm_arr[$i]}" == *".app/"* ]]; then
-            group=$(printf '%s' "${comm_arr[$i]}" | sed -n 's|.*/\([^/]*\)\.app/.*|\1|p')
+        if [[ "$exec_comm" == *".app/"* ]]; then
+            group=$(printf '%s' "$exec_comm" | sed -n 's|.*/\([^/]*\)\.app/.*|\1|p')
         fi
         if [[ "$name" == Chrome* ]]; then
             group="Google Chrome"
