@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-export MACMON_VERSION="2.1.1"
+export MACMON_VERSION="2.1.2"
 MACMON_HOME="${MACMON_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 # --- Validate MACMON_HOME (MITRE T1574 - Hijack Execution Flow) ---
@@ -854,28 +854,28 @@ check_orphan_daemons() {
 
     # SourceKitService: flag if running without Xcode
     local sk_count
-    sk_count=$(pgrep -x SourceKitService 2>/dev/null | wc -l | tr -d ' ')
+    sk_count=$(pgrep -x SourceKitService 2>/dev/null | wc -l | tr -d ' ') || true
     if (( sk_count > 0 )) && ! pgrep -x Xcode >/dev/null 2>&1; then
         results+=("SourceKitService:$sk_count:orphan (Xcode not running)")
     fi
 
     # Gradle daemons: flag if >3
     local gradle_count
-    gradle_count=$(pgrep -f 'GradleDaemon' 2>/dev/null | wc -l | tr -d ' ')
+    gradle_count=$(pgrep -f 'GradleDaemon' 2>/dev/null | wc -l | tr -d ' ') || true
     if (( gradle_count > 3 )); then
         results+=("GradleDaemon:$gradle_count:excessive count")
     fi
 
     # xcodebuild: flag if running without Xcode
     local xb_count
-    xb_count=$(pgrep -x xcodebuild 2>/dev/null | wc -l | tr -d ' ')
+    xb_count=$(pgrep -x xcodebuild 2>/dev/null | wc -l | tr -d ' ') || true
     if (( xb_count > 0 )) && ! pgrep -x Xcode >/dev/null 2>&1; then
         results+=("xcodebuild:$xb_count:orphan (Xcode not running)")
     fi
 
     # Android emulator (qemu-system): flag if >2 instances
     local qemu_count
-    qemu_count=$(pgrep -f 'qemu-system' 2>/dev/null | wc -l | tr -d ' ')
+    qemu_count=$(pgrep -f 'qemu-system' 2>/dev/null | wc -l | tr -d ' ') || true
     if (( qemu_count > 2 )); then
         results+=("qemu-system:$qemu_count:excessive count")
     fi

@@ -17,6 +17,7 @@ BACKUP_DIR=""
 cleanup_install_staging() {
     [[ -n "$STAGING_DIR" && -d "$STAGING_DIR" ]] && rm -rf "$STAGING_DIR"
     [[ -n "$BACKUP_DIR" && -d "$BACKUP_DIR" ]] && rm -rf "$BACKUP_DIR"
+    return 0
 }
 trap cleanup_install_staging EXIT
 
@@ -51,7 +52,7 @@ mkdir -p "$CONFIG_DIR" "$LOG_DIR"
 mkdir -p "$CONFIG_DIR/profiles"
 chmod 700 "$CONFIG_DIR" "$LOG_DIR"
 chmod 700 "$CONFIG_DIR/profiles"
-chmod 755 "$INSTALL_DIR" "$BIN_DIR"
+chmod 755 "$BIN_DIR"
 
 # Copy project files
 echo "Copying files..."
@@ -135,6 +136,7 @@ if ! mv "$STAGING_DIR" "$INSTALL_DIR"; then
 fi
 
 STAGING_DIR=""
+chmod 755 "$INSTALL_DIR"
 if [[ -n "$BACKUP_DIR" && -d "$BACKUP_DIR" ]]; then
     rm -rf "$BACKUP_DIR"
     BACKUP_DIR=""

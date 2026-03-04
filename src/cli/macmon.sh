@@ -133,7 +133,7 @@ cmd_status() {
         while IFS=: read -r proc_name max_inst max_ram max_cpu; do
             [[ -n "$proc_name" ]] || continue
             local proc_count
-            proc_count=$(pgrep -x "$proc_name" 2>/dev/null | wc -l | tr -d ' ')
+            proc_count=$(pgrep -x "$proc_name" 2>/dev/null | wc -l | tr -d ' ') || true
             (( proc_count > 0 )) || continue
             local color="\033[32m"
             if (( max_inst > 0 && proc_count > max_inst )); then
@@ -154,10 +154,10 @@ cmd_status() {
 
     # Orphan build daemons
     local sk_count gradle_count xb_count qemu_count
-    sk_count=$(pgrep -x SourceKitService 2>/dev/null | wc -l | tr -d ' ')
-    gradle_count=$(pgrep -f GradleDaemon 2>/dev/null | wc -l | tr -d ' ')
-    xb_count=$(pgrep -x xcodebuild 2>/dev/null | wc -l | tr -d ' ')
-    qemu_count=$(pgrep -f qemu-system 2>/dev/null | wc -l | tr -d ' ')
+    sk_count=$(pgrep -x SourceKitService 2>/dev/null | wc -l | tr -d ' ') || true
+    gradle_count=$(pgrep -f GradleDaemon 2>/dev/null | wc -l | tr -d ' ') || true
+    xb_count=$(pgrep -x xcodebuild 2>/dev/null | wc -l | tr -d ' ') || true
+    qemu_count=$(pgrep -f qemu-system 2>/dev/null | wc -l | tr -d ' ') || true
     local orphan_total=$(( sk_count + gradle_count + xb_count + qemu_count ))
     if (( orphan_total > 0 )); then
         printf "  Orphans: "

@@ -26,45 +26,23 @@ class Macmon < Formula
       (libexec/"Resources").install resource_src.children
     end
 
-    # CLI wrapper
+    # CLI wrapper that initializes config on first run
     (bin/"macmon").write <<~EOS
       #!/usr/bin/env bash
       export MACMON_HOME="#{libexec}"
-      export MACMON_CONFIG="${HOME}/.config/macmon/macmon.yaml"
+      _cfg="${HOME}/.config/macmon"
+      if [[ ! -d "$_cfg" ]]; then
+        mkdir -p "$_cfg/profiles" && chmod 700 "$_cfg" "$_cfg/profiles"
+        cp "#{libexec}/config/macmon.default.yaml" "$_cfg/macmon.yaml" 2>/dev/null && chmod 600 "$_cfg/macmon.yaml"
+        for p in "#{libexec}"/config/profiles/*.yaml; do
+          [[ -f "$p" ]] && cp "$p" "$_cfg/profiles/" && chmod 600 "$_cfg/profiles/$(basename "$p")"
+        done
+      fi
+      _log="${HOME}/.local/log/macmon"
+      [[ -d "$_log" ]] || mkdir -p "$_log" && chmod 700 "$_log"
+      export MACMON_CONFIG="$_cfg/macmon.yaml"
       exec "#{libexec}/src/cli/macmon.sh" "$@"
     EOS
-  end
-
-  def post_install
-    # Create user config directory with restrictive permissions
-    config_dir = Pathname.new("#{ENV["HOME"]}/.config/macmon")
-    config_dir.mkpath
-    config_dir.chmod 0700
-
-    profiles_dir = config_dir/"profiles"
-    profiles_dir.mkpath
-    profiles_dir.chmod 0700
-
-    # Install default config if absent
-    config_file = config_dir/"macmon.yaml"
-    unless config_file.exist?
-      cp libexec/"config/macmon.default.yaml", config_file
-      config_file.chmod 0600
-    end
-
-    # Install default profiles if absent
-    Dir[libexec/"config/profiles/*.yaml"].each do |profile|
-      dest = profiles_dir/File.basename(profile)
-      unless dest.exist?
-        cp profile, dest
-        dest.chmod 0600
-      end
-    end
-
-    # Create log directory
-    log_dir = Pathname.new("#{ENV["HOME"]}/.local/log/macmon")
-    log_dir.mkpath
-    log_dir.chmod 0700
   end
 
   service do
@@ -81,15 +59,17 @@ class Macmon < Formula
     <<~EOS
       macmon is installed. To get started:
 
-        brew services start macmon    # start the background daemon
-        macmon                        # open the native process picker
-        macmon status                 # system health summary
+        brew services start chochy2001/tap/macmon   # start the background daemon
+        macmon                                      # open the native process picker
+        macmon status                               # system health summary
 
       Menu bar monitor:
         MACMON_HOME="#{opt_libexec}" "#{opt_libexec}/MacmonStatusBar" &
 
       Configuration: ~/.config/macmon/macmon.yaml
       Logs:          ~/.local/log/macmon/macmond.log
+
+      Config and log directories are created automatically on first run.
     EOS
   end
 

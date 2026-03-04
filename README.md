@@ -64,9 +64,8 @@ A lightweight macOS system monitor that watches RAM pressure, swap usage, custom
 ### Homebrew (recommended)
 
 ```bash
-brew tap chochy2001/tap
-brew install macmon
-brew services start macmon
+brew install chochy2001/tap/macmon
+brew services start chochy2001/tap/macmon
 ```
 
 This installs macmon, sets up the background daemon, and creates the `macmon` CLI in your PATH. Done.
