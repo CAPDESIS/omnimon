@@ -60,6 +60,9 @@ cp -R "$SCRIPT_DIR"/lib "$STAGING_DIR/"
 cp -R "$SCRIPT_DIR"/src "$STAGING_DIR/"
 cp -R "$SCRIPT_DIR"/scripts "$STAGING_DIR/"
 cp -R "$SCRIPT_DIR"/config "$STAGING_DIR/"
+if [[ -f "$SCRIPT_DIR/icono_app.png" ]]; then
+    cp "$SCRIPT_DIR/icono_app.png" "$STAGING_DIR/icono_app.png"
+fi
 
 # Fix permissions: scripts executable by owner only, no group/other write
 chmod 755 "$STAGING_DIR"/lib/*.sh

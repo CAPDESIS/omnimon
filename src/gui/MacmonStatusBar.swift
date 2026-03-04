@@ -1,6 +1,23 @@
 import Cocoa
 import Foundation
 
+private func applyMenuBarAppIconIfAvailable() {
+    let envHome = ProcessInfo.processInfo.environment["MACMON_HOME"]
+    let cwd = FileManager.default.currentDirectoryPath
+    let candidates: [String] = [
+        (envHome ?? "") + "/icono_app.png",
+        cwd + "/icono_app.png",
+        NSHomeDirectory() + "/.local/libexec/macmon/icono_app.png",
+    ].filter { $0.hasPrefix("/") }
+
+    for path in candidates {
+        if FileManager.default.fileExists(atPath: path), let image = NSImage(contentsOfFile: path) {
+            NSApp.applicationIconImage = image
+            return
+        }
+    }
+}
+
 // MARK: - Native System Data Collection
 
 /// Collects memory and process info using Mach host_statistics64 and sysctl.
@@ -795,6 +812,7 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
     let controller = MacmonStatusBarController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        applyMenuBarAppIconIfAvailable()
         controller.setup()
     }
 

@@ -1,6 +1,41 @@
 import Cocoa
 import Foundation
 
+private func pickerLog(_ message: String) {
+    let logDir = NSHomeDirectory() + "/.local/log/macmon"
+    let logFile = logDir + "/process-picker.log"
+    let fm = FileManager.default
+    try? fm.createDirectory(atPath: logDir, withIntermediateDirectories: true)
+    if !fm.fileExists(atPath: logFile) {
+        fm.createFile(atPath: logFile, contents: nil)
+    }
+    let line = "\(ISO8601DateFormatter().string(from: Date())) [ProcessPicker] \(message)\n"
+    if let data = line.data(using: .utf8), let handle = FileHandle(forWritingAtPath: logFile) {
+        handle.seekToEndOfFile()
+        handle.write(data)
+        try? handle.close()
+    }
+}
+
+private func applyAppIconIfAvailable() {
+    let envHome = ProcessInfo.processInfo.environment["MACMON_HOME"]
+    let cwd = FileManager.default.currentDirectoryPath
+    let candidates: [String] = [
+        (envHome ?? "") + "/icono_app.png",
+        cwd + "/icono_app.png",
+        NSHomeDirectory() + "/.local/libexec/macmon/icono_app.png",
+    ].filter { $0.hasPrefix("/") }
+
+    for path in candidates {
+        if FileManager.default.fileExists(atPath: path), let image = NSImage(contentsOfFile: path) {
+            NSApp.applicationIconImage = image
+            pickerLog("Loaded app icon from \(path)")
+            return
+        }
+    }
+    pickerLog("App icon not found; using system default icon")
+}
+
 // MARK: - Memory Pressure Gauge
 
 class MemoryPressureGauge: NSView {
@@ -293,6 +328,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         searchField = NSSearchField(frame: .zero)
         searchField.translatesAutoresizingMaskIntoConstraints = false
         searchField.placeholderString = L("picker.search.placeholder")
+        searchField.controlSize = .large
         searchField.delegate = self
         searchField.sendsSearchStringImmediately = true
         searchField.sendsWholeSearchString = false
@@ -335,7 +371,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         scrollView.autohidesScrollers = true
 
         let table = NSTableView(frame: .zero)
-        table.style = .plain
+        table.style = .inset
         table.usesAlternatingRowBackgroundColors = true
         table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
         table.allowsColumnReordering = true
@@ -1349,6 +1385,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             return "[\(tab.id)] \(title)\n  \(url)"
         }
         chromeTabsCache = tabs
+        pickerLog("Loaded Chrome tabs window with \(tabs.count) tabs")
         chromeTabsTextView?.string = lines.joined(separator: "\n\n")
         chromeTabsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -1368,12 +1405,14 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             DispatchQueue.main.async {
                 switch result {
                 case .success(let text):
+                    pickerLog("AI Chrome tabs summary generated")
                     let alert = NSAlert()
                     alert.messageText = L("chrome.tabs.summary.title")
                     alert.informativeText = text
                     alert.addButton(withTitle: L("statusbar.alert.ok"))
                     alert.runModal()
                 case .failure(let error):
+                    pickerLog("AI Chrome tabs summary failed: \(error.localizedDescription)")
                     self?.showCommandResult(error.localizedDescription)
                 }
             }
@@ -1637,6 +1676,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     private func showCommandResult(_ output: String) {
         let cleaned = stripANSI(output).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return }
+        pickerLog("Command result shown: \(cleaned.prefix(180))")
         let alert = NSAlert()
         alert.messageText = L("picker.commands.result.title")
         alert.informativeText = cleaned
@@ -1817,6 +1857,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     @objc func closeSelected(_ sender: Any?) {
         let pids = viewModel.selectedPIDs
         if pids.isEmpty {
+            pickerLog("Close selected requested with empty selection")
             exitCode = 0
             NSApp.terminate(nil)
             return
@@ -1832,8 +1873,16 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             .filter { $0.selected }
             .map { p -> [String: Any] in
                 let safeName = (p.name == "Chrome Tab") ? p.name : p.execName
+                if p.name == "Chrome Tab" {
+                    return ["pid": p.pid, "name": safeName, "url": p.cwd]
+                }
                 return ["pid": p.pid, "name": safeName]
             }
+        let summary = viewModel.allProcesses
+            .filter { $0.selected }
+            .map { "\($0.name)(\($0.pid))" }
+            .joined(separator: ", ")
+        pickerLog("Close selected payload: \(summary)")
         if let data = try? JSONSerialization.data(withJSONObject: selected, options: []),
            let json = String(data: data, encoding: .utf8) {
             print(json)
@@ -2013,6 +2062,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        applyAppIconIfAvailable()
+        pickerLog("ProcessPicker launched")
         setupMainMenu()
         controller.setupWindow()
 

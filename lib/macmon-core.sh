@@ -618,18 +618,22 @@ kill_processes() {
     local json_file="$1"
     local -a pids_to_kill=()
     local -a names_to_kill=()
+    local -a urls_to_close=()
 
     # Read PIDs and names from JSON (format: [{"pid":123,"name":"Foo"}, ...])
-    while IFS=$'\t' read -r pid name; do
+    while IFS=$'\t' read -r pid name url; do
         [[ -n "$pid" ]] || continue
         pids_to_kill+=("$pid")
         names_to_kill+=("$name")
-    done < <(jq -r '.[] | [.pid, .name] | @tsv' "$json_file" 2>/dev/null)
+        urls_to_close+=("$url")
+    done < <(jq -r '.[] | [.pid, .name, (.url // "")] | @tsv' "$json_file" 2>/dev/null)
 
     local idx pid name
     for (( idx = 0; idx < ${#pids_to_kill[@]}; idx++ )); do
         pid="${pids_to_kill[$idx]}"
         name="${names_to_kill[$idx]:-unknown}"
+        local target_url
+        target_url="${urls_to_close[$idx]:-}"
 
         # Skip system processes (verified Apple-signed)
         if is_system_process "$(basename "$name")"; then
@@ -646,15 +650,25 @@ kill_processes() {
             continue
         fi
 
-        # Verify PID still matches expected process
-        if ! verify_pid "$pid" "$name"; then
-            macmon_log "SKIP: PID $pid no longer matches '$name' (PID reuse detected)"
+        # Chrome tabs: close via AppleScript instead of kill
+        if [[ "$name" == "Chrome Tab" ]]; then
+            local current_args
+            current_args=$(ps -p "$pid" -o args= 2>/dev/null || true)
+            if [[ "$current_args" != *"--renderer-client-id="* ]]; then
+                macmon_log "SKIP: PID $pid is not a Chrome tab renderer anymore"
+                continue
+            fi
+            macmon_log "Attempting graceful Chrome tab close for PID $pid"
+            if ! "${MACMON_HOME}/scripts/graceful-quit.sh" chrome-tab "$pid" "$target_url"; then
+                macmon_log "Chrome tab close failed for PID $pid; sending SIGTERM fallback"
+                kill -TERM "$pid" 2>/dev/null || true
+            fi
             continue
         fi
 
-        # Chrome tabs: close via AppleScript instead of kill
-        if [[ "$name" == "Chrome Tab" ]]; then
-            "${MACMON_HOME}/scripts/graceful-quit.sh" chrome-tab "$pid" &
+        # Verify PID still matches expected process
+        if ! verify_pid "$pid" "$name"; then
+            macmon_log "SKIP: PID $pid no longer matches '$name' (PID reuse detected)"
             continue
         fi
 
@@ -721,7 +735,11 @@ build_kill_payload_json() {
             if type == "array" then
                 map(
                     select((.pid | type) == "number" and (.pid > 1)) |
-                    {pid: .pid, name: ((.name // "") | tostring)}
+                    {
+                        pid: .pid,
+                        name: ((.name // "") | tostring),
+                        url: ((.url // "") | tostring)
+                    }
                 )
             else
                 []
@@ -731,7 +749,7 @@ build_kill_payload_json() {
         printf '%s' "$selection" | jq -R -s '
             split("\n") | map(select(length > 0)) |
             map(select(test("^[0-9]+$"))) |
-            map({pid: (. | tonumber), name: "unknown"})
+            map({pid: (. | tonumber), name: "unknown", url: ""})
         ' > "$output_file"
     fi
 }
