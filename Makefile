@@ -35,7 +35,7 @@ define universal_swiftc
 	rm -f $(2)-arm64 $(2)-x86_64
 endef
 
-.PHONY: build statusbar install uninstall clean check test swift-test audit
+.PHONY: build statusbar install uninstall clean check test swift-test audit app dmg
 
 build: $(SWIFT_BIN) $(DISKIO_BIN) $(STATUSBAR_BIN)
 
@@ -146,3 +146,63 @@ audit:
 	@echo "  Log dir:     $$(stat -f '%Lp' $(HOME)/.local/log/macmon 2>/dev/null || echo 'not installed')"
 	@echo ""
 	@echo "Audit complete"
+
+# --- .app bundle ---
+app: build
+	@echo "Building $(APP_NAME) v$(VERSION)..."
+	@rm -rf $(APP_DIR)
+	@mkdir -p $(APP_DIR)/Contents/MacOS
+	@mkdir -p $(APP_DIR)/Contents/Resources/en.lproj
+	@mkdir -p $(APP_DIR)/Contents/Resources/es.lproj
+	@mkdir -p $(APP_DIR)/Contents/Helpers
+	@mkdir -p $(APP_DIR)/Contents/SharedSupport
+	# Info.plist
+	@sed 's/@@VERSION@@/$(VERSION)/g' templates/Info.plist.in > $(APP_DIR)/Contents/Info.plist
+	# Icon: convert PNG to icns via sips + iconutil
+	@if [ -f icono_app.png ]; then \
+		ICONSET=$$(mktemp -d)/macmon.iconset; \
+		mkdir -p "$$ICONSET"; \
+		for size in 16 32 64 128 256 512; do \
+			sips -z $$size $$size icono_app.png --out "$$ICONSET/icon_$${size}x$${size}.png" >/dev/null 2>&1; \
+			double=$$((size * 2)); \
+			sips -z $$double $$double icono_app.png --out "$$ICONSET/icon_$${size}x$${size}@2x.png" >/dev/null 2>&1; \
+		done; \
+		iconutil -c icns "$$ICONSET" -o $(APP_DIR)/Contents/Resources/icono_app.icns 2>/dev/null || true; \
+		rm -rf "$$ICONSET"; \
+	fi
+	# Launcher script
+	@cp scripts/macmon-launcher.sh $(APP_DIR)/Contents/MacOS/macmon-launcher
+	@chmod 755 $(APP_DIR)/Contents/MacOS/macmon-launcher
+	# Binaries
+	@cp $(SWIFT_BIN) $(APP_DIR)/Contents/Helpers/ProcessPicker
+	@cp $(DISKIO_BIN) $(APP_DIR)/Contents/Helpers/DiskIOHelper
+	@cp $(STATUSBAR_BIN) $(APP_DIR)/Contents/Helpers/MacmonStatusBar
+	@chmod 755 $(APP_DIR)/Contents/Helpers/*
+	# SharedSupport: project files the launcher needs
+	@cp -R lib $(APP_DIR)/Contents/SharedSupport/
+	@cp -R src $(APP_DIR)/Contents/SharedSupport/
+	@cp -R scripts $(APP_DIR)/Contents/SharedSupport/
+	@cp -R config $(APP_DIR)/Contents/SharedSupport/
+	@if [ -d templates ]; then cp -R templates $(APP_DIR)/Contents/SharedSupport/; fi
+	@if [ -f icono_app.png ]; then cp icono_app.png $(APP_DIR)/Contents/SharedSupport/; fi
+	# Localization
+	@cp src/gui/Resources/en.lproj/Localizable.strings $(APP_DIR)/Contents/Resources/en.lproj/
+	@cp src/gui/Resources/es.lproj/Localizable.strings $(APP_DIR)/Contents/Resources/es.lproj/
+	@echo "Built $(APP_DIR)"
+
+# --- DMG installer ---
+dmg: app
+	@echo "Creating DMG..."
+	@mkdir -p build
+	@DMG_NAME="macmon-$(VERSION)-macos-universal.dmg"; \
+	DMG_TMP="build/dmg-staging"; \
+	rm -rf "$$DMG_TMP" "build/$$DMG_NAME"; \
+	mkdir -p "$$DMG_TMP"; \
+	cp -R $(APP_DIR) "$$DMG_TMP/"; \
+	ln -s /Applications "$$DMG_TMP/Applications"; \
+	hdiutil create -volname "macmon $(VERSION)" \
+		-srcfolder "$$DMG_TMP" \
+		-ov -format UDZO \
+		"build/$$DMG_NAME" >/dev/null; \
+	rm -rf "$$DMG_TMP"; \
+	echo "Created build/$$DMG_NAME"

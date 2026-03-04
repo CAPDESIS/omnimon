@@ -55,10 +55,17 @@ jobs:
             -s '/^\./macmon/' \
             .
 
+      - name: Build .app bundle and DMG
+        run: |
+          make app
+          make dmg
+          VERSION="${GITHUB_REF_NAME#v}"
+          cp "build/macmon-${VERSION}-macos-universal.dmg" dist/
+
       - name: Generate checksums
         run: |
           cd dist
-          shasum -a 256 *.tar.gz > checksums-sha256.txt
+          shasum -a 256 *.tar.gz *.dmg > checksums-sha256.txt
           cat checksums-sha256.txt
 
       - name: Create GitHub Release
@@ -66,6 +73,7 @@ jobs:
         with:
           files: |
             dist/*.tar.gz
+            dist/*.dmg
             dist/checksums-sha256.txt
           generate_release_notes: true
           draft: false

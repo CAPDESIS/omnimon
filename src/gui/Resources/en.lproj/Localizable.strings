@@ -206,4 +206,5 @@
 "picker.tooltip.bar" = "%@: %@";
 "picker.details.title" = "Process Details";
 "picker.details.body" = "Name: %@\nPID: %d\nRAM: %.1f MB\nCPU: %.1f%%\nUptime: %@\nIdle: %@\nGroup: %@\nState: %@\nDetail: %@\nDirectory/URL: %@";
+"picker.kill.in_progress" = "Closing...";
 "group.other" = "Other";

@@ -101,6 +101,7 @@ else
         "$STAGING_DIR/src/gui/AIService.swift" \
         "$STAGING_DIR/src/gui/PreferencesWindow.swift" \
         "$STAGING_DIR/src/gui/TelemetryRecorder.swift" \
+        "$STAGING_DIR/src/gui/ProcessKiller.swift" \
         "$STAGING_DIR/src/gui/ProcessPicker.swift"
     echo "ProcessPicker compiled successfully"
 
@@ -119,6 +120,7 @@ else
         "$STAGING_DIR/src/gui/AIService.swift" \
         "$STAGING_DIR/src/gui/PreferencesWindow.swift" \
         "$STAGING_DIR/src/gui/TelemetryRecorder.swift" \
+        "$STAGING_DIR/src/gui/ProcessKiller.swift" \
         "$STAGING_DIR/src/gui/MacmonStatusBar.swift"
     echo "MacmonStatusBar compiled successfully"
 fi
