@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # chrome-tabs.sh - Enumerate Chrome tab titles via AppleScript
 # Usage: chrome-tabs.sh [renderer-client-id]
-# Outputs: tab_index\ttitle for each tab, or specific tab for given renderer ID
+# Outputs: tab_id\ttitle\turl for each tab
 
 set -euo pipefail
 
@@ -11,7 +11,7 @@ tell application "Google Chrome"
     set output to ""
     repeat with w in windows
         repeat with t in tabs of w
-            set output to output & (id of t) & tab & (title of t) & linefeed
+            set output to output & (id of t) & tab & (title of t) & tab & (URL of t) & linefeed
         end repeat
     end repeat
     return output
@@ -28,7 +28,7 @@ if [[ "${1:-}" == "--json" ]]; then
     # Output as JSON array
     enumerate_tabs | jq -R -s '
         split("\n") | map(select(length > 0)) |
-        map(split("\t") | {id: .[0], title: .[1]})
+        map(split("\t") | {id: .[0], title: (.[1] // ""), url: (.[2] // "")})
     '
 else
     enumerate_tabs

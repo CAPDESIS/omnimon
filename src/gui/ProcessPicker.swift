@@ -53,11 +53,48 @@ class MemoryPressureGauge: NSView {
     }
 }
 
+class MiniBarChartView: NSView {
+    var values: [Double] = [0, 0, 0] { didSet { needsDisplay = true } }
+    var labels: [String] = ["RAM", "Swap", "Proc"]
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard values.count == labels.count else { return }
+
+        let barWidth: CGFloat = 48
+        let gap: CGFloat = 8
+        let maxHeight: CGFloat = 28
+        let baseY: CGFloat = 14
+
+        for i in 0..<values.count {
+            let x = CGFloat(i) * (barWidth + gap)
+            let v = max(0, min(1, values[i]))
+            let h = maxHeight * CGFloat(v)
+
+            let bgRect = NSRect(x: x, y: baseY, width: barWidth, height: maxHeight)
+            NSColor.separatorColor.withAlphaComponent(0.35).setFill()
+            NSBezierPath(roundedRect: bgRect, xRadius: 3, yRadius: 3).fill()
+
+            let fgRect = NSRect(x: x, y: baseY, width: barWidth, height: h)
+            let color: NSColor = v > 0.8 ? .systemRed : (v > 0.6 ? .systemOrange : .systemGreen)
+            color.setFill()
+            NSBezierPath(roundedRect: fgRect, xRadius: 3, yRadius: 3).fill()
+
+            let text = NSAttributedString(string: labels[i], attributes: [
+                .font: NSFont.systemFont(ofSize: 9, weight: .medium),
+                .foregroundColor: NSColor.secondaryLabelColor,
+            ])
+            text.draw(at: NSPoint(x: x + 10, y: 1))
+        }
+    }
+}
+
 // MARK: - System Summary View
 
 class SystemSummaryView: NSView {
     let memGauge = MemoryPressureGauge()
     let statsLabel = NSTextField(labelWithString: "")
+    let chartView = MiniBarChartView()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -75,9 +112,11 @@ class SystemSummaryView: NSView {
         statsLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
         statsLabel.textColor = .secondaryLabelColor
         statsLabel.lineBreakMode = .byTruncatingTail
+        chartView.translatesAutoresizingMaskIntoConstraints = false
 
         addSubview(memGauge)
         addSubview(statsLabel)
+        addSubview(chartView)
 
         NSLayoutConstraint.activate([
             memGauge.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
@@ -86,8 +125,13 @@ class SystemSummaryView: NSView {
             memGauge.heightAnchor.constraint(equalToConstant: 20),
 
             statsLabel.leadingAnchor.constraint(equalTo: memGauge.trailingAnchor, constant: 16),
-            statsLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -8),
+            statsLabel.trailingAnchor.constraint(lessThanOrEqualTo: chartView.leadingAnchor, constant: -12),
             statsLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+            chartView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            chartView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            chartView.widthAnchor.constraint(equalToConstant: 170),
+            chartView.heightAnchor.constraint(equalToConstant: 46),
         ])
     }
 
@@ -99,6 +143,11 @@ class SystemSummaryView: NSView {
         let stats = LF("picker.stats.label",
                        health.swapUsedMB, health.totalProcesses, health.monitoredCount, health.idleCount)
         statsLabel.stringValue = stats
+
+        let ramUsedRatio = Double(max(0, min(100, 100 - health.freePercent))) / 100.0
+        let swapRatio = min(1.0, Double(max(0, health.swapUsedMB)) / 3072.0)
+        let procRatio = min(1.0, Double(max(0, health.totalProcesses)) / 1000.0)
+        chartView.values = [ramUsedRatio, swapRatio, procRatio]
     }
 }
 
@@ -236,17 +285,17 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         // Define columns
         let columns: [(NSUserInterfaceItemIdentifier, String, CGFloat, CGFloat)] = [
             (ColCheck, "", 30, 30),
+            (ColGroup, L("picker.column.group"), 160, 110),
             (ColName, L("picker.column.name"), 280, 180),
             (ColRAM, L("picker.column.ram"), 80, 60),
             (ColCPU, L("picker.column.cpu"), 65, 50),
             (ColUptime, L("picker.column.uptime"), 85, 60),
             (ColPID, L("picker.column.pid"), 65, 45),
             (ColDetail, L("picker.column.detail"), 200, 80),
-            (ColCWD, L("picker.column.directory"), 230, 120),
-            (ColIdle, L("picker.column.idle"), 65, 55),
-            (ColGroup, L("picker.column.group"), 100, 60),
             (ColDiskR, L("picker.column.disk_r"), 95, 70),
             (ColDiskW, L("picker.column.disk_w"), 95, 70),
+            (ColIdle, L("picker.column.idle"), 65, 55),
+            (ColCWD, L("picker.column.directory"), 240, 140),
             (ColState, L("picker.column.state"), 50, 40),
             (ColTTY, L("picker.column.tty"), 70, 50),
         ]

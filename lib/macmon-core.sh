@@ -371,6 +371,19 @@ collect_processes_json() {
     local count=${#pids[@]}
     (( count > 0 )) || { echo '{"processes":[],"system":{}}'; return 0; }
 
+    # Optional Chrome tab metadata (title/url), best-effort and cached per snapshot
+    local -a chrome_ids=() chrome_titles=() chrome_urls=()
+    if printf '%s\n' "${args_arr[@]}" | grep -q -- '--renderer-client-id='; then
+        local chrome_json
+        chrome_json=$("${MACMON_HOME}/scripts/chrome-tabs.sh" --json 2>/dev/null || echo '[]')
+        while IFS=$'\t' read -r cid ctitle curl; do
+            [[ -n "$cid" ]] || continue
+            chrome_ids+=("$cid")
+            chrome_titles+=("$ctitle")
+            chrome_urls+=("$curl")
+        done < <(printf '%s' "$chrome_json" | jq -r '.[] | [.id, (.title // ""), (.url // "")] | @tsv' 2>/dev/null)
+    fi
+
     # Phase 3: Batch lsof for working directories (single call for all PIDs)
     local pid_list
     pid_list=$(IFS=,; echo "${pids[*]}")
@@ -432,7 +445,34 @@ collect_processes_json() {
             "Chrome Tab")
                 local tab_id
                 tab_id=$(printf '%s' "${args_arr[$i]}" | grep -o '\-\-renderer-client-id=[0-9]*' | head -1 | cut -d= -f2)
-                detail="Tab ID: ${tab_id:-unknown}"
+                local tab_title=""
+                local tab_url=""
+                local tab_domain=""
+                if [[ -n "$tab_id" && ${#chrome_ids[@]} -gt 0 ]]; then
+                    local k
+                    for (( k = 0; k < ${#chrome_ids[@]}; k++ )); do
+                        if [[ "${chrome_ids[$k]}" == "$tab_id" ]]; then
+                            tab_title="${chrome_titles[$k]}"
+                            tab_url="${chrome_urls[$k]}"
+                            break
+                        fi
+                    done
+                fi
+                if [[ -n "$tab_url" ]]; then
+                    tab_domain=$(printf '%s' "$tab_url" | sed -E 's#^[a-zA-Z]+://([^/]+).*#\1#' | sed 's/^www\.//')
+                fi
+                if [[ -n "$tab_title" ]]; then
+                    if [[ -n "$tab_domain" ]]; then
+                        detail="$tab_title [$tab_domain]"
+                    else
+                        detail="$tab_title"
+                    fi
+                    if [[ -n "$tab_url" ]]; then
+                        cwd="$tab_url"
+                    fi
+                else
+                    detail="Tab ID: ${tab_id:-unknown}"
+                fi
                 ;;
             *)
                 if [[ "${tty_arr[$i]}" != "??" && "${tty_arr[$i]}" != "-" ]]; then
@@ -447,7 +487,11 @@ collect_processes_json() {
             group=$(printf '%s' "$exec_comm" | sed -n 's|.*/\([^/]*\)\.app/.*|\1|p')
         fi
         if [[ "$name" == Chrome* ]]; then
-            group="Google Chrome"
+            if [[ -n "${tab_domain:-}" ]]; then
+                group="Chrome: ${tab_domain}"
+            else
+                group="Google Chrome"
+            fi
         fi
 
         # Detect system process (with signature verification)

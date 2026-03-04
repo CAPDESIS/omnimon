@@ -110,13 +110,13 @@ class ProcessViewModel {
     var filteredIndices: [Int] = []
     var groups: [String: ProcessGroup] = [:]
     var groupOrder: [String] = []
-    var groupingEnabled: Bool = false
+    var groupingEnabled: Bool = true
 
     // Display rows: either flat indices or group headers + entries
     var displayRows: [DisplayRow] = []
 
-    var sortColumn: SortColumn = .ramMB
-    var sortOrder: SortOrder = .descending
+    var sortColumn: SortColumn = .group
+    var sortOrder: SortOrder = .ascending
     var searchText: String = ""
     var hideSystemProcesses: Bool = false
     var showOnlyIdle: Bool = false
