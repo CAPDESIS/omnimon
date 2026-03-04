@@ -202,4 +202,6 @@
 "prefs.privacy.url_note" = "When disabled, only tab titles are sent to the AI provider. URLs are never transmitted. Default: off.";
 "picker.tooltip.memory" = "Used: %.1f GB / %.1f GB (%d%% free) | Swap: %d MB";
 "picker.tooltip.bar" = "%@: %@";
+"picker.details.title" = "Process Details";
+"picker.details.body" = "Name: %@\nPID: %d\nRAM: %.1f MB\nCPU: %.1f%%\nUptime: %@\nIdle: %@\nGroup: %@\nState: %@\nDetail: %@\nDirectory/URL: %@";
 "group.other" = "Other";

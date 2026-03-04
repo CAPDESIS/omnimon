@@ -385,6 +385,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         table.intercellSpacing = NSSize(width: 8, height: 0)
         table.dataSource = self
         table.delegate = self
+        table.target = self
+        table.doubleAction = #selector(showSelectedProcessDetails(_:))
         table.setAccessibilityRole(.table)
         table.setAccessibilityLabel(L("picker.a11y.table"))
         self.tableView = table
@@ -394,11 +396,11 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             (ColCheck, "", 30, 30),
             (ColName, L("picker.column.name"), 280, 180),
             (ColGroup, L("picker.column.group"), 160, 110),
+            (ColDetail, L("picker.column.detail"), 360, 200),
             (ColRAM, L("picker.column.ram"), 80, 60),
             (ColCPU, L("picker.column.cpu"), 65, 50),
             (ColUptime, L("picker.column.uptime"), 85, 60),
             (ColPID, L("picker.column.pid"), 65, 45),
-            (ColDetail, L("picker.column.detail"), 200, 80),
             (ColDiskR, L("picker.column.disk_r"), 95, 70),
             (ColDiskW, L("picker.column.disk_w"), 95, 70),
             (ColIdle, L("picker.column.idle"), 65, 55),
@@ -1989,6 +1991,23 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
 
     func tableViewSelectionDidChange(_ notification: Notification) {
         updateInspector()
+    }
+
+    @objc private func showSelectedProcessDetails(_ sender: Any?) {
+        let row = tableView.clickedRow >= 0 ? tableView.clickedRow : tableView.selectedRow
+        guard row >= 0, row < viewModel.displayRows.count else { return }
+        guard case .process(let idx) = viewModel.displayRows[row], idx < viewModel.allProcesses.count else { return }
+        let p = viewModel.allProcesses[idx]
+        let detail = p.detail.isEmpty ? "-" : p.detail
+        let cwd = p.cwd.isEmpty ? "-" : p.cwd
+        let idleText = p.idle ? L("picker.idle.yes") : L("picker.idle.no")
+        let body = LF("picker.details.body", p.name, p.pid, p.ramMB, p.cpuPct, p.uptime, idleText, p.group, p.state, detail, cwd)
+
+        let alert = NSAlert()
+        alert.messageText = L("picker.details.title")
+        alert.informativeText = body
+        alert.addButton(withTitle: L("statusbar.alert.ok"))
+        alert.runModal()
     }
 
     private func updateInspector() {

@@ -202,4 +202,6 @@
 "prefs.privacy.url_note" = "Cuando esta desactivado, solo se envian los titulos de las tabs al proveedor de IA. Las URLs nunca se transmiten. Por defecto: desactivado.";
 "picker.tooltip.memory" = "Usado: %.1f GB / %.1f GB (%d%% libre) | Swap: %d MB";
 "picker.tooltip.bar" = "%@: %@";
+"picker.details.title" = "Detalles del Proceso";
+"picker.details.body" = "Nombre: %@\nPID: %d\nRAM: %.1f MB\nCPU: %.1f%%\nTiempo activo: %@\nInactivo: %@\nGrupo: %@\nEstado: %@\nDetalle: %@\nDirectorio/URL: %@";
 "group.other" = "Otros";

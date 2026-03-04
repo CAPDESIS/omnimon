@@ -185,7 +185,8 @@ class ProcessViewModel {
     private func buildDisplayRows() {
         displayRows.removeAll()
 
-        if !groupingEnabled {
+        let searching = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if !groupingEnabled || searching {
             displayRows = filteredIndices.map { .process($0) }
             return
         }
