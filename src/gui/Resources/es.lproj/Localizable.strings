@@ -164,4 +164,6 @@
 "chrome.tabs.title" = "Tabs abiertas de Chrome";
 "chrome.tabs.empty" = "No se encontraron tabs abiertas de Chrome.";
 "chrome.tabs.unavailable" = "Metadata de tabs de Chrome no disponible (Chrome cerrado o falta permiso de AppleScript).";
+"chrome.tabs.untitled" = "(tab sin titulo)";
+"chrome.tabs.no_url" = "(URL no disponible)";
 "group.other" = "Otros";

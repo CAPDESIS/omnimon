@@ -1100,10 +1100,20 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
                 showCommandResult(L("chrome.tabs.unavailable"))
                 return
             }
-            let lines = json.prefix(25).map { item -> String in
-                let title = (item["title"] as? String) ?? "-"
-                let url = (item["url"] as? String) ?? "-"
-                return "• \(title)\n  \(url)"
+            let normalized = json.compactMap { item -> (id: String, title: String, url: String)? in
+                let id = ((item["id"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let title = ((item["title"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let url = ((item["url"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                if title.isEmpty && url.isEmpty { return nil }
+                return (id: id, title: title, url: url)
+            }
+            let lines = normalized.prefix(30).map { tab -> String in
+                let title = tab.title.isEmpty ? L("chrome.tabs.untitled") : tab.title
+                let url = tab.url.isEmpty ? L("chrome.tabs.no_url") : tab.url
+                if tab.id.isEmpty {
+                    return "• \(title)\n  \(url)"
+                }
+                return "• [\(tab.id)] \(title)\n  \(url)"
             }
             let body = lines.joined(separator: "\n")
             if body.isEmpty {
@@ -1653,6 +1663,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let smart = NSMenuItem(title: L("picker.button.smart_optimize"), action: #selector(ProcessPickerController.smartOptimize(_:)), keyEquivalent: "o")
         smart.target = controller
         actionsMenu.addItem(smart)
+        let aiSettings = NSMenuItem(title: L("picker.commands.ai_settings"), action: #selector(ProcessPickerController.menuOpenPreferences(_:)), keyEquivalent: "")
+        aiSettings.target = controller
+        actionsMenu.addItem(aiSettings)
         let tabs = NSMenuItem(title: L("picker.commands.chrome_tabs"), action: #selector(ProcessPickerController.menuShowChromeTabs(_:)), keyEquivalent: "t")
         tabs.target = controller
         actionsMenu.addItem(tabs)
