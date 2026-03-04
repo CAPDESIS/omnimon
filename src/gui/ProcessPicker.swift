@@ -296,6 +296,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     private var aiSpinner: NSProgressIndicator?
     private var isAnalyzingAI = false
     private var liveRefreshTimer: Timer?
+    private var searchDebounceTimer: Timer?
     private var isRefreshingLiveData = false
 
     var exitCode: Int32 = 2  // default: cancelled
@@ -1975,9 +1976,12 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     func controlTextDidChange(_ obj: Notification) {
         if let field = obj.object as? NSSearchField, field === searchField {
             viewModel.searchText = field.stringValue
-            viewModel.applyFilterAndSort()
-            tableView.reloadData()
-            updateStatus()
+            searchDebounceTimer?.invalidate()
+            searchDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
+                self?.viewModel.applyFilterAndSort()
+                self?.tableView.reloadData()
+                self?.updateStatus()
+            }
         }
     }
 

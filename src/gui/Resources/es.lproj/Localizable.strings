@@ -198,6 +198,8 @@
 "prefs.tab.ai_settings" = "Ajustes IA";
 "prefs.tab.rules" = "Reglas";
 "prefs.rules.save" = "Guardar reglas";
+"prefs.privacy.allow_urls" = "Permitir enviar URLs del navegador a la IA para mejor contexto";
+"prefs.privacy.url_note" = "Cuando esta desactivado, solo se envian los titulos de las tabs al proveedor de IA. Las URLs nunca se transmiten. Por defecto: desactivado.";
 "picker.tooltip.memory" = "Usado: %.1f GB / %.1f GB (%d%% libre) | Swap: %d MB";
 "picker.tooltip.bar" = "%@: %@";
 "group.other" = "Otros";

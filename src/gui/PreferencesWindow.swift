@@ -10,10 +10,11 @@ final class PreferencesWindowController: NSWindowController {
     // Rules tab fields
     private var rulesFields: [String: NSTextField] = [:]
     private var rulesDiskIOCheckbox: NSButton?
+    private var privacyURLCheckbox: NSButton?
     private let rulesStatusLabel = NSTextField(labelWithString: "")
 
     convenience init() {
-        let rect = NSRect(x: 0, y: 0, width: 520, height: 420)
+        let rect = NSRect(x: 0, y: 0, width: 520, height: 480)
         let window = NSWindow(contentRect: rect,
                               styleMask: [.titled, .closable],
                               backing: .buffered,
@@ -184,6 +185,18 @@ final class PreferencesWindowController: NSWindowController {
         container.addSubview(diskIO)
         rulesDiskIOCheckbox = diskIO
 
+        let privacyURL = NSButton(checkboxWithTitle: L("prefs.privacy.allow_urls"), target: self, action: #selector(privacyURLToggled))
+        privacyURL.translatesAutoresizingMaskIntoConstraints = false
+        privacyURL.state = UserDefaults.standard.bool(forKey: "macmon.privacy.allowBrowserURLs") ? .on : .off
+        container.addSubview(privacyURL)
+        privacyURLCheckbox = privacyURL
+
+        let privacyNote = NSTextField(wrappingLabelWithString: L("prefs.privacy.url_note"))
+        privacyNote.textColor = .secondaryLabelColor
+        privacyNote.font = NSFont.systemFont(ofSize: 10)
+        privacyNote.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(privacyNote)
+
         let saveRulesBtn = NSButton(title: L("prefs.rules.save"), target: self, action: #selector(saveRules))
         saveRulesBtn.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(saveRulesBtn)
@@ -239,7 +252,14 @@ final class PreferencesWindowController: NSWindowController {
             diskIO.topAnchor.constraint(equalTo: anchor, constant: 16),
             diskIO.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
 
-            saveRulesBtn.topAnchor.constraint(equalTo: diskIO.bottomAnchor, constant: 16),
+            privacyURL.topAnchor.constraint(equalTo: diskIO.bottomAnchor, constant: 12),
+            privacyURL.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+
+            privacyNote.topAnchor.constraint(equalTo: privacyURL.bottomAnchor, constant: 2),
+            privacyNote.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 38),
+            privacyNote.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+
+            saveRulesBtn.topAnchor.constraint(equalTo: privacyNote.bottomAnchor, constant: 12),
             saveRulesBtn.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
 
             rulesStatusLabel.centerYAnchor.constraint(equalTo: saveRulesBtn.centerYAnchor),
@@ -326,6 +346,12 @@ final class PreferencesWindowController: NSWindowController {
         defaults.set(provider.rawValue, forKey: "macmon.ai.provider")
         defaults.set(model, forKey: "macmon.ai.model")
         statusLabel.stringValue = L("prefs.status.saved")
+    }
+
+    // MARK: - Privacy Actions
+
+    @objc private func privacyURLToggled(_ sender: NSButton) {
+        UserDefaults.standard.set(sender.state == .on, forKey: "macmon.privacy.allowBrowserURLs")
     }
 
     // MARK: - Rules Actions

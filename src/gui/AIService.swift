@@ -180,6 +180,10 @@ final class AIService {
         }.resume()
     }
 
+    static var allowBrowserURLs: Bool {
+        UserDefaults.standard.bool(forKey: "macmon.privacy.allowBrowserURLs")
+    }
+
     func summarizeTabs(provider: AIProvider,
                        model: String,
                        tabs: [(title: String, url: String)],
@@ -309,7 +313,15 @@ final class AIService {
     private func buildTabSummaryRequest(provider: AIProvider,
                                         model: String,
                                         tabs: [(title: String, url: String)]) -> [String: Any] {
-        let compact = Array(tabs.prefix(25)).map { ["title": $0.title, "url": $0.url] }
+        let sendURLs = AIService.allowBrowserURLs
+        let compact = Array(tabs.prefix(25)).map { tab -> [String: String] in
+            if sendURLs {
+                return ["title": tab.title, "url": tab.url]
+            } else {
+                // Privacy: strip URL, send only tab title
+                return ["title": tab.title]
+            }
+        }
         let data = (try? JSONSerialization.data(withJSONObject: compact, options: [.sortedKeys])) ?? Data()
         let tabsJSON = String(data: data, encoding: .utf8) ?? "[]"
         let msg = "Summarize these browser tabs in Spanish for the user. Include: 1) key themes, 2) likely active tasks, 3) what can be closed safely first. Keep under 8 lines. Tabs: \(tabsJSON)"

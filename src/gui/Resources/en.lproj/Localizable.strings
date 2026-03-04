@@ -198,6 +198,8 @@
 "prefs.tab.ai_settings" = "AI Settings";
 "prefs.tab.rules" = "Rules";
 "prefs.rules.save" = "Save Rules";
+"prefs.privacy.allow_urls" = "Allow sending browser URLs to AI for better context";
+"prefs.privacy.url_note" = "When disabled, only tab titles are sent to the AI provider. URLs are never transmitted. Default: off.";
 "picker.tooltip.memory" = "Used: %.1f GB / %.1f GB (%d%% free) | Swap: %d MB";
 "picker.tooltip.bar" = "%@: %@";
 "group.other" = "Other";
