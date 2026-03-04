@@ -483,9 +483,10 @@ cmd_optimize() {
 
     # Build request and call API
     local response http_code body endpoint
-    local tmpfile
-    tmpfile=$(mktemp "${TMPDIR:-/tmp}/macmon-ai.XXXXXX")
-    trap 'rm -f "$tmpfile"' RETURN
+    local header_file
+    header_file=$(mktemp "${TMPDIR:-/tmp}/macmon-ai-headers.XXXXXX")
+    chmod 600 "$header_file"
+    trap 'rm -f "$header_file"' RETURN
 
     case "$provider" in
         openai)     endpoint="https://api.openai.com/v1/chat/completions" ;;
@@ -499,21 +500,24 @@ cmd_optimize() {
 
     case "$provider" in
         openai|openrouter)
-            curl_args+=(-H "Authorization: Bearer $api_key")
+            printf '%s\n' "Authorization: Bearer ${api_key}" > "$header_file"
+            curl_args+=(-H "@${header_file}")
             curl_args+=(-d "$(jq -n --arg model "$model" --arg prompt "$prompt" '{
                 model: $model, temperature: 0,
                 messages: [{role:"system",content:"Return strict JSON only."},{role:"user",content:$prompt}]
             }')")
             ;;
         anthropic)
-            curl_args+=(-H "x-api-key: $api_key" -H "anthropic-version: 2023-06-01")
+            printf '%s\n%s\n' "x-api-key: ${api_key}" "anthropic-version: 2023-06-01" > "$header_file"
+            curl_args+=(-H "@${header_file}")
             curl_args+=(-d "$(jq -n --arg model "$model" --arg prompt "$prompt" '{
                 model: $model, max_tokens: 512, temperature: 0,
                 messages: [{role:"user",content:$prompt}]
             }')")
             ;;
         gemini)
-            curl_args+=(-H "x-goog-api-key: $api_key")
+            printf '%s\n' "x-goog-api-key: ${api_key}" > "$header_file"
+            curl_args+=(-H "@${header_file}")
             curl_args+=(-d "$(jq -n --arg prompt "$prompt" '{
                 generationConfig: {temperature:0, maxOutputTokens:512},
                 contents: [{role:"user",parts:[{text:$prompt}]}]

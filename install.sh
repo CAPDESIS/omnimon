@@ -3,12 +3,22 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_DIR="${HOME}/.local/libexec/macmon"
+INSTALL_BASE="${HOME}/.local/libexec"
+INSTALL_DIR="${INSTALL_BASE}/macmon"
 BIN_DIR="${HOME}/.local/bin"
 CONFIG_DIR="${HOME}/.config/macmon"
 LOG_DIR="${HOME}/.local/log/macmon"
 PLIST_DIR="${HOME}/Library/LaunchAgents"
 PLIST_LABEL="com.macmon.daemon"
+
+STAGING_DIR=""
+BACKUP_DIR=""
+
+cleanup_install_staging() {
+    [[ -n "$STAGING_DIR" && -d "$STAGING_DIR" ]] && rm -rf "$STAGING_DIR"
+    [[ -n "$BACKUP_DIR" && -d "$BACKUP_DIR" ]] && rm -rf "$BACKUP_DIR"
+}
+trap cleanup_install_staging EXIT
 
 echo "macmon installer"
 echo "================"
@@ -35,7 +45,8 @@ fi
 
 # Create directories with restrictive permissions (MITRE TA0004 - Privilege Escalation)
 # User-only for sensitive directories to prevent other users from planting malicious scripts
-mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$PLIST_DIR"
+mkdir -p "$INSTALL_BASE" "$BIN_DIR" "$PLIST_DIR"
+STAGING_DIR="$(mktemp -d "${INSTALL_BASE}/macmon.tmp.XXXXXXXXXX")"
 mkdir -p "$CONFIG_DIR" "$LOG_DIR"
 mkdir -p "$CONFIG_DIR/profiles"
 chmod 700 "$CONFIG_DIR" "$LOG_DIR"
@@ -44,19 +55,19 @@ chmod 755 "$INSTALL_DIR" "$BIN_DIR"
 
 # Copy project files
 echo "Copying files..."
-cp -R "$SCRIPT_DIR"/lib "$INSTALL_DIR/"
-cp -R "$SCRIPT_DIR"/src "$INSTALL_DIR/"
-cp -R "$SCRIPT_DIR"/scripts "$INSTALL_DIR/"
-cp -R "$SCRIPT_DIR"/config "$INSTALL_DIR/"
+cp -R "$SCRIPT_DIR"/lib "$STAGING_DIR/"
+cp -R "$SCRIPT_DIR"/src "$STAGING_DIR/"
+cp -R "$SCRIPT_DIR"/scripts "$STAGING_DIR/"
+cp -R "$SCRIPT_DIR"/config "$STAGING_DIR/"
 
 # Fix permissions: scripts executable by owner only, no group/other write
-chmod 755 "$INSTALL_DIR"/lib/*.sh
-chmod 755 "$INSTALL_DIR"/src/daemon/macmond.sh
-chmod 755 "$INSTALL_DIR"/src/cli/macmon.sh
-chmod 755 "$INSTALL_DIR"/scripts/*.sh
+chmod 755 "$STAGING_DIR"/lib/*.sh
+chmod 755 "$STAGING_DIR"/src/daemon/macmond.sh
+chmod 755 "$STAGING_DIR"/src/cli/macmon.sh
+chmod 755 "$STAGING_DIR"/scripts/*.sh
 # Non-executable files: read-only for group/other
-find "$INSTALL_DIR"/src/gui -name '*.swift' -exec chmod 644 {} +
-find "$INSTALL_DIR"/config -type f -exec chmod 644 {} +
+find "$STAGING_DIR"/src/gui -name '*.swift' -exec chmod 644 {} +
+find "$STAGING_DIR"/config -type f -exec chmod 644 {} +
 
 # Helper: compile universal binary (arm64 + x86_64, merged with lipo)
 compile_universal() {
@@ -72,40 +83,62 @@ compile_universal() {
 # Use pre-compiled binaries if present (web installer flow), otherwise compile
 if [[ -x "$SCRIPT_DIR/ProcessPicker" && -x "$SCRIPT_DIR/DiskIOHelper" && -x "$SCRIPT_DIR/MacmonStatusBar" ]]; then
     echo "Using pre-compiled binaries..."
-    cp "$SCRIPT_DIR/ProcessPicker" "$INSTALL_DIR/ProcessPicker"
-    cp "$SCRIPT_DIR/DiskIOHelper" "$INSTALL_DIR/DiskIOHelper"
-    cp "$SCRIPT_DIR/MacmonStatusBar" "$INSTALL_DIR/MacmonStatusBar"
+    cp "$SCRIPT_DIR/ProcessPicker" "$STAGING_DIR/ProcessPicker"
+    cp "$SCRIPT_DIR/DiskIOHelper" "$STAGING_DIR/DiskIOHelper"
+    cp "$SCRIPT_DIR/MacmonStatusBar" "$STAGING_DIR/MacmonStatusBar"
     echo "Binaries copied successfully"
 else
     # Compile Swift picker
     echo "Compiling ProcessPicker..."
-    compile_universal "$INSTALL_DIR/ProcessPicker" \
+    compile_universal "$STAGING_DIR/ProcessPicker" \
         -framework Cocoa \
-        "$INSTALL_DIR/src/gui/ProcessPickerModel.swift" \
-        "$INSTALL_DIR/src/gui/Localization.swift" \
-        "$INSTALL_DIR/src/gui/AIService.swift" \
-        "$INSTALL_DIR/src/gui/ProcessPicker.swift"
+        "$STAGING_DIR/src/gui/ProcessPickerModel.swift" \
+        "$STAGING_DIR/src/gui/Localization.swift" \
+        "$STAGING_DIR/src/gui/AIService.swift" \
+        "$STAGING_DIR/src/gui/PreferencesWindow.swift" \
+        "$STAGING_DIR/src/gui/ProcessPicker.swift"
     echo "ProcessPicker compiled successfully"
 
     # Compile DiskIOHelper
     echo "Compiling DiskIOHelper..."
-    compile_universal "$INSTALL_DIR/DiskIOHelper" \
-        "$INSTALL_DIR/src/gui/DiskIOHelper.swift"
+    compile_universal "$STAGING_DIR/DiskIOHelper" \
+        "$STAGING_DIR/src/gui/DiskIOHelper.swift"
     echo "DiskIOHelper compiled successfully"
 
     # Compile MacmonStatusBar
     echo "Compiling MacmonStatusBar..."
-    compile_universal "$INSTALL_DIR/MacmonStatusBar" \
+    compile_universal "$STAGING_DIR/MacmonStatusBar" \
         -framework Cocoa \
-        "$INSTALL_DIR/src/gui/Localization.swift" \
-        "$INSTALL_DIR/src/gui/AIService.swift" \
-        "$INSTALL_DIR/src/gui/PreferencesWindow.swift" \
-        "$INSTALL_DIR/src/gui/MacmonStatusBar.swift"
+        "$STAGING_DIR/src/gui/Localization.swift" \
+        "$STAGING_DIR/src/gui/AIService.swift" \
+        "$STAGING_DIR/src/gui/PreferencesWindow.swift" \
+        "$STAGING_DIR/src/gui/MacmonStatusBar.swift"
     echo "MacmonStatusBar compiled successfully"
 fi
 
 # Harden binary permissions: executable by owner, readable by group (755)
-chmod 755 "$INSTALL_DIR/ProcessPicker" "$INSTALL_DIR/DiskIOHelper" "$INSTALL_DIR/MacmonStatusBar"
+chmod 755 "$STAGING_DIR/ProcessPicker" "$STAGING_DIR/DiskIOHelper" "$STAGING_DIR/MacmonStatusBar"
+
+# Atomic activation: switch complete staged tree into place
+echo "Activating installation atomically..."
+if [[ -d "$INSTALL_DIR" ]]; then
+    BACKUP_DIR="${INSTALL_BASE}/macmon.prev.$(date +%s).$$"
+    mv "$INSTALL_DIR" "$BACKUP_DIR"
+fi
+
+if ! mv "$STAGING_DIR" "$INSTALL_DIR"; then
+    echo "ERROR: Failed to activate staged install" >&2
+    if [[ -n "$BACKUP_DIR" && -d "$BACKUP_DIR" ]]; then
+        mv "$BACKUP_DIR" "$INSTALL_DIR" || true
+    fi
+    exit 1
+fi
+
+STAGING_DIR=""
+if [[ -n "$BACKUP_DIR" && -d "$BACKUP_DIR" ]]; then
+    rm -rf "$BACKUP_DIR"
+    BACKUP_DIR=""
+fi
 
 # Create config if absent, with restrictive permissions
 if [[ ! -f "$CONFIG_DIR/macmon.yaml" ]]; then
