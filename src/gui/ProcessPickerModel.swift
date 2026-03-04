@@ -231,3 +231,68 @@ class ProcessViewModel {
         return allProcesses.filter { $0.selected }.map { $0.pid }
     }
 }
+
+// MARK: - Config Assistant
+
+struct ConfigQuickSettings {
+    var ramFreePercent: Int = 25
+    var swapUsedMB: Int = 2048
+    var processMinRAMKB: Int = 102400
+    var idleCPUPercent: Double = 1.0
+    var checkIntervalSec: Int = 60
+    var idleCheckSec: Int = 600
+    var cooldownSec: Int = 300
+    var killGraceSec: Int = 3
+    var collectDiskIO: Bool = true
+
+    static func parse(from yaml: String) -> ConfigQuickSettings {
+        var s = ConfigQuickSettings()
+        func intVal(_ pattern: String, _ fallback: Int) -> Int {
+            guard let r = yaml.range(of: pattern, options: .regularExpression) else { return fallback }
+            let token = String(yaml[r]).components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+            return Int(token) ?? fallback
+        }
+        func doubleVal(_ pattern: String, _ fallback: Double) -> Double {
+            guard let r = yaml.range(of: pattern, options: .regularExpression) else { return fallback }
+            let m = String(yaml[r])
+            let v = m.replacingOccurrences(of: "[^0-9.]", with: "", options: .regularExpression)
+            return Double(v) ?? fallback
+        }
+        func boolVal(_ pattern: String, _ fallback: Bool) -> Bool {
+            guard let r = yaml.range(of: pattern, options: .regularExpression) else { return fallback }
+            let m = String(yaml[r]).lowercased()
+            return m.contains("true")
+        }
+
+        s.ramFreePercent = intVal("ram_free_percent\\s*:\\s*[0-9]+", s.ramFreePercent)
+        s.swapUsedMB = intVal("swap_used_mb\\s*:\\s*[0-9]+", s.swapUsedMB)
+        s.processMinRAMKB = intVal("process_ram_min_kb\\s*:\\s*[0-9]+", s.processMinRAMKB)
+        s.idleCPUPercent = doubleVal("idle_cpu_percent\\s*:\\s*[0-9]+(?:\\.[0-9]+)?", s.idleCPUPercent)
+        s.checkIntervalSec = intVal("check\\s*:\\s*[0-9]+", s.checkIntervalSec)
+        s.idleCheckSec = intVal("idle_check\\s*:\\s*[0-9]+", s.idleCheckSec)
+        s.cooldownSec = intVal("cooldown\\s*:\\s*[0-9]+", s.cooldownSec)
+        s.killGraceSec = intVal("kill_grace\\s*:\\s*[0-9]+", s.killGraceSec)
+        s.collectDiskIO = boolVal("disk_io\\s*:\\s*(true|false)", s.collectDiskIO)
+        return s
+    }
+
+    func renderYAML() -> String {
+        return """
+        # macmon quick settings (generated from GUI)
+        thresholds:
+          ram_free_percent: \(ramFreePercent)
+          swap_used_mb: \(swapUsedMB)
+          process_ram_min_kb: \(processMinRAMKB)
+          idle_cpu_percent: \(String(format: "%.2f", idleCPUPercent))
+
+        intervals:
+          check: \(checkIntervalSec)
+          idle_check: \(idleCheckSec)
+          cooldown: \(cooldownSec)
+          kill_grace: \(killGraceSec)
+
+        collect:
+          disk_io: \(collectDiskIO ? "true" : "false")
+        """
+    }
+}

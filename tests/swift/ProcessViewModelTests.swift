@@ -321,3 +321,59 @@ class ProcessViewModelSelectionTests: XCTestCase {
         XCTAssertEqual(Set(vm.selectedPIDs), Set([1, 3]))
     }
 }
+
+// MARK: - Config Assistant Tests
+
+class ConfigQuickSettingsTests: XCTestCase {
+
+    func testParseQuickSettingsFromYAML() {
+        let yaml = """
+        thresholds:
+          ram_free_percent: 33
+          swap_used_mb: 1536
+          process_ram_min_kb: 204800
+          idle_cpu_percent: 2.5
+
+        intervals:
+          check: 45
+          idle_check: 500
+          cooldown: 200
+          kill_grace: 5
+
+        collect:
+          disk_io: false
+        """
+
+        let settings = ConfigQuickSettings.parse(from: yaml)
+        XCTAssertEqual(settings.ramFreePercent, 33)
+        XCTAssertEqual(settings.swapUsedMB, 1536)
+        XCTAssertEqual(settings.processMinRAMKB, 204800)
+        XCTAssertEqual(settings.idleCPUPercent, 2.5, accuracy: 0.001)
+        XCTAssertEqual(settings.checkIntervalSec, 45)
+        XCTAssertEqual(settings.idleCheckSec, 500)
+        XCTAssertEqual(settings.cooldownSec, 200)
+        XCTAssertEqual(settings.killGraceSec, 5)
+        XCTAssertFalse(settings.collectDiskIO)
+    }
+
+    func testRenderQuickSettingsYAMLContainsExpectedKeys() {
+        var settings = ConfigQuickSettings()
+        settings.ramFreePercent = 40
+        settings.swapUsedMB = 1024
+        settings.processMinRAMKB = 51200
+        settings.idleCPUPercent = 1.25
+        settings.checkIntervalSec = 30
+        settings.idleCheckSec = 300
+        settings.cooldownSec = 120
+        settings.killGraceSec = 4
+        settings.collectDiskIO = true
+
+        let yaml = settings.renderYAML()
+        XCTAssertTrue(yaml.contains("ram_free_percent: 40"))
+        XCTAssertTrue(yaml.contains("swap_used_mb: 1024"))
+        XCTAssertTrue(yaml.contains("process_ram_min_kb: 51200"))
+        XCTAssertTrue(yaml.contains("idle_cpu_percent: 1.25"))
+        XCTAssertTrue(yaml.contains("collect:"))
+        XCTAssertTrue(yaml.contains("disk_io: true"))
+    }
+}

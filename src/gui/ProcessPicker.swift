@@ -200,6 +200,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     var configWindow: NSWindow?
     var configTextView: NSTextView?
     var configPath: String = ""
+    var configFields: [String: NSTextField] = [:]
+    var configDiskIOCheckbox: NSButton?
     private let aiBlockedNames = AIService.immutableProtectedProcessNames
 
     var exitCode: Int32 = 2  // default: cancelled
@@ -526,12 +528,95 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     }
 
     private func applyLoadedData(_ processData: ProcessData) {
-        viewModel.load(from: processData)
-        systemHealth = processData.system
+        let enriched = enrichChromeRows(processData)
+        viewModel.load(from: enriched)
+        systemHealth = enriched.system
         if let health = systemHealth {
             summaryView.update(health: health)
         }
         updateStatus()
+    }
+
+    private func enrichChromeRows(_ data: ProcessData) -> ProcessData {
+        guard let tabMap = fetchChromeTabMap(), !tabMap.isEmpty else { return data }
+        let enriched = data.processes.map { p -> ProcessEntry in
+            guard p.name == "Chrome Tab",
+                  let tabID = extractTabID(from: p.detail),
+                  let tab = tabMap[tabID]
+            else { return p }
+
+            let domain = domainFromURL(tab.url)
+            let betterDetail: String
+            if !tab.title.isEmpty && !domain.isEmpty {
+                betterDetail = "\(tab.title) [\(domain)]"
+            } else if !tab.title.isEmpty {
+                betterDetail = tab.title
+            } else {
+                betterDetail = p.detail
+            }
+            let betterGroup = domain.isEmpty ? p.group : "Chrome: \(domain)"
+            let betterCWD = tab.url.isEmpty ? p.cwd : tab.url
+
+            return ProcessEntry(
+                pid: p.pid,
+                name: p.name,
+                execName: p.execName,
+                ramMB: p.ramMB,
+                cpuPct: p.cpuPct,
+                uptime: p.uptime,
+                uptimeSeconds: p.uptimeSeconds,
+                cwd: betterCWD,
+                tty: p.tty,
+                idle: p.idle,
+                detail: betterDetail,
+                group: betterGroup,
+                isSystem: p.isSystem,
+                state: p.state,
+                diskReadMB: p.diskReadMB,
+                diskWriteMB: p.diskWriteMB
+            )
+        }
+        return ProcessData(processes: enriched, system: data.system)
+    }
+
+    private func fetchChromeTabMap() -> [Int: (title: String, url: String)]? {
+        guard let home = ProcessInfo.processInfo.environment["MACMON_HOME"] else { return nil }
+        let script = home + "/scripts/chrome-tabs.sh"
+        guard FileManager.default.isExecutableFile(atPath: script) else { return nil }
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: script)
+        task.arguments = ["--json"]
+        task.standardError = FileHandle.nullDevice
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        do {
+            try task.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            task.waitUntilExit()
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
+            var out: [Int: (title: String, url: String)] = [:]
+            for item in json {
+                guard let idRaw = item["id"] as? String, let id = Int(idRaw) else { continue }
+                let title = (item["title"] as? String) ?? ""
+                let url = (item["url"] as? String) ?? ""
+                out[id] = (title, url)
+            }
+            return out
+        } catch {
+            return nil
+        }
+    }
+
+    private func extractTabID(from detail: String) -> Int? {
+        guard let r = detail.range(of: "Tab ID:\\s*([0-9]+)", options: .regularExpression) else { return nil }
+        let token = String(detail[r]).components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+        return Int(token)
+    }
+
+    private func domainFromURL(_ url: String) -> String {
+        guard let u = URL(string: url), let host = u.host else { return "" }
+        if host.hasPrefix("www.") { return String(host.dropFirst(4)) }
+        return host
     }
 
     func loadDataAsync(from file: String, completion: @escaping (Bool) -> Void) {
@@ -987,6 +1072,36 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             pathLabel.tag = 901
             content.addSubview(pathLabel)
 
+            let helper = NSTextField(labelWithString: L("config.editor.helper"))
+            helper.translatesAutoresizingMaskIntoConstraints = false
+            helper.textColor = .secondaryLabelColor
+            helper.font = NSFont.systemFont(ofSize: 11)
+            content.addSubview(helper)
+
+            let ramField = makeConfigField(placeholder: L("config.field.ram_free"))
+            let swapField = makeConfigField(placeholder: L("config.field.swap_used"))
+            let minRAMField = makeConfigField(placeholder: L("config.field.min_ram"))
+            let idleCPUField = makeConfigField(placeholder: L("config.field.idle_cpu"))
+            let checkField = makeConfigField(placeholder: L("config.field.check"))
+            let idleCheckField = makeConfigField(placeholder: L("config.field.idle_check"))
+            let cooldownField = makeConfigField(placeholder: L("config.field.cooldown"))
+            let graceField = makeConfigField(placeholder: L("config.field.kill_grace"))
+            let diskIO = NSButton(checkboxWithTitle: L("config.field.disk_io"), target: nil, action: nil)
+            diskIO.translatesAutoresizingMaskIntoConstraints = false
+            content.addSubview(diskIO)
+            configDiskIOCheckbox = diskIO
+
+            configFields = [
+                "ram": ramField,
+                "swap": swapField,
+                "minram": minRAMField,
+                "idlecpu": idleCPUField,
+                "check": checkField,
+                "idlecheck": idleCheckField,
+                "cooldown": cooldownField,
+                "grace": graceField,
+            ]
+
             let scroll = NSScrollView(frame: .zero)
             scroll.translatesAutoresizingMaskIntoConstraints = false
             scroll.hasVerticalScroller = true
@@ -1002,19 +1117,64 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             let reloadBtn = NSButton(title: L("config.editor.reload"), target: self, action: #selector(reloadConfigEditor))
             let saveBtn = NSButton(title: L("config.editor.save"), target: self, action: #selector(saveConfigEditor))
             let resetBtn = NSButton(title: L("config.editor.reset"), target: self, action: #selector(resetConfigEditor))
+            let applyGuidedBtn = NSButton(title: L("config.editor.apply_guided"), target: self, action: #selector(applyGuidedConfig))
             for btn in [reloadBtn, saveBtn, resetBtn] {
                 btn.translatesAutoresizingMaskIntoConstraints = false
                 content.addSubview(btn)
             }
+            applyGuidedBtn.translatesAutoresizingMaskIntoConstraints = false
+            content.addSubview(applyGuidedBtn)
 
             NSLayoutConstraint.activate([
                 pathLabel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
                 pathLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
                 pathLabel.topAnchor.constraint(equalTo: content.topAnchor, constant: 10),
 
+                helper.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+                helper.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+                helper.topAnchor.constraint(equalTo: pathLabel.bottomAnchor, constant: 4),
+
+                ramField.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+                ramField.topAnchor.constraint(equalTo: helper.bottomAnchor, constant: 8),
+                ramField.widthAnchor.constraint(equalToConstant: 170),
+
+                swapField.leadingAnchor.constraint(equalTo: ramField.trailingAnchor, constant: 8),
+                swapField.topAnchor.constraint(equalTo: ramField.topAnchor),
+                swapField.widthAnchor.constraint(equalToConstant: 170),
+
+                minRAMField.leadingAnchor.constraint(equalTo: swapField.trailingAnchor, constant: 8),
+                minRAMField.topAnchor.constraint(equalTo: ramField.topAnchor),
+                minRAMField.widthAnchor.constraint(equalToConstant: 180),
+
+                idleCPUField.leadingAnchor.constraint(equalTo: minRAMField.trailingAnchor, constant: 8),
+                idleCPUField.topAnchor.constraint(equalTo: ramField.topAnchor),
+                idleCPUField.widthAnchor.constraint(equalToConstant: 120),
+
+                checkField.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+                checkField.topAnchor.constraint(equalTo: ramField.bottomAnchor, constant: 8),
+                checkField.widthAnchor.constraint(equalToConstant: 170),
+
+                idleCheckField.leadingAnchor.constraint(equalTo: checkField.trailingAnchor, constant: 8),
+                idleCheckField.topAnchor.constraint(equalTo: checkField.topAnchor),
+                idleCheckField.widthAnchor.constraint(equalToConstant: 170),
+
+                cooldownField.leadingAnchor.constraint(equalTo: idleCheckField.trailingAnchor, constant: 8),
+                cooldownField.topAnchor.constraint(equalTo: checkField.topAnchor),
+                cooldownField.widthAnchor.constraint(equalToConstant: 170),
+
+                graceField.leadingAnchor.constraint(equalTo: cooldownField.trailingAnchor, constant: 8),
+                graceField.topAnchor.constraint(equalTo: checkField.topAnchor),
+                graceField.widthAnchor.constraint(equalToConstant: 120),
+
+                diskIO.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+                diskIO.topAnchor.constraint(equalTo: checkField.bottomAnchor, constant: 8),
+
+                applyGuidedBtn.leadingAnchor.constraint(equalTo: diskIO.trailingAnchor, constant: 10),
+                applyGuidedBtn.centerYAnchor.constraint(equalTo: diskIO.centerYAnchor),
+
                 scroll.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
                 scroll.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
-                scroll.topAnchor.constraint(equalTo: pathLabel.bottomAnchor, constant: 8),
+                scroll.topAnchor.constraint(equalTo: diskIO.bottomAnchor, constant: 8),
                 scroll.bottomAnchor.constraint(equalTo: saveBtn.topAnchor, constant: -10),
 
                 reloadBtn.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
@@ -1044,6 +1204,46 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         }
         let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? runCLI(args: ["config"])
         configTextView?.string = text
+        populateGuidedFields(from: text)
+    }
+
+    private func makeConfigField(placeholder: String) -> NSTextField {
+        let f = NSTextField(string: "")
+        f.translatesAutoresizingMaskIntoConstraints = false
+        f.placeholderString = placeholder
+        if let cell = f.cell as? NSTextFieldCell {
+            cell.usesSingleLineMode = true
+            cell.lineBreakMode = .byTruncatingTail
+        }
+        configWindow?.contentView?.addSubview(f)
+        return f
+    }
+
+    private func populateGuidedFields(from yaml: String) {
+        let s = ConfigQuickSettings.parse(from: yaml)
+        configFields["ram"]?.stringValue = String(s.ramFreePercent)
+        configFields["swap"]?.stringValue = String(s.swapUsedMB)
+        configFields["minram"]?.stringValue = String(s.processMinRAMKB)
+        configFields["idlecpu"]?.stringValue = String(format: "%.2f", s.idleCPUPercent)
+        configFields["check"]?.stringValue = String(s.checkIntervalSec)
+        configFields["idlecheck"]?.stringValue = String(s.idleCheckSec)
+        configFields["cooldown"]?.stringValue = String(s.cooldownSec)
+        configFields["grace"]?.stringValue = String(s.killGraceSec)
+        configDiskIOCheckbox?.state = s.collectDiskIO ? .on : .off
+    }
+
+    @objc private func applyGuidedConfig(_ sender: Any?) {
+        var s = ConfigQuickSettings()
+        s.ramFreePercent = Int(configFields["ram"]?.stringValue ?? "") ?? s.ramFreePercent
+        s.swapUsedMB = Int(configFields["swap"]?.stringValue ?? "") ?? s.swapUsedMB
+        s.processMinRAMKB = Int(configFields["minram"]?.stringValue ?? "") ?? s.processMinRAMKB
+        s.idleCPUPercent = Double(configFields["idlecpu"]?.stringValue ?? "") ?? s.idleCPUPercent
+        s.checkIntervalSec = Int(configFields["check"]?.stringValue ?? "") ?? s.checkIntervalSec
+        s.idleCheckSec = Int(configFields["idlecheck"]?.stringValue ?? "") ?? s.idleCheckSec
+        s.cooldownSec = Int(configFields["cooldown"]?.stringValue ?? "") ?? s.cooldownSec
+        s.killGraceSec = Int(configFields["grace"]?.stringValue ?? "") ?? s.killGraceSec
+        s.collectDiskIO = (configDiskIOCheckbox?.state == .on)
+        configTextView?.string = s.renderYAML()
     }
 
     @objc private func reloadConfigEditor(_ sender: Any?) {
@@ -1291,7 +1491,20 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             text += LF("picker.status.selected", selected, ramTotal)
         }
         statusLabel.stringValue = text
+        helperLabel.stringValue = buildInsightLine()
         updateInspector()
+    }
+
+    private func buildInsightLine() -> String {
+        let topRAM = viewModel.allProcesses.max(by: { $0.ramMB < $1.ramMB })
+        let topCPU = viewModel.allProcesses.max(by: { $0.cpuPct < $1.cpuPct })
+        let chromeTabs = viewModel.allProcesses.filter { $0.name == "Chrome Tab" }.count
+        let idleCount = viewModel.allProcesses.filter { $0.idle }.count
+        let ramName = topRAM?.name ?? "-"
+        let ramMB = topRAM?.ramMB ?? 0
+        let cpuName = topCPU?.name ?? "-"
+        let cpuPct = topCPU?.cpuPct ?? 0
+        return LF("picker.insight.line", ramName, ramMB, cpuName, cpuPct, chromeTabs, idleCount)
     }
 }
 
