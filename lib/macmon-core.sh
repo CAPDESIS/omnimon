@@ -373,7 +373,7 @@ collect_processes_json() {
 
     # Optional Chrome tab metadata (title/url), best-effort and cached per snapshot
     local -a chrome_ids=() chrome_titles=() chrome_urls=()
-    if printf '%s\n' "${args_arr[@]}" | grep -q -- '--renderer-client-id='; then
+    if [[ "${MACMON_DISABLE_CHROME_TABS:-0}" != "1" ]] && printf '%s\n' "${args_arr[@]}" | grep -q -- '--renderer-client-id='; then
         local chrome_json
         chrome_json=$("${MACMON_HOME}/scripts/chrome-tabs.sh" --json 2>/dev/null || echo '[]')
         while IFS=$'\t' read -r cid ctitle curl; do
@@ -390,7 +390,7 @@ collect_processes_json() {
     local -a cwd_pids=() cwd_values=()
     local lsof_limit
     lsof_limit=$(macmon_cfg "COLLECT_BATCH_LSOF_LIMIT" "50")
-    if (( count <= lsof_limit )); then
+    if [[ "${MACMON_DISABLE_LSOF:-0}" != "1" ]] && (( count <= lsof_limit )); then
         while IFS= read -r line; do
             local lpid lcwd
             lpid=$(echo "$line" | awk -F'\t' '{print $1}')
@@ -545,7 +545,7 @@ collect_processes_json() {
     local disk_io_enabled
     disk_io_enabled=$(macmon_cfg "COLLECT_DISK_IO" "true")
     local disk_io_helper="${MACMON_HOME}/DiskIOHelper"
-    if [[ "$disk_io_enabled" == "true" && -x "$disk_io_helper" ]]; then
+    if [[ "${MACMON_DISABLE_DISK_IO:-0}" != "1" && "$disk_io_enabled" == "true" && -x "$disk_io_helper" ]]; then
         local disk_io_json
         disk_io_json=$(printf '%s\n' "${pids[@]}" | "$disk_io_helper" --stdin 2>/dev/null || echo "[]")
         # Merge disk I/O data into process array

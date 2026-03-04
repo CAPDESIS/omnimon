@@ -20,6 +20,7 @@ A lightweight macOS system monitor that watches RAM pressure, swap usage, custom
 
 - **Background daemon** — monitors memory pressure, swap, and process accumulation with configurable thresholds, cooldowns, and native macOS notifications
 - **Native process picker** — AppKit-based UI with search, grouping, sorting, memory pressure gauge, disk I/O columns, and batch process closing
+- **Live picker refresh** — process table auto-refreshes every 5 seconds while open (keeps selections by PID)
 - **Menu bar monitor** — NSStatusItem showing live RAM/swap usage with quick access to the picker
 - **CLI** — `macmon status`, `macmon start/stop/restart`, `macmon config`, `macmon log`, `macmon export`
 - **Guided config editor** — quick settings form in GUI for non-technical users + YAML preview
@@ -85,6 +86,14 @@ The installer will:
 3. Create a default config at `~/.config/macmon/macmon.yaml`
 4. Install a LaunchAgent (auto-starts on login)
 5. Create a `macmon` symlink in `~/.local/bin/`
+
+### One-line installer (latest release)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chochy2001/macmon/main/install-web.sh | bash
+```
+
+This always installs the latest published GitHub release and verifies checksums before installation.
 
 Make sure `~/.local/bin` is in your PATH:
 ```bash
@@ -159,6 +168,14 @@ After installation, the menu bar icon shows live RAM usage. Click it to see:
 - Current RAM and swap usage (color-coded)
 - Total process count
 - Quick actions: Open Picker, Export, Quit
+
+## Data Freshness and Accuracy
+
+- **Process Picker:** refreshes every 5 seconds while the window is open.
+- **Menu Bar:** refreshes every 30 seconds.
+- **Daemon checks:** run every `intervals.check` seconds (default `60`).
+
+If values differ from Activity Monitor, that is expected in short windows: CPU and memory can differ by sampling instant, aggregation window, and process categorization. For fast-changing workloads, compare after a few refresh cycles instead of a single instant.
 
 ## Configuration
 
@@ -270,7 +287,11 @@ No. macmon maintains a protected process list (launchd, WindowServer, kernel_tas
 Approximately 0.03%. The daemon wakes every 60 seconds, runs 3-5 lightweight checks (~10-30ms), then goes back to sleep. It runs at Nice priority 10 with `LowPriorityBackgroundIO`.
 
 **Q: What happens when I close Chrome tabs through macmon?**
-macmon uses AppleScript to close Chrome tabs gracefully instead of killing renderer processes. This preserves your session data and doesn't crash the browser.
+macmon uses AppleScript to close Chrome tabs gracefully (URL-first matching, with safe fallbacks) instead of killing renderer processes directly. This preserves your session data and avoids browser instability.
+
+**Q: Where do I find logs for troubleshooting?**
+- Daemon: `~/.local/log/macmon/macmond.log`
+- Picker UI actions: `~/.local/log/macmon/process-picker.log`
 
 **Q: How do I change the monitoring frequency?**
 Edit `~/.config/macmon/macmon.yaml` and set `intervals.check` to your preferred value in seconds. Then either restart the daemon (`macmon restart`) or send SIGUSR1 to reload: `kill -USR1 $(cat $TMPDIR/macmond.pid)`.

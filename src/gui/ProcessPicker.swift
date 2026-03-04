@@ -295,6 +295,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     private var smartOptimizeButton: NSButton?
     private var aiSpinner: NSProgressIndicator?
     private var isAnalyzingAI = false
+    private var liveRefreshTimer: Timer?
+    private var isRefreshingLiveData = false
 
     var exitCode: Int32 = 2  // default: cancelled
 
@@ -842,6 +844,83 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             DispatchQueue.main.async {
                 self.applyLoadedData(decoded)
                 completion(true)
+            }
+        }
+    }
+
+    func startLiveRefresh() {
+        stopLiveRefresh()
+        liveRefreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+            self?.refreshLiveData()
+        }
+        if let timer = liveRefreshTimer {
+            RunLoop.current.add(timer, forMode: .common)
+        }
+        pickerLog("Started live refresh timer (5s)")
+    }
+
+    func stopLiveRefresh() {
+        liveRefreshTimer?.invalidate()
+        liveRefreshTimer = nil
+    }
+
+    private func refreshLiveData() {
+        guard !isRefreshingLiveData else { return }
+        guard !viewModel.allProcesses.isEmpty else { return }
+        isRefreshingLiveData = true
+        let pidList = viewModel.allProcesses.map { String($0.pid) }.joined(separator: ",")
+        if pidList.isEmpty {
+            isRefreshingLiveData = false
+            return
+        }
+
+        dataQueue.async { [weak self] in
+            guard let self = self else { return }
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/bin/ps")
+            task.arguments = ["-p", pidList, "-o", "pid=,rss=,pcpu=,state="]
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = FileHandle.nullDevice
+
+            do {
+                try task.run()
+            } catch {
+                DispatchQueue.main.async {
+                    pickerLog("Live refresh ps failed: \(error.localizedDescription)")
+                    self.isRefreshingLiveData = false
+                }
+                return
+            }
+            let raw = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            task.waitUntilExit()
+
+            var metrics: [Int: (ramMB: Double, cpuPct: Double, state: String)] = [:]
+            for line in raw.split(separator: "\n") {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else { continue }
+                let parts = trimmed.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
+                guard parts.count >= 4,
+                      let pid = Int(parts[0]),
+                      let rssKB = Double(parts[1]),
+                      let cpu = Double(parts[2]) else { continue }
+                let state = parts[3]
+                metrics[pid] = (ramMB: rssKB / 1024.0, cpuPct: cpu, state: state)
+            }
+
+            DispatchQueue.main.async {
+                for i in 0..<self.viewModel.allProcesses.count {
+                    let pid = self.viewModel.allProcesses[i].pid
+                    guard let m = metrics[pid] else { continue }
+                    self.viewModel.allProcesses[i].ramMB = m.ramMB
+                    self.viewModel.allProcesses[i].cpuPct = m.cpuPct
+                    self.viewModel.allProcesses[i].state = m.state
+                    self.viewModel.allProcesses[i].idle = (m.cpuPct < 1.0)
+                }
+                self.viewModel.applyFilterAndSort()
+                self.tableView.reloadData()
+                self.updateStatus()
+                self.isRefreshingLiveData = false
             }
         }
     }
@@ -2080,6 +2159,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.controller.tableView.reloadData()
             self.controller.window.makeKeyAndOrderFront(nil)
             self.controller.window.makeFirstResponder(self.controller.searchField)
+            self.controller.startLiveRefresh()
         }
 
         // Set up keyboard shortcuts
@@ -2117,6 +2197,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        controller.stopLiveRefresh()
         if let monitor = keyboardMonitor {
             NSEvent.removeMonitor(monitor)
             keyboardMonitor = nil

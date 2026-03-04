@@ -3,22 +3,22 @@ import Foundation
 // MARK: - Data Model
 
 struct ProcessEntry: Codable {
-    let pid: Int
-    let name: String
-    let execName: String
-    let ramMB: Double
-    let cpuPct: Double
-    let uptime: String
-    let uptimeSeconds: Int
-    let cwd: String
-    let tty: String
-    let idle: Bool
-    let detail: String
-    let group: String
-    let isSystem: Bool
-    let state: String
-    let diskReadMB: Double
-    let diskWriteMB: Double
+    var pid: Int
+    var name: String
+    var execName: String
+    var ramMB: Double
+    var cpuPct: Double
+    var uptime: String
+    var uptimeSeconds: Int
+    var cwd: String
+    var tty: String
+    var idle: Bool
+    var detail: String
+    var group: String
+    var isSystem: Bool
+    var state: String
+    var diskReadMB: Double
+    var diskWriteMB: Double
 
     var selected: Bool = false
 

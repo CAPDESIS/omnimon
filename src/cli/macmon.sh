@@ -347,6 +347,45 @@ cmd_export() {
     esac
 }
 
+cmd_snapshot() {
+    local format="${1:-json}"
+    local fast="${2:-}"
+    local had_no_chrome had_no_lsof had_no_disk prev_no_chrome prev_no_lsof prev_no_disk
+    if [[ "$format" == "--fast" ]]; then
+        format="json"
+        fast="--fast"
+    fi
+    local json
+    if [[ "$fast" == "--fast" ]]; then
+        if [[ -n "${MACMON_DISABLE_CHROME_TABS+x}" ]]; then prev_no_chrome="$MACMON_DISABLE_CHROME_TABS"; had_no_chrome=1; else had_no_chrome=0; fi
+        if [[ -n "${MACMON_DISABLE_LSOF+x}" ]]; then prev_no_lsof="$MACMON_DISABLE_LSOF"; had_no_lsof=1; else had_no_lsof=0; fi
+        if [[ -n "${MACMON_DISABLE_DISK_IO+x}" ]]; then prev_no_disk="$MACMON_DISABLE_DISK_IO"; had_no_disk=1; else had_no_disk=0; fi
+        export MACMON_DISABLE_CHROME_TABS=1
+        export MACMON_DISABLE_LSOF=1
+        export MACMON_DISABLE_DISK_IO=1
+    fi
+
+    json=$(collect_processes_json \
+        "$(macmon_cfg "THRESHOLDS_PROCESS_RAM_MIN_KB" "102400")" \
+        "$(macmon_cfg "THRESHOLDS_IDLE_CPU_PERCENT" "1.0")")
+
+    if [[ "$fast" == "--fast" ]]; then
+        if [[ "$had_no_chrome" == "1" ]]; then export MACMON_DISABLE_CHROME_TABS="$prev_no_chrome"; else unset MACMON_DISABLE_CHROME_TABS; fi
+        if [[ "$had_no_lsof" == "1" ]]; then export MACMON_DISABLE_LSOF="$prev_no_lsof"; else unset MACMON_DISABLE_LSOF; fi
+        if [[ "$had_no_disk" == "1" ]]; then export MACMON_DISABLE_DISK_IO="$prev_no_disk"; else unset MACMON_DISABLE_DISK_IO; fi
+    fi
+
+    case "$format" in
+        json|--json)
+            printf '%s\n' "$json"
+            ;;
+        *)
+            echo "Unsupported snapshot format: $format" >&2
+            return 1
+            ;;
+    esac
+}
+
 cmd_update() {
     local api_url="https://api.github.com/repos/chochy2001/macmon/releases/latest"
 
@@ -670,6 +709,7 @@ Commands:
   export [json]   Export current snapshot as JSON
   export csv      Export current snapshot as CSV
   export --peaks  Show daily peak consumption data
+  snapshot        Print raw snapshot JSON (internal/tooling)
   profile         Show active profile
   profile list    List available profiles
   profile use X   Switch active profile
@@ -704,6 +744,7 @@ case "${1:-}" in
     restart)        cmd_restart ;;
     config)         shift; cmd_config "$@" ;;
     export)         shift; cmd_export "$@" ;;
+    snapshot)       shift; cmd_snapshot "$@" ;;
     profile)        shift; cmd_profile "$@" ;;
     log)            shift; cmd_log "$@" ;;
     optimize)       cmd_optimize ;;
