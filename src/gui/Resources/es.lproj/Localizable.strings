@@ -86,6 +86,7 @@
 "picker.ai.review_hint" = "Revisa los procesos seleccionados. Pulsa Aplicar Optimización para cerrar ahora, o Revisar primero para ajustar manualmente.";
 "picker.ai.apply" = "Aplicar Optimización";
 "picker.ai.review" = "Revisar primero";
+"picker.ai.analyzing" = "Analizando...";
 "picker.smart_optimize.help_inline" = "Smart Optimize sugiere PID seguros segun perfil + telemetria. Siempre revisas antes de cerrar.";
 "picker.idle.yes" = "Idle";
 "picker.idle.no" = "-";

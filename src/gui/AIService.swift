@@ -119,7 +119,7 @@ final class AIService {
             request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
             request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         case .gemini:
-            break
+            request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         }
         request.timeoutInterval = 30
 
@@ -130,13 +130,40 @@ final class AIService {
             return
         }
 
-        URLSession.shared.dataTask(with: request) { data, _, error in
+        URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
                 completion(.failure(error))
                 return
             }
             guard let data = data else {
                 completion(.failure(NSError(domain: "AIService", code: 500, userInfo: [NSLocalizedDescriptionKey: "Empty AI response"])))
+                return
+            }
+            // Inspect HTTP status code and surface provider error messages
+            if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
+                let statusCode = httpResponse.statusCode
+                var message = "HTTP \(statusCode)"
+                // Try to extract error message from provider JSON body
+                if let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                    if let err = json["error"] as? [String: Any], let msg = err["message"] as? String {
+                        message = msg  // OpenAI / OpenRouter / Gemini format
+                    } else if let err = json["error"] as? [String: Any], let msg = err["type"] as? String {
+                        message = msg
+                    } else if let msg = json["message"] as? String {
+                        message = msg  // Generic format
+                    }
+                }
+                switch statusCode {
+                case 401:
+                    message = "Invalid API Key: \(message)"
+                case 429:
+                    message = "Rate Limit Exceeded: \(message)"
+                case 500...599:
+                    message = "Server Error (\(statusCode)): \(message)"
+                default:
+                    message = "API Error (\(statusCode)): \(message)"
+                }
+                completion(.failure(NSError(domain: "AIService", code: statusCode, userInfo: [NSLocalizedDescriptionKey: message])))
                 return
             }
             do {
@@ -158,8 +185,7 @@ final class AIService {
             return URL(string: "https://openrouter.ai/api/v1/chat/completions")!
         case .gemini:
             let encodedModel = model.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? model
-            let encodedKey = apiKey.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? apiKey
-            return URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(encodedModel):generateContent?key=\(encodedKey)")!
+            return URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(encodedModel):generateContent")!
         }
     }
 

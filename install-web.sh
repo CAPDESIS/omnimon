@@ -55,12 +55,24 @@ if [[ -z "$asset_url" ]]; then
     error "Could not find ${archive_name} in release assets. Is the release properly built?"
 fi
 
-TMPDIR_INSTALL="${TMPDIR:-/tmp}/macmon-install-$$"
-mkdir -p "$TMPDIR_INSTALL"
+TMPDIR_INSTALL=$(mktemp -d "${TMPDIR:-/tmp}/macmon-install.XXXXXXXXXX")
 trap 'rm -rf "$TMPDIR_INSTALL"' EXIT
 
 info "Downloading ${archive_name}..."
 curl -fSL -o "${TMPDIR_INSTALL}/${archive_name}" "$asset_url" || error "Failed to download release archive"
+
+# --- Checksum verification ---
+checksum_name="checksums-sha256.txt"
+checksum_url=$(printf '%s' "$release_json" | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*'"${checksum_name}"'"' | head -1 | sed 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"//;s/"//')
+if [[ -z "$checksum_url" ]]; then
+    error "Could not find ${checksum_name} in release assets. Cannot verify integrity."
+fi
+
+info "Verifying checksum..."
+curl -fsSL -o "${TMPDIR_INSTALL}/${checksum_name}" "$checksum_url" || error "Failed to download checksum file"
+
+# Verify archive integrity (filter to the specific file we downloaded)
+(cd "$TMPDIR_INSTALL" && grep "$archive_name" "$checksum_name" | shasum -a 256 -c -) || error "Checksum verification failed. Archive may be corrupted or tampered with."
 
 # --- Extract and install ---
 info "Extracting..."

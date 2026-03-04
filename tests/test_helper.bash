@@ -12,6 +12,7 @@ _macmon_test_setup() {
     source "${MACMON_HOME}/lib/macmon-config.sh"
 
     # Force-release any stale config lock (from daemon or previous test)
+    rm -f "${_MACMON_CFG_LOCK_DIR}/pid" 2>/dev/null || true
     rmdir "${_MACMON_CFG_LOCK_DIR}" 2>/dev/null || true
     _MACMON_CFG_LOCK_DEPTH=0
 
@@ -24,12 +25,14 @@ _macmon_test_setup() {
 
     # Restore test-safe state after core.sh re-enables strict mode
     set +euo pipefail
+    rm -f "${_MACMON_CFG_LOCK_DIR}/pid" 2>/dev/null || true
     rmdir "${_MACMON_CFG_LOCK_DIR}" 2>/dev/null || true
     _MACMON_CFG_LOCK_DEPTH=0
 }
 
 _macmon_test_teardown() {
     local lock_dir="${_MACMON_CFG_LOCK_DIR:-$HOME/.config/macmon/.macmon-config.lock}"
+    rm -f "${lock_dir}/pid" 2>/dev/null || true
     rmdir "$lock_dir" 2>/dev/null || true
     _MACMON_CFG_LOCK_DEPTH=0
 }

@@ -203,6 +203,9 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     var configFields: [String: NSTextField] = [:]
     var configDiskIOCheckbox: NSButton?
     private let aiBlockedNames = AIService.immutableProtectedProcessNames
+    private var smartOptimizeButton: NSButton?
+    private var aiSpinner: NSProgressIndicator?
+    private var isAnalyzingAI = false
 
     var exitCode: Int32 = 2  // default: cancelled
 
@@ -360,6 +363,14 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         let btnSelectTopCPU = NSButton(title: L("picker.button.select_top_cpu"), target: self, action: #selector(selectTopCPU))
         let btnToggleGroups = NSButton(title: L("picker.button.groups"), target: self, action: #selector(toggleGrouping))
         let btnSmartOptimize = NSButton(title: L("picker.button.smart_optimize"), target: self, action: #selector(smartOptimize))
+        smartOptimizeButton = btnSmartOptimize
+        let spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.isDisplayedWhenStopped = false
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(spinner)
+        aiSpinner = spinner
         let btnCancel = NSButton(title: L("picker.button.cancel"), target: self, action: #selector(cancelAction))
         let btnClose = NSButton(title: L("picker.button.close_selected"), target: self, action: #selector(closeSelected))
         commandPopup = NSPopUpButton(frame: .zero, pullsDown: true)
@@ -488,6 +499,9 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
 
             btnSmartOptimize.leadingAnchor.constraint(equalTo: btnToggleGroups.trailingAnchor, constant: 4),
             btnSmartOptimize.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+
+            spinner.leadingAnchor.constraint(equalTo: btnSmartOptimize.trailingAnchor, constant: 4),
+            spinner.centerYAnchor.constraint(equalTo: btnSmartOptimize.centerYAnchor),
 
             commandPopup.trailingAnchor.constraint(equalTo: btnCancel.leadingAnchor, constant: -6),
             commandPopup.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
@@ -1418,6 +1432,12 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     }
 
     @objc func smartOptimize(_ sender: Any?) {
+        guard !isAnalyzingAI else { return }
+        isAnalyzingAI = true
+        smartOptimizeButton?.isEnabled = false
+        smartOptimizeButton?.title = L("picker.ai.analyzing")
+        aiSpinner?.startAnimation(nil)
+
         let providerRaw = UserDefaults.standard.string(forKey: "macmon.ai.provider") ?? AIProvider.openai.rawValue
         let model = UserDefaults.standard.string(forKey: "macmon.ai.model") ?? "gpt-4o-mini"
         let provider = AIProvider(rawValue: providerRaw) ?? .openai
@@ -1435,6 +1455,10 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         AIService.shared.analyzeTopProcesses(provider: provider, model: model, profile: currentProfile, processSummary: summary) { [weak self] result in
             guard let self = self else { return }
             DispatchQueue.main.async {
+                self.isAnalyzingAI = false
+                self.smartOptimizeButton?.isEnabled = true
+                self.smartOptimizeButton?.title = L("picker.button.smart_optimize")
+                self.aiSpinner?.stopAnimation(nil)
                 switch result {
                 case .failure(let error):
                     self.presentAIError(error.localizedDescription)

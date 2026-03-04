@@ -86,6 +86,7 @@
 "picker.ai.review_hint" = "Review selected rows. Press Apply Optimization to close now, or Review First to adjust checkboxes manually.";
 "picker.ai.apply" = "Apply Optimization";
 "picker.ai.review" = "Review First";
+"picker.ai.analyzing" = "Analyzing...";
 "picker.smart_optimize.help_inline" = "Smart Optimize suggests safe PID candidates based on profile + telemetry. You always review before closing.";
 "picker.idle.yes" = "Idle";
 "picker.idle.no" = "-";

@@ -60,12 +60,25 @@ _macmon_cfg_lock_acquire() {
     mkdir -p "${HOME}/.config/macmon"
     local waited=0
     while ! mkdir "$_MACMON_CFG_LOCK_DIR" 2>/dev/null; do
+        # Stale lock detection: check if the owning PID is still alive
+        local owner_pid=""
+        if [[ -f "${_MACMON_CFG_LOCK_DIR}/pid" ]]; then
+            owner_pid=$(cat "${_MACMON_CFG_LOCK_DIR}/pid" 2>/dev/null || true)
+        fi
+        if [[ -n "$owner_pid" ]] && ! kill -0 "$owner_pid" 2>/dev/null; then
+            # Owner process is dead — break stale lock
+            rm -f "${_MACMON_CFG_LOCK_DIR}/pid" 2>/dev/null || true
+            rmdir "$_MACMON_CFG_LOCK_DIR" 2>/dev/null || true
+            continue
+        fi
         (( waited++ )) || true
         if (( waited > 100 )); then
             return 1
         fi
         sleep 0.05
     done
+    # Record our PID inside the lock directory
+    printf '%s' "$$" > "${_MACMON_CFG_LOCK_DIR}/pid" 2>/dev/null || true
     _MACMON_CFG_LOCK_DEPTH=1
     return 0
 }
@@ -76,6 +89,7 @@ _macmon_cfg_lock_release() {
     fi
     (( _MACMON_CFG_LOCK_DEPTH-- )) || true
     if (( _MACMON_CFG_LOCK_DEPTH == 0 )); then
+        rm -f "${_MACMON_CFG_LOCK_DIR}/pid" 2>/dev/null || true
         rmdir "$_MACMON_CFG_LOCK_DIR" 2>/dev/null || true
     fi
 }

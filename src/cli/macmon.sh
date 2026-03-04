@@ -384,13 +384,31 @@ cmd_update() {
         return 1
     fi
 
-    local tmpdir="${TMPDIR:-/tmp}/macmon-update-$$"
-    mkdir -p "$tmpdir"
+    local tmpdir
+    tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/macmon-update.XXXXXXXXXX")
     trap 'rm -rf "$tmpdir"' RETURN
 
     echo "$MSG_UPDATE_DOWNLOADING"
     curl -fSL -o "${tmpdir}/${archive_name}" "$asset_url" || {
         echo "$MSG_UPDATE_FAILED: download error"
+        return 1
+    }
+
+    # Checksum verification
+    local checksum_url
+    checksum_url=$(printf '%s' "$release_json" | jq -r '
+        [.assets[]? | select(.name == "checksums-sha256.txt") | .browser_download_url][0] // empty
+    ')
+    if [[ -z "$checksum_url" ]]; then
+        echo "$MSG_UPDATE_FAILED: checksums-sha256.txt not found in release assets"
+        return 1
+    fi
+    curl -fsSL -o "${tmpdir}/checksums-sha256.txt" "$checksum_url" || {
+        echo "$MSG_UPDATE_FAILED: could not download checksum file"
+        return 1
+    }
+    (cd "$tmpdir" && grep "$archive_name" checksums-sha256.txt | shasum -a 256 -c -) || {
+        echo "$MSG_UPDATE_FAILED: checksum verification failed — archive may be corrupted"
         return 1
     }
 
