@@ -29,8 +29,14 @@ _macmon_test_setup() {
 }
 
 _macmon_test_teardown() {
-    rmdir "${_MACMON_CFG_LOCK_DIR}" 2>/dev/null || true
+    local lock_dir="${_MACMON_CFG_LOCK_DIR:-$HOME/.config/macmon/.macmon-config.lock}"
+    rmdir "$lock_dir" 2>/dev/null || true
     _MACMON_CFG_LOCK_DEPTH=0
+}
+
+# Default teardown for test files that don't define one explicitly.
+teardown() {
+    _macmon_test_teardown
 }
 
 # Mock system commands by prepending a mock directory to PATH
