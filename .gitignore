@@ -2,6 +2,8 @@
 ProcessPicker
 DiskIOHelper
 MacmonStatusBar
+build/
+dist/
 *-arm64
 *-x86_64
 *.o
