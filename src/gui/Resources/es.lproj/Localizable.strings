@@ -107,8 +107,9 @@
 "picker.commands.status" = "Mostrar estado";
 "picker.commands.log_tail" = "Ver logs";
 "picker.commands.version" = "Ver version";
-"picker.commands.help" = "Ver ayuda";
+"picker.commands.show_help" = "Ver ayuda";
 "picker.commands.update" = "Buscar updates";
+"picker.commands.chrome_tabs" = "Ver tabs de Chrome";
 "picker.commands.result.title" = "Salida del comando";
 "picker.filter.hide_system" = "Ocultar sistema";
 "picker.filter.hide_system.help" = "Oculta procesos protegidos del sistema Apple en esta lista.";
@@ -129,6 +130,8 @@
 "menu.edit.search" = "Buscar";
 "menu.view" = "Ver";
 "menu.actions" = "Acciones";
+"about.title" = "Acerca de macmon";
+"about.body" = "macmon v%@\n\nOptimizador hibrido para macOS (daemon Bash + UI nativa AppKit).\n\nModelo de seguridad IA:\n- API keys guardadas en Keychain de macOS\n- Confirmaciones Human-in-the-Loop\n- Blocklist inmutable + proteccion de binarios Apple firmados\n\nUsa Acciones -> Ajustes de IA para configurar proveedores.";
 
 "prefs.window.title" = "Preferencias de macmon";
 "prefs.provider" = "Proveedor IA";
@@ -156,4 +159,7 @@
 "prefs.status.saved" = "Guardado en Keychain";
 "prefs.status.invalid" = "Proveedor, modelo y key son obligatorios";
 "prefs.status.keychain_error" = "No se pudo guardar en Keychain";
+"chrome.tabs.title" = "Tabs abiertas de Chrome";
+"chrome.tabs.empty" = "No se encontraron tabs abiertas de Chrome.";
+"chrome.tabs.unavailable" = "Metadata de tabs de Chrome no disponible (Chrome cerrado o falta permiso de AppleScript).";
 "group.other" = "Otros";

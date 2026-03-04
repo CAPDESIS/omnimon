@@ -370,6 +370,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         addCommandMenuItem(L("picker.commands.open_config"), command: "open_config")
         addCommandMenuItem(L("picker.commands.edit_config_gui"), command: "edit_config_gui")
         addCommandMenuItem(L("picker.commands.ai_settings"), command: "preferences")
+        addCommandMenuItem(L("picker.commands.chrome_tabs"), command: "chrome_tabs")
         addCommandMenuItem(L("picker.commands.reset_config"), command: "reset_config")
         addCommandMenuItem(L("picker.commands.daemon_start"), command: "start")
         addCommandMenuItem(L("picker.commands.daemon_stop"), command: "stop")
@@ -379,7 +380,7 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         addCommandMenuItem(L("picker.commands.export_csv"), command: "export_csv")
         addCommandMenuItem(L("picker.commands.status"), command: "status")
         addCommandMenuItem(L("picker.commands.version"), command: "version")
-        addCommandMenuItem(L("picker.commands.help"), command: "help")
+        addCommandMenuItem(L("picker.commands.show_help"), command: "help")
         addCommandMenuItem(L("picker.commands.update"), command: "update")
         commandPopup.setAccessibilityLabel(L("picker.commands.title"))
         commandPopup.toolTip = L("picker.commands.help")
@@ -990,6 +991,8 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
             openConfigEditorWindow()
         case "preferences":
             openPreferencesWindow()
+        case "chrome_tabs":
+            showChromeTabsOverview()
         case "reset_config":
             let out = runCLI(args: ["config", "reset"])
             showCommandResult(out)
@@ -1022,6 +1025,15 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
     @objc func menuOpenConfig(_ sender: Any?) { performCommand("open_config") }
     @objc func menuOpenConfigEditor(_ sender: Any?) { performCommand("edit_config_gui") }
     @objc func menuOpenPreferences(_ sender: Any?) { performCommand("preferences") }
+    @objc func menuShowChromeTabs(_ sender: Any?) { performCommand("chrome_tabs") }
+    @objc func menuShowAbout(_ sender: Any?) {
+        let alert = NSAlert()
+        alert.messageText = L("about.title")
+        let version = runCLI(args: ["version"]).replacingOccurrences(of: "macmon v", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        alert.informativeText = LF("about.body", version)
+        alert.addButton(withTitle: L("statusbar.alert.ok"))
+        alert.runModal()
+    }
     @objc func menuResetConfig(_ sender: Any?) { performCommand("reset_config") }
     @objc func menuRestartDaemon(_ sender: Any?) { performCommand("restart") }
     @objc func menuExportJSON(_ sender: Any?) { performCommand("export_json") }
@@ -1052,6 +1064,50 @@ class ProcessPickerController: NSObject, NSTableViewDataSource, NSTableViewDeleg
         preferencesWindowController?.showWindow(nil)
         preferencesWindowController?.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func showChromeTabsOverview() {
+        guard let home = ProcessInfo.processInfo.environment["MACMON_HOME"] else {
+            showCommandResult(L("chrome.tabs.unavailable"))
+            return
+        }
+        let script = home + "/scripts/chrome-tabs.sh"
+        guard FileManager.default.isExecutableFile(atPath: script) else {
+            showCommandResult(L("chrome.tabs.unavailable"))
+            return
+        }
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: script)
+        task.arguments = ["--json"]
+        task.standardError = FileHandle.nullDevice
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        do {
+            try task.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            task.waitUntilExit()
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                showCommandResult(L("chrome.tabs.unavailable"))
+                return
+            }
+            let lines = json.prefix(25).map { item -> String in
+                let title = (item["title"] as? String) ?? "-"
+                let url = (item["url"] as? String) ?? "-"
+                return "• \(title)\n  \(url)"
+            }
+            let body = lines.joined(separator: "\n")
+            if body.isEmpty {
+                showCommandResult(L("chrome.tabs.empty"))
+            } else {
+                let alert = NSAlert()
+                alert.messageText = L("chrome.tabs.title")
+                alert.informativeText = body
+                alert.addButton(withTitle: L("statusbar.alert.ok"))
+                alert.runModal()
+            }
+        } catch {
+            showCommandResult(L("chrome.tabs.unavailable"))
+        }
     }
 
     private func openConfigEditorWindow() {
@@ -1522,7 +1578,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         mainMenu.addItem(appItem)
         let appMenu = NSMenu()
         appItem.submenu = appMenu
-        appMenu.addItem(withTitle: L("menu.app.about"), action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        let about = NSMenuItem(title: L("menu.app.about"), action: #selector(ProcessPickerController.menuShowAbout(_:)), keyEquivalent: "")
+        about.target = controller
+        appMenu.addItem(about)
         let prefs = NSMenuItem(title: L("menu.app.preferences"), action: #selector(ProcessPickerController.menuOpenPreferences(_:)), keyEquivalent: ",")
         prefs.target = controller
         appMenu.addItem(prefs)
@@ -1585,6 +1643,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let smart = NSMenuItem(title: L("picker.button.smart_optimize"), action: #selector(ProcessPickerController.smartOptimize(_:)), keyEquivalent: "o")
         smart.target = controller
         actionsMenu.addItem(smart)
+        let tabs = NSMenuItem(title: L("picker.commands.chrome_tabs"), action: #selector(ProcessPickerController.menuShowChromeTabs(_:)), keyEquivalent: "t")
+        tabs.target = controller
+        actionsMenu.addItem(tabs)
         let restart = NSMenuItem(title: L("picker.commands.daemon_restart"), action: #selector(ProcessPickerController.menuRestartDaemon(_:)), keyEquivalent: "r")
         restart.keyEquivalentModifierMask = [.command, .shift]
         restart.target = controller

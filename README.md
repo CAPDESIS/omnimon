@@ -22,12 +22,15 @@ A lightweight macOS system monitor that watches RAM pressure, swap usage, custom
 - **Native process picker** — AppKit-based UI with search, grouping, sorting, memory pressure gauge, disk I/O columns, and batch process closing
 - **Menu bar monitor** — NSStatusItem showing live RAM/swap usage with quick access to the picker
 - **CLI** — `macmon status`, `macmon start/stop/restart`, `macmon config`, `macmon log`, `macmon export`
+- **Guided config editor** — quick settings form in GUI for non-technical users + YAML preview
+- **AI settings in GUI** — provider/model/API key configuration from `Preferences...` (Keychain-backed)
 - **Orphan daemon detection** — SourceKitService (when Xcode closes), Gradle daemons, hanging xcodebuild, zombie Android emulators
 - **Disk I/O metrics** — per-process disk read/write via `proc_pid_rusage` (no root required)
 - **Metrics export** — `macmon export json/csv` for profiling and `--peaks` for daily peak tracking
 - **Security-first** — AppleScript injection sanitization, jq-based JSON construction, PID reuse verification, system process protection, code signature verification
 - **Performance-optimized** — batched `ps` calls (3 instead of ~300), cached `memory_pressure`, NSTableView cell recycling
 - **Chrome-aware** — closes Chrome tabs via AppleScript instead of killing renderer processes
+- **Chrome tab context** — best-effort title/domain/URL enrichment plus "Show Chrome Tabs" action
 - **Tested** — BATS test suite + Swift XCTests + GitHub Actions CI
 
 ### macmon vs Activity Monitor
@@ -203,6 +206,8 @@ macmon consists of four components:
 4. **Menu Bar** (`MacmonStatusBar.swift`) — persistent NSStatusItem that shows live RAM usage and provides quick access to the picker and exports.
 
 The shared library (`macmon-core.sh`) centralizes all security-critical functions and eliminates code duplication between daemon and CLI.
+
+Security details and ATT&CK mapping: [docs/SECURITY.md](docs/SECURITY.md)
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design.
 
