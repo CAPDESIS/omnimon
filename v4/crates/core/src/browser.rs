@@ -185,12 +185,108 @@ impl TabProvider for NativeTabProvider {
 pub struct NativeTabProvider;
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
-impl TabProvider for NativeTabProvider {
-    fn list_tabs(&self, _browser: BrowserKind) -> Result<Vec<BrowserTab>, String> {
-        Ok(Vec::new())
+#[derive(Debug, Deserialize)]
+struct CdpTabTarget {
+    id: String,
+    title: Option<String>,
+    url: Option<String>,
+    #[serde(rename = "type")]
+    target_type: Option<String>,
+}
+
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+impl NativeTabProvider {
+    const CDP_BASE: &'static str = "http://localhost:9222";
+
+    fn cdp_list_tabs(&self) -> Result<Vec<BrowserTab>, String> {
+        let runtime = match tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(rt) => rt,
+            Err(e) => return Err(format!("failed to build tokio runtime: {e}")),
+        };
+
+        let targets_result = runtime.block_on(async {
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(2))
+                .build()?;
+
+            let response = client
+                .get(format!("{}/json/list", Self::CDP_BASE))
+                .send()
+                .await?;
+
+            if !response.status().is_success() {
+                return Ok::<Vec<CdpTabTarget>, reqwest::Error>(Vec::new());
+            }
+
+            let parsed = response.json::<Vec<CdpTabTarget>>().await?;
+            Ok::<Vec<CdpTabTarget>, reqwest::Error>(parsed)
+        });
+
+        let targets = match targets_result {
+            Ok(v) => v,
+            Err(_) => return Ok(Vec::new()),
+        };
+
+        let tabs = targets
+            .into_iter()
+            .filter(|t| t.target_type.as_deref() == Some("page"))
+            .map(|t| BrowserTab {
+                id: t.id,
+                title: t.title.unwrap_or_default(),
+                url: t.url.unwrap_or_default(),
+                browser: BrowserKind::Chrome,
+            })
+            .collect();
+
+        Ok(tabs)
     }
 
-    fn close_tab(&self, _browser: BrowserKind, _tab: &BrowserTab) -> Result<bool, String> {
-        Ok(false)
+    fn cdp_close_tab(&self, tab_id: &str) -> Result<bool, String> {
+        if tab_id.trim().is_empty() {
+            return Ok(false);
+        }
+
+        let runtime = match tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(rt) => rt,
+            Err(e) => return Err(format!("failed to build tokio runtime: {e}")),
+        };
+
+        let close_result = runtime.block_on(async {
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(2))
+                .build()?;
+
+            let endpoint = format!("{}/json/close/{}", Self::CDP_BASE, tab_id);
+            let response = client.get(endpoint).send().await?;
+            Ok::<bool, reqwest::Error>(response.status().is_success())
+        });
+
+        match close_result {
+            Ok(closed) => Ok(closed),
+            Err(_) => Ok(false),
+        }
+    }
+}
+
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+impl TabProvider for NativeTabProvider {
+    fn list_tabs(&self, browser: BrowserKind) -> Result<Vec<BrowserTab>, String> {
+        match browser {
+            BrowserKind::Chrome => self.cdp_list_tabs(),
+            BrowserKind::Safari => Ok(Vec::new()),
+        }
+    }
+
+    fn close_tab(&self, browser: BrowserKind, tab: &BrowserTab) -> Result<bool, String> {
+        match browser {
+            BrowserKind::Chrome => self.cdp_close_tab(&tab.id),
+            BrowserKind::Safari => Ok(false),
+        }
     }
 }
