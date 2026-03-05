@@ -420,7 +420,7 @@ mod tests {
             .spawn()
             .expect("spawn sleep child process");
         let pid = child.id() as i32;
-        
+
         // Spawn a thread to wait on the child so it doesn't become a zombie on Linux
         std::thread::spawn(move || {
             let _ = child.wait();
