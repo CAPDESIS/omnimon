@@ -25,10 +25,24 @@
 
   let detailProcess: ProcessEntry | null = $state(null);
   let searchInput: HTMLInputElement | undefined = $state();
+  let searchValue = $state("");
+  let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function onSearchInput(e: Event) {
+    const val = (e.target as HTMLInputElement).value;
+    searchValue = val;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      $search = val;
+    }, 150);
+  }
 
   onMount(() => {
     startPolling(2000);
-    return stopPolling;
+    return () => {
+      stopPolling();
+      clearTimeout(debounceTimer);
+    };
   });
 
   function openDetailForFocused() {
@@ -96,7 +110,8 @@
       type="text"
       placeholder="Filter by name, PID, group... (Cmd+F)"
       aria-label="Search processes"
-      bind:value={$search}
+      value={searchValue}
+      oninput={onSearchInput}
       bind:this={searchInput}
     />
     <div class="actions">

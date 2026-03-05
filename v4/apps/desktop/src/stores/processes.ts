@@ -1,6 +1,6 @@
 import { writable, derived, get } from "svelte/store";
-import { invoke } from "@tauri-apps/api/core";
-import type { ProcessEntry, SystemStats, Metrics } from "../lib/types";
+import { ipcGetMetrics, ipcKillProcess, ipcKillProcesses } from "../lib/ipc";
+import type { ProcessEntry, SystemStats } from "../lib/types";
 
 // --- Core stores ---
 export const processes = writable<ProcessEntry[]>([]);
@@ -42,7 +42,7 @@ export const selectedRamMB = derived(
 // 1. Adds new PIDs
 // 2. Updates changed metrics on existing PIDs (no re-create)
 // 3. Removes dead PIDs (ghost prevention)
-function applyDiff(current: ProcessEntry[], incoming: ProcessEntry[]): ProcessEntry[] {
+export function applyDiff(current: ProcessEntry[], incoming: ProcessEntry[]): ProcessEntry[] {
   const incomingMap = new Map<number, ProcessEntry>();
   for (const p of incoming) incomingMap.set(p.pid, p);
 
@@ -77,7 +77,7 @@ function applyDiff(current: ProcessEntry[], incoming: ProcessEntry[]): ProcessEn
 // --- IPC actions ---
 export async function fetchMetrics(): Promise<void> {
   try {
-    const data: Metrics = await invoke("get_metrics");
+    const data = await ipcGetMetrics();
     const current = get(processes);
     const updated = applyDiff(current, data.processes);
     processes.set(updated);
@@ -107,7 +107,7 @@ export async function killSelected(): Promise<number[]> {
   const pids = Array.from(get(selectedPids));
   if (pids.length === 0) return [];
   try {
-    const killed: number[] = await invoke("kill_processes", { pids });
+    const killed = await ipcKillProcesses(pids);
     // Immediately remove killed processes from UI
     processes.update(($procs) => $procs.filter((p) => !killed.includes(p.pid)));
     selectedPids.set(new Set());
@@ -120,7 +120,7 @@ export async function killSelected(): Promise<number[]> {
 
 export async function killSingle(pid: number): Promise<boolean> {
   try {
-    const ok: boolean = await invoke("kill_process", { pid });
+    const ok = await ipcKillProcess(pid);
     if (ok) {
       processes.update(($procs) => $procs.filter((p) => p.pid !== pid));
       selectedPids.update(($pids) => {
@@ -175,4 +175,16 @@ export function stopPolling(): void {
     clearInterval(intervalId);
     intervalId = null;
   }
+}
+
+/** Reset all stores to initial state — test use only. */
+export function _resetForTest(): void {
+  stopPolling();
+  processes.set([]);
+  stats.set(null);
+  loading.set(true);
+  search.set("");
+  selectedPids.set(new Set());
+  focusedPid.set(null);
+  grouping.set(false);
 }

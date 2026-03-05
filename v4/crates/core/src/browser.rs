@@ -56,10 +56,7 @@ pub fn cdp_list_tabs(base_url: &str) -> Result<Vec<BrowserTab>, String> {
             .timeout(Duration::from_secs(2))
             .build()?;
 
-        let response = client
-            .get(format!("{}/json/list", base_url))
-            .send()
-            .await?;
+        let response = client.get(format!("{}/json/list", base_url)).send().await?;
 
         if !response.status().is_success() {
             return Ok::<Vec<CdpTabTarget>, reqwest::Error>(Vec::new());
@@ -343,12 +340,19 @@ mod tests {
     #[test]
     fn cdp_close_tab_handles_success_and_failure_paths() {
         let mut server = Server::new();
-        let _close_ok = server.mock("GET", "/json/close/tab-ok").with_status(200).create();
-        let _close_fail = server.mock("GET", "/json/close/tab-missing").with_status(404).create();
+        let _close_ok = server
+            .mock("GET", "/json/close/tab-ok")
+            .with_status(200)
+            .create();
+        let _close_fail = server
+            .mock("GET", "/json/close/tab-missing")
+            .with_status(404)
+            .create();
 
         let ok = cdp_close_tab(&server.url(), "tab-ok").expect("close should not error");
         let missing = cdp_close_tab(&server.url(), "tab-missing").expect("close should not error");
-        let conn_refused = cdp_close_tab("http://127.0.0.1:9", "tab-any").expect("refused should map false");
+        let conn_refused =
+            cdp_close_tab("http://127.0.0.1:9", "tab-any").expect("refused should map false");
 
         assert!(ok);
         assert!(!missing);
@@ -364,7 +368,8 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn parse_lines_extracts_tab_fields_for_macos() {
-        let raw = "1\u{1f}Tab One\u{1f}https://example.com\n2\u{1f}Tab Two\u{1f}https://example.org\n";
+        let raw =
+            "1\u{1f}Tab One\u{1f}https://example.com\n2\u{1f}Tab Two\u{1f}https://example.org\n";
         let tabs = NativeTabProvider::parse_lines(raw, BrowserKind::Chrome);
         assert_eq!(tabs.len(), 2);
         assert_eq!(tabs[0].id, "1");

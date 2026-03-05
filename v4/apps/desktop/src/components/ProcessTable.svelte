@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import type { ProcessEntry } from "../lib/types";
   import { toggleSelect, selectedPids, focusedPid } from "../stores/processes";
 
@@ -10,11 +11,20 @@
 
   let { processes, grouping = false, oninspect }: Props = $props();
 
+  const ROW_HEIGHT = 20;
+  const BUFFER = 10;
+
   type SortKey = "name" | "pid" | "ram_mb" | "cpu_pct" | "group";
   let sortKey: SortKey = $state("ram_mb");
   let sortAsc = $state(false);
 
   let collapsedGroups = $state(new Set<string>());
+
+  // Scroll / resize state
+  let scrollTop = $state(0);
+  let containerHeight = $state(600);
+  let wrapEl: HTMLDivElement | undefined = $state();
+  let rafId = 0;
 
   let sorted = $derived(
     [...processes].sort((a, b) => {
@@ -52,6 +62,67 @@
         count: procs.length,
       }))
       .sort((a, b) => b.totalRam - a.totalRam);
+  });
+
+  // --- Flat row model for virtual scroll ---
+  type FlatRow =
+    | { kind: "process"; proc: ProcessEntry }
+    | { kind: "group-header"; group: ProcessGroup };
+
+  let flatRows = $derived.by((): FlatRow[] => {
+    if (!grouping) {
+      return sorted.map((proc) => ({ kind: "process" as const, proc }));
+    }
+    const rows: FlatRow[] = [];
+    for (const group of groups) {
+      if (group.count === 1) {
+        rows.push({ kind: "process", proc: group.procs[0] });
+      } else {
+        rows.push({ kind: "group-header", group });
+        if (!collapsedGroups.has(group.name)) {
+          for (const proc of group.procs) {
+            rows.push({ kind: "process", proc });
+          }
+        }
+      }
+    }
+    return rows;
+  });
+
+  // --- Virtual window ---
+  let totalHeight = $derived(flatRows.length * ROW_HEIGHT);
+
+  let visibleStartIdx = $derived(
+    Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER),
+  );
+  let visibleEndIdx = $derived(
+    Math.min(flatRows.length, Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT) + BUFFER),
+  );
+  let visibleRows = $derived(flatRows.slice(visibleStartIdx, visibleEndIdx));
+  let topSpacerHeight = $derived(visibleStartIdx * ROW_HEIGHT);
+  let bottomSpacerHeight = $derived((flatRows.length - visibleEndIdx) * ROW_HEIGHT);
+
+  function onScroll() {
+    if (rafId) return;
+    rafId = requestAnimationFrame(() => {
+      rafId = 0;
+      if (wrapEl) scrollTop = wrapEl.scrollTop;
+    });
+  }
+
+  onMount(() => {
+    if (!wrapEl) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        containerHeight = entry.contentRect.height;
+      }
+    });
+    ro.observe(wrapEl);
+    containerHeight = wrapEl.clientHeight;
+    return () => {
+      ro.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   });
 
   function setSort(key: SortKey) {
@@ -129,7 +200,27 @@
   </tr>
 {/snippet}
 
-<div class="table-wrap">
+{#snippet groupHeaderRow(group: ProcessGroup)}
+  <tr
+    class="group-header"
+    onclick={() => toggleCollapse(group.name)}
+    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleCollapse(group.name); } }}
+    tabindex="0"
+    role="button"
+    aria-expanded={!collapsedGroups.has(group.name)}
+  >
+    <td class="col-check"></td>
+    <td colspan="6" class="group-cell">
+      <span class="chevron" class:open={!collapsedGroups.has(group.name)} aria-hidden="true">&#9654;</span>
+      <span class="group-name">{group.name}</span>
+      <span class="group-meta">
+        {group.count} &middot; {group.totalRam.toFixed(0)} MB &middot; {group.totalCpu.toFixed(1)}%
+      </span>
+    </td>
+  </tr>
+{/snippet}
+
+<div class="table-wrap" bind:this={wrapEl} onscroll={onScroll}>
   <table aria-label="Process list">
     <thead>
       <tr>
@@ -151,39 +242,18 @@
       </tr>
     </thead>
     <tbody>
-      {#if grouping}
-        {#each groups as group (group.name)}
-          {#if group.count === 1}
-            {@render processRow(group.procs[0])}
-          {:else}
-            <tr
-              class="group-header"
-              onclick={() => toggleCollapse(group.name)}
-              onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleCollapse(group.name); } }}
-              tabindex="0"
-              role="button"
-              aria-expanded={!collapsedGroups.has(group.name)}
-            >
-              <td class="col-check"></td>
-              <td colspan="6" class="group-cell">
-                <span class="chevron" class:open={!collapsedGroups.has(group.name)} aria-hidden="true">&#9654;</span>
-                <span class="group-name">{group.name}</span>
-                <span class="group-meta">
-                  {group.count} &middot; {group.totalRam.toFixed(0)} MB &middot; {group.totalCpu.toFixed(1)}%
-                </span>
-              </td>
-            </tr>
-            {#if !collapsedGroups.has(group.name)}
-              {#each group.procs as proc (proc.pid)}
-                {@render processRow(proc)}
-              {/each}
-            {/if}
-          {/if}
-        {/each}
-      {:else}
-        {#each sorted as proc (proc.pid)}
-          {@render processRow(proc)}
-        {/each}
+      {#if topSpacerHeight > 0}
+        <tr class="spacer" aria-hidden="true"><td style="height:{topSpacerHeight}px" colspan="7"></td></tr>
+      {/if}
+      {#each visibleRows as row, i (row.kind === "process" ? `p-${row.proc.pid}` : `g-${row.group.name}`)}
+        {#if row.kind === "process"}
+          {@render processRow(row.proc)}
+        {:else}
+          {@render groupHeaderRow(row.group)}
+        {/if}
+      {/each}
+      {#if bottomSpacerHeight > 0}
+        <tr class="spacer" aria-hidden="true"><td style="height:{bottomSpacerHeight}px" colspan="7"></td></tr>
       {/if}
     </tbody>
   </table>
@@ -244,7 +314,7 @@
   tr {
     cursor: default;
   }
-  tr:hover {
+  tr:hover:not(.spacer) {
     background: var(--bg-hover);
   }
   tr.selected {
@@ -259,6 +329,10 @@
   }
   tr.system:hover {
     opacity: 0.65;
+  }
+  tr.spacer td {
+    padding: 0;
+    border: none;
   }
 
   .group-header {
@@ -275,7 +349,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    height: 22px;
+    height: 20px;
   }
 
   .chevron {
