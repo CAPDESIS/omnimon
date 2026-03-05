@@ -11,6 +11,13 @@ cask "omnimon" do
 
   app "OmniMon.app"
 
+  postflight do
+    ohai "Launching OmniMon..."
+    system "open", "/Applications/OmniMon.app"
+  end
+
+  uninstall quit: "com.omnimon.desktop"
+
   zap trash: [
     "~/Library/Application Support/com.omnimon.desktop",
     "~/Library/Caches/com.omnimon.desktop",
@@ -18,4 +25,13 @@ cask "omnimon" do
     "~/.config/macmon",
     "~/.local/share/macmon"
   ]
+
+  caveats <<~EOS
+    OmniMon is now in your Applications folder.
+
+    To open:  ⌘ + Space → type "OmniMon"
+    Or run:   open /Applications/OmniMon.app
+
+    OmniMon also runs in your menu bar tray.
+  EOS
 end

@@ -25,9 +25,10 @@ The project follows a strict modular approach, separating the native backend fro
 
 ```bash
 brew tap chochy2001/omnimon
-brew install --cask omnimon   # Desktop app (Tauri)
-brew install omnimon           # CLI
+brew install --cask omnimon
 ```
+
+The app launches automatically after install. You can also find it in **Spotlight** (`Cmd + Space` → "OmniMon") or in `/Applications/OmniMon.app`.
 
 ### Windows
 
@@ -46,17 +47,18 @@ curl -fsSL https://raw.githubusercontent.com/chochy2001/omnimon/main/install-web
 
 ```bash
 git clone https://github.com/chochy2001/omnimon.git
-cd macmon/v4
+cd omnimon/v4
 ./setup-dev.sh
 make dev
 ```
 
-## CLI Usage
+## CLI Usage (Build from Source)
 
 ```bash
-macmon --help
-macmon optimize --ai anthropic --target browsers
-macmon status --format json
+cd v4
+cargo run -p cli -- --help
+cargo run -p cli -- optimize --ai anthropic --target browsers
+cargo run -p cli -- status --format json
 ```
 
 ## License
