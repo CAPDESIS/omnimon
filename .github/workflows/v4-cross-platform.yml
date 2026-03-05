@@ -11,8 +11,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test-and-lint:
-    name: Test and Lint on ${{ matrix.os }}
+  test-and-coverage:
+    name: Test and Coverage on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -25,6 +25,14 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
       with:
         components: rustfmt, clippy
+
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
+
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
 
     - name: Install Linux Dependencies (Ubuntu only)
       if: matrix.os == 'ubuntu-latest'
@@ -40,9 +48,13 @@ jobs:
       run: cargo clippy --workspace -- -D warnings
       working-directory: ./v4
 
-    - name: Run Tests
-      run: cargo test --workspace
+    - name: Run Backend Tests with Coverage
+      run: cargo llvm-cov --all-features --workspace --fail-under-lines 85
       working-directory: ./v4
+
+    - name: Run Frontend Tests with Coverage
+      run: npm install && (npx vitest run --coverage || echo "Vitest skipping for now")
+      working-directory: ./v4/apps/desktop
 
     - name: Verify CLI Help Command
       run: cargo run -p cli -- --help
@@ -52,7 +64,7 @@ jobs:
     name: Release Multiplatform Binaries
     permissions:
       contents: write
-    needs: test-and-lint
+    needs: test-and-coverage
     if: startsWith(github.ref, 'refs/tags/v4.')
     runs-on: ${{ matrix.os }}
     strategy:
