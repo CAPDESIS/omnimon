@@ -1,5 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import { ipcGetMetrics, ipcKillProcess, ipcKillProcesses, IPCValidationError } from "../ipc";
+import {
+  ipcGetMetrics,
+  ipcKillProcess,
+  ipcKillProcesses,
+  ipcGetBrowserTabs,
+  ipcCloseBrowserTab,
+  IPCValidationError,
+} from "../ipc";
 
 const mockInvoke = vi.mocked(invoke);
 
@@ -33,6 +40,16 @@ function validMetrics(overrides: Record<string, unknown> = {}) {
   return {
     processes: [validProcess()],
     stats: validStats(),
+    ...overrides,
+  };
+}
+
+function validTab(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "tab-1",
+    title: "Example",
+    url: "https://example.com",
+    browser: "Chrome",
     ...overrides,
   };
 }
@@ -115,6 +132,58 @@ describe("ipcKillProcesses", () => {
   it("rejects array containing strings", async () => {
     mockInvoke.mockResolvedValue([1, "two"]);
     await expect(ipcKillProcesses([1, 2])).rejects.toThrow(IPCValidationError);
+  });
+});
+
+describe("ipcGetBrowserTabs", () => {
+  it("returns validated browser tabs on valid data", async () => {
+    mockInvoke.mockResolvedValue([validTab(), validTab({ id: "tab-2", browser: "Safari" })]);
+
+    const result = await ipcGetBrowserTabs();
+
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe("tab-1");
+    expect(result[1].browser).toBe("Safari");
+    expect(mockInvoke).toHaveBeenCalledWith("get_browser_tabs");
+  });
+
+  it("rejects non-array response", async () => {
+    mockInvoke.mockResolvedValue({ id: "bad" });
+    await expect(ipcGetBrowserTabs()).rejects.toThrow(IPCValidationError);
+  });
+
+  it("rejects invalid tab payload", async () => {
+    mockInvoke.mockResolvedValue([validTab({ url: 42 })]);
+    await expect(ipcGetBrowserTabs()).rejects.toThrow(IPCValidationError);
+  });
+
+  it("propagates tauri errors like denied AppleScript permissions", async () => {
+    mockInvoke.mockRejectedValue(new Error("AppleScript permission denied by user"));
+    await expect(ipcGetBrowserTabs()).rejects.toThrow("AppleScript permission denied by user");
+  });
+});
+
+describe("ipcCloseBrowserTab", () => {
+  it("returns true on valid boolean response", async () => {
+    mockInvoke.mockResolvedValue(true);
+    await expect(ipcCloseBrowserTab("tab-1", "https://example.com", "Chrome")).resolves.toBe(true);
+    expect(mockInvoke).toHaveBeenCalledWith("close_browser_tab", {
+      tabId: "tab-1",
+      tabUrl: "https://example.com",
+      browser: "Chrome",
+    });
+  });
+
+  it("rejects non-boolean response", async () => {
+    mockInvoke.mockResolvedValue("ok");
+    await expect(ipcCloseBrowserTab("tab-1", "https://example.com", "Chrome")).rejects.toThrow(IPCValidationError);
+  });
+
+  it("propagates close errors like denied AppleScript permissions", async () => {
+    mockInvoke.mockRejectedValue(new Error("User denied Automation permission"));
+    await expect(ipcCloseBrowserTab("tab-1", "https://example.com", "Safari")).rejects.toThrow(
+      "User denied Automation permission",
+    );
   });
 });
 
