@@ -1,5 +1,6 @@
 use macmon_core::browser::{BrowserKind, BrowserTab, NativeTabProvider, TabProvider};
 use serde::Serialize;
+use std::str::FromStr;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use sysinfo::{Pid, ProcessRefreshKind, System};

@@ -100,8 +100,11 @@ impl BrowserKind {
         ]
     }
 
-    /// Parse from a string (e.g. IPC input).
-    pub fn from_str(s: &str) -> Result<Self, String> {
+}
+
+impl std::str::FromStr for BrowserKind {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "Chrome" => Ok(BrowserKind::Chrome),
             "Safari" => Ok(BrowserKind::Safari),
@@ -426,6 +429,7 @@ impl TabProvider for NativeTabProvider {
 mod tests {
     use super::*;
     use mockito::Server;
+    use std::str::FromStr;
 
     #[test]
     fn cdp_list_tabs_maps_and_filters_page_targets() {
@@ -611,5 +615,169 @@ mod tests {
         };
         let _ = provider.close_tab(BrowserKind::Chrome, &dummy_tab);
         let _ = provider.close_tab(BrowserKind::Safari, &dummy_tab);
+    }
+
+    #[test]
+    fn cdp_list_tabs_for_assigns_correct_browser_kind() {
+        let mut server = Server::new();
+        let _mock = server
+            .mock("GET", "/json/list")
+            .with_status(200)
+            .with_body(
+                r#"[
+                    {"id":"b1","type":"page","title":"Brave Tab","url":"https://brave.test"},
+                    {"id":"b2","type":"page","title":"Brave Tab 2","url":"https://brave2.test"}
+                ]"#,
+            )
+            .create();
+
+        let tabs = cdp_list_tabs_for(&server.url(), BrowserKind::Brave)
+            .expect("cdp_list_tabs_for should not fail");
+        assert_eq!(tabs.len(), 2);
+        assert_eq!(tabs[0].browser, BrowserKind::Brave);
+        assert_eq!(tabs[1].browser, BrowserKind::Brave);
+        assert_eq!(tabs[0].id, "b1");
+        assert_eq!(tabs[1].title, "Brave Tab 2");
+    }
+
+    #[test]
+    fn cdp_list_tabs_handles_malformed_json() {
+        let mut server = Server::new();
+        let _mock = server
+            .mock("GET", "/json/list")
+            .with_status(200)
+            .with_body("this is not valid json {{{")
+            .create();
+
+        let tabs = cdp_list_tabs(&server.url()).expect("malformed JSON should return empty vec");
+        assert!(tabs.is_empty());
+    }
+
+    #[test]
+    fn cdp_list_tabs_returns_empty_for_empty_array() {
+        let mut server = Server::new();
+        let _mock = server
+            .mock("GET", "/json/list")
+            .with_status(200)
+            .with_body("[]")
+            .create();
+
+        let tabs = cdp_list_tabs(&server.url()).expect("empty array should return empty vec");
+        assert!(tabs.is_empty());
+    }
+
+    #[test]
+    fn cdp_list_tabs_handles_missing_optional_fields() {
+        let mut server = Server::new();
+        let _mock = server
+            .mock("GET", "/json/list")
+            .with_status(200)
+            .with_body(
+                r#"[
+                    {"id":"m1","type":"page"},
+                    {"id":"m2","type":"page","title":null,"url":null}
+                ]"#,
+            )
+            .create();
+
+        let tabs = cdp_list_tabs(&server.url())
+            .expect("missing optional fields should use defaults");
+        assert_eq!(tabs.len(), 2);
+        assert_eq!(tabs[0].title, "");
+        assert_eq!(tabs[0].url, "");
+        assert_eq!(tabs[1].title, "");
+        assert_eq!(tabs[1].url, "");
+    }
+
+    #[test]
+    fn cdp_close_tab_rejects_special_chars() {
+        let base = "http://127.0.0.1:9";
+
+        let result_question = cdp_close_tab(base, "tab?id");
+        assert!(result_question.is_err());
+        assert_eq!(result_question.unwrap_err(), "Invalid tab ID");
+
+        let result_hash = cdp_close_tab(base, "tab#id");
+        assert!(result_hash.is_err());
+        assert_eq!(result_hash.unwrap_err(), "Invalid tab ID");
+
+        let result_slash = cdp_close_tab(base, "tab/id");
+        assert!(result_slash.is_err());
+        assert_eq!(result_slash.unwrap_err(), "Invalid tab ID");
+
+        let result_backslash = cdp_close_tab(base, "tab\\id");
+        assert!(result_backslash.is_err());
+        assert_eq!(result_backslash.unwrap_err(), "Invalid tab ID");
+    }
+
+    #[test]
+    fn cdp_close_tab_rejects_whitespace_only() {
+        let result = cdp_close_tab("http://127.0.0.1:9", "   ")
+            .expect("whitespace-only tab ID should return Ok(false)");
+        assert!(!result);
+
+        let result_tab = cdp_close_tab("http://127.0.0.1:9", "\t")
+            .expect("tab-only tab ID should return Ok(false)");
+        assert!(!result_tab);
+    }
+
+    #[test]
+    fn map_cdp_targets_filters_all_non_page_types() {
+        let targets = vec![
+            CdpTabTarget {
+                id: "sw1".into(),
+                title: None,
+                url: None,
+                target_type: Some("service_worker".into()),
+            },
+            CdpTabTarget {
+                id: "bg1".into(),
+                title: Some("Background".into()),
+                url: Some("chrome-extension://abc".into()),
+                target_type: Some("background_page".into()),
+            },
+            CdpTabTarget {
+                id: "wv1".into(),
+                title: Some("Webview".into()),
+                url: None,
+                target_type: Some("webview".into()),
+            },
+            CdpTabTarget {
+                id: "ot1".into(),
+                title: None,
+                url: None,
+                target_type: Some("other".into()),
+            },
+        ];
+        let tabs = map_cdp_targets_to_tabs(targets, BrowserKind::Chrome);
+        assert!(tabs.is_empty());
+    }
+
+    #[test]
+    fn browser_kind_all_returns_expected_browsers() {
+        let all = BrowserKind::all();
+        assert!(all.contains(&BrowserKind::Chrome));
+        assert!(all.contains(&BrowserKind::Safari));
+        assert!(all.contains(&BrowserKind::Brave));
+        assert!(all.contains(&BrowserKind::Edge));
+        assert!(all.contains(&BrowserKind::Arc));
+    }
+
+    #[test]
+    fn browser_kind_from_str_firefox() {
+        let firefox = BrowserKind::from_str("Firefox");
+        assert!(firefox.is_ok());
+        assert_eq!(firefox.unwrap(), BrowserKind::Firefox);
+
+        let safari = BrowserKind::from_str("Safari");
+        assert!(safari.is_ok());
+        assert_eq!(safari.unwrap(), BrowserKind::Safari);
+    }
+
+    #[test]
+    fn sanitize_tab_url_rejects_ftp() {
+        let result = sanitize_tab_url("ftp://files.example.com");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("disallowed scheme"));
     }
 }

@@ -195,6 +195,7 @@
         class="btn btn-kill"
         onclick={killSelected}
         disabled={$selectedCount === 0}
+        aria-label="Close selected processes"
       >
         Close{#if $selectedCount > 0}
           &nbsp;({$selectedCount} &middot; {$selectedRamMB.toFixed(0)} MB){/if}
@@ -246,7 +247,7 @@
   <ChromeTabManager />
 
   {#if $loading}
-    <div class="loading">Loading...</div>
+    <div class="loading" role="status" aria-busy="true">Loading...</div>
   {:else}
     <ProcessTable
       processes={$filtered}
@@ -257,7 +258,7 @@
   {/if}
 
   {#if $aiError || $aiSuggestions.length > 0}
-    <div class="ai-panel">
+    <div class="ai-panel" role="region" aria-label="AI Suggestions">
       <div class="ai-header">
         <span class="ai-title">AI Suggestions</span>
         <button class="btn btn-sm" onclick={dismissAiSuggestions}>Dismiss</button>
@@ -403,7 +404,7 @@
     --bg-hover: #2a2a2a;
     --bg-selected: #0a3d6e;
     --fg: #ccc;
-    --fg-dim: #888;
+    --fg-dim: #999;
     --border: #333;
     --accent: #0078d4;
     --danger: #d32f2f;
@@ -418,7 +419,7 @@
       --bg-hover: #e0e0e0;
       --bg-selected: #cce5ff;
       --fg: #1a1a1a;
-      --fg-dim: #666;
+      --fg-dim: #595959;
       --border: #d0d0d0;
     }
   }

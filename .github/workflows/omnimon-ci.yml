@@ -64,7 +64,11 @@ jobs:
       working-directory: ./v4/apps/desktop
 
     - name: Run Frontend Tests with Coverage
-      run: npx vitest run --coverage || echo "Vitest skipping for now"
+      run: npx vitest run --coverage
+      working-directory: ./v4/apps/desktop
+
+    - name: Build Frontend
+      run: npx vite build
       working-directory: ./v4/apps/desktop
 
     - name: Verify CLI Help Command

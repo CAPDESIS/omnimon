@@ -253,6 +253,7 @@
     tabindex="0"
     role="button"
     aria-expanded={!collapsedGroups.has(group.name)}
+    aria-label="Toggle {group.name} group"
   >
     <td class="col-check"></td>
     <td colspan={visibleColCount} class="group-cell">
@@ -270,23 +271,23 @@
     <thead>
       <tr>
         <th class="col-check" scope="col"><span class="sr-only">Select</span></th>
-        {#if cols.name}<th class="col-name sortable" scope="col" aria-sort={sortKey === "name" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("name")}>
+        {#if cols.name}<th class="col-name sortable" scope="col" aria-sort={sortKey === "name" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by name" onclick={() => setSort("name")}>
           Name<span aria-hidden="true">{arrow("name")}</span>
         </th>{/if}
         {#if cols.detail}<th class="col-detail" scope="col">Detail</th>{/if}
         {#if cols.group}<th class="col-group sortable" scope="col" aria-sort={sortKey === "group" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("group")}>
           Group<span aria-hidden="true">{arrow("group")}</span>
         </th>{/if}
-        {#if cols.ram}<th class="col-ram sortable" scope="col" aria-sort={sortKey === "ram_mb" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("ram_mb")}>
+        {#if cols.ram}<th class="col-ram sortable" scope="col" aria-sort={sortKey === "ram_mb" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by RAM" onclick={() => setSort("ram_mb")}>
           RAM<span aria-hidden="true">{arrow("ram_mb")}</span>
         </th>{/if}
-        {#if cols.cpu}<th class="col-cpu sortable" scope="col" aria-sort={sortKey === "cpu_pct" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("cpu_pct")}>
+        {#if cols.cpu}<th class="col-cpu sortable" scope="col" aria-sort={sortKey === "cpu_pct" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by CPU" onclick={() => setSort("cpu_pct")}>
           CPU<span aria-hidden="true">{arrow("cpu_pct")}</span>
         </th>{/if}
         {#if cols.uptime}<th class="col-uptime sortable" scope="col" aria-sort={sortKey === "uptime" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("uptime")}>
           Time<span aria-hidden="true">{arrow("uptime")}</span>
         </th>{/if}
-        {#if cols.pid}<th class="col-pid sortable" scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("pid")}>
+        {#if cols.pid}<th class="col-pid sortable" scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by PID" onclick={() => setSort("pid")}>
           PID<span aria-hidden="true">{arrow("pid")}</span>
         </th>{/if}
         {#if cols.state}<th class="col-state sortable" scope="col" aria-sort={sortKey === "state" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("state")}>

@@ -8,6 +8,16 @@ dist/
 *-x86_64
 *.o
 *.dSYM/
+test_browser*
+test_osascript*
+
+# Rust
+v4/target/
+
+# Node
+v4/apps/desktop/node_modules/
+v4/apps/desktop/dist/
+v4/apps/desktop/coverage/
 
 # macOS
 .DS_Store

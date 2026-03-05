@@ -188,13 +188,14 @@
             <span class="th-action"></span>
           </div>
           {#each tabs as tab (tab.id)}
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
             <div
               class="tab-row"
               class:closing={closing.has(tab.id)}
               class:selected={selectedTabIds.has(tab.id)}
               onclick={() => toggleTab(tab.id)}
+              onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleTab(tab.id); } }}
+              tabindex="0"
+              role="row"
             >
               <input
                 type="checkbox"

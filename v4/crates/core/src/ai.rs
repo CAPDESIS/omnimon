@@ -2,6 +2,11 @@ use keyring::Entry;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
+use std::time::Duration;
+
+const MAX_RETRIES: u32 = 3;
+const INITIAL_BACKOFF_MS: u64 = 500;
+const REQUEST_TIMEOUT_SECS: u64 = 30;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AiProvider {
@@ -39,7 +44,11 @@ impl AiProvider {
         }
     }
 
-    pub fn from_str(s: &str) -> Result<Self, String> {
+}
+
+impl std::str::FromStr for AiProvider {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "openrouter" => Ok(AiProvider::OpenRouter),
             "openai" => Ok(AiProvider::OpenAI),
@@ -68,6 +77,42 @@ pub struct ProcessSuggestion {
     pub reason: String,
 }
 
+fn build_client() -> Result<Client, Box<dyn Error + Send + Sync>> {
+    Ok(Client::builder()
+        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+        .build()?)
+}
+
+async fn send_with_retry(
+    request_builder: impl Fn() -> reqwest::RequestBuilder,
+) -> Result<reqwest::Response, Box<dyn Error + Send + Sync>> {
+    let mut backoff = INITIAL_BACKOFF_MS;
+    for attempt in 0..=MAX_RETRIES {
+        let resp = request_builder().send().await;
+        match resp {
+            Ok(r) => {
+                let status = r.status();
+                if status.is_success() || status.is_client_error() {
+                    return Ok(r);
+                }
+                // Server error or rate limit — retry
+                if attempt == MAX_RETRIES {
+                    let err_text = r.text().await.unwrap_or_default();
+                    return Err(format!("API Error after {} retries: {}", MAX_RETRIES, err_text).into());
+                }
+            }
+            Err(e) => {
+                if attempt == MAX_RETRIES {
+                    return Err(Box::new(e));
+                }
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(backoff)).await;
+        backoff *= 2;
+    }
+    unreachable!()
+}
+
 pub async fn analyze_with_ai(
     provider: AiProvider,
     model: &str,
@@ -75,7 +120,7 @@ pub async fn analyze_with_ai(
     profile: &str,
 ) -> Result<Vec<ProcessSuggestion>, Box<dyn Error + Send + Sync>> {
     let api_key = get_api_key(provider)?;
-    let client = Client::new();
+    let client = build_client()?;
 
     let prompt = format!(
         "You are macmon, a system optimization assistant. The user's current profile is: {}. \
@@ -103,14 +148,14 @@ pub async fn analyze_with_ai(
         ]
     });
 
-    let resp = client
-        .post(provider.api_url())
-        .header("Authorization", format!("Bearer {}", api_key))
-        .json(&body)
-        .send()
-        .await?;
+    let resp = send_with_retry(|| {
+        client
+            .post(provider.api_url())
+            .header("Authorization", format!("Bearer {}", api_key))
+            .json(&body)
+    }).await?;
 
-    if !resp.status().is_success() {
+    if resp.status().is_client_error() {
         let err_text = resp.text().await?;
         return Err(format!("API Error: {}", err_text).into());
     }
@@ -142,16 +187,16 @@ async fn analyze_anthropic(
         ]
     });
 
-    let resp = client
-        .post(AiProvider::Anthropic.api_url())
-        .header("x-api-key", api_key)
-        .header("anthropic-version", "2023-06-01")
-        .header("content-type", "application/json")
-        .json(&body)
-        .send()
-        .await?;
+    let resp = send_with_retry(|| {
+        client
+            .post(AiProvider::Anthropic.api_url())
+            .header("x-api-key", api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&body)
+    }).await?;
 
-    if !resp.status().is_success() {
+    if resp.status().is_client_error() {
         let err_text = resp.text().await?;
         return Err(format!("API Error: {}", err_text).into());
     }
@@ -180,6 +225,7 @@ fn parse_suggestions(content: &str) -> Result<Vec<ProcessSuggestion>, Box<dyn Er
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn ai_provider_from_str_works() {
@@ -236,5 +282,50 @@ mod tests {
     #[test]
     fn parse_suggestions_rejects_invalid_json() {
         assert!(parse_suggestions("not json").is_err());
+    }
+
+    #[tokio::test]
+    async fn send_with_retry_succeeds_on_first_try() {
+        let mut server = mockito::Server::new_async().await;
+        let _m = server.mock("POST", "/test")
+            .with_status(200)
+            .with_body("ok")
+            .create_async().await;
+
+        let client = Client::builder().timeout(Duration::from_secs(5)).build().unwrap();
+        let url = server.url();
+        let resp = send_with_retry(|| client.post(format!("{}/test", url))).await.unwrap();
+        assert!(resp.status().is_success());
+    }
+
+    #[tokio::test]
+    async fn send_with_retry_retries_on_server_error() {
+        let mut server = mockito::Server::new_async().await;
+        let _m = server.mock("POST", "/test")
+            .with_status(500)
+            .with_body("internal error")
+            .expect_at_least(2)
+            .create_async().await;
+
+        let client = Client::builder().timeout(Duration::from_secs(5)).build().unwrap();
+        let url = server.url();
+        let result = send_with_retry(|| client.post(format!("{}/test", url))).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("API Error after"));
+    }
+
+    #[tokio::test]
+    async fn send_with_retry_does_not_retry_client_errors() {
+        let mut server = mockito::Server::new_async().await;
+        let _m = server.mock("POST", "/test")
+            .with_status(401)
+            .with_body("unauthorized")
+            .expect(1)
+            .create_async().await;
+
+        let client = Client::builder().timeout(Duration::from_secs(5)).build().unwrap();
+        let url = server.url();
+        let resp = send_with_retry(|| client.post(format!("{}/test", url))).await.unwrap();
+        assert_eq!(resp.status().as_u16(), 401);
     }
 }

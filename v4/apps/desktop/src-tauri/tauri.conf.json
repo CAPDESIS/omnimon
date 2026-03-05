@@ -30,14 +30,7 @@
       "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://openrouter.ai https://api.openai.com https://generativelanguage.googleapis.com https://api.anthropic.com; script-src 'self'"
     }
   },
-  "plugins": {
-    "updater": {
-      "endpoints": [
-        "https://api.github.com/repos/chochy2001/omnimon/releases/latest"
-      ],
-      "pubkey": "YOUR_PUBLIC_KEY"
-    }
-  },
+  "plugins": {},
   "bundle": {
     "active": true,
     "targets": ["msi", "appimage", "deb", "dmg"],
