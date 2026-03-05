@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { ProcessEntry, BrowserTab } from "../lib/types";
+  import type { ProcessEntry } from "../lib/types";
   import { toggleSelect, selectedPids, focusedPid, browserTabs } from "../stores/processes";
 
   interface Props {
@@ -18,35 +18,34 @@
   let sortKey: SortKey = $state("ram_mb");
   let sortAsc = $state(false);
 
-  // Build a lookup from process name to tab details for the "Detail" column
-  let tabDetailMap = $derived.by((): Map<string, BrowserTab> => {
-    const map = new Map<string, BrowserTab>();
+  // Count tabs per browser for the "Detail" column
+  let tabCountByBrowser = $derived.by((): Map<string, number> => {
+    const counts = new Map<string, number>();
     for (const tab of $browserTabs) {
-      map.set(`Chrome Tab: ${tab.title}`, tab);
+      counts.set(tab.browser, (counts.get(tab.browser) ?? 0) + 1);
     }
-    return map;
+    return counts;
   });
 
+  function detectBrowser(proc: ProcessEntry): string | null {
+    if (proc.group !== "Browser") return null;
+    if (proc.exec_name.includes("Google Chrome Helper") || proc.name.includes("Chrome")) return "Chrome";
+    if (proc.name === "com.apple.WebKit.WebContent" || proc.exec_name.includes("Safari")) return "Safari";
+    return null;
+  }
+
   function getDetail(proc: ProcessEntry): string {
-    const tab = tabDetailMap.get(proc.name);
-    if (tab) {
-      return `${tab.title} \u2014 ${tab.url}`;
+    const browser = detectBrowser(proc);
+    if (browser) {
+      const count = tabCountByBrowser.get(browser);
+      if (count) return `${count} ${browser} tab${count !== 1 ? "s" : ""} open`;
     }
     return proc.exec_name !== proc.name ? proc.exec_name : "";
   }
 
   function getGroup(proc: ProcessEntry): string {
-    if (proc.group === "Browser") {
-      const tab = tabDetailMap.get(proc.name);
-      if (tab) {
-        try {
-          return `${tab.browser}: ${new URL(tab.url).hostname}`;
-        } catch {
-          return tab.browser;
-        }
-      }
-      return "Browser";
-    }
+    const browser = detectBrowser(proc);
+    if (browser) return browser;
     return proc.group || "";
   }
 

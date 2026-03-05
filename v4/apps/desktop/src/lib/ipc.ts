@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ProcessEntry, SystemStats, Metrics, BrowserTab } from "./types";
+import type { ProcessEntry, SystemStats, Metrics, BrowserTab, ProcessSuggestion } from "./types";
 
 export class IPCValidationError extends Error {
   constructor(
@@ -151,4 +151,35 @@ export async function ipcCloseBrowserTab(tabId: string, tabUrl: string, browser:
   const result: unknown = await invoke("close_browser_tab", { tabId, tabUrl, browser });
   assertBoolean("close_browser_tab result", result);
   return result;
+}
+
+function validateProcessSuggestion(raw: unknown, index: number): ProcessSuggestion {
+  if (raw == null || typeof raw !== "object") {
+    throw new IPCValidationError(`suggestions[${index}]`, raw, `Expected object at index ${index}`);
+  }
+  const r = raw as Record<string, unknown>;
+
+  assertFiniteNumber(`suggestions[${index}].pid`, r.pid);
+  assertString(`suggestions[${index}].name`, r.name);
+  assertString(`suggestions[${index}].reason`, r.reason);
+
+  return {
+    pid: r.pid as number,
+    name: r.name as string,
+    reason: r.reason as string,
+  };
+}
+
+export async function ipcSaveAiConfig(provider: string, model: string, key: string): Promise<void> {
+  await invoke("save_ai_config", { provider, model, key });
+}
+
+export async function ipcAnalyzeProcesses(profile: string): Promise<ProcessSuggestion[]> {
+  const data: unknown = await invoke("analyze_processes", { profile });
+
+  if (!Array.isArray(data)) {
+    throw new IPCValidationError("analyze_processes", data, "Expected array from analyze_processes");
+  }
+
+  return data.map((raw, i) => validateProcessSuggestion(raw, i));
 }

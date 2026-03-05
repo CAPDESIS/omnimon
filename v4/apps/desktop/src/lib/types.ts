@@ -29,3 +29,9 @@ export interface BrowserTab {
   url: string;
   browser: "Chrome" | "Safari";
 }
+
+export interface ProcessSuggestion {
+  pid: number;
+  name: string;
+  reason: string;
+}

@@ -19,14 +19,50 @@
     startPolling,
     stopPolling,
     killSelected,
+    killSingle,
     selectAllVisible,
     selectNone,
+    aiSuggestions,
+    aiLoading,
+    aiError,
+    aiProfile,
+    analyzeWithAi,
+    saveAiConfigAction,
+    dismissAiSuggestions,
   } from "./stores/processes";
 
   let detailProcess: ProcessEntry | null = $state(null);
   let searchInput: HTMLInputElement | undefined = $state();
   let searchValue = $state("");
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // AI settings modal state
+  let showSettings = $state(false);
+  let apiKeyInput = $state("");
+  let settingsSaving = $state(false);
+  let settingsError = $state<string | null>(null);
+  let settingsSaved = $state(false);
+
+  async function handleSaveSettings() {
+    settingsSaving = true;
+    settingsError = null;
+    settingsSaved = false;
+    try {
+      await saveAiConfigAction("openrouter", "google/gemini-flash-1.5-8b", apiKeyInput);
+      settingsSaved = true;
+      apiKeyInput = "";
+    } catch (e) {
+      settingsError = e instanceof Error ? e.message : String(e);
+    } finally {
+      settingsSaving = false;
+    }
+  }
+
+  function closeSettings() {
+    showSettings = false;
+    settingsError = null;
+    settingsSaved = false;
+  }
 
   function onSearchInput(e: Event) {
     const val = (e.target as HTMLInputElement).value;
@@ -72,8 +108,12 @@
       return;
     }
 
-    // Escape → close modal or blur search
+    // Escape → close modal/settings or blur search
     if (e.key === "Escape") {
+      if (showSettings) {
+        closeSettings();
+        return;
+      }
       if (detailProcess) {
         detailProcess = null;
         return;
@@ -133,6 +173,32 @@
         Close{#if $selectedCount > 0}
           &nbsp;({$selectedCount} &middot; {$selectedRamMB.toFixed(0)} MB){/if}
       </button>
+      <span class="separator"></span>
+      <select
+        class="profile-select"
+        value={$aiProfile}
+        onchange={(e) => $aiProfile = (e.target as HTMLSelectElement).value}
+        aria-label="AI profile"
+      >
+        <option value="general">General</option>
+        <option value="developer">Developer</option>
+        <option value="gaming">Gaming</option>
+        <option value="battery">Battery Saver</option>
+      </select>
+      <button
+        class="btn btn-ai"
+        onclick={analyzeWithAi}
+        disabled={$aiLoading}
+      >
+        {$aiLoading ? "Analyzing..." : "AI Analyze"}
+      </button>
+      <button
+        class="btn btn-sm"
+        onclick={() => showSettings = true}
+        title="AI Settings"
+      >
+        Settings
+      </button>
     </div>
   </header>
 
@@ -149,6 +215,29 @@
     />
   {/if}
 
+  {#if $aiError || $aiSuggestions.length > 0}
+    <div class="ai-panel">
+      <div class="ai-header">
+        <span class="ai-title">AI Suggestions</span>
+        <button class="btn btn-sm" onclick={dismissAiSuggestions}>Dismiss</button>
+      </div>
+      {#if $aiError}
+        <div class="ai-error">{$aiError}</div>
+      {/if}
+      {#each $aiSuggestions as suggestion (suggestion.pid)}
+        <div class="ai-row">
+          <span class="ai-name">{suggestion.name}</span>
+          <span class="ai-pid">PID {suggestion.pid}</span>
+          <span class="ai-reason">{suggestion.reason}</span>
+          <button
+            class="btn btn-kill btn-sm"
+            onclick={() => killSingle(suggestion.pid)}
+          >Close</button>
+        </div>
+      {/each}
+    </div>
+  {/if}
+
   <footer class="statusline" aria-live="polite" aria-atomic="true">
     {$filtered.length} processes{#if $filtered.length !== $processes.length}
       &nbsp;(filtered from {$processes.length}){/if}
@@ -161,6 +250,56 @@
 
 {#if detailProcess}
   <ProcessDetailsModal process={detailProcess} onclose={closeDetail} />
+{/if}
+
+{#if showSettings}
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div class="backdrop" onclick={closeSettings} onkeydown={(e) => { if (e.key === "Escape") closeSettings(); }} role="presentation">
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_interactive_supports_focus -->
+    <div class="settings-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
+      <div class="settings-header">
+        <h2 class="settings-title" id="settings-title">AI Settings</h2>
+        <button class="close-btn" onclick={closeSettings} aria-label="Close settings">&times;</button>
+      </div>
+      <div class="settings-body">
+        <div class="settings-row">
+          <span class="settings-label">Provider</span>
+          <span class="settings-value">OpenRouter</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Model</span>
+          <span class="settings-value">gemini-flash-1.5-8b</span>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="api-key-input">API Key</label>
+          <input
+            id="api-key-input"
+            class="settings-input"
+            type="password"
+            placeholder="Enter OpenRouter API key"
+            bind:value={apiKeyInput}
+          />
+        </div>
+        {#if settingsError}
+          <div class="settings-error">{settingsError}</div>
+        {/if}
+        {#if settingsSaved}
+          <div class="settings-success">API key saved to keychain.</div>
+        {/if}
+      </div>
+      <div class="settings-footer">
+        <button
+          class="btn btn-ai"
+          onclick={handleSaveSettings}
+          disabled={settingsSaving || !apiKeyInput}
+        >
+          {settingsSaving ? "Saving..." : "Save"}
+        </button>
+      </div>
+    </div>
+  </div>
 {/if}
 
 <style>
@@ -312,5 +451,217 @@
   .shortcuts :global(kbd) {
     font-family: inherit;
     font-size: inherit;
+  }
+
+  .separator {
+    width: 1px;
+    height: 14px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  .profile-select {
+    padding: 1px 4px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 10px;
+    height: 20px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .btn-ai {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .btn-ai:hover:not(:disabled) {
+    background: #005fa3;
+  }
+
+  /* AI results panel */
+  .ai-panel {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    background: var(--bg-alt);
+    max-height: 180px;
+    overflow-y: auto;
+  }
+
+  .ai-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ai-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: var(--accent);
+  }
+
+  .ai-error {
+    padding: 4px 8px;
+    font-size: 10px;
+    color: var(--danger);
+  }
+
+  .ai-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 8px;
+    font-size: 11px;
+    border-bottom: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.15));
+  }
+  .ai-row:hover {
+    background: var(--bg-hover);
+  }
+
+  .ai-name {
+    font-weight: 600;
+    min-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ai-pid {
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: 10px;
+    color: var(--fg-dim);
+    flex-shrink: 0;
+  }
+
+  .ai-reason {
+    flex: 1;
+    font-size: 10px;
+    color: var(--fg-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Settings modal */
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+
+  .settings-modal {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: 360px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+
+  .settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .settings-title {
+    font-weight: 700;
+    font-size: 12px;
+    margin: 0;
+  }
+
+  .close-btn {
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--fg-dim);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .close-btn:hover {
+    background: var(--bg-hover);
+    color: var(--fg);
+  }
+
+  .settings-body {
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .settings-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+  }
+
+  .settings-label {
+    width: 64px;
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .settings-value {
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: 11px;
+    color: var(--fg);
+  }
+
+  .settings-input {
+    flex: 1;
+    padding: 3px 6px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 11px;
+    outline: none;
+    height: 22px;
+  }
+  .settings-input:focus {
+    border-color: var(--accent);
+  }
+
+  .settings-error {
+    font-size: 10px;
+    color: var(--danger);
+    padding: 2px 0;
+  }
+
+  .settings-success {
+    font-size: 10px;
+    color: var(--green);
+    padding: 2px 0;
+  }
+
+  .settings-footer {
+    padding: 6px 10px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
   }
 </style>

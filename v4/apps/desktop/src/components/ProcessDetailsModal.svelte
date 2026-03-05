@@ -11,13 +11,32 @@
   let { process, onclose }: Props = $props();
   let modalEl: HTMLDivElement | undefined = $state();
 
-  let matchedTab = $derived(
-    $browserTabs.find((t) => process.name === `Chrome Tab: ${t.title}` || process.name === `Safari Tab: ${t.title}`),
+  let detectedBrowser = $derived.by((): "Chrome" | "Safari" | null => {
+    if (process.group !== "Browser") return null;
+    if (process.exec_name.includes("Google Chrome Helper") || process.name.includes("Chrome")) return "Chrome";
+    if (process.name === "com.apple.WebKit.WebContent" || process.exec_name.includes("Safari")) return "Safari";
+    return null;
+  });
+
+  let browserTabsForProcess = $derived(
+    detectedBrowser ? $browserTabs.filter((t) => t.browser === detectedBrowser) : [],
   );
 
-  let tabDomain = $derived(
-    matchedTab ? (() => { try { return new URL(matchedTab.url).hostname; } catch { return ""; } })() : "",
-  );
+  function ramColor(mb: number): string {
+    if (mb >= 1024) return "var(--danger)";
+    if (mb >= 256) return "var(--yellow)";
+    return "var(--fg)";
+  }
+
+  function cpuColor(pct: number): string {
+    if (pct >= 50) return "var(--danger)";
+    if (pct >= 10) return "var(--yellow)";
+    return "var(--fg)";
+  }
+
+  function getDomain(url: string): string {
+    try { return new URL(url).hostname; } catch { return ""; }
+  }
 
   onMount(() => {
     modalEl?.focus();
@@ -68,6 +87,11 @@
       <button class="close-btn" onclick={onclose} aria-label="Close">&times;</button>
     </div>
     <div class="body">
+      <div class="section-label">Process</div>
+      <div class="row">
+        <span class="label">Name</span>
+        <span class="value mono">{process.name}</span>
+      </div>
       <div class="row">
         <span class="label">Executable</span>
         <span class="value mono">{process.exec_name}</span>
@@ -75,18 +99,6 @@
       <div class="row">
         <span class="label">PID</span>
         <span class="value mono">{process.pid}</span>
-      </div>
-      <div class="row">
-        <span class="label">RAM</span>
-        <span class="value mono">{process.ram_mb.toFixed(1)} MB</span>
-      </div>
-      <div class="row">
-        <span class="label">CPU</span>
-        <span class="value mono">{process.cpu_pct.toFixed(1)}%</span>
-      </div>
-      <div class="row">
-        <span class="label">Uptime</span>
-        <span class="value mono">{process.uptime || "\u2014"}</span>
       </div>
       <div class="row">
         <span class="label">Group</span>
@@ -100,27 +112,32 @@
         <span class="label">System</span>
         <span class="value">{process.is_system ? "Yes" : "No"}</span>
       </div>
+
+      <div class="section-divider"></div>
+      <div class="section-label">Resources</div>
       <div class="row">
-        <span class="label">Idle</span>
-        <span class="value">{process.idle ? "Yes" : "No"}</span>
+        <span class="label">RAM</span>
+        <span class="value mono" style="color: {ramColor(process.ram_mb)}">{process.ram_mb.toFixed(1)} MB</span>
       </div>
-      {#if matchedTab}
+      <div class="row">
+        <span class="label">CPU</span>
+        <span class="value mono" style="color: {cpuColor(process.cpu_pct)}">{process.cpu_pct.toFixed(1)}%</span>
+      </div>
+      <div class="row">
+        <span class="label">Uptime</span>
+        <span class="value mono">{process.uptime || "\u2014"}</span>
+      </div>
+
+      {#if browserTabsForProcess.length > 0}
         <div class="section-divider"></div>
-        <div class="row">
-          <span class="label">Browser</span>
-          <span class="value">{matchedTab.browser}</span>
-        </div>
-        <div class="row">
-          <span class="label">Tab Title</span>
-          <span class="value">{matchedTab.title}</span>
-        </div>
-        <div class="row">
-          <span class="label">URL</span>
-          <span class="value mono url-value">{matchedTab.url}</span>
-        </div>
-        <div class="row">
-          <span class="label">Domain</span>
-          <span class="value mono">{tabDomain}</span>
+        <div class="section-label">Browser Tabs ({browserTabsForProcess.length})</div>
+        <div class="tab-list">
+          {#each browserTabsForProcess as tab (tab.id)}
+            <div class="tab-item">
+              <span class="tab-title">{tab.title}</span>
+              <span class="tab-domain">{getDomain(tab.url)}</span>
+            </div>
+          {/each}
         </div>
       {/if}
     </div>
@@ -145,7 +162,7 @@
     background: var(--bg-alt);
     border: 1px solid var(--border);
     border-radius: 6px;
-    width: 360px;
+    width: 420px;
     max-height: 80vh;
     overflow-y: auto;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
@@ -200,6 +217,15 @@
     padding: 6px 0;
   }
 
+  .section-label {
+    padding: 4px 10px 2px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+  }
+
   .row {
     display: flex;
     align-items: baseline;
@@ -241,10 +267,37 @@
     margin: 4px 10px;
   }
 
-  .url-value {
-    word-break: break-all;
-    white-space: normal;
+  .tab-list {
+    max-height: 180px;
+    overflow-y: auto;
+    margin: 2px 0;
+  }
+
+  .tab-item {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 3px 10px;
     font-size: 10px;
+    gap: 8px;
+  }
+  .tab-item:hover {
+    background: var(--bg-hover);
+  }
+
+  .tab-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--fg);
+  }
+
+  .tab-domain {
+    flex-shrink: 0;
+    color: var(--fg-dim);
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: 9px;
   }
 
   .footer {

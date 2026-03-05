@@ -1,6 +1,6 @@
 import { writable, derived, get } from "svelte/store";
-import { ipcGetMetrics, ipcKillProcess, ipcKillProcesses, ipcGetBrowserTabs } from "../lib/ipc";
-import type { ProcessEntry, SystemStats, BrowserTab } from "../lib/types";
+import { ipcGetMetrics, ipcKillProcess, ipcKillProcesses, ipcGetBrowserTabs, ipcSaveAiConfig, ipcAnalyzeProcesses } from "../lib/ipc";
+import type { ProcessEntry, SystemStats, BrowserTab, ProcessSuggestion } from "../lib/types";
 
 // --- Core stores ---
 export const processes = writable<ProcessEntry[]>([]);
@@ -156,9 +156,39 @@ export function selectNone(): void {
   selectedPids.set(new Set());
 }
 
+// --- AI stores ---
+export const aiSuggestions = writable<ProcessSuggestion[]>([]);
+export const aiLoading = writable(false);
+export const aiError = writable<string | null>(null);
+export const aiProfile = writable("general");
+
 // --- UI state ---
 export const focusedPid = writable<number | null>(null);
 export const grouping = writable(false);
+
+// --- AI actions ---
+export async function analyzeWithAi(): Promise<void> {
+  aiLoading.set(true);
+  aiError.set(null);
+  try {
+    const profile = get(aiProfile);
+    const suggestions = await ipcAnalyzeProcesses(profile);
+    aiSuggestions.set(suggestions);
+  } catch (e) {
+    aiError.set(e instanceof Error ? e.message : String(e));
+  } finally {
+    aiLoading.set(false);
+  }
+}
+
+export async function saveAiConfigAction(provider: string, model: string, key: string): Promise<void> {
+  await ipcSaveAiConfig(provider, model, key);
+}
+
+export function dismissAiSuggestions(): void {
+  aiSuggestions.set([]);
+  aiError.set(null);
+}
 
 // --- Browser tabs (separate, slower polling) ---
 async function fetchBrowserTabs(): Promise<void> {
@@ -204,4 +234,8 @@ export function _resetForTest(): void {
   selectedPids.set(new Set());
   focusedPid.set(null);
   grouping.set(false);
+  aiSuggestions.set([]);
+  aiLoading.set(false);
+  aiError.set(null);
+  aiProfile.set("general");
 }
