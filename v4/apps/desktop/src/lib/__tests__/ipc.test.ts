@@ -169,6 +169,11 @@ describe("ipcGetBrowserTabs", () => {
     await expect(ipcGetBrowserTabs()).rejects.toThrow(IPCValidationError);
   });
 
+  it("rejects tab with unknown browser name", async () => {
+    mockInvoke.mockResolvedValue([validTab({ browser: "Netscape" })]);
+    await expect(ipcGetBrowserTabs()).rejects.toThrow(/Unknown browser/);
+  });
+
   it("supports delayed IPC response (latency)", async () => {
     vi.useFakeTimers();
     mockInvoke.mockImplementation(

@@ -121,4 +121,179 @@ describe("ChromeTabManager", () => {
       expect(calls).toHaveLength(2);
     });
   });
+
+  it("successfully closes a tab and removes it from the list", async () => {
+    browserTabs.set([
+      makeTab({ id: "chrome-1", title: "Tab A", browser: "Chrome", url: "https://a.com" }),
+      makeTab({ id: "chrome-2", title: "Tab B", browser: "Chrome", url: "https://b.com" }),
+    ]);
+    processes.set([makeProc()]);
+    mockInvoke.mockResolvedValueOnce(true);
+
+    render(ChromeTabManager);
+
+    expect(screen.getByText("Tab A")).toBeInTheDocument();
+    expect(screen.getByText("Tab B")).toBeInTheDocument();
+
+    const closeButtons = screen.getAllByTitle("Close this tab");
+    await fireEvent.click(closeButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Tab A")).not.toBeInTheDocument();
+      expect(screen.getByText("Tab B")).toBeInTheDocument();
+    });
+  });
+
+  it("selects and deselects tabs via checkbox click", async () => {
+    browserTabs.set([
+      makeTab({ id: "chrome-1", title: "Tab A", browser: "Chrome" }),
+      makeTab({ id: "chrome-2", title: "Tab B", browser: "Chrome" }),
+    ]);
+    processes.set([makeProc()]);
+
+    render(ChromeTabManager);
+
+    const checkboxes = screen.getAllByRole("checkbox");
+    expect(checkboxes).toHaveLength(2);
+
+    // Click first checkbox to select
+    await fireEvent.click(checkboxes[0]);
+    expect(checkboxes[0]).toBeChecked();
+
+    // Click again to deselect
+    await fireEvent.click(checkboxes[0]);
+    expect(checkboxes[0]).not.toBeChecked();
+  });
+
+  it("select all and select none buttons work", async () => {
+    browserTabs.set([
+      makeTab({ id: "chrome-1", title: "Tab A", browser: "Chrome" }),
+      makeTab({ id: "chrome-2", title: "Tab B", browser: "Chrome" }),
+    ]);
+    processes.set([makeProc()]);
+
+    render(ChromeTabManager);
+
+    // Click "All" to select all Chrome tabs
+    await fireEvent.click(screen.getByTitle("Select all Chrome tabs"));
+
+    const checkboxes = screen.getAllByRole("checkbox");
+    expect(checkboxes[0]).toBeChecked();
+    expect(checkboxes[1]).toBeChecked();
+
+    // Click "None" to deselect all
+    await fireEvent.click(screen.getByTitle("Deselect all"));
+
+    expect(checkboxes[0]).not.toBeChecked();
+    expect(checkboxes[1]).not.toBeChecked();
+  });
+
+  it("closes selected tabs via Close N button", async () => {
+    browserTabs.set([
+      makeTab({ id: "chrome-1", title: "Tab A", browser: "Chrome", url: "https://a.com" }),
+      makeTab({ id: "chrome-2", title: "Tab B", browser: "Chrome", url: "https://b.com" }),
+    ]);
+    processes.set([makeProc()]);
+    mockInvoke.mockResolvedValue(true);
+
+    render(ChromeTabManager);
+
+    // Select all
+    await fireEvent.click(screen.getByTitle("Select all Chrome tabs"));
+
+    // "Close 2" button should appear
+    const closeSelectedBtn = screen.getByTitle("Close 2 selected tab(s)");
+    await fireEvent.click(closeSelectedBtn);
+
+    await waitFor(() => {
+      const calls = mockInvoke.mock.calls.filter((call) => call[0] === "close_browser_tab");
+      expect(calls).toHaveLength(2);
+    });
+  });
+
+  it("toggles section collapse via header click", async () => {
+    browserTabs.set([makeTab({ id: "chrome-1", title: "My Tab", browser: "Chrome" })]);
+    processes.set([makeProc()]);
+
+    render(ChromeTabManager);
+
+    // Initially expanded - tab content visible
+    expect(screen.getByText("My Tab")).toBeInTheDocument();
+
+    // Click header to collapse
+    const header = screen.getByRole("button", { name: /Chrome tabs/i });
+    await fireEvent.click(header);
+
+    // Tab content should be hidden
+    expect(screen.queryByText("My Tab")).not.toBeInTheDocument();
+
+    // Click header to expand again
+    await fireEvent.click(header);
+    expect(screen.getByText("My Tab")).toBeInTheDocument();
+  });
+
+  it("renders nothing when there are no tabs", () => {
+    browserTabs.set([]);
+    const { container } = render(ChromeTabManager);
+    expect(container.querySelector(".chrome-manager")).toBeNull();
+  });
+
+  it("shows high RAM in danger color", () => {
+    browserTabs.set([makeTab({ id: "chrome-1", browser: "Chrome" })]);
+    processes.set([makeProc({ ram_mb: 2048 })]);
+
+    render(ChromeTabManager);
+
+    // 2048 MB should be in danger color
+    const ramText = screen.getByText("2048 MB");
+    expect(ramText).toBeInTheDocument();
+    expect(ramText.style.color).toBe("var(--danger)");
+  });
+
+  it("shows medium RAM in yellow color", () => {
+    browserTabs.set([makeTab({ id: "chrome-1", browser: "Chrome" })]);
+    processes.set([makeProc({ ram_mb: 500 })]);
+
+    render(ChromeTabManager);
+
+    const ramText = screen.getByText("500 MB");
+    expect(ramText).toBeInTheDocument();
+    expect(ramText.style.color).toBe("var(--yellow)");
+  });
+
+  it("handles keyboard Enter/Space on header for collapse toggle", async () => {
+    browserTabs.set([makeTab({ id: "chrome-1", title: "My Tab", browser: "Chrome" })]);
+    processes.set([makeProc()]);
+
+    render(ChromeTabManager);
+
+    const header = screen.getByRole("button", { name: /Chrome tabs/i });
+
+    // Press Enter to collapse
+    await fireEvent.keyDown(header, { key: "Enter" });
+    expect(screen.queryByText("My Tab")).not.toBeInTheDocument();
+
+    // Press Space to expand
+    await fireEvent.keyDown(header, { key: " " });
+    expect(screen.getByText("My Tab")).toBeInTheDocument();
+  });
+
+  it("clicking a tab row toggles its selection", async () => {
+    browserTabs.set([makeTab({ id: "chrome-1", title: "Tab A", browser: "Chrome" })]);
+    processes.set([makeProc()]);
+
+    render(ChromeTabManager);
+
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).not.toBeChecked();
+
+    // Click the row (not the checkbox)
+    const row = checkbox.closest(".tab-row")!;
+    await fireEvent.click(row);
+    expect(checkbox).toBeChecked();
+
+    // Click row again to deselect
+    await fireEvent.click(row);
+    expect(checkbox).not.toBeChecked();
+  });
 });

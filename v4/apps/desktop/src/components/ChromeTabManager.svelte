@@ -93,7 +93,7 @@
   }
 
   async function closeSelected() {
-    const allTabs = [...chromeTabs, ...safariTabs];
+    const allTabs = $browserTabs;
     const toClose = allTabs.filter((t) => selectedTabIds.has(t.id));
     for (const tab of toClose) {
       const next = new Set(closing);

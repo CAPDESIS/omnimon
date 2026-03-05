@@ -6,7 +6,7 @@
   import StatusBar from "./components/StatusBar.svelte";
   import ProcessDetailsModal from "./components/ProcessDetailsModal.svelte";
   import type { ProcessEntry } from "./lib/types";
-  import { AI_PROVIDERS } from "./lib/types";
+  import { AI_PROVIDERS, type AiProviderKind } from "./lib/types";
   import {
     processes,
     filtered,
@@ -52,10 +52,6 @@
   let settingsSaving = $state(false);
   let settingsError = $state<string | null>(null);
   let settingsSaved = $state(false);
-
-  let selectedProviderModels = $derived(
-    AI_PROVIDERS.find((p) => p.id === $aiProviderConfig.provider)?.models ?? []
-  );
 
   async function handleSaveSettings() {
     settingsSaving = true;
@@ -316,12 +312,8 @@
             class="settings-select"
             value={$aiProviderConfig.provider}
             onchange={(e) => {
-              const newProvider = (e.target as HTMLSelectElement).value;
-              const providerDef = AI_PROVIDERS.find((p) => p.id === newProvider);
-              aiProviderConfig.set({
-                provider: newProvider,
-                model: providerDef?.models[0] ?? "",
-              });
+              const newProvider = (e.target as HTMLSelectElement).value as AiProviderKind;
+              aiProviderConfig.update((c) => ({ ...c, provider: newProvider }));
             }}
           >
             {#each AI_PROVIDERS as p}
@@ -330,19 +322,17 @@
           </select>
         </div>
         <div class="settings-row">
-          <label class="settings-label" for="model-select">Model</label>
-          <select
-            id="model-select"
-            class="settings-select"
+          <label class="settings-label" for="model-input">Model</label>
+          <input
+            id="model-input"
+            class="settings-input"
+            type="text"
+            placeholder="e.g. gpt-4o, claude-sonnet-4, gemini-2.0-flash"
             value={$aiProviderConfig.model}
-            onchange={(e) => {
-              aiProviderConfig.update((c) => ({ ...c, model: (e.target as HTMLSelectElement).value }));
+            oninput={(e) => {
+              aiProviderConfig.update((c) => ({ ...c, model: (e.target as HTMLInputElement).value }));
             }}
-          >
-            {#each selectedProviderModels as m}
-              <option value={m}>{m}</option>
-            {/each}
-          </select>
+          />
         </div>
         <div class="settings-row">
           <label class="settings-label" for="api-key-input">API Key</label>
