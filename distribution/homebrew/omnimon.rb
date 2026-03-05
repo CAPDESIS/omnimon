@@ -1,14 +1,13 @@
 cask "omnimon" do
-  version "4.0.4"
-  # TODO: Reemplaza con el SHA-256 real del .dmg (shasum -a 256 OmniMon_4.0.4_x64.dmg)
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  version "4.0.6"
+  sha256 "2647ced97ce92aca663a6c0ca10c6529398640924bc0899da56b788d37ccde2b"
 
-  url "https://github.com/chochy2001/macmon/releases/download/v#{version}/OmniMon_#{version}_x64.dmg"
+  url "https://github.com/chochy2001/macmon/releases/download/v#{version}/macmon_#{version}_aarch64.dmg"
   name "OmniMon"
   desc "Cross-platform system monitor, process manager, and AI assistant"
   homepage "https://github.com/chochy2001/macmon"
 
-  app "OmniMon.app"
+  app "macmon.app"
 
   zap trash: [
     "~/Library/Application Support/com.omnimon.app",
