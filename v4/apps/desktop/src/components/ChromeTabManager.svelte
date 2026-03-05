@@ -41,10 +41,17 @@
 
 {#if $chromeProcesses.length > 0}
   <div class="chrome-manager">
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="chrome-header" onclick={() => expanded = !expanded} role="button" tabindex="0">
-      <span class="chevron" class:open={expanded}>&#9654;</span>
-      <span class="chrome-icon">&#9679;</span>
+    <div
+      class="chrome-header"
+      onclick={() => expanded = !expanded}
+      onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); expanded = !expanded; } }}
+      role="button"
+      tabindex="0"
+      aria-expanded={expanded}
+      aria-label="Chrome processes"
+    >
+      <span class="chevron" class:open={expanded} aria-hidden="true">&#9654;</span>
+      <span class="chrome-icon" aria-hidden="true">&#9679;</span>
       <span class="chrome-title">Chrome</span>
       <span class="chrome-meta">
         {tabCount} tab{tabCount !== 1 ? "s" : ""} &middot;
@@ -72,6 +79,7 @@
             <input
               type="checkbox"
               checked={$selectedPids.has(proc.pid)}
+              aria-label="Select {proc.name}"
               onclick={(e: MouseEvent) => { e.stopPropagation(); toggleSelect(proc.pid); }}
             />
             <span class="tab-name" title={proc.exec_name}>{proc.name}</span>

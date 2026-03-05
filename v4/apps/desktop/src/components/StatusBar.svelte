@@ -16,7 +16,7 @@
   <div class="status-bar">
     <div class="metric">
       <span class="label">RAM</span>
-      <div class="bar-track">
+      <div class="bar-track" role="progressbar" aria-label="RAM usage" aria-valuenow={$stats.ram_used_pct} aria-valuemin={0} aria-valuemax={100}>
         <div
           class="bar-fill"
           style="width: {$stats.ram_used_pct}%; background: {ramColor}"

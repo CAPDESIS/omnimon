@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import type { ProcessEntry } from "../lib/types";
 
   interface Props {
@@ -7,15 +8,53 @@
   }
 
   let { process, onclose }: Props = $props();
+  let modalEl: HTMLDivElement | undefined = $state();
+
+  onMount(() => {
+    modalEl?.focus();
+  });
+
+  function handleBackdropKeydown(e: KeyboardEvent) {
+    if (e.key === "Escape") onclose();
+    // Focus trap: keep Tab inside modal
+    if (e.key === "Tab" && modalEl) {
+      const focusable = modalEl.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="backdrop" onclick={onclose} role="dialog" aria-label="Process Details" tabindex="-1">
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<div
+  class="backdrop"
+  onclick={onclose}
+  onkeydown={handleBackdropKeydown}
+  role="presentation"
+>
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="modal" onclick={(e: MouseEvent) => e.stopPropagation()} role="document" tabindex="-1">
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <div
+    class="modal"
+    bind:this={modalEl}
+    onclick={(e: MouseEvent) => e.stopPropagation()}
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modal-title"
+    tabindex="-1"
+  >
     <div class="header">
-      <span class="title">{process.name}</span>
+      <h2 class="title" id="modal-title">{process.name}</h2>
       <span class="pid">PID {process.pid}</span>
       <button class="close-btn" onclick={onclose} aria-label="Close">&times;</button>
     </div>
@@ -99,6 +138,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    margin: 0;
   }
 
   .pid {

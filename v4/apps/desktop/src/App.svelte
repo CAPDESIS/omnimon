@@ -95,6 +95,7 @@
       class="search"
       type="text"
       placeholder="Filter by name, PID, group... (Cmd+F)"
+      aria-label="Search processes"
       bind:value={$search}
       bind:this={searchInput}
     />
@@ -107,8 +108,8 @@
       >
         Groups
       </button>
-      <button class="btn btn-sm" onclick={selectAllVisible}>All</button>
-      <button class="btn btn-sm" onclick={selectNone}>None</button>
+      <button class="btn btn-sm" onclick={selectAllVisible} aria-label="Select all processes">All</button>
+      <button class="btn btn-sm" onclick={selectNone} aria-label="Deselect all processes">None</button>
       <button
         class="btn btn-kill"
         onclick={killSelected}
@@ -133,13 +134,13 @@
     />
   {/if}
 
-  <footer class="statusline">
+  <footer class="statusline" aria-live="polite" aria-atomic="true">
     {$filtered.length} processes{#if $filtered.length !== $processes.length}
       &nbsp;(filtered from {$processes.length}){/if}
     {#if $selectedCount > 0}
-      &nbsp;&middot;&nbsp;{$selectedCount} selected ({$selectedRamMB.toFixed(0)} MB)
+      <span aria-hidden="true">&nbsp;&middot;&nbsp;</span>{$selectedCount} selected ({$selectedRamMB.toFixed(0)} MB)
     {/if}
-    <span class="shortcuts">Cmd+I detail &middot; Cmd+F search &middot; Del close</span>
+    <span class="shortcuts" aria-hidden="true"><kbd>Cmd+I</kbd> detail <kbd>Cmd+F</kbd> search <kbd>Del</kbd> close</span>
   </footer>
 </main>
 
@@ -171,7 +172,7 @@
     --bg-hover: #2a2a2a;
     --bg-selected: #0a3d6e;
     --fg: #ccc;
-    --fg-dim: #777;
+    --fg-dim: #888;
     --border: #333;
     --accent: #0078d4;
     --danger: #d32f2f;
@@ -292,5 +293,9 @@
 
   .shortcuts {
     opacity: 0.5;
+  }
+  .shortcuts :global(kbd) {
+    font-family: inherit;
+    font-size: inherit;
   }
 </style>

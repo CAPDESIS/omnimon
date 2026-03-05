@@ -109,6 +109,7 @@
         type="checkbox"
         checked={$selectedPids.has(proc.pid)}
         disabled={proc.is_system}
+        aria-label="Select {proc.name}"
         onclick={(e: MouseEvent) => { e.stopPropagation(); toggleSelect(proc.pid); }}
       />
     </td>
@@ -129,24 +130,24 @@
 {/snippet}
 
 <div class="table-wrap">
-  <table>
+  <table aria-label="Process list">
     <thead>
       <tr>
-        <th class="col-check"></th>
-        <th class="col-name sortable" onclick={() => setSort("name")}>
-          Name{arrow("name")}
+        <th class="col-check" scope="col"><span class="sr-only">Select</span></th>
+        <th class="col-name sortable" scope="col" aria-sort={sortKey === "name" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("name")}>
+          Name<span aria-hidden="true">{arrow("name")}</span>
         </th>
-        <th class="col-pid sortable" onclick={() => setSort("pid")}>
-          PID{arrow("pid")}
+        <th class="col-pid sortable" scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("pid")}>
+          PID<span aria-hidden="true">{arrow("pid")}</span>
         </th>
-        <th class="col-ram sortable" onclick={() => setSort("ram_mb")}>
-          RAM{arrow("ram_mb")}
+        <th class="col-ram sortable" scope="col" aria-sort={sortKey === "ram_mb" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("ram_mb")}>
+          RAM<span aria-hidden="true">{arrow("ram_mb")}</span>
         </th>
-        <th class="col-cpu sortable" onclick={() => setSort("cpu_pct")}>
-          CPU{arrow("cpu_pct")}
+        <th class="col-cpu sortable" scope="col" aria-sort={sortKey === "cpu_pct" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("cpu_pct")}>
+          CPU<span aria-hidden="true">{arrow("cpu_pct")}</span>
         </th>
-        <th class="col-uptime">Up</th>
-        <th class="col-state">St</th>
+        <th class="col-uptime" scope="col">Up</th>
+        <th class="col-state" scope="col">St</th>
       </tr>
     </thead>
     <tbody>
@@ -158,10 +159,14 @@
             <tr
               class="group-header"
               onclick={() => toggleCollapse(group.name)}
+              onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleCollapse(group.name); } }}
+              tabindex="0"
+              role="button"
+              aria-expanded={!collapsedGroups.has(group.name)}
             >
               <td class="col-check"></td>
               <td colspan="6" class="group-cell">
-                <span class="chevron" class:open={!collapsedGroups.has(group.name)}>&#9654;</span>
+                <span class="chevron" class:open={!collapsedGroups.has(group.name)} aria-hidden="true">&#9654;</span>
                 <span class="group-name">{group.name}</span>
                 <span class="group-meta">
                   {group.count} &middot; {group.totalRam.toFixed(0)} MB &middot; {group.totalCpu.toFixed(1)}%
@@ -359,5 +364,17 @@
   .badge.idle {
     background: rgba(255, 193, 7, 0.15);
     color: var(--yellow);
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 </style>
