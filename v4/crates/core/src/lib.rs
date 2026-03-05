@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod browser;
 pub mod killer;
 pub mod metrics;

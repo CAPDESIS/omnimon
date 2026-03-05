@@ -159,6 +159,42 @@ fn kill_processes(pids: Vec<u32>) -> Result<Vec<u32>, String> {
     Ok(killed)
 }
 
+/// IPC: Save AI Configuration to OS Keyring
+#[tauri::command]
+fn save_ai_config(_provider: String, _model: String, key: String) -> Result<(), String> {
+    macmon_core::ai::save_api_key(&key).map_err(|e| e.to_string())
+}
+
+/// IPC: Analyze processes using AI
+#[tauri::command]
+async fn analyze_processes(profile: String) -> Result<Vec<macmon_core::ai::ProcessSuggestion>, String> {
+    let top_procs = macmon_core::metrics::top_processes_by_memory(30);
+    let mut procs_to_send = Vec::new();
+
+    for p in top_procs {
+        if !macmon_core::killer::is_immutable_blocked_process_name(&p.name) {
+            procs_to_send.push(serde_json::json!({
+                "pid": p.pid,
+                "name": p.name,
+                "memory_mb": p.memory_bytes / 1_048_576
+            }));
+        }
+    }
+
+    let processes_json = serde_json::to_string(&procs_to_send).map_err(|e| e.to_string())?;
+
+    let provider = "openrouter"; 
+    let model = "google/gemini-flash-1.5-8b"; 
+
+    let mut suggestions = macmon_core::ai::analyze_with_ai(provider, model, &processes_json, &profile)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    suggestions.retain(|s| !macmon_core::killer::is_immutable_blocked_process_name(&s.name));
+
+    Ok(suggestions)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -192,6 +228,8 @@ pub fn run() {
             get_metrics,
             kill_process,
             kill_processes,
+            save_ai_config,
+            analyze_processes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
