@@ -5,6 +5,8 @@ import {
   ipcKillProcesses,
   ipcGetBrowserTabs,
   ipcCloseBrowserTab,
+  ipcSaveAiConfig,
+  ipcAnalyzeProcesses,
   IPCValidationError,
 } from "../ipc";
 
@@ -75,6 +77,11 @@ describe("ipcGetMetrics", () => {
 
   it("rejects process with string pid", async () => {
     mockInvoke.mockResolvedValue(validMetrics({ processes: [validProcess({ pid: "abc" })] }));
+    await expect(ipcGetMetrics()).rejects.toThrow(IPCValidationError);
+  });
+
+  it("rejects process entry that is not an object", async () => {
+    mockInvoke.mockResolvedValue(validMetrics({ processes: [null] }));
     await expect(ipcGetMetrics()).rejects.toThrow(IPCValidationError);
   });
 
@@ -157,6 +164,29 @@ describe("ipcGetBrowserTabs", () => {
     await expect(ipcGetBrowserTabs()).rejects.toThrow(IPCValidationError);
   });
 
+  it("rejects tab entry that is not an object", async () => {
+    mockInvoke.mockResolvedValue([null]);
+    await expect(ipcGetBrowserTabs()).rejects.toThrow(IPCValidationError);
+  });
+
+  it("supports delayed IPC response (latency)", async () => {
+    vi.useFakeTimers();
+    mockInvoke.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve([validTab({ title: "Slow Tab 🐢" })]), 80);
+        }),
+    );
+
+    const promise = ipcGetBrowserTabs();
+    await vi.advanceTimersByTimeAsync(80);
+
+    await expect(promise).resolves.toEqual([
+      expect.objectContaining({ title: "Slow Tab 🐢", browser: "Chrome" }),
+    ]);
+    vi.useRealTimers();
+  });
+
   it("propagates tauri errors like denied AppleScript permissions", async () => {
     mockInvoke.mockRejectedValue(new Error("AppleScript permission denied by user"));
     await expect(ipcGetBrowserTabs()).rejects.toThrow("AppleScript permission denied by user");
@@ -184,6 +214,63 @@ describe("ipcCloseBrowserTab", () => {
     await expect(ipcCloseBrowserTab("tab-1", "https://example.com", "Safari")).rejects.toThrow(
       "User denied Automation permission",
     );
+  });
+});
+
+describe("ipcSaveAiConfig", () => {
+  it("calls invoke with correct params", async () => {
+    mockInvoke.mockResolvedValue(undefined);
+    await ipcSaveAiConfig("openrouter", "gemini-flash", "sk-123");
+    expect(mockInvoke).toHaveBeenCalledWith("save_ai_config", {
+      provider: "openrouter",
+      model: "gemini-flash",
+      key: "sk-123",
+    });
+  });
+
+  it("propagates errors", async () => {
+    mockInvoke.mockRejectedValue(new Error("keyring failed"));
+    await expect(ipcSaveAiConfig("openrouter", "m", "k")).rejects.toThrow("keyring failed");
+  });
+});
+
+describe("ipcAnalyzeProcesses", () => {
+  function validSuggestion(overrides: Record<string, unknown> = {}) {
+    return { pid: 1, name: "Heavy App", reason: "High memory usage", ...overrides };
+  }
+
+  it("returns validated suggestions on valid data", async () => {
+    mockInvoke.mockResolvedValue([validSuggestion(), validSuggestion({ pid: 2, name: "Other" })]);
+    const result = await ipcAnalyzeProcesses("general");
+    expect(result).toHaveLength(2);
+    expect(result[0].pid).toBe(1);
+    expect(result[0].reason).toBe("High memory usage");
+    expect(mockInvoke).toHaveBeenCalledWith("analyze_processes", { profile: "general" });
+  });
+
+  it("rejects non-array response", async () => {
+    mockInvoke.mockResolvedValue({ suggestions: [] });
+    await expect(ipcAnalyzeProcesses("general")).rejects.toThrow(IPCValidationError);
+  });
+
+  it("rejects suggestion with missing name", async () => {
+    mockInvoke.mockResolvedValue([validSuggestion({ name: 42 })]);
+    await expect(ipcAnalyzeProcesses("general")).rejects.toThrow(IPCValidationError);
+  });
+
+  it("rejects suggestion with non-numeric pid", async () => {
+    mockInvoke.mockResolvedValue([validSuggestion({ pid: "abc" })]);
+    await expect(ipcAnalyzeProcesses("general")).rejects.toThrow(IPCValidationError);
+  });
+
+  it("rejects suggestion that is not an object", async () => {
+    mockInvoke.mockResolvedValue([null]);
+    await expect(ipcAnalyzeProcesses("general")).rejects.toThrow(IPCValidationError);
+  });
+
+  it("propagates API errors", async () => {
+    mockInvoke.mockRejectedValue(new Error("No API key configured"));
+    await expect(ipcAnalyzeProcesses("developer")).rejects.toThrow("No API key configured");
   });
 });
 

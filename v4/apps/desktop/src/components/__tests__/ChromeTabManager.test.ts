@@ -86,7 +86,7 @@ describe("ChromeTabManager", () => {
 
     render(ChromeTabManager);
 
-    const closeButton = screen.getByTitle("Close tab");
+    const closeButton = screen.getByTitle("Close this tab");
     await fireEvent.click(closeButton);
 
     expect(mockInvoke).toHaveBeenCalledWith("close_browser_tab", {
@@ -94,8 +94,9 @@ describe("ChromeTabManager", () => {
       tabUrl: "https://docs.example.com",
       browser: "Chrome",
     });
+    // Tab stays in the list because the close failed (error caught, not removed)
     await waitFor(() => {
-      expect(closeButton).not.toBeDisabled();
+      expect(screen.getByText("Example Tab")).toBeInTheDocument();
     });
   });
 

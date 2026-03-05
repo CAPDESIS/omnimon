@@ -4,6 +4,7 @@ import type { ProcessEntry } from "../../lib/types";
 import {
   processes,
   stats,
+  browserTabs,
   loading,
   search,
   selectedPids,
@@ -20,6 +21,13 @@ import {
   startPolling,
   stopPolling,
   applyDiff,
+  aiSuggestions,
+  aiLoading,
+  aiError,
+  aiProfile,
+  analyzeWithAi,
+  saveAiConfigAction,
+  dismissAiSuggestions,
   _resetForTest,
 } from "../processes";
 
@@ -121,6 +129,13 @@ describe("fetchMetrics", () => {
     expect(get(loading)).toBe(false);
   });
 
+  it("handles null metrics response via IPC validation failure", async () => {
+    mockInvoke.mockResolvedValue(null);
+    await fetchMetrics();
+    expect(get(loading)).toBe(false);
+    expect(get(processes)).toEqual([]);
+  });
+
   it("prunes selected PIDs that are no longer alive", async () => {
     processes.set([makeProc({ pid: 1 }), makeProc({ pid: 2 })]);
     selectedPids.set(new Set([1, 2]));
@@ -155,6 +170,53 @@ describe("fetchMetrics", () => {
     });
     await fetchMetrics();
     expect(get(processes)).toEqual([]);
+  });
+
+  it("keeps metrics flow healthy when browser tab fetch is denied", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "get_browser_tabs") {
+        return Promise.reject(new Error("AppleScript permission denied"));
+      }
+      return Promise.resolve({
+        processes: [makeProc({ pid: 7 })],
+        stats: { ram_total_gb: 16, ram_used_pct: 10, swap_used_mb: 0, total_processes: 1 },
+      });
+    });
+
+    await fetchMetrics();
+
+    expect(get(processes)).toHaveLength(1);
+    expect(get(stats)?.total_processes).toBe(1);
+    expect(get(browserTabs)).toEqual([]);
+  });
+
+  it("supports delayed IPC metrics response (latency)", async () => {
+    vi.useFakeTimers();
+    loading.set(true);
+    mockInvoke.mockImplementation(
+      (cmd: string) =>
+        new Promise((resolve) => {
+          setTimeout(() => {
+            if (cmd === "get_browser_tabs") resolve([]);
+            else {
+              resolve({
+                processes: [makeProc({ pid: 77, name: "Worker 🚀" })],
+                stats: { ram_total_gb: 16, ram_used_pct: 30, swap_used_mb: 5, total_processes: 1 },
+              });
+            }
+          }, 120);
+        }),
+    );
+
+    const pending = fetchMetrics();
+    expect(get(loading)).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(120);
+    await pending;
+
+    expect(get(loading)).toBe(false);
+    expect(get(processes)[0].name).toBe("Worker 🚀");
+    vi.useRealTimers();
   });
 
   it("retains existing processes on IPC error", async () => {
@@ -232,6 +294,18 @@ describe("killSingle", () => {
     expect(ok).toBe(false);
     expect(get(processes)).toHaveLength(1);
   });
+
+  it("keeps other selected PIDs unchanged when killed PID was not selected", async () => {
+    processes.set([makeProc({ pid: 1 }), makeProc({ pid: 2 })]);
+    selectedPids.set(new Set([2]));
+    mockInvoke.mockResolvedValue(true);
+
+    const ok = await killSingle(1);
+
+    expect(ok).toBe(true);
+    expect(get(selectedPids).has(2)).toBe(true);
+    expect(get(selectedPids).has(1)).toBe(false);
+  });
 });
 
 // --- toggleSelect ---
@@ -299,6 +373,17 @@ describe("derived stores", () => {
     expect(get(filtered)[0].name).toBe("Chrome");
   });
 
+  it("filtered supports special characters and emoji names", () => {
+    processes.set([
+      makeProc({ pid: 1, name: "My App 🔥" }),
+      makeProc({ pid: 2, name: "normal-app" }),
+      makeProc({ pid: 3, name: "calc(1)+[]" }),
+    ]);
+    search.set("🔥");
+    expect(get(filtered)).toHaveLength(1);
+    expect(get(filtered)[0].pid).toBe(1);
+  });
+
   it("chromeProcesses filters by Browser group", () => {
     processes.set([
       makeProc({ pid: 1, group: "Browser", name: "Chrome" }),
@@ -319,6 +404,86 @@ describe("derived stores", () => {
     processes.set([makeProc({ pid: 1, ram_mb: 100 }), makeProc({ pid: 2, ram_mb: 200 })]);
     selectedPids.set(new Set([1, 2]));
     expect(get(selectedRamMB)).toBe(300);
+  });
+});
+
+// --- AI actions ---
+describe("analyzeWithAi", () => {
+  it("sets suggestions on success", async () => {
+    const suggestions = [{ pid: 1, name: "Heavy", reason: "Using 2GB RAM" }];
+    mockInvoke.mockResolvedValue(suggestions);
+
+    await analyzeWithAi();
+
+    expect(get(aiSuggestions)).toEqual(suggestions);
+    expect(get(aiLoading)).toBe(false);
+    expect(get(aiError)).toBeNull();
+    expect(mockInvoke).toHaveBeenCalledWith("analyze_processes", { profile: "general" });
+  });
+
+  it("sets error on API failure", async () => {
+    mockInvoke.mockRejectedValue(new Error("No API key configured"));
+
+    await analyzeWithAi();
+
+    expect(get(aiSuggestions)).toEqual([]);
+    expect(get(aiLoading)).toBe(false);
+    expect(get(aiError)).toBe("No API key configured");
+  });
+
+  it("stringifies non-Error failures", async () => {
+    mockInvoke.mockRejectedValue("plain-string-error");
+
+    await analyzeWithAi();
+
+    expect(get(aiError)).toBe("plain-string-error");
+  });
+
+  it("passes current profile to IPC", async () => {
+    aiProfile.set("developer");
+    mockInvoke.mockResolvedValue([]);
+
+    await analyzeWithAi();
+
+    expect(mockInvoke).toHaveBeenCalledWith("analyze_processes", { profile: "developer" });
+  });
+
+  it("sets loading during execution", async () => {
+    let resolvePromise: (v: unknown) => void;
+    mockInvoke.mockImplementation(
+      () => new Promise((resolve) => { resolvePromise = resolve; }),
+    );
+
+    const promise = analyzeWithAi();
+    expect(get(aiLoading)).toBe(true);
+
+    resolvePromise!([]);
+    await promise;
+    expect(get(aiLoading)).toBe(false);
+  });
+});
+
+describe("dismissAiSuggestions", () => {
+  it("clears suggestions and error", () => {
+    aiSuggestions.set([{ pid: 1, name: "X", reason: "Y" }]);
+    aiError.set("some error");
+
+    dismissAiSuggestions();
+
+    expect(get(aiSuggestions)).toEqual([]);
+    expect(get(aiError)).toBeNull();
+  });
+});
+
+describe("saveAiConfigAction", () => {
+  it("forwards provider/model/key to IPC", async () => {
+    mockInvoke.mockResolvedValue(undefined);
+    await saveAiConfigAction("openai", "gpt-5", "secret-key");
+    expect(mockInvoke).toHaveBeenCalledWith("save_ai_config", {
+      provider: "openai",
+      model: "gpt-5",
+      key: "secret-key",
+    });
   });
 });
 
