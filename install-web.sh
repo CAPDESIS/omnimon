@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install-web.sh - One-command web installer for macmon
+# install-web.sh - Smart Multiplatform Web Installer for OmniMon v4
 # Usage: curl -fsSL https://raw.githubusercontent.com/chochy2001/macmon/main/install-web.sh | bash
 set -euo pipefail
 
@@ -17,26 +17,20 @@ R='\033[0m'
 
 info()  { printf '%b\n' "${C}${B}==> ${R}${B}$1${R}"; }
 error() { printf '%b\n' "${RED}${B}Error:${R} $1" >&2; exit 1; }
+warn()  { printf '%b\n' "${Y}${B}Warning:${R} $1"; }
 
-# --- Pre-flight checks ---
-
-# macOS only
-if [[ "$(uname -s)" != "Darwin" ]]; then
-    error "macmon is only supported on macOS"
-fi
-
-# Required tools (both ship with macOS)
-command -v curl >/dev/null 2>&1 || error "curl is required but not found"
-command -v tar  >/dev/null 2>&1 || error "tar is required but not found"
-
-info "macmon web installer"
+info "OmniMon Smart Web Installer (Multiplatform)"
 echo ""
 
-# --- Fetch latest release tag ---
-info "Fetching latest release..."
+OS="$(uname -s)"
+ARCH="$(uname -m)"
+
+info "Detected OS: $OS ($ARCH)"
+info "Fetching latest v4 release info from GitHub API..."
+
 release_json=$(curl -fsSL "$API_URL" 2>/dev/null) || error "Failed to fetch release info from GitHub API"
 
-# Parse tag_name (e.g. "v1.2.0") — no jq needed
+# Extract version tag
 tag_name=$(printf '%s' "$release_json" | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"//;s/"//')
 if [[ -z "$tag_name" ]]; then
     error "Could not parse release tag from GitHub API"
@@ -46,54 +40,70 @@ version="${tag_name#v}"
 printf '%b\n' "  ${D}Latest version: ${R}${B}${version}${R}"
 echo ""
 
-# --- Download release tarball ---
-archive_name="macmon-${version}-macos-universal.tar.gz"
-
-# Parse browser_download_url for the universal tarball
-asset_url=$(printf '%s' "$release_json" | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*'"${archive_name}"'"' | head -1 | sed 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"//;s/"//')
-if [[ -z "$asset_url" ]]; then
-    error "Could not find ${archive_name} in release assets. Is the release properly built?"
+# Fallback migration check
+if [[ -d "$HOME/.local/libexec/macmon" ]] && [[ "$OS" == "Darwin" ]]; then
+    warn "Legacy macmon v3 detected. The new v4 is a standalone App/DMG."
+    warn "You may want to run '~/.local/libexec/macmon/uninstall.sh' to clean up v3 daemons later."
+    echo ""
 fi
 
-TMPDIR_INSTALL=$(mktemp -d "${TMPDIR:-/tmp}/macmon-install.XXXXXXXXXX")
+get_asset_url() {
+    local ext="$1"
+    printf '%s' "$release_json" | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*'"${ext}"'"' | head -1 | sed 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"//;s/"//'
+}
+
+TMPDIR_INSTALL=$(mktemp -d "${TMPDIR:-/tmp}/omnimon-install.XXXXXXXXXX")
 trap 'rm -rf "$TMPDIR_INSTALL"' EXIT
 
-info "Downloading ${archive_name}..."
-curl -fSL -o "${TMPDIR_INSTALL}/${archive_name}" "$asset_url" || error "Failed to download release archive"
+if [[ "$OS" == "Darwin" ]]; then
+    info "macOS Environment. Looking for .dmg artifact..."
+    asset_url=$(get_asset_url "\.dmg")
+    
+    if [[ -z "$asset_url" ]]; then
+        error "Could not find .dmg in latest release. Visit: https://github.com/$REPO/releases"
+    fi
+    
+    dmg_path="${TMPDIR_INSTALL}/OmniMon.dmg"
+    info "Downloading $asset_url ..."
+    curl -fSL -o "$dmg_path" "$asset_url" || error "Failed to download DMG"
+    
+    info "Mounting DMG. Please drag OmniMon to your Applications folder."
+    hdiutil attach "$dmg_path"
 
-# --- Checksum verification ---
-checksum_name="checksums-sha256.txt"
-checksum_url=$(printf '%s' "$release_json" | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*'"${checksum_name}"'"' | head -1 | sed 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"//;s/"//')
-if [[ -z "$checksum_url" ]]; then
-    error "Could not find ${checksum_name} in release assets. Cannot verify integrity."
+elif [[ "$OS" == "Linux" ]]; then
+    info "Linux Environment. Looking for .deb artifact..."
+    asset_url=$(get_asset_url "\.deb")
+    
+    if [[ -z "$asset_url" ]]; then
+        error "Could not find .deb in latest release. Visit: https://github.com/$REPO/releases"
+    fi
+    
+    deb_path="${TMPDIR_INSTALL}/omnimon.deb"
+    info "Downloading $asset_url ..."
+    curl -fSL -o "$deb_path" "$asset_url" || error "Failed to download DEB"
+    
+    info "Installing deb package (requires sudo)..."
+    sudo dpkg -i "$deb_path" || sudo apt-get install -f -y
+    info "OmniMon installed successfully."
+
+elif [[ "$OS" == *"MINGW"* ]] || [[ "$OS" == *"CYGWIN"* ]] || [[ "$OS" == *"MSYS"* ]]; then
+    info "Windows Environment. Looking for .exe artifact..."
+    asset_url=$(get_asset_url "\.exe")
+    
+    if [[ -z "$asset_url" ]]; then
+        error "Could not find .exe in latest release. Visit: https://github.com/$REPO/releases"
+    fi
+    
+    exe_path="${TMPDIR_INSTALL}/omnimon-setup.exe"
+    info "Downloading $asset_url ..."
+    curl -fSL -o "$exe_path" "$asset_url" || error "Failed to download EXE"
+    
+    info "Launching installer..."
+    start "$exe_path"
+
+else
+    error "Operating System '$OS' is not automatically supported by this script. Download binaries from: https://github.com/$REPO/releases"
 fi
 
-info "Verifying checksum..."
-curl -fsSL -o "${TMPDIR_INSTALL}/${checksum_name}" "$checksum_url" || error "Failed to download checksum file"
-
-# Verify archive integrity (filter to the specific file we downloaded)
-(cd "$TMPDIR_INSTALL" && grep "$archive_name" "$checksum_name" | shasum -a 256 -c -) || error "Checksum verification failed. Archive may be corrupted or tampered with."
-
-# --- Extract and install ---
-info "Extracting..."
-tar xzf "${TMPDIR_INSTALL}/${archive_name}" -C "$TMPDIR_INSTALL" || error "Failed to extract archive"
-
-# The archive extracts to a macmon/ directory
-install_src="${TMPDIR_INSTALL}/macmon"
-if [[ ! -d "$install_src" ]]; then
-    # Fallback: check if files are at the root of the temp dir
-    install_src="$TMPDIR_INSTALL"
-fi
-
-if [[ ! -f "${install_src}/install.sh" ]]; then
-    error "install.sh not found in release archive"
-fi
-
-info "Installing macmon v${version}..."
 echo ""
-cd "$install_src"
-bash install.sh
-
-echo ""
-info "Installation complete!"
-echo ""
+info "Transition to OmniMon v4 Complete!"
