@@ -40,3 +40,8 @@ Nuestro ciclo de CI/CD incluye herramientas de análisis estático como `cargo-a
 
 ### 5. Micro-benchmarking y Latencia (Core)
 Entendemos que las validaciones de seguridad no deben afectar el rendimiento. Garantizamos < 10ms de latencia para las llamadas FFI del Sistema Operativo encargadas de verificar los permisos y los "safelists" antes de ejecutar una operación crítica, manteniendo el impacto de CPU por debajo del 0.1% en reposo.
+
+### 6. Input Sanitization for System Calls (Frontend -> Backend IPC)
+Todas las interacciones entre el frontend y el backend nativo pasan a través de un puente de IPC Seguro. Esto previene que datos maliciosos inyectados desde el frontend comprometan el sistema:
+*   **AppleScript:** Los identificadores proporcionados por el usuario (como IDs de pestañas o URLs) nunca se concatenan directamente en cadenas de AppleScript. En su lugar, se pasan como argumentos posicionales (vía `osascript -e` y `on run argv`), eliminando vectores de Remote Code Execution (RCE).
+*   **WebSockets (CDP):** Los IDs de sesión de depuración están rigurosamente validados para evitar el *Path Traversal*. Se rechazan los caracteres como `/`, `\`, `?` y `#`, lo que garantiza que las conexiones solo puedan abrirse contra los *endpoints* permitidos del Chrome Debugging Protocol.
