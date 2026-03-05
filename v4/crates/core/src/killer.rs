@@ -288,10 +288,17 @@ mod tests {
         let called = Arc::new(Mutex::new(false));
         let called_clone = Arc::clone(&called);
 
+        #[cfg(target_os = "macos")]
+        let (proc_name, path) = ("WindowServer", "/System/Library/CoreServices/WindowServer");
+        #[cfg(target_os = "windows")]
+        let (proc_name, path) = ("svchost.exe", "C:\\Windows\\System32\\svchost.exe");
+        #[cfg(target_os = "linux")]
+        let (proc_name, path) = ("systemd", "/usr/lib/systemd/systemd");
+
         let result = kill_process_by_name(
             1234,
-            "WindowServer".to_string(),
-            Some(Path::new("/System/Library/CoreServices/WindowServer")),
+            proc_name.to_string(),
+            Some(Path::new(path)),
             &[],
             move || {
                 *called_clone.lock().expect("lock kill flag") = true;
@@ -299,7 +306,7 @@ mod tests {
             },
         );
 
-        assert!(matches!(result, Err(KillError::Blocked(name)) if name == "WindowServer"));
+        assert!(matches!(result, Err(KillError::Blocked(name)) if name == proc_name));
         assert!(!*called.lock().expect("lock kill flag"));
     }
 
@@ -325,10 +332,17 @@ mod tests {
 
     #[test]
     fn spoofed_blocked_name_with_untrusted_path_is_not_blocked() {
+        #[cfg(target_os = "macos")]
+        let (proc_name, path) = ("WindowServer", "/tmp/WindowServer");
+        #[cfg(target_os = "windows")]
+        let (proc_name, path) = ("svchost.exe", "C:\\Temp\\svchost.exe");
+        #[cfg(target_os = "linux")]
+        let (proc_name, path) = ("systemd", "/tmp/systemd");
+
         let result = kill_process_by_name(
             99,
-            "WindowServer".to_string(),
-            Some(Path::new("/tmp/WindowServer")),
+            proc_name.to_string(),
+            Some(Path::new(path)),
             &[],
             || true,
         );
@@ -406,10 +420,16 @@ mod tests {
             .spawn()
             .expect("spawn sleep child process");
         let pid = child.id() as i32;
+        
+        // Spawn a thread to wait on the child so it doesn't become a zombie on Linux
+        std::thread::spawn(move || {
+            let _ = child.wait();
+        });
+
+        // Give sysinfo a moment to definitely see the new process
+        std::thread::sleep(Duration::from_millis(200));
+
         let result = kill_process_safe(pid, &[]);
         assert!(result.is_ok(), "expected kill success, got: {result:?}");
-
-        // Reap child if it has already exited to avoid zombies in test env.
-        let _ = child.wait();
     }
 }
