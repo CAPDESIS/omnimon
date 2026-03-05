@@ -15,6 +15,54 @@ const DEFAULT_PROTECTED_PROCESSES: &[&str] = &[
     "lsass.exe",
 ];
 
+#[cfg(target_os = "macos")]
+const MACOS_PROTECTED_PROCESSES: &[&str] = &[
+    "coreaudiod",
+    "audiocomponentregistrar",
+    "coremediaiod",
+    "vtdecoderxpcservice",
+    "vtencoderxpcservice",
+    "loginwindow",
+    "bluetoothd",
+    "fseventsd",
+    "mds",
+    "mds_stores",
+    "opendirectoryd",
+    "syslogd",
+    "configd",
+    "diskarbitrationd",
+    "powerd",
+    "thermalmonitord",
+    "usereventagent",
+    "cfprefsd",
+    "distnoted",
+    "logd",
+    "notifyd",
+];
+
+#[cfg(target_os = "windows")]
+const WINDOWS_PROTECTED_PROCESSES: &[&str] = &[
+    "svchost.exe",
+    "explorer.exe",
+    "winlogon.exe",
+    "dwm.exe",
+    "csrss.exe",
+    "smss.exe",
+    "wininit.exe",
+    "services.exe",
+    "lsass.exe",
+];
+
+#[cfg(target_os = "linux")]
+const LINUX_PROTECTED_PROCESSES: &[&str] = &[
+    "systemd",
+    "init",
+    "xorg",
+    "xwayland",
+    "dbus-daemon",
+    "networkmanager",
+];
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KillResult {
     pub pid: u32,
@@ -47,9 +95,44 @@ impl std::error::Error for KillError {}
 
 pub fn is_immutable_blocked_process_name(process_name: &str) -> bool {
     let lowered_name = process_name.to_ascii_lowercase();
-    DEFAULT_PROTECTED_PROCESSES
+    if DEFAULT_PROTECTED_PROCESSES
         .iter()
         .any(|name| *name == lowered_name)
+    {
+        return true;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if MACOS_PROTECTED_PROCESSES
+            .iter()
+            .any(|name| *name == lowered_name)
+        {
+            return true;
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if WINDOWS_PROTECTED_PROCESSES
+            .iter()
+            .any(|name| *name == lowered_name)
+        {
+            return true;
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if LINUX_PROTECTED_PROCESSES
+            .iter()
+            .any(|name| *name == lowered_name)
+        {
+            return true;
+        }
+    }
+
+    false
 }
 
 fn is_blocked_process_name(process_name: &str, extra_blocklist: &[String]) -> bool {

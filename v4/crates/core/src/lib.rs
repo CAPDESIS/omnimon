@@ -1,3 +1,4 @@
+pub mod browser;
 pub mod killer;
 pub mod metrics;
 mod os_native;
