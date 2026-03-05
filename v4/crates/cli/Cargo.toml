@@ -1,8 +1,8 @@
 [package]
 name = "cli"
-version = "4.0.6"
+version = "4.0.7"
 edition = "2021"
-description = "macmon CLI application"
+description = "OmniMon CLI application"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }

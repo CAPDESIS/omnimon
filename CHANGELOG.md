@@ -1,67 +1,80 @@
 # Changelog
 
+## 4.0.7 (2026-03-05)
+
+### Branding
+- Rename product to OmniMon across all configs (tauri.conf.json, Cargo.toml, package.json)
+- Translate README and all scripts to English for international audience
+- Update Homebrew tap from `chochy2001/tap` to `chochy2001/omnimon`
+
+### Frontend
+- IPC security hardening: runtime type guards on every IPC response (`src/lib/ipc.ts`)
+- Virtual scroll in ProcessTable: 60 FPS with 2000+ processes (97.5% DOM reduction)
+- 150ms search debounce to avoid per-keystroke O(n) filtering
+- Test infrastructure: vitest + testing-library/svelte + happy-dom
+- 69 tests across 4 test files (91% statement coverage, 96% line coverage)
+
+## 4.0.6 (2026-03-05)
+
+### Distribution
+- Homebrew Cask formula for macOS desktop app
+- Cross-platform release: .dmg (macOS), .msi (Windows), .deb + .AppImage (Linux)
+- Universal web installer (`install-web.sh`)
+
+### CI/CD
+- Relax coverage threshold to 80%, exclude os_native.rs
+- Fix formatting in killer.rs
+- OS-aware killer tests, fix sleep termination on Linux
+
+## 4.0.4 (2026-03-05)
+
+### Performance
+- Expand core resilience tests and add watcher micro-benchmark
+- CLI integration tests and coverage pipeline with llvm-cov
+
+## 4.0.2 (2026-03-05)
+
+### Security
+- Harden kill identity checks with macOS native memory parity
+- IPC security, WCAG accessibility, architecture guide
+
+## 4.0.0 (2026-03-05)
+
+### Complete Rewrite
+- Rust native core replacing Bash/AppKit (sysinfo, CDP, FFI)
+- Tauri + Svelte 5 desktop app with reactive UI
+- Rust CLI with clap for headless/server usage
+- Cross-platform: macOS, Windows, Linux
+- AI-powered optimization flow (OpenAI, Anthropic, OpenRouter)
+- Native keychain integration for credential security
+- Per-OS secure blocklists for critical process protection
+
+---
+
 ## 1.2.0 (2026-03-03)
 
 ### Features
-- Menu bar monitor (`MacmonStatusBar`) — NSStatusItem with live RAM/swap display, native data collection via `host_statistics64`, quick access to picker and export
-- MVVM refactor — extracted `ProcessPickerModel.swift` (Foundation-only) from ProcessPicker for testable model layer
-- Homebrew formula (`brew/macmon.rb`) for tap-based distribution
-- Release workflow (`.github/workflows/release.yml`) — automatic GitHub Releases on version tags
-- Semantic versioning with `docs/VERSIONING.md`
+- Menu bar monitor (`MacmonStatusBar`) with live RAM/swap display
+- MVVM refactor for testable model layer
+- Homebrew formula for tap-based distribution
+- Release workflow for automatic GitHub Releases on version tags
 
 ### Testing
-- XCTest suite: 12 tests covering JSON parsing, filter/sort, grouping, collapse, selection, system process skip
-- XCTest runner script (`tests/swift/run_tests.sh`) compiles and runs tests without Xcode
-
-### Documentation
-- Complete README rewrite with CI badge, feature comparison table, FAQ, versioning section
-- Updated ARCHITECTURE.md with all 5 components
-- Updated CONFIGURATION.md with disk I/O, orphan daemons, export, menu bar sections
+- XCTest suite: 12 tests covering JSON parsing, filter/sort, grouping, selection
 
 ## 1.1.0 (2026-03-03)
 
 ### Features
-- Orphan build daemon detection: SourceKitService, GradleDaemon, xcodebuild, qemu-system (Android emulator)
-- Per-process disk I/O metrics via `proc_pid_rusage` (DiskIOHelper Swift binary)
-- `macmon export [json|csv]` command for snapshot export
-- `macmon export --peaks` for daily peak consumption tracking
-- Disk Read/Write columns in process picker UI
-- Orphan daemon counts in `macmon status` output
+- Orphan build daemon detection
+- Per-process disk I/O metrics
+- Export command (JSON/CSV) with peak tracking
 
 ### Security
-- Code signature verification for system process names (prevents kill-immunity spoofing)
-- Input validation for CPU values from ps (prevents awk injection)
-- Numeric validation for all config-sourced intervals passed to `sleep`/arithmetic
-- bash 3.2 compatibility for config loader (no `^^` operator)
+- Code signature verification, input validation, bash 3.2 compatibility
 
-### Testing & CI
-- BATS test suite: 46 tests covering friendly_name, AppleScript escaping, system process protection, config loading, uptime calculation
-- GitHub Actions CI pipeline: shell syntax checks, Swift compilation, BATS tests on macOS runner
+### Testing
+- BATS test suite: 46 tests with GitHub Actions CI
 
 ## 1.0.0 (2026-03-03)
 
-Initial open-source release.
-
-### Features
-- Background daemon with memory pressure, swap, and flutter_tester monitoring
-- Native AppKit process picker with search, grouping, and system summary
-- CLI with subcommands: status, start/stop/restart, config, log
-- Configurable YAML-based settings
-- LaunchAgent for auto-start on login
-- Install/uninstall scripts
-
-### Security
-- AppleScript injection sanitization for all osascript calls
-- JSON construction via jq (no string interpolation)
-- Temp files in per-user private $TMPDIR (not /tmp)
-- System process protection list
-- PID identity verification before kill signals
-- Exact match process lookup (pgrep -x)
-- Chrome tab closing via AppleScript (no kill on renderers)
-
-### Performance
-- Batched process collection (3 ps calls instead of ~300)
-- Cached memory_pressure with 30s TTL
-- NSTableView cell recycling
-- Single-row reload on checkbox toggle
-- Shared library eliminates code duplication
+Initial open-source release with background daemon, native AppKit process picker, CLI, YAML config, and LaunchAgent auto-start.

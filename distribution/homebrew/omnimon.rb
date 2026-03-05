@@ -7,12 +7,14 @@ cask "omnimon" do
   desc "Cross-platform system monitor, process manager, and AI assistant"
   homepage "https://github.com/chochy2001/macmon"
 
+  depends_on macos: ">= :ventura"
+
   app "macmon.app"
 
   zap trash: [
-    "~/Library/Application Support/com.omnimon.app",
-    "~/Library/Caches/com.omnimon.app",
-    "~/Library/Preferences/com.omnimon.app.plist",
+    "~/Library/Application Support/com.omnimon.desktop",
+    "~/Library/Caches/com.omnimon.desktop",
+    "~/Library/Preferences/com.omnimon.desktop.plist",
     "~/.config/macmon",
     "~/.local/share/macmon"
   ]

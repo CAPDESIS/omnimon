@@ -1,24 +1,24 @@
 .PHONY: dev build-all test-all setup
 
-# Inicia la aplicación en modo desarrollo
+# Start the app in development mode
 dev:
-	@echo "Iniciando macmon en modo desarrollo..."
+	@echo "Starting OmniMon in development mode..."
 	export PATH="$$HOME/.cargo/bin:$$PATH" && cd apps/desktop && npm run tauri dev || cargo run --bin desktop
 
-# Compila todos los binarios del workspace en modo release
+# Build all workspace binaries in release mode
 build-all:
-	@echo "Compilando todo el workspace en modo release..."
+	@echo "Building entire workspace in release mode..."
 	cargo build --workspace --release
 
-# Ejecuta formato, linters y tests en todo el workspace
+# Run formatting, linting, and tests across the workspace
 test-all:
-	@echo "Verificando formato..."
+	@echo "Checking formatting..."
 	cargo fmt --check
-	@echo "Ejecutando linter (clippy)..."
+	@echo "Running linter (clippy)..."
 	cargo clippy --workspace -- -D warnings || true
-	@echo "Ejecutando tests..."
+	@echo "Running tests..."
 	cargo test --workspace || true
 
-# Ejecuta el script de setup
+# Run the setup script
 setup:
 	@./setup-dev.sh

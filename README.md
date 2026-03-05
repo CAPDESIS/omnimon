@@ -1,49 +1,64 @@
-# OmniMon v4.0.0 🚀
+# OmniMon v4
 
-[![CI/CD](https://img.shields.io/badge/build-passing-success)](#) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_+_Svelte-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#)
+[![CI/CD](https://github.com/chochy2001/macmon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/macmon/actions) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_+_Svelte-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#)
 
-OmniMon es un monitor de sistema y navegador de próxima generación, reescrito desde cero en un monorepo moderno. Sustituye la antigua arquitectura de AppKit/Bash por un núcleo nativo hiper-optimizado y una interfaz reactiva con cero fugas de memoria.
+OmniMon is a next-generation system monitor rewritten from scratch in a modern monorepo. It replaces the legacy AppKit/Bash architecture with a hyper-optimized native core and a reactive UI with zero memory leaks.
 
-## 🏗 Arquitectura
+## Architecture
 
-El proyecto adopta un enfoque modular estricto separando el backend nativo de la capa de presentación, comunicados a través del bus IPC de Tauri:
+The project follows a strict modular approach, separating the native backend from the presentation layer, communicating through Tauri's IPC bus:
 
-* **Core Nativo (`v4/crates/core`):** Escrito en Rust. Utiliza `sysinfo` para telemetría a nivel de hardware, el protocolo CDP (Chrome DevTools Protocol) para el análisis granular de pestañas de navegador, y llamadas FFI directas a Win32/libc para operaciones de bajo nivel del SO.
-* **Capa de Presentación (`v4/apps/desktop`):** Interfaz compacta construida con Svelte y TypeScript sobre Tauri. Garantiza un footprint de memoria mínimo y un ciclo de vida de componentes estrictamente controlado.
-* **CLI & Herramientas (`v4/crates/cli`):** Interfaz de terminal de alto rendimiento para control headless y automatización de servidores.
+* **Native Core (`v4/crates/core`):** Written in Rust. Uses `sysinfo` for hardware-level telemetry, the CDP (Chrome DevTools Protocol) for granular browser tab analysis, and direct FFI calls to Win32/libc for low-level OS operations.
+* **Presentation Layer (`v4/apps/desktop`):** Compact interface built with Svelte 5 and TypeScript on Tauri. Guarantees minimal memory footprint and a strictly controlled component lifecycle. Virtual scroll renders 2000+ processes at 60 FPS.
+* **CLI & Tools (`v4/crates/cli`):** High-performance terminal interface for headless control and server automation.
 
-## ✨ Características Principales
+## Key Features
 
-* **Smart Optimize (Flujo de IA):** Resolución predictiva y optimización de recursos impulsada por IA. Soporte integrado para los proveedores líderes (OpenAI, Anthropic, OpenRouter).
-* **Seguridad Multiplataforma Integrada (Keychain Nativo):** Las credenciales y claves de API *nunca* se almacenan en texto plano. OmniMon delega el almacenamiento al sistema nativo (macOS Keychain, Windows Credential Manager, Linux Secret Service).
-* **Blocklists Seguras:** Listas de bloqueo dinámicas e inmutables por sistema operativo que previenen la terminación accidental de procesos críticos (ej. `smss.exe` en Windows o `launchd` en macOS).
-* **Paridad de Características:** Experiencia consistente sin importar la plataforma subyacente (.exe, .dmg, .deb).
+* **Smart Optimize (AI Flow):** Predictive resolution and AI-powered resource optimization. Built-in support for leading providers (OpenAI, Anthropic, OpenRouter).
+* **Integrated Cross-Platform Security (Native Keychain):** Credentials and API keys are *never* stored in plain text. OmniMon delegates storage to the native system (macOS Keychain, Windows Credential Manager, Linux Secret Service).
+* **Secure Blocklists:** Dynamic and immutable per-OS block lists that prevent accidental termination of critical processes (e.g. `smss.exe` on Windows or `launchd` on macOS).
+* **Feature Parity:** Consistent experience regardless of the underlying platform (.exe, .dmg, .deb).
 
-## 🚀 Quick Start
+## Quick Start
 
-### macOS (Recomendado)
-
-La forma más sencilla de instalar OmniMon en macOS (Apple Silicon y x86_64) es a través de Homebrew:
+### macOS (Homebrew)
 
 ```bash
 brew tap chochy2001/omnimon
-brew install omnimon
+brew install --cask omnimon   # Desktop app (Tauri)
+brew install omnimon           # CLI
 ```
 
-### Instalación de Desarrollo (Multiplataforma)
+### Windows
 
-Para compilar desde el código fuente o configurar el entorno de desarrollo en macOS, Windows o Linux, utiliza nuestro script de orquestación que instalará Rust, Node y las dependencias nativas necesarias:
+Download the `.msi` installer from the [latest release](https://github.com/chochy2001/macmon/releases/latest).
+
+### Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/chochy2001/macmon/main/v4/setup-dev.sh | bash
+# Debian/Ubuntu — one-liner
+curl -fsSL https://raw.githubusercontent.com/chochy2001/macmon/main/install-web.sh | bash
+
+# Or download the .deb / .AppImage from the latest release
 ```
 
-## 💻 Uso por CLI (macmon)
+### Build from Source
 
-Para integraciones CI o uso en terminal, el binario `macmon` expone toda la funcionalidad del core:
+```bash
+git clone https://github.com/chochy2001/macmon.git
+cd macmon/v4
+./setup-dev.sh
+make dev
+```
+
+## CLI Usage
 
 ```bash
 macmon --help
 macmon optimize --ai anthropic --target browsers
 macmon status --format json
 ```
+
+## License
+
+[MIT](LICENSE)

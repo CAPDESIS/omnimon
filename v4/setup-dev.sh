@@ -1,54 +1,54 @@
 #!/usr/bin/env bash
 set -e
 
-echo "🔍 Verificando dependencias de desarrollo para macmon v4..."
+echo "Checking development dependencies for OmniMon v4..."
 
-# 1. Verificar Rust / Cargo
+# 1. Check Rust / Cargo
 if ! command -v cargo &> /dev/null; then
-    echo "❌ Error: 'cargo' no está instalado. Instala Rust (https://rustup.rs/)."
+    echo "Error: 'cargo' is not installed. Install Rust: https://rustup.rs/"
     exit 1
 fi
-echo "✅ cargo detectado: $(cargo --version)"
+echo "cargo detected: $(cargo --version)"
 
-# 2. Verificar Node.js / NPM
+# 2. Check Node.js / NPM
 if ! command -v npm &> /dev/null; then
-    echo "❌ Error: 'npm' no está instalado. Instala Node.js (https://nodejs.org/)."
+    echo "Error: 'npm' is not installed. Install Node.js: https://nodejs.org/"
     exit 1
 fi
-echo "✅ npm detectado: $(npm --version)"
+echo "npm detected: $(npm --version)"
 
-# 3. Dependencias específicas de Linux (Debian/Ubuntu)
+# 3. Linux-specific dependencies (Debian/Ubuntu)
 if [ "$(uname)" == "Linux" ]; then
-    echo "🐧 Verificando dependencias específicas de Linux (Debian/Ubuntu)..."
+    echo "Checking Linux-specific dependencies (Debian/Ubuntu)..."
     if ! dpkg -s libwebkit2gtk-4.1-dev &> /dev/null; then
-        echo "⚠️ Advertencia: libwebkit2gtk-4.1-dev parece no estar instalado."
-        echo "💡 Ejecuta: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf"
+        echo "Warning: libwebkit2gtk-4.1-dev does not appear to be installed."
+        echo "Run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf"
     else
-        echo "✅ Dependencias de Linux detectadas."
+        echo "Linux dependencies detected."
     fi
 fi
 
-# 4. Dependencias específicas de macOS
+# 4. macOS-specific dependencies
 if [ "$(uname)" == "Darwin" ]; then
-    echo "🍎 Entorno macOS detectado. Asegúrate de tener las Xcode Command Line Tools instaladas."
+    echo "macOS environment detected. Ensure Xcode Command Line Tools are installed."
     if ! xcode-select -p &> /dev/null; then
-        echo "⚠️ Advertencia: Xcode Command Line Tools no detectadas."
-        echo "💡 Ejecuta: xcode-select --install"
+        echo "Warning: Xcode Command Line Tools not detected."
+        echo "Run: xcode-select --install"
     else
-        echo "✅ Xcode Command Line Tools detectadas."
+        echo "Xcode Command Line Tools detected."
     fi
 fi
 
 echo ""
-echo "📦 Instalando dependencias de NPM (si aplica)..."
+echo "Installing NPM dependencies..."
 if [ -d "apps/desktop" ]; then
     cd apps/desktop
     if [ -f "package.json" ]; then
         npm install
     else
-         echo "⚠️ No se encontró package.json en apps/desktop, omitiendo npm install."
+        echo "Warning: package.json not found in apps/desktop, skipping npm install."
     fi
     cd ../..
 fi
 
-echo "🚀 ¡Entorno configurado correctamente! Usa 'make dev' para iniciar."
+echo "Environment configured successfully! Run 'make dev' to start."

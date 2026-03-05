@@ -1,41 +1,30 @@
 # OmniMon Homebrew Tap (macOS)
 
-Esta guía explica cómo distribuir OmniMon para usuarios de macOS (Apple Silicon y x86_64) utilizando **Homebrew Casks**.
+Guide for distributing OmniMon to macOS users (Apple Silicon and x86_64) via **Homebrew Casks**.
 
-## Paso 1: Crear el repositorio Tap
+## Setup
 
-Para que los usuarios puedan instalar OmniMon usando `brew tap chochy2001/omnimon`, necesitas crear un repositorio dedicado en GitHub.
+The Homebrew tap repo is [`chochy2001/homebrew-omnimon`](https://github.com/chochy2001/homebrew-omnimon). It contains:
 
-1. Ve a GitHub y crea un nuevo repositorio público.
-2. El repositorio **DEBE** llamarse `homebrew-omnimon` (el prefijo `homebrew-` es obligatorio en el ecosistema Brew).
-3. Clona el repositorio recién creado en tu máquina local.
+- `Formula/omnimon.rb` — CLI formula (legacy v3 bash CLI)
+- `Casks/omnimon.rb` — Desktop app Cask (v4 Tauri app)
 
-## Paso 2: Copiar y configurar la fórmula
+## Releasing a New Version
 
-1. Toma el archivo `omnimon.rb` que se encuentra en esta carpeta (`distribution/homebrew/omnimon.rb`).
-2. Cópialo al directorio raíz (o dentro de una carpeta `Casks/`) de tu nuevo repositorio `homebrew-omnimon`.
-3. **Punto Crítico:** Cada vez que liberes una nueva versión:
-   - Actualiza el campo `version` (ej. `"4.0.4"`).
-   - Actualiza el campo `sha256` calculando el checksum del archivo `.dmg` subido al Release:
-     ```bash
-     shasum -a 256 OmniMon_4.0.4_x64.dmg
-     ```
-   - Actualiza la `url` si el nombre de tu binario en GitHub Releases cambia dependiendo de la arquitectura (Tauri genera esto por ti).
+When publishing a new release:
 
-## Paso 3: Publicar el Tap
+1. Update `version` and `sha256` in `Casks/omnimon.rb`:
+   ```bash
+   shasum -a 256 macmon_X.Y.Z_aarch64.dmg
+   ```
+2. Push to `homebrew-omnimon` main branch.
 
-1. Haz un commit de tu archivo `.rb` en el repositorio `homebrew-omnimon` y empújalo a la rama `main` o `master`.
-2. ¡Listo! 
-
-## Paso 4: Instrucciones para el usuario
-
-Cualquier usuario de macOS ahora podrá instalar OmniMon ejecutando:
+## User Install
 
 ```bash
 brew tap chochy2001/omnimon
-brew install --cask omnimon
+brew install --cask omnimon   # Desktop app
+brew install omnimon           # CLI
 ```
 
-### Actualizaciones Automáticas
-
-Homebrew permite actualizar los Casks. Cuando el usuario ejecute `brew upgrade`, Homebrew descargará la última versión definida en tu tap. Asegúrate de actualizar la fórmula `.rb` en el repositorio `homebrew-omnimon` con cada release de CI/CD.
+Homebrew auto-updates Casks on `brew upgrade`.
