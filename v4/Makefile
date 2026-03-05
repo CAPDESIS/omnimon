@@ -3,7 +3,7 @@
 # Inicia la aplicación en modo desarrollo
 dev:
 	@echo "Iniciando macmon en modo desarrollo..."
-	cd apps/desktop && npm run tauri dev || cargo run --bin desktop
+	export PATH="$$HOME/.cargo/bin:$$PATH" && cd apps/desktop && npm run tauri dev || cargo run --bin desktop
 
 # Compila todos los binarios del workspace en modo release
 build-all:

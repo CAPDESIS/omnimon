@@ -1,0 +1,82 @@
+name: v4 Cross-Platform Build
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v4.*" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test-and-lint:
+    name: Test and Lint on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+
+    - name: Install Linux Dependencies (Ubuntu only)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+    - name: Check Formatting
+      run: cargo fmt --check
+      working-directory: ./v4
+
+    - name: Run Clippy
+      run: cargo clippy --workspace -- -D warnings
+      working-directory: ./v4
+
+    - name: Run Tests
+      run: cargo test --workspace
+      working-directory: ./v4
+
+    - name: Verify CLI Help Command
+      run: cargo run -p cli -- --help
+      working-directory: ./v4
+
+  release:
+    name: Release Multiplatform Binaries
+    needs: test-and-lint
+    if: startsWith(github.ref, 'refs/tags/v4.')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install Linux Dependencies (Ubuntu only)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+    - name: Build and Release with Tauri Action
+      uses: tauri-apps/tauri-action@v0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        projectPath: ./v4/apps/desktop
+        tagName: ${{ github.ref_name }}
+        releaseName: "macmon ${{ github.ref_name }}"
+        releaseBody: "Automated multiplatform release for macmon ${{ github.ref_name }}"
+        releaseDraft: true
+        prerelease: false
