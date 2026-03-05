@@ -13,10 +13,6 @@
     $chromeProcesses.filter((p) => p.name.startsWith("Chrome Tab")).length,
   );
 
-  let selectedTabs = $derived(
-    $chromeProcesses.filter((p) => $selectedPids.has(p.pid)),
-  );
-
   async function killTab(pid: number) {
     killing = pid;
     await killSingle(pid);

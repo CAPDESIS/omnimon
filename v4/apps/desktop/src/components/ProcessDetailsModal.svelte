@@ -12,6 +12,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div class="backdrop" onclick={onclose} role="dialog" aria-label="Process Details" tabindex="-1">
   <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div class="modal" onclick={(e: MouseEvent) => e.stopPropagation()} role="document" tabindex="-1">
     <div class="header">
       <span class="title">{process.name}</span>
