@@ -1,15 +1,15 @@
 cask "omnimon" do
-  version "4.0.6"
-  sha256 "2647ced97ce92aca663a6c0ca10c6529398640924bc0899da56b788d37ccde2b"
+  version "4.0.7"
+  sha256 "0459b7664600f2bf3cae3bd3d64eeec696aaf5d1226375a41e8a20f5cee8da24"
 
-  url "https://github.com/chochy2001/omnimon/releases/download/v#{version}/macmon_#{version}_aarch64.dmg"
+  url "https://github.com/chochy2001/omnimon/releases/download/v#{version}/OmniMon_#{version}_aarch64.dmg"
   name "OmniMon"
   desc "Cross-platform system monitor, process manager, and AI assistant"
   homepage "https://github.com/chochy2001/omnimon"
 
   depends_on macos: ">= :ventura"
 
-  app "macmon.app"
+  app "OmniMon.app"
 
   zap trash: [
     "~/Library/Application Support/com.omnimon.desktop",
