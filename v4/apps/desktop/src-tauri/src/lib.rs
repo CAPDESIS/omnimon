@@ -105,6 +105,9 @@ fn get_metrics() -> Result<Metrics, String> {
             let group = if exec_name.contains("Google Chrome Helper")
                 || entry.name == "com.apple.WebKit.WebContent"
                 || exec_name.contains("Safari")
+                || exec_name.contains("Brave Browser Helper")
+                || exec_name.contains("Microsoft Edge Helper")
+                || exec_name.contains("Arc Helper")
             {
                 "Browser".to_string()
             } else {
@@ -160,10 +163,9 @@ fn refresh_tab_cache_if_stale() -> Vec<BrowserTab> {
     }
     // Stale — refresh now
     let provider = NativeTabProvider;
-    let mut tabs = provider.list_tabs(BrowserKind::Chrome).unwrap_or_default();
-    #[cfg(target_os = "macos")]
-    {
-        tabs.extend(provider.list_tabs(BrowserKind::Safari).unwrap_or_default());
+    let mut tabs = Vec::new();
+    for browser in BrowserKind::all() {
+        tabs.extend(provider.list_tabs(*browser).unwrap_or_default());
     }
     cache.0 = tabs.clone();
     cache.1 = Instant::now();
@@ -192,11 +194,13 @@ fn get_browser_tabs() -> Result<Vec<BrowserTab>, String> {
 /// IPC: Gracefully close a browser tab via AppleScript/CDP (not process kill).
 #[tauri::command]
 fn close_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result<bool, String> {
-    let kind = match browser.as_str() {
-        "Chrome" => BrowserKind::Chrome,
-        "Safari" => BrowserKind::Safari,
-        _ => return Err(format!("Unknown browser: {browser}")),
-    };
+    if tab_id.len() > 512 {
+        return Err("tab_id exceeds maximum length of 512".to_string());
+    }
+    if tab_url.len() > 4096 {
+        return Err("tab_url exceeds maximum length of 4096".to_string());
+    }
+    let kind = BrowserKind::from_str(&browser)?;
     let provider = NativeTabProvider;
     let tab = BrowserTab {
         id: tab_id,
@@ -232,15 +236,20 @@ fn kill_processes(pids: Vec<u32>) -> Result<Vec<u32>, String> {
 
 /// IPC: Save AI Configuration to OS Keyring
 #[tauri::command]
-fn save_ai_config(_provider: String, _model: String, key: String) -> Result<(), String> {
-    macmon_core::ai::save_api_key(&key).map_err(|e| e.to_string())
+fn save_ai_config(provider: String, _model: String, key: String) -> Result<(), String> {
+    let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
+    macmon_core::ai::save_api_key(ai_provider, &key).map_err(|e| e.to_string())
 }
 
 /// IPC: Analyze processes using AI
 #[tauri::command]
 async fn analyze_processes(
     profile: String,
+    provider: String,
+    model: String,
 ) -> Result<Vec<macmon_core::ai::ProcessSuggestion>, String> {
+    let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
+
     let top_procs = macmon_core::metrics::top_processes_by_memory(30);
     let mut procs_to_send = Vec::new();
 
@@ -256,11 +265,8 @@ async fn analyze_processes(
 
     let processes_json = serde_json::to_string(&procs_to_send).map_err(|e| e.to_string())?;
 
-    let provider = "openrouter";
-    let model = "google/gemini-flash-1.5-8b";
-
     let mut suggestions =
-        macmon_core::ai::analyze_with_ai(provider, model, &processes_json, &profile)
+        macmon_core::ai::analyze_with_ai(ai_provider, &model, &processes_json, &profile)
             .await
             .map_err(|e| e.to_string())?;
 
@@ -273,6 +279,7 @@ async fn analyze_processes(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
             // Start the background watcher thread for system-level metrics
             macmon_core::watcher::start_watcher();

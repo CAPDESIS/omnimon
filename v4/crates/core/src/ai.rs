@@ -3,14 +3,61 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
-pub fn save_api_key(key: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let entry = Entry::new("macmon", "ai_api_key")?;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AiProvider {
+    OpenRouter,
+    OpenAI,
+    Gemini,
+    Anthropic,
+}
+
+impl AiProvider {
+    pub fn keyring_service(&self) -> &'static str {
+        match self {
+            AiProvider::OpenRouter => "omnimon_openrouter",
+            AiProvider::OpenAI => "omnimon_openai",
+            AiProvider::Gemini => "omnimon_gemini",
+            AiProvider::Anthropic => "omnimon_anthropic",
+        }
+    }
+
+    pub fn api_url(&self) -> &'static str {
+        match self {
+            AiProvider::OpenRouter => "https://openrouter.ai/api/v1/chat/completions",
+            AiProvider::OpenAI => "https://api.openai.com/v1/chat/completions",
+            AiProvider::Gemini => "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+            AiProvider::Anthropic => "https://api.anthropic.com/v1/messages",
+        }
+    }
+
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            AiProvider::OpenRouter => "OpenRouter",
+            AiProvider::OpenAI => "OpenAI",
+            AiProvider::Gemini => "Gemini",
+            AiProvider::Anthropic => "Anthropic",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Result<Self, String> {
+        match s.to_lowercase().as_str() {
+            "openrouter" => Ok(AiProvider::OpenRouter),
+            "openai" => Ok(AiProvider::OpenAI),
+            "gemini" => Ok(AiProvider::Gemini),
+            "anthropic" => Ok(AiProvider::Anthropic),
+            _ => Err(format!("Unknown AI provider: {s}")),
+        }
+    }
+}
+
+pub fn save_api_key(provider: AiProvider, key: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let entry = Entry::new(provider.keyring_service(), "ai_api_key")?;
     entry.set_password(key)?;
     Ok(())
 }
 
-pub fn get_api_key() -> Result<String, Box<dyn Error + Send + Sync>> {
-    let entry = Entry::new("macmon", "ai_api_key")?;
+pub fn get_api_key(provider: AiProvider) -> Result<String, Box<dyn Error + Send + Sync>> {
+    let entry = Entry::new(provider.keyring_service(), "ai_api_key")?;
     Ok(entry.get_password()?)
 }
 
@@ -22,19 +69,13 @@ pub struct ProcessSuggestion {
 }
 
 pub async fn analyze_with_ai(
-    provider: &str,
+    provider: AiProvider,
     model: &str,
     processes_json: &str,
     profile: &str,
 ) -> Result<Vec<ProcessSuggestion>, Box<dyn Error + Send + Sync>> {
-    let api_key = get_api_key()?;
+    let api_key = get_api_key(provider)?;
     let client = Client::new();
-
-    let url = if provider.to_lowercase() == "openrouter" {
-        "https://openrouter.ai/api/v1/chat/completions"
-    } else {
-        "https://api.openai.com/v1/chat/completions"
-    };
 
     let prompt = format!(
         "You are macmon, a system optimization assistant. The user's current profile is: {}. \
@@ -43,6 +84,11 @@ pub async fn analyze_with_ai(
         profile, processes_json
     );
 
+    if provider == AiProvider::Anthropic {
+        return analyze_anthropic(&client, &api_key, model, &prompt).await;
+    }
+
+    // OpenAI-compatible endpoint (OpenRouter, OpenAI, Gemini)
     let body = serde_json::json!({
         "model": model,
         "messages": [
@@ -58,7 +104,7 @@ pub async fn analyze_with_ai(
     });
 
     let resp = client
-        .post(url)
+        .post(provider.api_url())
         .header("Authorization", format!("Bearer {}", api_key))
         .json(&body)
         .send()
@@ -75,6 +121,51 @@ pub async fn analyze_with_ai(
         .as_str()
         .ok_or("Invalid response format")?;
 
+    parse_suggestions(content)
+}
+
+async fn analyze_anthropic(
+    client: &Client,
+    api_key: &str,
+    model: &str,
+    prompt: &str,
+) -> Result<Vec<ProcessSuggestion>, Box<dyn Error + Send + Sync>> {
+    let body = serde_json::json!({
+        "model": model,
+        "max_tokens": 4096,
+        "system": "You are a helpful assistant that returns strictly raw JSON arrays of suggestions.",
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+    });
+
+    let resp = client
+        .post(AiProvider::Anthropic.api_url())
+        .header("x-api-key", api_key)
+        .header("anthropic-version", "2023-06-01")
+        .header("content-type", "application/json")
+        .json(&body)
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        let err_text = resp.text().await?;
+        return Err(format!("API Error: {}", err_text).into());
+    }
+
+    let resp_json: serde_json::Value = resp.json().await?;
+
+    let content = resp_json["content"][0]["text"]
+        .as_str()
+        .ok_or("Invalid Anthropic response format")?;
+
+    parse_suggestions(content)
+}
+
+fn parse_suggestions(content: &str) -> Result<Vec<ProcessSuggestion>, Box<dyn Error + Send + Sync>> {
     let content_clean = content
         .trim()
         .trim_start_matches("```json")
@@ -84,4 +175,66 @@ pub async fn analyze_with_ai(
 
     let suggestions: Vec<ProcessSuggestion> = serde_json::from_str(content_clean)?;
     Ok(suggestions)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ai_provider_from_str_works() {
+        assert_eq!(AiProvider::from_str("openrouter").unwrap(), AiProvider::OpenRouter);
+        assert_eq!(AiProvider::from_str("OpenAI").unwrap(), AiProvider::OpenAI);
+        assert_eq!(AiProvider::from_str("GEMINI").unwrap(), AiProvider::Gemini);
+        assert_eq!(AiProvider::from_str("anthropic").unwrap(), AiProvider::Anthropic);
+        assert!(AiProvider::from_str("unknown").is_err());
+    }
+
+    #[test]
+    fn ai_provider_keyring_services_are_distinct() {
+        let services: Vec<&str> = [
+            AiProvider::OpenRouter,
+            AiProvider::OpenAI,
+            AiProvider::Gemini,
+            AiProvider::Anthropic,
+        ]
+        .iter()
+        .map(|p| p.keyring_service())
+        .collect();
+
+        for (i, a) in services.iter().enumerate() {
+            for (j, b) in services.iter().enumerate() {
+                if i != j {
+                    assert_ne!(a, b, "keyring services must be distinct");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn ai_provider_api_urls_are_https() {
+        for provider in &[AiProvider::OpenRouter, AiProvider::OpenAI, AiProvider::Gemini, AiProvider::Anthropic] {
+            assert!(provider.api_url().starts_with("https://"), "{:?} url must be https", provider);
+        }
+    }
+
+    #[test]
+    fn parse_suggestions_strips_markdown_fencing() {
+        let input = "```json\n[{\"pid\":1,\"name\":\"foo\",\"reason\":\"bar\"}]\n```";
+        let result = parse_suggestions(input).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "foo");
+    }
+
+    #[test]
+    fn parse_suggestions_handles_plain_json() {
+        let input = "[{\"pid\":42,\"name\":\"test\",\"reason\":\"heavy\"}]";
+        let result = parse_suggestions(input).unwrap();
+        assert_eq!(result[0].pid, 42);
+    }
+
+    #[test]
+    fn parse_suggestions_rejects_invalid_json() {
+        assert!(parse_suggestions("not json").is_err());
+    }
 }

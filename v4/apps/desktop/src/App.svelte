@@ -6,6 +6,7 @@
   import StatusBar from "./components/StatusBar.svelte";
   import ProcessDetailsModal from "./components/ProcessDetailsModal.svelte";
   import type { ProcessEntry } from "./lib/types";
+  import { AI_PROVIDERS } from "./lib/types";
   import {
     processes,
     filtered,
@@ -30,6 +31,15 @@
     saveAiConfigAction,
     dismissAiSuggestions,
   } from "./stores/processes";
+  import {
+    fontSize,
+    columns,
+    aiProviderConfig,
+    loadPreferences,
+    initPreferenceSubscriptions,
+    increaseFontSize,
+    decreaseFontSize,
+  } from "./stores/preferences";
 
   let detailProcess: ProcessEntry | null = $state(null);
   let searchInput: HTMLInputElement | undefined = $state();
@@ -43,12 +53,16 @@
   let settingsError = $state<string | null>(null);
   let settingsSaved = $state(false);
 
+  let selectedProviderModels = $derived(
+    AI_PROVIDERS.find((p) => p.id === $aiProviderConfig.provider)?.models ?? []
+  );
+
   async function handleSaveSettings() {
     settingsSaving = true;
     settingsError = null;
     settingsSaved = false;
     try {
-      await saveAiConfigAction("openrouter", "google/gemini-flash-1.5-8b", apiKeyInput);
+      await saveAiConfigAction($aiProviderConfig.provider, $aiProviderConfig.model, apiKeyInput);
       settingsSaved = true;
       apiKeyInput = "";
     } catch (e) {
@@ -74,10 +88,14 @@
   }
 
   onMount(() => {
-    startPolling(2000);
+    loadPreferences().then(() => {
+      startPolling(2000);
+    });
+    const unsubPrefs = initPreferenceSubscriptions();
     return () => {
       stopPolling();
       clearTimeout(debounceTimer);
+      unsubPrefs();
     };
   });
 
@@ -105,6 +123,18 @@
     if (mod && e.key === "i") {
       e.preventDefault();
       openDetailForFocused();
+      return;
+    }
+
+    // Cmd/Ctrl+= → zoom in, Cmd/Ctrl+- → zoom out
+    if (mod && (e.key === "=" || e.key === "+")) {
+      e.preventDefault();
+      increaseFontSize();
+      return;
+    }
+    if (mod && e.key === "-") {
+      e.preventDefault();
+      decreaseFontSize();
       return;
     }
 
@@ -143,7 +173,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<main>
+<main style="--base-font-size: {$fontSize}px">
   <header class="toolbar">
     <input
       class="search"
@@ -187,7 +217,7 @@
       </select>
       <button
         class="btn btn-ai"
-        onclick={analyzeWithAi}
+        onclick={() => analyzeWithAi($aiProviderConfig.provider, $aiProviderConfig.model)}
         disabled={$aiLoading}
       >
         {$aiLoading ? "Analyzing..." : "AI Analyze"}
@@ -199,6 +229,20 @@
       >
         Settings
       </button>
+      <span class="separator"></span>
+      <button
+        class="btn btn-sm"
+        onclick={decreaseFontSize}
+        title="Decrease font size (Cmd+-)"
+        aria-label="Decrease font size"
+      >A-</button>
+      <span class="font-size-display">{$fontSize}</span>
+      <button
+        class="btn btn-sm"
+        onclick={increaseFontSize}
+        title="Increase font size (Cmd+=)"
+        aria-label="Increase font size"
+      >A+</button>
     </div>
   </header>
 
@@ -211,6 +255,7 @@
     <ProcessTable
       processes={$filtered}
       grouping={$grouping}
+      columns={$columns}
       oninspect={inspectProcess}
     />
   {/if}
@@ -265,12 +310,39 @@
       </div>
       <div class="settings-body">
         <div class="settings-row">
-          <span class="settings-label">Provider</span>
-          <span class="settings-value">OpenRouter</span>
+          <label class="settings-label" for="provider-select">Provider</label>
+          <select
+            id="provider-select"
+            class="settings-select"
+            value={$aiProviderConfig.provider}
+            onchange={(e) => {
+              const newProvider = (e.target as HTMLSelectElement).value;
+              const providerDef = AI_PROVIDERS.find((p) => p.id === newProvider);
+              aiProviderConfig.set({
+                provider: newProvider,
+                model: providerDef?.models[0] ?? "",
+              });
+            }}
+          >
+            {#each AI_PROVIDERS as p}
+              <option value={p.id}>{p.label}</option>
+            {/each}
+          </select>
         </div>
         <div class="settings-row">
-          <span class="settings-label">Model</span>
-          <span class="settings-value">gemini-flash-1.5-8b</span>
+          <label class="settings-label" for="model-select">Model</label>
+          <select
+            id="model-select"
+            class="settings-select"
+            value={$aiProviderConfig.model}
+            onchange={(e) => {
+              aiProviderConfig.update((c) => ({ ...c, model: (e.target as HTMLSelectElement).value }));
+            }}
+          >
+            {#each selectedProviderModels as m}
+              <option value={m}>{m}</option>
+            {/each}
+          </select>
         </div>
         <div class="settings-row">
           <label class="settings-label" for="api-key-input">API Key</label>
@@ -278,7 +350,7 @@
             id="api-key-input"
             class="settings-input"
             type="password"
-            placeholder="Enter OpenRouter API key"
+            placeholder="Enter {AI_PROVIDERS.find((p) => p.id === $aiProviderConfig.provider)?.label ?? ''} API key"
             bind:value={apiKeyInput}
           />
         </div>
@@ -288,6 +360,21 @@
         {#if settingsSaved}
           <div class="settings-success">API key saved to keychain.</div>
         {/if}
+
+        <div class="settings-divider"></div>
+        <div class="settings-section-label">Visible Columns</div>
+        <div class="settings-columns">
+          {#each Object.entries($columns) as [key, visible]}
+            <label class="col-toggle">
+              <input
+                type="checkbox"
+                checked={visible}
+                onchange={() => columns.update((c) => ({ ...c, [key]: !c[key as keyof typeof c] }))}
+              />
+              <span>{key.charAt(0).toUpperCase() + key.slice(1)}</span>
+            </label>
+          {/each}
+        </div>
       </div>
       <div class="settings-footer">
         <button
@@ -312,7 +399,7 @@
     padding: 0;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
       Roboto, "Helvetica Neue", sans-serif;
-    font-size: 12px;
+    font-size: var(--base-font-size, 12px);
     background: var(--bg);
     color: var(--fg);
     overflow: hidden;
@@ -458,6 +545,15 @@
     height: 14px;
     background: var(--border);
     flex-shrink: 0;
+  }
+
+  .font-size-display {
+    font-size: 10px;
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    color: var(--fg-dim);
+    min-width: 16px;
+    text-align: center;
+    line-height: 20px;
   }
 
   .profile-select {
@@ -625,10 +721,20 @@
     letter-spacing: 0.3px;
   }
 
-  .settings-value {
-    font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    font-size: 11px;
+  .settings-select {
+    flex: 1;
+    padding: 3px 6px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg);
     color: var(--fg);
+    font-size: 11px;
+    outline: none;
+    height: 22px;
+    cursor: pointer;
+  }
+  .settings-select:focus {
+    border-color: var(--accent);
   }
 
   .settings-input {
@@ -656,6 +762,41 @@
     font-size: 10px;
     color: var(--green);
     padding: 2px 0;
+  }
+
+  .settings-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 6px 0;
+  }
+
+  .settings-section-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  .settings-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px 12px;
+  }
+
+  .col-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .col-toggle input {
+    margin: 0;
+    width: 12px;
+    height: 12px;
+    cursor: pointer;
   }
 
   .settings-footer {

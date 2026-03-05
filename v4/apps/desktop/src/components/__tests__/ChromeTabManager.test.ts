@@ -61,21 +61,24 @@ describe("ChromeTabManager", () => {
     expect(screen.getByText("Safari")).toBeInTheDocument();
     expect(screen.getByText("very.long.subdomain.example.co.uk")).toBeInTheDocument();
     expect(screen.getByText("(Untitled)")).toBeInTheDocument();
-    expect(screen.getByText("512 MB")).toBeInTheDocument();
+    expect(screen.getAllByText("512 MB").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("does not render sections for unsupported browsers", () => {
+  it("renders sections dynamically for any browser with tabs", () => {
     browserTabs.set([
       {
         id: "ff-1",
-        title: "Firefox",
+        title: "Firefox Tab",
         url: "https://mozilla.org",
-        browser: "Firefox" as BrowserTab["browser"],
+        browser: "Firefox",
       },
     ]);
 
     render(ChromeTabManager);
 
+    // Firefox section appears
+    expect(screen.getByText("Firefox")).toBeInTheDocument();
+    // No Chrome or Safari sections since they have no tabs
     expect(screen.queryByText("Chrome")).not.toBeInTheDocument();
     expect(screen.queryByText("Safari")).not.toBeInTheDocument();
   });

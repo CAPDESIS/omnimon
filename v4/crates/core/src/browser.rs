@@ -1,10 +1,117 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+/// Validate a tab ID: reject empty, >512 chars, control chars, path traversal chars.
+pub fn sanitize_tab_id(id: &str) -> Result<(), String> {
+    if id.is_empty() {
+        return Err("Tab ID must not be empty".to_string());
+    }
+    if id.len() > 512 {
+        return Err("Tab ID exceeds maximum length of 512".to_string());
+    }
+    if id.chars().any(|c| c.is_control()) {
+        return Err("Tab ID contains control characters".to_string());
+    }
+    if id.contains('/') || id.contains('\\') || id.contains("..") {
+        return Err("Tab ID contains path traversal characters".to_string());
+    }
+    Ok(())
+}
+
+/// Validate a tab URL: reject >4096 chars, control chars, disallowed schemes.
+pub fn sanitize_tab_url(url: &str) -> Result<(), String> {
+    if url.len() > 4096 {
+        return Err("Tab URL exceeds maximum length of 4096".to_string());
+    }
+    if url.chars().any(|c| c.is_control()) {
+        return Err("Tab URL contains control characters".to_string());
+    }
+    if !url.is_empty() {
+        let allowed_prefixes = [
+            "http://", "https://", "about:", "chrome://", "chrome-extension://",
+            "safari-web-extension://", "brave://", "edge://", "arc://",
+        ];
+        if !allowed_prefixes.iter().any(|p| url.starts_with(p)) {
+            return Err(format!("Tab URL has disallowed scheme: {}", url.split(':').next().unwrap_or("")));
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum BrowserKind {
     Chrome,
     Safari,
+    Brave,
+    Edge,
+    Arc,
+    Firefox,
+}
+
+impl BrowserKind {
+    /// Whether this browser supports CDP (Chrome DevTools Protocol).
+    pub fn supports_cdp(&self) -> bool {
+        matches!(self, BrowserKind::Chrome | BrowserKind::Brave | BrowserKind::Edge | BrowserKind::Arc)
+    }
+
+    /// macOS application name for AppleScript.
+    pub fn applescript_app_name(&self) -> Option<&'static str> {
+        match self {
+            BrowserKind::Chrome => Some("Google Chrome"),
+            BrowserKind::Safari => Some("Safari"),
+            BrowserKind::Brave => Some("Brave Browser"),
+            BrowserKind::Edge => Some("Microsoft Edge"),
+            BrowserKind::Arc => Some("Arc"),
+            BrowserKind::Firefox => None, // Firefox doesn't support AppleScript tab enumeration
+        }
+    }
+
+    /// Default CDP debugging port.
+    pub fn cdp_port(&self) -> u16 {
+        match self {
+            BrowserKind::Chrome => 9222,
+            BrowserKind::Brave => 9223,
+            BrowserKind::Edge => 9224,
+            BrowserKind::Arc => 9225,
+            _ => 0,
+        }
+    }
+
+    /// Human-readable display name.
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            BrowserKind::Chrome => "Chrome",
+            BrowserKind::Safari => "Safari",
+            BrowserKind::Brave => "Brave",
+            BrowserKind::Edge => "Edge",
+            BrowserKind::Arc => "Arc",
+            BrowserKind::Firefox => "Firefox",
+        }
+    }
+
+    /// All browser kinds.
+    pub fn all() -> &'static [BrowserKind] {
+        &[
+            BrowserKind::Chrome,
+            BrowserKind::Safari,
+            BrowserKind::Brave,
+            BrowserKind::Edge,
+            BrowserKind::Arc,
+        ]
+    }
+
+    /// Parse from a string (e.g. IPC input).
+    pub fn from_str(s: &str) -> Result<Self, String> {
+        match s {
+            "Chrome" => Ok(BrowserKind::Chrome),
+            "Safari" => Ok(BrowserKind::Safari),
+            "Brave" => Ok(BrowserKind::Brave),
+            "Edge" => Ok(BrowserKind::Edge),
+            "Arc" => Ok(BrowserKind::Arc),
+            "Firefox" => Ok(BrowserKind::Firefox),
+            _ => Err(format!("Unknown browser: {s}")),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,7 +143,7 @@ fn build_runtime() -> Result<tokio::runtime::Runtime, String> {
         .map_err(|e| format!("failed to build tokio runtime: {e}"))
 }
 
-fn map_cdp_targets_to_tabs(targets: Vec<CdpTabTarget>) -> Vec<BrowserTab> {
+fn map_cdp_targets_to_tabs(targets: Vec<CdpTabTarget>, browser: BrowserKind) -> Vec<BrowserTab> {
     targets
         .into_iter()
         .filter(|t| t.target_type.as_deref() == Some("page"))
@@ -44,12 +151,16 @@ fn map_cdp_targets_to_tabs(targets: Vec<CdpTabTarget>) -> Vec<BrowserTab> {
             id: t.id,
             title: t.title.unwrap_or_default(),
             url: t.url.unwrap_or_default(),
-            browser: BrowserKind::Chrome,
+            browser,
         })
         .collect()
 }
 
 pub fn cdp_list_tabs(base_url: &str) -> Result<Vec<BrowserTab>, String> {
+    cdp_list_tabs_for(base_url, BrowserKind::Chrome)
+}
+
+pub fn cdp_list_tabs_for(base_url: &str, browser: BrowserKind) -> Result<Vec<BrowserTab>, String> {
     let runtime = build_runtime()?;
     let targets_result = runtime.block_on(async {
         let client = reqwest::Client::builder()
@@ -71,7 +182,7 @@ pub fn cdp_list_tabs(base_url: &str) -> Result<Vec<BrowserTab>, String> {
         Err(_) => return Ok(Vec::new()),
     };
 
-    Ok(map_cdp_targets_to_tabs(targets))
+    Ok(map_cdp_targets_to_tabs(targets, browser))
 }
 
 pub fn cdp_close_tab(base_url: &str, tab_id: &str) -> Result<bool, String> {
@@ -150,14 +261,18 @@ impl NativeTabProvider {
             .collect()
     }
 
-    fn list_chrome_tabs(&self) -> Result<Vec<BrowserTab>, String> {
-        let script = r#"
+    /// Generic Chromium tab listing (Chrome, Brave, Edge, Arc all use `title of t`).
+    fn list_chromium_tabs(&self, browser: BrowserKind) -> Result<Vec<BrowserTab>, String> {
+        let app_name = browser.applescript_app_name()
+            .ok_or_else(|| format!("{} does not support AppleScript", browser.display_name()))?;
+        let script = format!(
+            r#"
 on sanitizeText(inputText)
     set t to inputText as text
     return do shell script "printf %s " & quoted form of t & " | tr '\t\r\n' '   '"
 end sanitizeText
 
-tell application "Google Chrome"
+tell application "{app}"
     set sep to (character id 31)
     set output to ""
     repeat with w in windows
@@ -170,11 +285,14 @@ tell application "Google Chrome"
     end repeat
     return output
 end tell
-"#;
-        let out = Self::run_osascript(script, &[])?;
-        Ok(Self::parse_lines(&out, BrowserKind::Chrome))
+"#,
+            app = app_name
+        );
+        let out = Self::run_osascript(&script, &[])?;
+        Ok(Self::parse_lines(&out, browser))
     }
 
+    /// Safari uses `name of t` instead of `title of t`.
     fn list_safari_tabs(&self) -> Result<Vec<BrowserTab>, String> {
         let script = r#"
 on sanitizeText(inputText)
@@ -200,12 +318,18 @@ end tell
         Ok(Self::parse_lines(&out, BrowserKind::Safari))
     }
 
-    fn close_chrome_tab(&self, tab: &BrowserTab) -> Result<bool, String> {
-        let script = r#"
+    /// Generic Chromium close tab (works for Chrome, Brave, Edge, Arc).
+    fn close_chromium_tab(&self, browser: BrowserKind, tab: &BrowserTab) -> Result<bool, String> {
+        sanitize_tab_id(&tab.id)?;
+        sanitize_tab_url(&tab.url)?;
+        let app_name = browser.applescript_app_name()
+            .ok_or_else(|| format!("{} does not support AppleScript", browser.display_name()))?;
+        let script = format!(
+            r#"
 on run argv
     set targetID to item 1 of argv
     set targetURL to item 2 of argv
-    tell application "Google Chrome"
+    tell application "{app}"
         repeat with w in windows
             repeat with t in tabs of w
                 if ((id of t as text) is targetID) or ((URL of t as text) is targetURL) then
@@ -217,12 +341,16 @@ on run argv
     end tell
     return "not_found"
 end run
-"#;
-        let out = Self::run_osascript(script, &[&tab.id, &tab.url])?;
+"#,
+            app = app_name
+        );
+        let out = Self::run_osascript(&script, &[&tab.id, &tab.url])?;
         Ok(out.trim() == "closed")
     }
 
     fn close_safari_tab(&self, tab: &BrowserTab) -> Result<bool, String> {
+        sanitize_tab_id(&tab.id)?;
+        sanitize_tab_url(&tab.url)?;
         let script = r#"
 on run argv
     set targetID to item 1 of argv
@@ -249,15 +377,21 @@ end run
 impl TabProvider for NativeTabProvider {
     fn list_tabs(&self, browser: BrowserKind) -> Result<Vec<BrowserTab>, String> {
         match browser {
-            BrowserKind::Chrome => self.list_chrome_tabs(),
             BrowserKind::Safari => self.list_safari_tabs(),
+            BrowserKind::Chrome | BrowserKind::Brave | BrowserKind::Edge | BrowserKind::Arc => {
+                self.list_chromium_tabs(browser)
+            }
+            BrowserKind::Firefox => Ok(Vec::new()), // not supported via AppleScript
         }
     }
 
     fn close_tab(&self, browser: BrowserKind, tab: &BrowserTab) -> Result<bool, String> {
         match browser {
-            BrowserKind::Chrome => self.close_chrome_tab(tab),
             BrowserKind::Safari => self.close_safari_tab(tab),
+            BrowserKind::Chrome | BrowserKind::Brave | BrowserKind::Edge | BrowserKind::Arc => {
+                self.close_chromium_tab(browser, tab)
+            }
+            BrowserKind::Firefox => Ok(false),
         }
     }
 }
@@ -266,31 +400,24 @@ impl TabProvider for NativeTabProvider {
 pub struct NativeTabProvider;
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
-impl NativeTabProvider {
-    const CDP_BASE: &'static str = "http://localhost:9222";
-
-    fn cdp_list_tabs(&self) -> Result<Vec<BrowserTab>, String> {
-        cdp_list_tabs(Self::CDP_BASE)
-    }
-
-    fn cdp_close_tab(&self, tab_id: &str) -> Result<bool, String> {
-        cdp_close_tab(Self::CDP_BASE, tab_id)
-    }
-}
-
-#[cfg(any(target_os = "windows", target_os = "linux"))]
 impl TabProvider for NativeTabProvider {
     fn list_tabs(&self, browser: BrowserKind) -> Result<Vec<BrowserTab>, String> {
-        match browser {
-            BrowserKind::Chrome => self.cdp_list_tabs(),
-            BrowserKind::Safari => Ok(Vec::new()),
+        if browser.supports_cdp() {
+            let port = browser.cdp_port();
+            let base = format!("http://localhost:{}", port);
+            cdp_list_tabs_for(&base, browser)
+        } else {
+            Ok(Vec::new())
         }
     }
 
     fn close_tab(&self, browser: BrowserKind, tab: &BrowserTab) -> Result<bool, String> {
-        match browser {
-            BrowserKind::Chrome => self.cdp_close_tab(&tab.id),
-            BrowserKind::Safari => Ok(false),
+        if browser.supports_cdp() {
+            let port = browser.cdp_port();
+            let base = format!("http://localhost:{}", port);
+            cdp_close_tab(&base, &tab.id)
+        } else {
+            Ok(false)
         }
     }
 }
@@ -379,6 +506,94 @@ mod tests {
         assert_eq!(tabs[0].id, "1");
         assert_eq!(tabs[0].title, "Tab One");
         assert_eq!(tabs[0].url, "https://example.com");
+    }
+
+    #[test]
+    fn sanitize_tab_id_rejects_empty() {
+        assert!(sanitize_tab_id("").is_err());
+    }
+
+    #[test]
+    fn sanitize_tab_id_rejects_long_input() {
+        let long = "a".repeat(513);
+        assert!(sanitize_tab_id(&long).is_err());
+        assert!(sanitize_tab_id(&"a".repeat(512)).is_ok());
+    }
+
+    #[test]
+    fn sanitize_tab_id_rejects_control_chars() {
+        assert!(sanitize_tab_id("tab\x00id").is_err());
+        assert!(sanitize_tab_id("tab\nid").is_err());
+    }
+
+    #[test]
+    fn sanitize_tab_id_rejects_path_traversal() {
+        assert!(sanitize_tab_id("../etc/passwd").is_err());
+        assert!(sanitize_tab_id("foo/bar").is_err());
+        assert!(sanitize_tab_id("foo\\bar").is_err());
+    }
+
+    #[test]
+    fn sanitize_tab_id_accepts_valid() {
+        assert!(sanitize_tab_id("abc-123").is_ok());
+        assert!(sanitize_tab_id("F8B3A4D2-1234").is_ok());
+    }
+
+    #[test]
+    fn sanitize_tab_url_rejects_long_input() {
+        let long = format!("https://example.com/{}", "a".repeat(4097));
+        assert!(sanitize_tab_url(&long).is_err());
+    }
+
+    #[test]
+    fn sanitize_tab_url_rejects_control_chars() {
+        assert!(sanitize_tab_url("https://example.com/\x00").is_err());
+    }
+
+    #[test]
+    fn sanitize_tab_url_rejects_disallowed_schemes() {
+        assert!(sanitize_tab_url("file:///etc/passwd").is_err());
+        assert!(sanitize_tab_url("javascript:alert(1)").is_err());
+        assert!(sanitize_tab_url("data:text/html,<h1>hi</h1>").is_err());
+    }
+
+    #[test]
+    fn sanitize_tab_url_accepts_valid_schemes() {
+        assert!(sanitize_tab_url("https://example.com").is_ok());
+        assert!(sanitize_tab_url("http://localhost:3000").is_ok());
+        assert!(sanitize_tab_url("about:blank").is_ok());
+        assert!(sanitize_tab_url("chrome://settings").is_ok());
+        assert!(sanitize_tab_url("").is_ok()); // empty is allowed (some tabs have no URL)
+    }
+
+    #[test]
+    fn browser_kind_methods() {
+        assert!(BrowserKind::Chrome.supports_cdp());
+        assert!(BrowserKind::Brave.supports_cdp());
+        assert!(BrowserKind::Edge.supports_cdp());
+        assert!(BrowserKind::Arc.supports_cdp());
+        assert!(!BrowserKind::Safari.supports_cdp());
+        assert!(!BrowserKind::Firefox.supports_cdp());
+
+        assert_eq!(BrowserKind::Chrome.cdp_port(), 9222);
+        assert_eq!(BrowserKind::Brave.cdp_port(), 9223);
+        assert_eq!(BrowserKind::Edge.cdp_port(), 9224);
+        assert_eq!(BrowserKind::Arc.cdp_port(), 9225);
+
+        assert_eq!(BrowserKind::Chrome.display_name(), "Chrome");
+        assert_eq!(BrowserKind::Brave.display_name(), "Brave");
+
+        assert!(BrowserKind::Chrome.applescript_app_name().is_some());
+        assert!(BrowserKind::Firefox.applescript_app_name().is_none());
+    }
+
+    #[test]
+    fn browser_kind_from_str_works() {
+        assert_eq!(BrowserKind::from_str("Chrome").unwrap(), BrowserKind::Chrome);
+        assert_eq!(BrowserKind::from_str("Brave").unwrap(), BrowserKind::Brave);
+        assert_eq!(BrowserKind::from_str("Edge").unwrap(), BrowserKind::Edge);
+        assert_eq!(BrowserKind::from_str("Arc").unwrap(), BrowserKind::Arc);
+        assert!(BrowserKind::from_str("Unknown").is_err());
     }
 
     #[cfg(target_os = "macos")]

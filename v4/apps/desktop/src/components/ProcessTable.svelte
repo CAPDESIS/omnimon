@@ -1,15 +1,20 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { ProcessEntry } from "../lib/types";
+  import type { ColumnConfig } from "../stores/preferences";
   import { toggleSelect, selectedPids, focusedPid, browserTabs } from "../stores/processes";
 
   interface Props {
     processes: ProcessEntry[];
     grouping?: boolean;
+    columns?: ColumnConfig;
     oninspect?: (proc: ProcessEntry) => void;
   }
 
-  let { processes, grouping = false, oninspect }: Props = $props();
+  let { processes, grouping = false, columns, oninspect }: Props = $props();
+
+  let cols = $derived(columns ?? { name: true, detail: true, group: true, ram: true, cpu: true, uptime: true, pid: true, state: true });
+  let visibleColCount = $derived(Object.values(cols).filter(Boolean).length);
 
   const ROW_HEIGHT = 20;
   const BUFFER = 10;
@@ -31,6 +36,9 @@
     if (proc.group !== "Browser") return null;
     if (proc.exec_name.includes("Google Chrome Helper") || proc.name.includes("Chrome")) return "Chrome";
     if (proc.name === "com.apple.WebKit.WebContent" || proc.exec_name.includes("Safari")) return "Safari";
+    if (proc.exec_name.includes("Brave Browser Helper") || proc.name.includes("Brave")) return "Brave";
+    if (proc.exec_name.includes("Microsoft Edge Helper") || proc.name.includes("Edge")) return "Edge";
+    if (proc.exec_name.includes("Arc Helper") || proc.name.includes("Arc")) return "Arc";
     return null;
   }
 
@@ -215,25 +223,25 @@
         onclick={(e: MouseEvent) => { e.stopPropagation(); toggleSelect(proc.pid); }}
       />
     </td>
-    <td class="col-name" title={proc.exec_name}>
+    {#if cols.name}<td class="col-name" title={proc.exec_name}>
       <span class="name-text">{proc.name}</span>
       {#if proc.idle}<span class="badge idle">idle</span>{/if}
-    </td>
-    <td class="col-detail" title={getDetail(proc)}>
+    </td>{/if}
+    {#if cols.detail}<td class="col-detail" title={getDetail(proc)}>
       <span class="detail-text">{getDetail(proc)}</span>
-    </td>
-    <td class="col-group" title={getGroup(proc)}>
+    </td>{/if}
+    {#if cols.group}<td class="col-group" title={getGroup(proc)}>
       <span class="group-text">{getGroup(proc)}</span>
-    </td>
-    <td class="col-ram mono" style="color: {ramColor(proc.ram_mb)}">
+    </td>{/if}
+    {#if cols.ram}<td class="col-ram mono" style="color: {ramColor(proc.ram_mb)}">
       {proc.ram_mb.toFixed(1)}
-    </td>
-    <td class="col-cpu mono" style="color: {cpuColor(proc.cpu_pct)}">
+    </td>{/if}
+    {#if cols.cpu}<td class="col-cpu mono" style="color: {cpuColor(proc.cpu_pct)}">
       {proc.cpu_pct.toFixed(1)}
-    </td>
-    <td class="col-uptime mono">{proc.uptime || "\u2014"}</td>
-    <td class="col-pid mono">{proc.pid}</td>
-    <td class="col-state mono">{proc.state}</td>
+    </td>{/if}
+    {#if cols.uptime}<td class="col-uptime mono">{proc.uptime || "\u2014"}</td>{/if}
+    {#if cols.pid}<td class="col-pid mono">{proc.pid}</td>{/if}
+    {#if cols.state}<td class="col-state mono">{proc.state}</td>{/if}
   </tr>
 {/snippet}
 
@@ -247,7 +255,7 @@
     aria-expanded={!collapsedGroups.has(group.name)}
   >
     <td class="col-check"></td>
-    <td colspan="8" class="group-cell">
+    <td colspan={visibleColCount} class="group-cell">
       <span class="chevron" class:open={!collapsedGroups.has(group.name)} aria-hidden="true">&#9654;</span>
       <span class="group-name">{group.name}</span>
       <span class="group-meta">
@@ -262,33 +270,33 @@
     <thead>
       <tr>
         <th class="col-check" scope="col"><span class="sr-only">Select</span></th>
-        <th class="col-name sortable" scope="col" aria-sort={sortKey === "name" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("name")}>
+        {#if cols.name}<th class="col-name sortable" scope="col" aria-sort={sortKey === "name" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("name")}>
           Name<span aria-hidden="true">{arrow("name")}</span>
-        </th>
-        <th class="col-detail" scope="col">Detail</th>
-        <th class="col-group sortable" scope="col" aria-sort={sortKey === "group" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("group")}>
+        </th>{/if}
+        {#if cols.detail}<th class="col-detail" scope="col">Detail</th>{/if}
+        {#if cols.group}<th class="col-group sortable" scope="col" aria-sort={sortKey === "group" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("group")}>
           Group<span aria-hidden="true">{arrow("group")}</span>
-        </th>
-        <th class="col-ram sortable" scope="col" aria-sort={sortKey === "ram_mb" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("ram_mb")}>
+        </th>{/if}
+        {#if cols.ram}<th class="col-ram sortable" scope="col" aria-sort={sortKey === "ram_mb" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("ram_mb")}>
           RAM<span aria-hidden="true">{arrow("ram_mb")}</span>
-        </th>
-        <th class="col-cpu sortable" scope="col" aria-sort={sortKey === "cpu_pct" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("cpu_pct")}>
+        </th>{/if}
+        {#if cols.cpu}<th class="col-cpu sortable" scope="col" aria-sort={sortKey === "cpu_pct" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("cpu_pct")}>
           CPU<span aria-hidden="true">{arrow("cpu_pct")}</span>
-        </th>
-        <th class="col-uptime sortable" scope="col" aria-sort={sortKey === "uptime" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("uptime")}>
+        </th>{/if}
+        {#if cols.uptime}<th class="col-uptime sortable" scope="col" aria-sort={sortKey === "uptime" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("uptime")}>
           Time<span aria-hidden="true">{arrow("uptime")}</span>
-        </th>
-        <th class="col-pid sortable" scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("pid")}>
+        </th>{/if}
+        {#if cols.pid}<th class="col-pid sortable" scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("pid")}>
           PID<span aria-hidden="true">{arrow("pid")}</span>
-        </th>
-        <th class="col-state sortable" scope="col" aria-sort={sortKey === "state" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("state")}>
+        </th>{/if}
+        {#if cols.state}<th class="col-state sortable" scope="col" aria-sort={sortKey === "state" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("state")}>
           ST<span aria-hidden="true">{arrow("state")}</span>
-        </th>
+        </th>{/if}
       </tr>
     </thead>
     <tbody>
       {#if topSpacerHeight > 0}
-        <tr class="spacer" aria-hidden="true"><td style="height:{topSpacerHeight}px" colspan="9"></td></tr>
+        <tr class="spacer" aria-hidden="true"><td style="height:{topSpacerHeight}px" colspan={visibleColCount + 1}></td></tr>
       {/if}
       {#each visibleRows as row, i (row.kind === "process" ? `p-${row.proc.pid}` : `g-${row.group.name}`)}
         {#if row.kind === "process"}
@@ -298,7 +306,7 @@
         {/if}
       {/each}
       {#if bottomSpacerHeight > 0}
-        <tr class="spacer" aria-hidden="true"><td style="height:{bottomSpacerHeight}px" colspan="9"></td></tr>
+        <tr class="spacer" aria-hidden="true"><td style="height:{bottomSpacerHeight}px" colspan={visibleColCount + 1}></td></tr>
       {/if}
     </tbody>
   </table>

@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ProcessEntry, SystemStats, Metrics, BrowserTab, ProcessSuggestion } from "./types";
+import type { ProcessEntry, SystemStats, Metrics, BrowserTab, BrowserName, ProcessSuggestion } from "./types";
+
+const VALID_BROWSERS = new Set<string>(["Chrome", "Safari", "Brave", "Edge", "Arc", "Firefox"]);
 
 export class IPCValidationError extends Error {
   constructor(
@@ -129,11 +131,15 @@ function validateBrowserTab(raw: unknown, index: number): BrowserTab {
   assertString(`tabs[${index}].url`, r.url);
   assertString(`tabs[${index}].browser`, r.browser);
 
+  if (!VALID_BROWSERS.has(r.browser as string)) {
+    throw new IPCValidationError(`tabs[${index}].browser`, r.browser, `Unknown browser "${r.browser}" at index ${index}`);
+  }
+
   return {
     id: r.id as string,
     title: r.title as string,
     url: r.url as string,
-    browser: r.browser as "Chrome" | "Safari",
+    browser: r.browser as BrowserName,
   };
 }
 
@@ -174,8 +180,8 @@ export async function ipcSaveAiConfig(provider: string, model: string, key: stri
   await invoke("save_ai_config", { provider, model, key });
 }
 
-export async function ipcAnalyzeProcesses(profile: string): Promise<ProcessSuggestion[]> {
-  const data: unknown = await invoke("analyze_processes", { profile });
+export async function ipcAnalyzeProcesses(profile: string, provider: string, model: string): Promise<ProcessSuggestion[]> {
+  const data: unknown = await invoke("analyze_processes", { profile, provider, model });
 
   if (!Array.isArray(data)) {
     throw new IPCValidationError("analyze_processes", data, "Expected array from analyze_processes");

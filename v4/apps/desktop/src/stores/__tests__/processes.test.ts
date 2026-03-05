@@ -413,18 +413,18 @@ describe("analyzeWithAi", () => {
     const suggestions = [{ pid: 1, name: "Heavy", reason: "Using 2GB RAM" }];
     mockInvoke.mockResolvedValue(suggestions);
 
-    await analyzeWithAi();
+    await analyzeWithAi("openrouter", "google/gemini-flash-1.5-8b");
 
     expect(get(aiSuggestions)).toEqual(suggestions);
     expect(get(aiLoading)).toBe(false);
     expect(get(aiError)).toBeNull();
-    expect(mockInvoke).toHaveBeenCalledWith("analyze_processes", { profile: "general" });
+    expect(mockInvoke).toHaveBeenCalledWith("analyze_processes", { profile: "general", provider: "openrouter", model: "google/gemini-flash-1.5-8b" });
   });
 
   it("sets error on API failure", async () => {
     mockInvoke.mockRejectedValue(new Error("No API key configured"));
 
-    await analyzeWithAi();
+    await analyzeWithAi("openrouter", "google/gemini-flash-1.5-8b");
 
     expect(get(aiSuggestions)).toEqual([]);
     expect(get(aiLoading)).toBe(false);
@@ -434,18 +434,26 @@ describe("analyzeWithAi", () => {
   it("stringifies non-Error failures", async () => {
     mockInvoke.mockRejectedValue("plain-string-error");
 
-    await analyzeWithAi();
+    await analyzeWithAi("openai", "gpt-4o");
 
     expect(get(aiError)).toBe("plain-string-error");
   });
 
-  it("passes current profile to IPC", async () => {
+  it("passes current profile and provider/model to IPC", async () => {
     aiProfile.set("developer");
+    mockInvoke.mockResolvedValue([]);
+
+    await analyzeWithAi("anthropic", "claude-sonnet-4-20250514");
+
+    expect(mockInvoke).toHaveBeenCalledWith("analyze_processes", { profile: "developer", provider: "anthropic", model: "claude-sonnet-4-20250514" });
+  });
+
+  it("uses defaults when no provider/model given", async () => {
     mockInvoke.mockResolvedValue([]);
 
     await analyzeWithAi();
 
-    expect(mockInvoke).toHaveBeenCalledWith("analyze_processes", { profile: "developer" });
+    expect(mockInvoke).toHaveBeenCalledWith("analyze_processes", { profile: "general", provider: "openrouter", model: "google/gemini-flash-1.5-8b" });
   });
 
   it("sets loading during execution", async () => {
@@ -454,7 +462,7 @@ describe("analyzeWithAi", () => {
       () => new Promise((resolve) => { resolvePromise = resolve; }),
     );
 
-    const promise = analyzeWithAi();
+    const promise = analyzeWithAi("openrouter", "m");
     expect(get(aiLoading)).toBe(true);
 
     resolvePromise!([]);

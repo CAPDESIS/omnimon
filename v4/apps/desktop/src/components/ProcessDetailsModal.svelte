@@ -11,10 +11,13 @@
   let { process, onclose }: Props = $props();
   let modalEl: HTMLDivElement | undefined = $state();
 
-  let detectedBrowser = $derived.by((): "Chrome" | "Safari" | null => {
+  let detectedBrowser = $derived.by((): string | null => {
     if (process.group !== "Browser") return null;
     if (process.exec_name.includes("Google Chrome Helper") || process.name.includes("Chrome")) return "Chrome";
     if (process.name === "com.apple.WebKit.WebContent" || process.exec_name.includes("Safari")) return "Safari";
+    if (process.exec_name.includes("Brave Browser Helper") || process.name.includes("Brave")) return "Brave";
+    if (process.exec_name.includes("Microsoft Edge Helper") || process.name.includes("Edge")) return "Edge";
+    if (process.exec_name.includes("Arc Helper") || process.name.includes("Arc")) return "Arc";
     return null;
   });
 

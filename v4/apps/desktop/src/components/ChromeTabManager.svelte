@@ -7,12 +7,34 @@
   let closing = $state<Set<string>>(new Set());
   let selectedTabIds = $state<Set<string>>(new Set());
 
-  let chromeTabs = $derived(
-    $browserTabs.filter((t) => t.browser === "Chrome"),
-  );
-  let safariTabs = $derived(
-    $browserTabs.filter((t) => t.browser === "Safari"),
-  );
+  interface BrowserSection {
+    name: string;
+    color: string;
+    tabs: BrowserTab[];
+  }
+
+  const BROWSER_COLORS: Record<string, string> = {
+    Chrome: "#4285f4",
+    Safari: "#007aff",
+    Brave: "#fb542b",
+    Edge: "#0078d4",
+    Arc: "#a855f7",
+    Firefox: "#ff7139",
+  };
+
+  let sections = $derived.by((): BrowserSection[] => {
+    const map = new Map<string, BrowserTab[]>();
+    for (const tab of $browserTabs) {
+      const arr = map.get(tab.browser);
+      if (arr) arr.push(tab);
+      else map.set(tab.browser, [tab]);
+    }
+    return [...map.entries()].map(([name, tabs]) => ({
+      name,
+      color: BROWSER_COLORS[name] ?? "var(--fg-dim)",
+      tabs,
+    }));
+  });
 
   let totalRam = $derived(
     $chromeProcesses.reduce((sum, p) => sum + p.ram_mb, 0),
@@ -124,9 +146,7 @@
         <span class="browser-title">{label}</span>
         <span class="browser-meta">
           {tabs.length} tab{tabs.length !== 1 ? "s" : ""}
-          {#if label === "Chrome"}
-            &middot; <span style="color: {ramColor(totalRam)}">{totalRam.toFixed(0)} MB</span>
-          {/if}
+          &middot; <span style="color: {ramColor(totalRam)}">{totalRam.toFixed(0)} MB</span>
         </span>
         <div class="header-actions">
           <button
@@ -201,10 +221,11 @@
   {/if}
 {/snippet}
 
-{#if chromeTabs.length > 0 || safariTabs.length > 0}
+{#if sections.length > 0}
   <div class="chrome-manager">
-    {@render tabSection("Chrome", chromeTabs, "#4285f4")}
-    {@render tabSection("Safari", safariTabs, "#007aff")}
+    {#each sections as section (section.name)}
+      {@render tabSection(section.name, section.tabs, section.color)}
+    {/each}
   </div>
 {/if}
 

@@ -167,12 +167,14 @@ export const focusedPid = writable<number | null>(null);
 export const grouping = writable(false);
 
 // --- AI actions ---
-export async function analyzeWithAi(): Promise<void> {
+export async function analyzeWithAi(provider?: string, model?: string): Promise<void> {
   aiLoading.set(true);
   aiError.set(null);
   try {
     const profile = get(aiProfile);
-    const suggestions = await ipcAnalyzeProcesses(profile);
+    const p = provider ?? "openrouter";
+    const m = model ?? "google/gemini-flash-1.5-8b";
+    const suggestions = await ipcAnalyzeProcesses(profile, p, m);
     aiSuggestions.set(suggestions);
   } catch (e) {
     aiError.set(e instanceof Error ? e.message : String(e));

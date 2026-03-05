@@ -241,36 +241,36 @@ describe("ipcAnalyzeProcesses", () => {
 
   it("returns validated suggestions on valid data", async () => {
     mockInvoke.mockResolvedValue([validSuggestion(), validSuggestion({ pid: 2, name: "Other" })]);
-    const result = await ipcAnalyzeProcesses("general");
+    const result = await ipcAnalyzeProcesses("general", "openrouter", "google/gemini-flash-1.5-8b");
     expect(result).toHaveLength(2);
     expect(result[0].pid).toBe(1);
     expect(result[0].reason).toBe("High memory usage");
-    expect(mockInvoke).toHaveBeenCalledWith("analyze_processes", { profile: "general" });
+    expect(mockInvoke).toHaveBeenCalledWith("analyze_processes", { profile: "general", provider: "openrouter", model: "google/gemini-flash-1.5-8b" });
   });
 
   it("rejects non-array response", async () => {
     mockInvoke.mockResolvedValue({ suggestions: [] });
-    await expect(ipcAnalyzeProcesses("general")).rejects.toThrow(IPCValidationError);
+    await expect(ipcAnalyzeProcesses("general", "openrouter", "m")).rejects.toThrow(IPCValidationError);
   });
 
   it("rejects suggestion with missing name", async () => {
     mockInvoke.mockResolvedValue([validSuggestion({ name: 42 })]);
-    await expect(ipcAnalyzeProcesses("general")).rejects.toThrow(IPCValidationError);
+    await expect(ipcAnalyzeProcesses("general", "openrouter", "m")).rejects.toThrow(IPCValidationError);
   });
 
   it("rejects suggestion with non-numeric pid", async () => {
     mockInvoke.mockResolvedValue([validSuggestion({ pid: "abc" })]);
-    await expect(ipcAnalyzeProcesses("general")).rejects.toThrow(IPCValidationError);
+    await expect(ipcAnalyzeProcesses("general", "openrouter", "m")).rejects.toThrow(IPCValidationError);
   });
 
   it("rejects suggestion that is not an object", async () => {
     mockInvoke.mockResolvedValue([null]);
-    await expect(ipcAnalyzeProcesses("general")).rejects.toThrow(IPCValidationError);
+    await expect(ipcAnalyzeProcesses("general", "openrouter", "m")).rejects.toThrow(IPCValidationError);
   });
 
   it("propagates API errors", async () => {
     mockInvoke.mockRejectedValue(new Error("No API key configured"));
-    await expect(ipcAnalyzeProcesses("developer")).rejects.toThrow("No API key configured");
+    await expect(ipcAnalyzeProcesses("developer", "openai", "gpt-4o")).rejects.toThrow("No API key configured");
   });
 });
 
