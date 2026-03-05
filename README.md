@@ -19,12 +19,23 @@ El proyecto adopta un enfoque modular estricto separando el backend nativo de la
 * **Blocklists Seguras:** Listas de bloqueo dinámicas e inmutables por sistema operativo que previenen la terminación accidental de procesos críticos (ej. `smss.exe` en Windows o `launchd` en macOS).
 * **Paridad de Características:** Experiencia consistente sin importar la plataforma subyacente (.exe, .dmg, .deb).
 
-## 🚀 Quick Start (Instalación en un paso)
+## 🚀 Quick Start
 
-Para entornos de desarrollo, hemos abstraído la configuración de dependencias de Rust, Node y dependencias del sistema operativo en un único script.
+### macOS (Recomendado)
+
+La forma más sencilla de instalar OmniMon en macOS (Apple Silicon y x86_64) es a través de Homebrew:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/omnimon/omnimon/main/setup-dev.sh | bash
+brew tap chochy2001/omnimon
+brew install --cask omnimon
+```
+
+### Instalación de Desarrollo (Multiplataforma)
+
+Para compilar desde el código fuente o configurar el entorno de desarrollo en macOS, Windows o Linux, utiliza nuestro script de orquestación que instalará Rust, Node y las dependencias nativas necesarias:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chochy2001/macmon/main/v4/setup-dev.sh | bash
 ```
 
 ## 💻 Uso por CLI (macmon)
