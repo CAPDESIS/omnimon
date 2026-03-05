@@ -25,6 +25,14 @@ Levantar el entorno multiplataforma (Rust, Tauri, Svelte) es sumamente fácil gr
    ```
    Esto compilará el backend en Rust y levantará la interfaz de Tauri conectada al hot-reloading de Vite/Svelte.
 
+## Requisitos Multiplataforma (Cross-Platform)
+
+OmniMon v4 está diseñado para funcionar nativamente en **macOS, Windows y Linux**. Cualquier nueva funcionalidad o módulo (por ejemplo, seguimiento de pestañas de navegadores, interacciones nativas con el SO) **debe** estar soportado en las tres plataformas, o degradarse de manera elegante si la API del SO no lo permite. 
+
+* Antes de proponer una nueva feature, asegúrate de que el código compila y pasa las pruebas en los tres entornos.
+* Utiliza el tipado `#[cfg(target_os = "...")]` de Rust de forma adecuada para implementaciones específicas de cada sistema.
+* **El CI/CD validará** automáticamente tus cambios en runners de Ubuntu, macOS y Windows. Si tu Pull Request rompe la compilación en alguna plataforma, no podrá ser fusionado.
+
 ## Flujo de Trabajo y Pull Requests
 
 1. Crea un fork del proyecto y trabaja en una rama descriptiva, por ejemplo: `feat/mi-nueva-funcionalidad` o `fix/solucion-bug`.
