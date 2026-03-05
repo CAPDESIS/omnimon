@@ -94,4 +94,11 @@ mod tests {
 
         assert_eq!(encoded, expected);
     }
+
+    #[test]
+    fn free_system_memory_values_are_consistent() {
+        let memory = free_system_memory();
+        assert!(memory.total_memory_bytes >= memory.used_memory_bytes);
+        assert!(memory.total_memory_bytes >= memory.free_memory_bytes);
+    }
 }

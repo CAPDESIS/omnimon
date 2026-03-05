@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::Path;
+use std::time::Duration;
 use sysinfo::{Pid, Signal, System};
 
 const DEFAULT_PROTECTED_PROCESSES: &[&str] = &[
@@ -231,13 +232,50 @@ pub fn kill_process_safe(pid: i32, extra_blocklist: &[String]) -> Result<KillRes
         || {
             let graceful = process.kill_with(Signal::Term).unwrap_or(false) || process.kill();
             if graceful {
-                return true;
+                std::thread::sleep(Duration::from_millis(120));
+                if !process_is_alive(pid_u32) {
+                    return true;
+                }
             }
 
-            crate::os_native::kill_process_force(pid_u32, process.name(), process_exe.as_deref())
-                .is_ok()
+            if !identity_matches(pid_u32, process.name(), process_exe.as_deref()) {
+                return false;
+            }
+
+            if crate::os_native::kill_process_force(pid_u32, process.name(), process_exe.as_deref())
+                .is_err()
+            {
+                return false;
+            }
+
+            std::thread::sleep(Duration::from_millis(120));
+            !process_is_alive(pid_u32)
         },
     )
+}
+
+fn process_is_alive(pid: u32) -> bool {
+    let mut system = System::new_all();
+    system.refresh_all();
+    system.process(Pid::from_u32(pid)).is_some()
+}
+
+fn identity_matches(pid: u32, expected_name: &str, expected_exe: Option<&Path>) -> bool {
+    let mut system = System::new_all();
+    system.refresh_all();
+    let Some(current) = system.process(Pid::from_u32(pid)) else {
+        return false;
+    };
+
+    if current.name() != expected_name {
+        return false;
+    }
+
+    match (expected_exe, current.exe()) {
+        (Some(expected), Some(current_exe)) => current_exe == expected,
+        (None, _) => true,
+        (Some(_), None) => false,
+    }
 }
 
 #[cfg(test)]
@@ -295,5 +333,83 @@ mod tests {
             || true,
         );
         assert!(matches!(result, Ok(KillResult { killed: true, .. })));
+    }
+
+    #[test]
+    fn extra_blocklist_blocks_process_by_name() {
+        let extra = vec!["mydaemon".to_string()];
+        let result = kill_process_by_name(
+            77,
+            "mydaemon".to_string(),
+            Some(Path::new("/opt/mydaemon")),
+            &extra,
+            || true,
+        );
+        assert!(matches!(result, Err(KillError::Blocked(name)) if name == "mydaemon"));
+    }
+
+    #[test]
+    fn denied_termination_path_maps_to_kill_failed() {
+        let result = kill_process_by_name(
+            100,
+            "user-app".to_string(),
+            Some(Path::new("/tmp/user-app")),
+            &[],
+            || false,
+        );
+        assert!(matches!(result, Err(KillError::KillFailed(100))));
+    }
+
+    #[test]
+    fn immutable_blocked_requires_trusted_executable_path() {
+        #[cfg(target_os = "macos")]
+        {
+            assert!(is_immutable_blocked_process(
+                "WindowServer",
+                Some(Path::new("/System/Library/CoreServices/WindowServer"))
+            ));
+            assert!(!is_immutable_blocked_process(
+                "WindowServer",
+                Some(Path::new("/tmp/WindowServer"))
+            ));
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            assert!(is_immutable_blocked_process(
+                "svchost.exe",
+                Some(Path::new("C:\\Windows\\System32\\svchost.exe"))
+            ));
+            assert!(!is_immutable_blocked_process(
+                "svchost.exe",
+                Some(Path::new("C:\\Temp\\svchost.exe"))
+            ));
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            assert!(is_immutable_blocked_process(
+                "systemd",
+                Some(Path::new("/usr/lib/systemd/systemd"))
+            ));
+            assert!(!is_immutable_blocked_process(
+                "systemd",
+                Some(Path::new("/tmp/systemd"))
+            ));
+        }
+    }
+
+    #[test]
+    fn kill_process_safe_terminates_spawned_child() {
+        let mut child = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .expect("spawn sleep child process");
+        let pid = child.id() as i32;
+        let result = kill_process_safe(pid, &[]);
+        assert!(result.is_ok(), "expected kill success, got: {result:?}");
+
+        // Reap child if it has already exited to avoid zombies in test env.
+        let _ = child.wait();
     }
 }

@@ -122,6 +122,9 @@ mod tests {
         std::thread::sleep(Duration::from_millis(2500));
         let state = get_cached_state();
         assert!(state.total_memory_bytes > 0);
+        assert!(state.total_memory_bytes >= state.used_memory_bytes);
+        assert!(state.total_memory_bytes >= state.free_memory_bytes);
+        assert!(state.free_percent <= 100);
         assert!(state.updated_at_unix_ms > 0);
     }
 }
