@@ -1,7 +1,8 @@
+use macmon_core::browser::{BrowserKind, BrowserTab, NativeTabProvider, TabProvider};
 use serde::Serialize;
 use std::sync::{Mutex, OnceLock};
-use std::time::{SystemTime, UNIX_EPOCH};
-use sysinfo::{Pid, System};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use sysinfo::{Pid, ProcessRefreshKind, System};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
@@ -65,11 +66,11 @@ fn get_metrics() -> Result<Metrics, String> {
     // Top processes sorted by memory from core
     let top_procs = macmon_core::metrics::top_processes_by_memory(100);
 
-    // Refresh persistent System for per-process CPU data
+    // Refresh persistent System — only processes (skip disks, networks, components)
     let mut system = process_system()
         .lock()
         .map_err(|e| format!("system lock poisoned: {e}"))?;
-    system.refresh_all();
+    system.refresh_processes_specifics(ProcessRefreshKind::everything());
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -100,6 +101,16 @@ fn get_metrics() -> Result<Metrics, String> {
             let is_system = macmon_core::killer::is_immutable_blocked_process_name(&entry.name);
             let idle = cpu_pct < 1.0 && !is_system;
 
+            // Tag Browser group by process name pattern — no AppleScript, instant
+            let group = if exec_name.contains("Google Chrome Helper")
+                || entry.name == "com.apple.WebKit.WebContent"
+                || exec_name.contains("Safari")
+            {
+                "Browser".to_string()
+            } else {
+                String::new()
+            };
+
             ProcessEntry {
                 pid: entry.pid,
                 name: entry.name.clone(),
@@ -107,7 +118,7 @@ fn get_metrics() -> Result<Metrics, String> {
                 ram_mb: (ram_mb * 10.0).round() / 10.0,
                 cpu_pct: (cpu_pct * 10.0).round() / 10.0,
                 uptime,
-                group: String::new(),
+                group,
                 is_system,
                 idle,
                 state: if idle { "S".into() } else { "R".into() },
@@ -130,6 +141,70 @@ fn get_metrics() -> Result<Metrics, String> {
     };
 
     Ok(Metrics { processes, stats })
+}
+
+/// Cached browser tabs — refreshed in background, served instantly.
+static TAB_CACHE: OnceLock<Mutex<(Vec<BrowserTab>, Instant)>> = OnceLock::new();
+
+/// How often to actually run AppleScript/CDP (seconds).
+const TAB_CACHE_TTL_SECS: u64 = 5;
+
+fn tab_cache() -> &'static Mutex<(Vec<BrowserTab>, Instant)> {
+    TAB_CACHE.get_or_init(|| Mutex::new((Vec::new(), Instant::now() - std::time::Duration::from_secs(TAB_CACHE_TTL_SECS + 1))))
+}
+
+fn refresh_tab_cache_if_stale() -> Vec<BrowserTab> {
+    let mut cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
+    if cache.1.elapsed().as_secs() < TAB_CACHE_TTL_SECS {
+        return cache.0.clone();
+    }
+    // Stale — refresh now
+    let provider = NativeTabProvider;
+    let mut tabs = provider.list_tabs(BrowserKind::Chrome).unwrap_or_default();
+    #[cfg(target_os = "macos")]
+    {
+        tabs.extend(provider.list_tabs(BrowserKind::Safari).unwrap_or_default());
+    }
+    cache.0 = tabs.clone();
+    cache.1 = Instant::now();
+    tabs
+}
+
+/// IPC: List open browser tabs — returns from cache, refreshes in background if stale.
+#[tauri::command]
+fn get_browser_tabs() -> Result<Vec<BrowserTab>, String> {
+    // Return cached data instantly
+    let cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
+    let tabs = cache.0.clone();
+    let stale = cache.1.elapsed().as_secs() >= TAB_CACHE_TTL_SECS;
+    drop(cache);
+
+    // If stale, refresh in background thread (don't block IPC)
+    if stale {
+        std::thread::spawn(|| {
+            refresh_tab_cache_if_stale();
+        });
+    }
+
+    Ok(tabs)
+}
+
+/// IPC: Gracefully close a browser tab via AppleScript/CDP (not process kill).
+#[tauri::command]
+fn close_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result<bool, String> {
+    let kind = match browser.as_str() {
+        "Chrome" => BrowserKind::Chrome,
+        "Safari" => BrowserKind::Safari,
+        _ => return Err(format!("Unknown browser: {browser}")),
+    };
+    let provider = NativeTabProvider;
+    let tab = BrowserTab {
+        id: tab_id,
+        title: String::new(),
+        url: tab_url,
+        browser: kind,
+    };
+    provider.close_tab(kind, &tab)
 }
 
 /// IPC: Kill a single process by PID using the real OS-native killer.
@@ -229,6 +304,8 @@ pub fn run() {
             kill_processes,
             save_ai_config,
             analyze_processes,
+            get_browser_tabs,
+            close_browser_tab,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

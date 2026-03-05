@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { ProcessEntry } from "../lib/types";
-  import { toggleSelect, selectedPids, focusedPid } from "../stores/processes";
+  import type { ProcessEntry, BrowserTab } from "../lib/types";
+  import { toggleSelect, selectedPids, focusedPid, browserTabs } from "../stores/processes";
 
   interface Props {
     processes: ProcessEntry[];
@@ -14,9 +14,41 @@
   const ROW_HEIGHT = 20;
   const BUFFER = 10;
 
-  type SortKey = "name" | "pid" | "ram_mb" | "cpu_pct" | "group";
+  type SortKey = "name" | "pid" | "ram_mb" | "cpu_pct" | "group" | "uptime" | "state";
   let sortKey: SortKey = $state("ram_mb");
   let sortAsc = $state(false);
+
+  // Build a lookup from process name to tab details for the "Detail" column
+  let tabDetailMap = $derived.by((): Map<string, BrowserTab> => {
+    const map = new Map<string, BrowserTab>();
+    for (const tab of $browserTabs) {
+      map.set(`Chrome Tab: ${tab.title}`, tab);
+    }
+    return map;
+  });
+
+  function getDetail(proc: ProcessEntry): string {
+    const tab = tabDetailMap.get(proc.name);
+    if (tab) {
+      return `${tab.title} \u2014 ${tab.url}`;
+    }
+    return proc.exec_name !== proc.name ? proc.exec_name : "";
+  }
+
+  function getGroup(proc: ProcessEntry): string {
+    if (proc.group === "Browser") {
+      const tab = tabDetailMap.get(proc.name);
+      if (tab) {
+        try {
+          return `${tab.browser}: ${new URL(tab.url).hostname}`;
+        } catch {
+          return tab.browser;
+        }
+      }
+      return "Browser";
+    }
+    return proc.group || "";
+  }
 
   let collapsedGroups = $state(new Set<string>());
 
@@ -188,14 +220,20 @@
       <span class="name-text">{proc.name}</span>
       {#if proc.idle}<span class="badge idle">idle</span>{/if}
     </td>
-    <td class="col-pid mono">{proc.pid}</td>
+    <td class="col-detail" title={getDetail(proc)}>
+      <span class="detail-text">{getDetail(proc)}</span>
+    </td>
+    <td class="col-group" title={getGroup(proc)}>
+      <span class="group-text">{getGroup(proc)}</span>
+    </td>
     <td class="col-ram mono" style="color: {ramColor(proc.ram_mb)}">
       {proc.ram_mb.toFixed(1)}
     </td>
     <td class="col-cpu mono" style="color: {cpuColor(proc.cpu_pct)}">
       {proc.cpu_pct.toFixed(1)}
     </td>
-    <td class="col-uptime mono">{proc.uptime || "—"}</td>
+    <td class="col-uptime mono">{proc.uptime || "\u2014"}</td>
+    <td class="col-pid mono">{proc.pid}</td>
     <td class="col-state mono">{proc.state}</td>
   </tr>
 {/snippet}
@@ -210,7 +248,7 @@
     aria-expanded={!collapsedGroups.has(group.name)}
   >
     <td class="col-check"></td>
-    <td colspan="6" class="group-cell">
+    <td colspan="8" class="group-cell">
       <span class="chevron" class:open={!collapsedGroups.has(group.name)} aria-hidden="true">&#9654;</span>
       <span class="group-name">{group.name}</span>
       <span class="group-meta">
@@ -228,8 +266,9 @@
         <th class="col-name sortable" scope="col" aria-sort={sortKey === "name" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("name")}>
           Name<span aria-hidden="true">{arrow("name")}</span>
         </th>
-        <th class="col-pid sortable" scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("pid")}>
-          PID<span aria-hidden="true">{arrow("pid")}</span>
+        <th class="col-detail" scope="col">Detail</th>
+        <th class="col-group sortable" scope="col" aria-sort={sortKey === "group" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("group")}>
+          Group<span aria-hidden="true">{arrow("group")}</span>
         </th>
         <th class="col-ram sortable" scope="col" aria-sort={sortKey === "ram_mb" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("ram_mb")}>
           RAM<span aria-hidden="true">{arrow("ram_mb")}</span>
@@ -237,13 +276,20 @@
         <th class="col-cpu sortable" scope="col" aria-sort={sortKey === "cpu_pct" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("cpu_pct")}>
           CPU<span aria-hidden="true">{arrow("cpu_pct")}</span>
         </th>
-        <th class="col-uptime" scope="col">Up</th>
-        <th class="col-state" scope="col">St</th>
+        <th class="col-uptime sortable" scope="col" aria-sort={sortKey === "uptime" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("uptime")}>
+          Time<span aria-hidden="true">{arrow("uptime")}</span>
+        </th>
+        <th class="col-pid sortable" scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("pid")}>
+          PID<span aria-hidden="true">{arrow("pid")}</span>
+        </th>
+        <th class="col-state sortable" scope="col" aria-sort={sortKey === "state" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("state")}>
+          ST<span aria-hidden="true">{arrow("state")}</span>
+        </th>
       </tr>
     </thead>
     <tbody>
       {#if topSpacerHeight > 0}
-        <tr class="spacer" aria-hidden="true"><td style="height:{topSpacerHeight}px" colspan="7"></td></tr>
+        <tr class="spacer" aria-hidden="true"><td style="height:{topSpacerHeight}px" colspan="9"></td></tr>
       {/if}
       {#each visibleRows as row, i (row.kind === "process" ? `p-${row.proc.pid}` : `g-${row.group.name}`)}
         {#if row.kind === "process"}
@@ -253,7 +299,7 @@
         {/if}
       {/each}
       {#if bottomSpacerHeight > 0}
-        <tr class="spacer" aria-hidden="true"><td style="height:{bottomSpacerHeight}px" colspan="7"></td></tr>
+        <tr class="spacer" aria-hidden="true"><td style="height:{bottomSpacerHeight}px" colspan="9"></td></tr>
       {/if}
     </tbody>
   </table>
@@ -386,30 +432,50 @@
     text-align: center;
   }
   .col-name {
-    width: 32%;
-    min-width: 120px;
+    width: 16%;
+    min-width: 100px;
+  }
+  .col-detail {
+    width: 24%;
+    min-width: 140px;
+    color: var(--fg-dim);
+    font-size: 10px;
+  }
+  .col-group {
+    width: 12%;
+    min-width: 80px;
+    color: var(--fg-dim);
+    font-size: 10px;
+  }
+  .col-ram {
+    width: 55px;
+    text-align: right;
+  }
+  .col-cpu {
+    width: 48px;
+    text-align: right;
+  }
+  .col-uptime {
+    width: 48px;
+    text-align: right;
+    color: var(--fg-dim);
   }
   .col-pid {
     width: 55px;
     text-align: right;
   }
-  .col-ram {
-    width: 60px;
-    text-align: right;
-  }
-  .col-cpu {
-    width: 50px;
-    text-align: right;
-  }
-  .col-uptime {
-    width: 42px;
-    text-align: right;
-    color: var(--fg-dim);
-  }
   .col-state {
     width: 24px;
     text-align: center;
     color: var(--fg-dim);
+  }
+
+  .detail-text,
+  .group-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
   }
 
   input[type="checkbox"] {

@@ -299,14 +299,15 @@ describe("derived stores", () => {
     expect(get(filtered)[0].name).toBe("Chrome");
   });
 
-  it("chromeProcesses filters by group and name", () => {
+  it("chromeProcesses filters by Browser group", () => {
     processes.set([
       makeProc({ pid: 1, group: "Browser", name: "Chrome" }),
-      makeProc({ pid: 2, group: "Browser", name: "Firefox" }),
+      makeProc({ pid: 2, group: "Browser", name: "Safari Renderer" }),
       makeProc({ pid: 3, group: "Utilities", name: "Chrome Helper" }),
     ]);
-    expect(get(chromeProcesses)).toHaveLength(1);
+    expect(get(chromeProcesses)).toHaveLength(2);
     expect(get(chromeProcesses)[0].pid).toBe(1);
+    expect(get(chromeProcesses)[1].pid).toBe(2);
   });
 
   it("selectedCount tracks size of selectedPids", () => {
@@ -325,9 +326,13 @@ describe("derived stores", () => {
 describe("polling", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    mockInvoke.mockResolvedValue({
-      processes: [],
-      stats: { ram_total_gb: 16, ram_used_pct: 0, swap_used_mb: 0, total_processes: 0 },
+    // fetchMetrics now calls both get_metrics and get_browser_tabs
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "get_browser_tabs") return Promise.resolve([]);
+      return Promise.resolve({
+        processes: [],
+        stats: { ram_total_gb: 16, ram_used_pct: 0, swap_used_mb: 0, total_processes: 0 },
+      });
     });
   });
 
@@ -338,24 +343,29 @@ describe("polling", () => {
 
   it("startPolling calls fetchMetrics immediately and on interval", async () => {
     startPolling(1000);
-    // Immediate call
-    expect(mockInvoke).toHaveBeenCalledTimes(1);
+    // Immediate call: get_metrics (sync), get_browser_tabs (async after await)
+    const metricsCallCount = () =>
+      mockInvoke.mock.calls.filter((c) => c[0] === "get_metrics").length;
 
-    // Advance timer
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(mockInvoke).toHaveBeenCalledTimes(2);
+    expect(metricsCallCount()).toBe(1);
 
     await vi.advanceTimersByTimeAsync(1000);
-    expect(mockInvoke).toHaveBeenCalledTimes(3);
+    expect(metricsCallCount()).toBe(2);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(metricsCallCount()).toBe(3);
   });
 
   it("stopPolling stops interval", async () => {
     startPolling(1000);
-    expect(mockInvoke).toHaveBeenCalledTimes(1);
+    const metricsCallCount = () =>
+      mockInvoke.mock.calls.filter((c) => c[0] === "get_metrics").length;
+
+    expect(metricsCallCount()).toBe(1);
 
     stopPolling();
     await vi.advanceTimersByTimeAsync(3000);
     // No additional calls after stop (just the initial one)
-    expect(mockInvoke).toHaveBeenCalledTimes(1);
+    expect(metricsCallCount()).toBe(1);
   });
 });

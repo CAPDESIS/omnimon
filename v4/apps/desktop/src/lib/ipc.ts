@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ProcessEntry, SystemStats, Metrics } from "./types";
+import type { ProcessEntry, SystemStats, Metrics, BrowserTab } from "./types";
 
 export class IPCValidationError extends Error {
   constructor(
@@ -116,4 +116,39 @@ export async function ipcKillProcesses(pids: number[]): Promise<number[]> {
   }
 
   return result as number[];
+}
+
+function validateBrowserTab(raw: unknown, index: number): BrowserTab {
+  if (raw == null || typeof raw !== "object") {
+    throw new IPCValidationError(`tabs[${index}]`, raw, `Expected object at index ${index}`);
+  }
+  const r = raw as Record<string, unknown>;
+
+  assertString(`tabs[${index}].id`, r.id);
+  assertString(`tabs[${index}].title`, r.title);
+  assertString(`tabs[${index}].url`, r.url);
+  assertString(`tabs[${index}].browser`, r.browser);
+
+  return {
+    id: r.id as string,
+    title: r.title as string,
+    url: r.url as string,
+    browser: r.browser as "Chrome" | "Safari",
+  };
+}
+
+export async function ipcGetBrowserTabs(): Promise<BrowserTab[]> {
+  const data: unknown = await invoke("get_browser_tabs");
+
+  if (!Array.isArray(data)) {
+    throw new IPCValidationError("get_browser_tabs", data, "Expected array from get_browser_tabs");
+  }
+
+  return data.map((raw, i) => validateBrowserTab(raw, i));
+}
+
+export async function ipcCloseBrowserTab(tabId: string, tabUrl: string, browser: string): Promise<boolean> {
+  const result: unknown = await invoke("close_browser_tab", { tabId, tabUrl, browser });
+  assertBoolean("close_browser_tab result", result);
+  return result;
 }

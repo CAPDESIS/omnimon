@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { stats, filtered } from "../stores/processes";
+  import { stats, filtered, processes } from "../stores/processes";
 
   let ramColor = $derived(
     $stats
@@ -9,6 +9,20 @@
           ? "var(--yellow)"
           : "var(--green)"
       : "var(--fg-dim)",
+  );
+
+  let avgCpu = $derived(
+    $processes.length > 0
+      ? $processes.reduce((sum, p) => sum + p.cpu_pct, 0) / $processes.length
+      : 0,
+  );
+
+  let cpuColor = $derived(
+    avgCpu >= 50 ? "var(--danger)" : avgCpu >= 25 ? "var(--yellow)" : "var(--green)",
+  );
+
+  let idleCount = $derived(
+    $processes.filter((p) => p.idle).length,
   );
 </script>
 
@@ -27,12 +41,28 @@
       </span>
     </div>
     <div class="metric">
+      <span class="label">CPU</span>
+      <div class="bar-track" role="progressbar" aria-label="Average CPU usage" aria-valuenow={Math.round(avgCpu)} aria-valuemin={0} aria-valuemax={100}>
+        <div
+          class="bar-fill"
+          style="width: {Math.min(avgCpu, 100)}%; background: {cpuColor}"
+        ></div>
+      </div>
+      <span class="value" style="color: {cpuColor}">
+        {avgCpu.toFixed(1)}%
+      </span>
+    </div>
+    <div class="metric">
       <span class="label">Swap</span>
       <span class="value">{$stats.swap_used_mb} MB</span>
     </div>
     <div class="metric">
       <span class="label">Procs</span>
       <span class="value">{$filtered.length}</span>
+    </div>
+    <div class="metric">
+      <span class="label">Idle</span>
+      <span class="value">{idleCount}</span>
     </div>
   </div>
 {/if}

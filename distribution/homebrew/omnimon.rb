@@ -1,5 +1,5 @@
 cask "omnimon" do
-  version "4.0.7"
+  version "4.1.0"
   sha256 "0459b7664600f2bf3cae3bd3d64eeec696aaf5d1226375a41e8a20f5cee8da24"
 
   url "https://github.com/chochy2001/omnimon/releases/download/v#{version}/OmniMon_#{version}_aarch64.dmg"

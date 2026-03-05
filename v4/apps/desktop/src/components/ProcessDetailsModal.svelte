@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { ProcessEntry } from "../lib/types";
+  import { browserTabs } from "../stores/processes";
 
   interface Props {
     process: ProcessEntry;
@@ -9,6 +10,14 @@
 
   let { process, onclose }: Props = $props();
   let modalEl: HTMLDivElement | undefined = $state();
+
+  let matchedTab = $derived(
+    $browserTabs.find((t) => process.name === `Chrome Tab: ${t.title}` || process.name === `Safari Tab: ${t.title}`),
+  );
+
+  let tabDomain = $derived(
+    matchedTab ? (() => { try { return new URL(matchedTab.url).hostname; } catch { return ""; } })() : "",
+  );
 
   onMount(() => {
     modalEl?.focus();
@@ -77,11 +86,11 @@
       </div>
       <div class="row">
         <span class="label">Uptime</span>
-        <span class="value mono">{process.uptime || "—"}</span>
+        <span class="value mono">{process.uptime || "\u2014"}</span>
       </div>
       <div class="row">
         <span class="label">Group</span>
-        <span class="value">{process.group || "—"}</span>
+        <span class="value">{process.group || "\u2014"}</span>
       </div>
       <div class="row">
         <span class="label">State</span>
@@ -95,6 +104,25 @@
         <span class="label">Idle</span>
         <span class="value">{process.idle ? "Yes" : "No"}</span>
       </div>
+      {#if matchedTab}
+        <div class="section-divider"></div>
+        <div class="row">
+          <span class="label">Browser</span>
+          <span class="value">{matchedTab.browser}</span>
+        </div>
+        <div class="row">
+          <span class="label">Tab Title</span>
+          <span class="value">{matchedTab.title}</span>
+        </div>
+        <div class="row">
+          <span class="label">URL</span>
+          <span class="value mono url-value">{matchedTab.url}</span>
+        </div>
+        <div class="row">
+          <span class="label">Domain</span>
+          <span class="value mono">{tabDomain}</span>
+        </div>
+      {/if}
     </div>
     <div class="footer">
       <span class="hint">Esc to close</span>
@@ -205,6 +233,18 @@
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     font-size: 11px;
     font-variant-numeric: tabular-nums;
+  }
+
+  .section-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 10px;
+  }
+
+  .url-value {
+    word-break: break-all;
+    white-space: normal;
+    font-size: 10px;
   }
 
   .footer {

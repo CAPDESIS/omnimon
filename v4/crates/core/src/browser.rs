@@ -79,6 +79,10 @@ pub fn cdp_close_tab(base_url: &str, tab_id: &str) -> Result<bool, String> {
         return Ok(false);
     }
 
+    if tab_id.contains('/') || tab_id.contains('\\') || tab_id.contains('?') || tab_id.contains('#') {
+        return Err("Invalid tab ID".to_string());
+    }
+
     let runtime = build_runtime()?;
     let close_result = runtime.block_on(async {
         let client = reqwest::Client::builder()
@@ -105,12 +109,12 @@ impl NativeTabProvider {
         use std::process::Command;
 
         let mut cmd = Command::new("osascript");
-        cmd.arg("-");
+        cmd.arg("-e");
+        cmd.arg(script);
         for arg in args {
             cmd.arg(arg);
         }
         let output = cmd
-            .arg(script)
             .output()
             .map_err(|e| format!("osascript execution failed: {e}"))?;
 

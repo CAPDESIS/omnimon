@@ -22,3 +22,10 @@ export interface Metrics {
   processes: ProcessEntry[];
   stats: SystemStats;
 }
+
+export interface BrowserTab {
+  id: string;
+  title: string;
+  url: string;
+  browser: "Chrome" | "Safari";
+}

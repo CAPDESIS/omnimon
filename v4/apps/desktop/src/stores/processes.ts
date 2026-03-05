@@ -1,10 +1,11 @@
 import { writable, derived, get } from "svelte/store";
-import { ipcGetMetrics, ipcKillProcess, ipcKillProcesses } from "../lib/ipc";
-import type { ProcessEntry, SystemStats } from "../lib/types";
+import { ipcGetMetrics, ipcKillProcess, ipcKillProcesses, ipcGetBrowserTabs } from "../lib/ipc";
+import type { ProcessEntry, SystemStats, BrowserTab } from "../lib/types";
 
 // --- Core stores ---
 export const processes = writable<ProcessEntry[]>([]);
 export const stats = writable<SystemStats | null>(null);
+export const browserTabs = writable<BrowserTab[]>([]);
 export const loading = writable(true);
 export const search = writable("");
 export const selectedPids = writable<Set<number>>(new Set());
@@ -22,9 +23,7 @@ export const filtered = derived([processes, search], ([$processes, $search]) => 
 });
 
 export const chromeProcesses = derived(processes, ($processes) =>
-  $processes.filter(
-    (p) => p.group === "Browser" && p.name.includes("Chrome"),
-  ),
+  $processes.filter((p) => p.group === "Browser"),
 );
 
 export const selectedCount = derived(selectedPids, ($pids) => $pids.size);
@@ -161,19 +160,36 @@ export function selectNone(): void {
 export const focusedPid = writable<number | null>(null);
 export const grouping = writable(false);
 
+// --- Browser tabs (separate, slower polling) ---
+async function fetchBrowserTabs(): Promise<void> {
+  try {
+    const tabs = await ipcGetBrowserTabs();
+    browserTabs.set(tabs);
+  } catch {
+    // Best-effort — don't block anything
+  }
+}
+
 // --- Polling lifecycle ---
 let intervalId: ReturnType<typeof setInterval> | null = null;
+let tabIntervalId: ReturnType<typeof setInterval> | null = null;
 
 export function startPolling(intervalMs = 2000): void {
   stopPolling();
   fetchMetrics();
+  fetchBrowserTabs();
   intervalId = setInterval(fetchMetrics, intervalMs);
+  tabIntervalId = setInterval(fetchBrowserTabs, 5000); // tabs every 5s, not 2s
 }
 
 export function stopPolling(): void {
   if (intervalId !== null) {
     clearInterval(intervalId);
     intervalId = null;
+  }
+  if (tabIntervalId !== null) {
+    clearInterval(tabIntervalId);
+    tabIntervalId = null;
   }
 }
 
@@ -182,6 +198,7 @@ export function _resetForTest(): void {
   stopPolling();
   processes.set([]);
   stats.set(null);
+  browserTabs.set([]);
   loading.set(true);
   search.set("");
   selectedPids.set(new Set());
