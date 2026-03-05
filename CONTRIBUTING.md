@@ -1,58 +1,58 @@
 # Contributing to OmniMon
 
-¡Gracias por tu interés en contribuir a OmniMon! Como proyecto open source, dependemos de la comunidad para mejorar, estabilizar y expandir la herramienta a través de todas sus plataformas.
+Thanks for your interest in contributing to OmniMon! As an open source project, we rely on the community to improve, stabilize, and expand the tool across all platforms.
 
-## Entorno de Desarrollo (DX)
+## Development Environment
 
-Levantar el entorno multiplataforma (Rust, Tauri, Svelte) es sumamente fácil gracias a nuestros scripts de orquestación.
+Setting up the cross-platform environment (Rust, Tauri, Svelte) is straightforward with our orchestration scripts.
 
-1. **Clona el repositorio:**
+1. **Clone the repository:**
    ```bash
-   git clone https://github.com/chochy2001/macmon.git
-   cd macmon
+   git clone https://github.com/chochy2001/omnimon.git
+   cd omnimon
    ```
 
-2. **Ejecuta el script de Setup:**
-   * En macOS/Linux: `./v4/setup-dev.sh`
-   * En Windows: `.\v4\setup-dev.ps1`
-   
-   Este script verificará y/o instalará Node.js, Rust, Cargo, y dependencias nativas requeridas por el SO como WebView2 (Windows) o libwebkit2gtk (Linux).
+2. **Run the setup script:**
+   * macOS/Linux: `./v4/setup-dev.sh`
+   * Windows: `.\v4\setup-dev.ps1`
 
-3. **Inicia el Modo Desarrollo:**
+   This script checks and/or installs Node.js, Rust, Cargo, and native OS dependencies like WebView2 (Windows) or libwebkit2gtk (Linux).
+
+3. **Start development mode:**
    ```bash
    cd v4
    make dev
    ```
-   Esto compilará el backend en Rust y levantará la interfaz de Tauri conectada al hot-reloading de Vite/Svelte.
+   This compiles the Rust backend and launches the Tauri interface with Vite/Svelte hot-reloading.
 
-## Requisitos Multiplataforma (Cross-Platform)
+## Cross-Platform Requirements
 
-OmniMon v4 está diseñado para funcionar nativamente en **macOS, Windows y Linux**. Cualquier nueva funcionalidad o módulo (por ejemplo, seguimiento de pestañas de navegadores, interacciones nativas con el SO) **debe** estar soportado en las tres plataformas, o degradarse de manera elegante si la API del SO no lo permite. 
+OmniMon v4 is designed to run natively on **macOS, Windows, and Linux**. Any new feature or module (e.g. browser tab tracking, native OS interactions) **must** be supported on all three platforms, or degrade gracefully if the OS API doesn't support it.
 
-* Antes de proponer una nueva feature, asegúrate de que el código compila y pasa las pruebas en los tres entornos.
-* Utiliza el tipado `#[cfg(target_os = "...")]` de Rust de forma adecuada para implementaciones específicas de cada sistema.
-* **El CI/CD validará** automáticamente tus cambios en runners de Ubuntu, macOS y Windows. Si tu Pull Request rompe la compilación en alguna plataforma, no podrá ser fusionado.
+* Before proposing a new feature, ensure the code compiles and passes tests on all three environments.
+* Use Rust's `#[cfg(target_os = "...")]` typing for OS-specific implementations.
+* **CI/CD will automatically validate** your changes on Ubuntu, macOS, and Windows runners. If your Pull Request breaks the build on any platform, it cannot be merged.
 
-## Flujo de Trabajo y Pull Requests
+## Workflow and Pull Requests
 
-1. Crea un fork del proyecto y trabaja en una rama descriptiva, por ejemplo: `feat/mi-nueva-funcionalidad` o `fix/solucion-bug`.
-2. Implementa tus cambios (recuerda no mezclar lógica de frontend en los crates del core nativo sin una buena justificación de IPC).
-3. **Punto de Control Crítico:** Verifica que tu código cumpla los estándares:
+1. Fork the project and work on a descriptive branch, e.g. `feat/my-new-feature` or `fix/bug-fix`.
+2. Implement your changes (avoid mixing frontend logic in native core crates without proper IPC justification).
+3. **Critical checkpoint:** Verify your code meets standards:
    ```bash
    cd v4
    make test-all
    ```
-   Esto correrá `cargo fmt`, `cargo clippy --workspace -- -D warnings`, y `cargo test`. **Tu PR no será aceptado si el CI de GitHub falla en estos pasos o detecta warnings.**
-4. Abre un Pull Request contra la rama `main` describiendo claramente qué problema resuelve tu código y cómo probarlo.
+   This runs `cargo fmt`, `cargo clippy --workspace -- -D warnings`, and `cargo test`. **Your PR will not be accepted if GitHub CI fails or detects warnings.**
+4. Open a Pull Request against the `main` branch clearly describing what problem your code solves and how to test it.
 
-## Convención de Commits (Conventional Commits)
+## Commit Convention (Conventional Commits)
 
-Exigimos el uso de Conventional Commits para mantener un historial limpio y generar changelogs automáticos confiables.
-* `feat:` Para nuevas funcionalidades (ej. `feat(ai): agregar soporte para Claude 3.5`).
-* `fix:` Para reparación de bugs (ej. `fix(core): prevenir cuelgue al leer proceso inexistente`).
-* `docs:` Cambios exclusivos a README, SECURITY, CONTRIBUTING o carpeta `/docs`.
-* `chore:` Mantenimiento de infraestructura, dependencias, o procesos de release.
-* `refactor:` Refactorización de código existente sin alterar funcionalidad observable.
-* `test:` Adición o corrección de tests de la suite.
+We require Conventional Commits to maintain a clean history and generate reliable changelogs.
+* `feat:` New features (e.g. `feat(ai): add Claude 3.5 support`).
+* `fix:` Bug fixes (e.g. `fix(core): prevent hang when reading nonexistent process`).
+* `docs:` Documentation-only changes (README, SECURITY, CONTRIBUTING, `/docs`).
+* `chore:` Infrastructure maintenance, dependencies, or release processes.
+* `refactor:` Code refactoring without altering observable behavior.
+* `test:` Adding or fixing tests.
 
-¡Estamos emocionados de revisar tus contribuciones!
+We're excited to review your contributions!

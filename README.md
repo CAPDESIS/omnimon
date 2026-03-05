@@ -1,6 +1,6 @@
 # OmniMon v4
 
-[![CI/CD](https://github.com/chochy2001/macmon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/macmon/actions) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_+_Svelte-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#)
+[![CI/CD](https://github.com/chochy2001/omnimon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/omnimon/actions) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_+_Svelte-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#)
 
 OmniMon is a next-generation system monitor rewritten from scratch in a modern monorepo. It replaces the legacy AppKit/Bash architecture with a hyper-optimized native core and a reactive UI with zero memory leaks.
 
@@ -31,13 +31,13 @@ brew install omnimon           # CLI
 
 ### Windows
 
-Download the `.msi` installer from the [latest release](https://github.com/chochy2001/macmon/releases/latest).
+Download the `.msi` installer from the [latest release](https://github.com/chochy2001/omnimon/releases/latest).
 
 ### Linux
 
 ```bash
 # Debian/Ubuntu — one-liner
-curl -fsSL https://raw.githubusercontent.com/chochy2001/macmon/main/install-web.sh | bash
+curl -fsSL https://raw.githubusercontent.com/chochy2001/omnimon/main/install-web.sh | bash
 
 # Or download the .deb / .AppImage from the latest release
 ```
@@ -45,7 +45,7 @@ curl -fsSL https://raw.githubusercontent.com/chochy2001/macmon/main/install-web.
 ### Build from Source
 
 ```bash
-git clone https://github.com/chochy2001/macmon.git
+git clone https://github.com/chochy2001/omnimon.git
 cd macmon/v4
 ./setup-dev.sh
 make dev

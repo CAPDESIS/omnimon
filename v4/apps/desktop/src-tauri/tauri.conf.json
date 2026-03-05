@@ -33,7 +33,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://api.github.com/repos/chochy2001/macmon/releases/latest"
+        "https://api.github.com/repos/chochy2001/omnimon/releases/latest"
       ],
       "pubkey": "YOUR_PUBLIC_KEY"
     }

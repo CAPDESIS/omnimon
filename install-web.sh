@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # install-web.sh - Smart Multiplatform Web Installer for OmniMon v4
-# Usage: curl -fsSL https://raw.githubusercontent.com/chochy2001/macmon/main/install-web.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/chochy2001/omnimon/main/install-web.sh | bash
 set -euo pipefail
 
-REPO="chochy2001/macmon"
+REPO="chochy2001/omnimon"
 API_URL="https://api.github.com/repos/${REPO}/releases/latest"
 
 # --- Colors ---
