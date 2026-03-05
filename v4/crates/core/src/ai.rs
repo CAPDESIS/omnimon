@@ -70,7 +70,7 @@ pub async fn analyze_with_ai(
     }
 
     let resp_json: serde_json::Value = resp.json().await?;
-    
+
     let content = resp_json["choices"][0]["message"]["content"]
         .as_str()
         .ok_or("Invalid response format")?;

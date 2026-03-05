@@ -229,14 +229,14 @@ pub fn kill_process_safe(pid: i32, extra_blocklist: &[String]) -> Result<KillRes
         process_exe.as_deref(),
         extra_blocklist,
         || {
-        let graceful = process.kill_with(Signal::Term).unwrap_or(false) || process.kill();
-        if graceful {
-            return true;
-        }
+            let graceful = process.kill_with(Signal::Term).unwrap_or(false) || process.kill();
+            if graceful {
+                return true;
+            }
 
-        crate::os_native::kill_process_force(pid_u32, process.name(), process_exe.as_deref())
-            .is_ok()
-    },
+            crate::os_native::kill_process_force(pid_u32, process.name(), process_exe.as_deref())
+                .is_ok()
+        },
     )
 }
 
@@ -256,9 +256,9 @@ mod tests {
             Some(Path::new("/System/Library/CoreServices/WindowServer")),
             &[],
             move || {
-            *called_clone.lock().expect("lock kill flag") = true;
-            true
-        },
+                *called_clone.lock().expect("lock kill flag") = true;
+                true
+            },
         );
 
         assert!(matches!(result, Err(KillError::Blocked(name)) if name == "WindowServer"));

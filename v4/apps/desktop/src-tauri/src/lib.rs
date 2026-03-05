@@ -81,9 +81,7 @@ fn get_metrics() -> Result<Metrics, String> {
         .map(|entry| {
             let proc_info = system.process(Pid::from_u32(entry.pid));
 
-            let cpu_pct = proc_info
-                .map(|p| p.cpu_usage() as f64)
-                .unwrap_or(0.0);
+            let cpu_pct = proc_info.map(|p| p.cpu_usage() as f64).unwrap_or(0.0);
 
             let exec_name = proc_info
                 .and_then(|p| {
@@ -99,8 +97,7 @@ fn get_metrics() -> Result<Metrics, String> {
             let uptime = format_uptime(now.saturating_sub(start_time));
 
             let ram_mb = entry.memory_bytes as f64 / 1_048_576.0;
-            let is_system =
-                macmon_core::killer::is_immutable_blocked_process_name(&entry.name);
+            let is_system = macmon_core::killer::is_immutable_blocked_process_name(&entry.name);
             let idle = cpu_pct < 1.0 && !is_system;
 
             ProcessEntry {
@@ -121,8 +118,7 @@ fn get_metrics() -> Result<Metrics, String> {
     let total_procs = processes.len() as u32;
 
     let stats = SystemStats {
-        ram_total_gb: (sys_state.total_memory_bytes as f64 / 1_073_741_824.0 * 10.0).round()
-            / 10.0,
+        ram_total_gb: (sys_state.total_memory_bytes as f64 / 1_073_741_824.0 * 10.0).round() / 10.0,
         ram_used_pct: if sys_state.total_memory_bytes > 0 {
             ((sys_state.used_memory_bytes as f64 / sys_state.total_memory_bytes as f64) * 100.0)
                 as u32
@@ -167,7 +163,9 @@ fn save_ai_config(_provider: String, _model: String, key: String) -> Result<(), 
 
 /// IPC: Analyze processes using AI
 #[tauri::command]
-async fn analyze_processes(profile: String) -> Result<Vec<macmon_core::ai::ProcessSuggestion>, String> {
+async fn analyze_processes(
+    profile: String,
+) -> Result<Vec<macmon_core::ai::ProcessSuggestion>, String> {
     let top_procs = macmon_core::metrics::top_processes_by_memory(30);
     let mut procs_to_send = Vec::new();
 
@@ -183,12 +181,13 @@ async fn analyze_processes(profile: String) -> Result<Vec<macmon_core::ai::Proce
 
     let processes_json = serde_json::to_string(&procs_to_send).map_err(|e| e.to_string())?;
 
-    let provider = "openrouter"; 
-    let model = "google/gemini-flash-1.5-8b"; 
+    let provider = "openrouter";
+    let model = "google/gemini-flash-1.5-8b";
 
-    let mut suggestions = macmon_core::ai::analyze_with_ai(provider, model, &processes_json, &profile)
-        .await
-        .map_err(|e| e.to_string())?;
+    let mut suggestions =
+        macmon_core::ai::analyze_with_ai(provider, model, &processes_json, &profile)
+            .await
+            .map_err(|e| e.to_string())?;
 
     suggestions.retain(|s| !macmon_core::killer::is_immutable_blocked_process_name(&s.name));
 
