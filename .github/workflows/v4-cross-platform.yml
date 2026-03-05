@@ -50,6 +50,8 @@ jobs:
 
   release:
     name: Release Multiplatform Binaries
+    permissions:
+      contents: write
     needs: test-and-lint
     if: startsWith(github.ref, 'refs/tags/v4.')
     runs-on: ${{ matrix.os }}
