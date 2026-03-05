@@ -35,6 +35,14 @@ pub fn top_processes_by_memory(limit: usize) -> Vec<ProcessMemoryEntry> {
 }
 
 pub fn free_system_memory() -> SystemMemory {
+    if let Some(native) = crate::os_native::collect_native_memory_snapshot() {
+        return SystemMemory {
+            total_memory_bytes: native.total_memory_bytes,
+            free_memory_bytes: native.free_memory_bytes,
+            used_memory_bytes: native.used_memory_bytes,
+        };
+    }
+
     let mut system = System::new_all();
     system.refresh_memory();
 

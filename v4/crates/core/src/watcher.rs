@@ -12,6 +12,8 @@ pub struct SystemState {
     pub total_memory_bytes: u64,
     pub free_memory_bytes: u64,
     pub used_memory_bytes: u64,
+    pub free_percent: u32,
+    pub swap_used_mb: u64,
     pub cpu_usage_percent: f32,
     pub updated_at_unix_ms: u128,
 }
@@ -24,9 +26,24 @@ fn collect_state(system: &mut System) -> SystemState {
     system.refresh_memory();
     system.refresh_cpu();
 
-    let total_memory_bytes = system.total_memory();
-    let free_memory_bytes = system.available_memory();
-    let used_memory_bytes = total_memory_bytes.saturating_sub(free_memory_bytes);
+    let fallback_total = system.total_memory();
+    let fallback_free = system.available_memory();
+    let fallback_used = fallback_total.saturating_sub(fallback_free);
+    let fallback_free_pct = if fallback_total > 0 {
+        ((fallback_free as f64 / fallback_total as f64) * 100.0)
+            .round()
+            .clamp(0.0, 100.0) as u32
+    } else {
+        0
+    };
+    let native = crate::os_native::collect_native_memory_snapshot();
+    let total_memory_bytes = native
+        .map(|m| m.total_memory_bytes)
+        .unwrap_or(fallback_total);
+    let free_memory_bytes = native.map(|m| m.free_memory_bytes).unwrap_or(fallback_free);
+    let used_memory_bytes = native.map(|m| m.used_memory_bytes).unwrap_or(fallback_used);
+    let free_percent = native.map(|m| m.free_percent).unwrap_or(fallback_free_pct);
+    let swap_used_mb = native.map(|m| m.swap_used_mb).unwrap_or(0);
     let cpu_usage_percent = system.global_cpu_info().cpu_usage();
     let updated_at_unix_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -37,6 +54,8 @@ fn collect_state(system: &mut System) -> SystemState {
         total_memory_bytes,
         free_memory_bytes,
         used_memory_bytes,
+        free_percent,
+        swap_used_mb,
         cpu_usage_percent,
         updated_at_unix_ms,
     }

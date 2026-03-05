@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::path::Path;
 use sysinfo::{Pid, Signal, System};
 
 const DEFAULT_PROTECTED_PROCESSES: &[&str] = &[
@@ -135,8 +136,46 @@ pub fn is_immutable_blocked_process_name(process_name: &str) -> bool {
     false
 }
 
-fn is_blocked_process_name(process_name: &str, extra_blocklist: &[String]) -> bool {
-    let is_default_blocked = is_immutable_blocked_process_name(process_name);
+fn path_is_trusted_for_blocked_process(exe_path: &Path) -> bool {
+    let path_lc = exe_path.to_string_lossy().to_ascii_lowercase();
+    if cfg!(target_os = "macos") {
+        path_lc.starts_with("/system/")
+            || path_lc.starts_with("/usr/libexec/")
+            || path_lc.starts_with("/usr/sbin/")
+            || path_lc == "/sbin/launchd"
+    } else if cfg!(target_os = "windows") {
+        path_lc.starts_with("c:\\windows\\system32\\")
+            || path_lc.starts_with("c:\\windows\\syswow64\\")
+            || path_lc == "c:\\windows\\explorer.exe"
+    } else if cfg!(target_os = "linux") {
+        path_lc.starts_with("/sbin/")
+            || path_lc.starts_with("/usr/sbin/")
+            || path_lc.starts_with("/lib/systemd/")
+            || path_lc.starts_with("/usr/lib/systemd/")
+            || path_lc == "/usr/bin/xorg"
+            || path_lc == "/usr/lib/xorg/xorg"
+    } else {
+        false
+    }
+}
+
+pub(crate) fn is_immutable_blocked_process(process_name: &str, exe_path: Option<&Path>) -> bool {
+    if !is_immutable_blocked_process_name(process_name) {
+        return false;
+    }
+
+    match exe_path {
+        Some(path) => path_is_trusted_for_blocked_process(path),
+        None => false,
+    }
+}
+
+fn is_blocked_process_name(
+    process_name: &str,
+    exe_path: Option<&Path>,
+    extra_blocklist: &[String],
+) -> bool {
+    let is_default_blocked = is_immutable_blocked_process(process_name, exe_path);
 
     let is_extra_blocked = extra_blocklist
         .iter()
@@ -148,10 +187,11 @@ fn is_blocked_process_name(process_name: &str, extra_blocklist: &[String]) -> bo
 fn kill_process_by_name(
     pid: u32,
     process_name: String,
+    exe_path: Option<&Path>,
     extra_blocklist: &[String],
     terminate: impl FnOnce() -> bool,
 ) -> Result<KillResult, KillError> {
-    if is_blocked_process_name(&process_name, extra_blocklist) {
+    if is_blocked_process_name(&process_name, exe_path, extra_blocklist) {
         return Err(KillError::Blocked(process_name));
     }
 
@@ -182,14 +222,22 @@ pub fn kill_process_safe(pid: i32, extra_blocklist: &[String]) -> Result<KillRes
         .ok_or(KillError::ProcessNotFound(pid_u32))?;
 
     let process_name = process.name().to_string();
-    kill_process_by_name(pid_u32, process_name, extra_blocklist, || {
+    let process_exe = process.exe().map(|p| p.to_path_buf());
+    kill_process_by_name(
+        pid_u32,
+        process_name,
+        process_exe.as_deref(),
+        extra_blocklist,
+        || {
         let graceful = process.kill_with(Signal::Term).unwrap_or(false) || process.kill();
         if graceful {
             return true;
         }
 
-        crate::os_native::kill_process_force(pid_u32, process.name()).is_ok()
-    })
+        crate::os_native::kill_process_force(pid_u32, process.name(), process_exe.as_deref())
+            .is_ok()
+    },
+    )
 }
 
 #[cfg(test)]
@@ -202,10 +250,16 @@ mod tests {
         let called = Arc::new(Mutex::new(false));
         let called_clone = Arc::clone(&called);
 
-        let result = kill_process_by_name(1234, "WindowServer".to_string(), &[], move || {
+        let result = kill_process_by_name(
+            1234,
+            "WindowServer".to_string(),
+            Some(Path::new("/System/Library/CoreServices/WindowServer")),
+            &[],
+            move || {
             *called_clone.lock().expect("lock kill flag") = true;
             true
-        });
+        },
+        );
 
         assert!(matches!(result, Err(KillError::Blocked(name)) if name == "WindowServer"));
         assert!(!*called.lock().expect("lock kill flag"));
@@ -229,5 +283,17 @@ mod tests {
 
         let result = kill_process_safe(candidate as i32, &[]);
         assert!(matches!(result, Err(KillError::ProcessNotFound(pid)) if pid == candidate));
+    }
+
+    #[test]
+    fn spoofed_blocked_name_with_untrusted_path_is_not_blocked() {
+        let result = kill_process_by_name(
+            99,
+            "WindowServer".to_string(),
+            Some(Path::new("/tmp/WindowServer")),
+            &[],
+            || true,
+        );
+        assert!(matches!(result, Ok(KillResult { killed: true, .. })));
     }
 }
