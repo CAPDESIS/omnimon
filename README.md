@@ -27,7 +27,7 @@ La forma más sencilla de instalar OmniMon en macOS (Apple Silicon y x86_64) es 
 
 ```bash
 brew tap chochy2001/omnimon
-brew install --cask omnimon
+brew install omnimon
 ```
 
 ### Instalación de Desarrollo (Multiplataforma)
