@@ -157,6 +157,10 @@ export function selectNone(): void {
   selectedPids.set(new Set());
 }
 
+// --- UI state ---
+export const focusedPid = writable<number | null>(null);
+export const grouping = writable(false);
+
 // --- Polling lifecycle ---
 let intervalId: ReturnType<typeof setInterval> | null = null;
 

@@ -1,16 +1,20 @@
 <script lang="ts">
   import type { ProcessEntry } from "../lib/types";
-  import { toggleSelect, selectedPids } from "../stores/processes";
+  import { toggleSelect, selectedPids, focusedPid } from "../stores/processes";
 
   interface Props {
     processes: ProcessEntry[];
+    grouping?: boolean;
+    oninspect?: (proc: ProcessEntry) => void;
   }
 
-  let { processes }: Props = $props();
+  let { processes, grouping = false, oninspect }: Props = $props();
 
   type SortKey = "name" | "pid" | "ram_mb" | "cpu_pct" | "group";
   let sortKey: SortKey = $state("ram_mb");
   let sortAsc = $state(false);
+
+  let collapsedGroups = $state(new Set<string>());
 
   let sorted = $derived(
     [...processes].sort((a, b) => {
@@ -22,6 +26,33 @@
       return sortAsc ? Number(va) - Number(vb) : Number(vb) - Number(va);
     }),
   );
+
+  interface ProcessGroup {
+    name: string;
+    procs: ProcessEntry[];
+    totalRam: number;
+    totalCpu: number;
+    count: number;
+  }
+
+  let groups = $derived.by((): ProcessGroup[] => {
+    if (!grouping) return [];
+    const map = new Map<string, ProcessEntry[]>();
+    for (const p of sorted) {
+      const arr = map.get(p.name);
+      if (arr) arr.push(p);
+      else map.set(p.name, [p]);
+    }
+    return [...map.entries()]
+      .map(([name, procs]) => ({
+        name,
+        procs,
+        totalRam: procs.reduce((s, p) => s + p.ram_mb, 0),
+        totalCpu: procs.reduce((s, p) => s + p.cpu_pct, 0),
+        count: procs.length,
+      }))
+      .sort((a, b) => b.totalRam - a.totalRam);
+  });
 
   function setSort(key: SortKey) {
     if (sortKey === key) sortAsc = !sortAsc;
@@ -47,7 +78,55 @@
     if (pct >= 10) return "var(--yellow)";
     return "var(--fg)";
   }
+
+  function handleRowClick(proc: ProcessEntry) {
+    toggleSelect(proc.pid);
+    $focusedPid = proc.pid;
+  }
+
+  function handleRowDblClick(proc: ProcessEntry) {
+    oninspect?.(proc);
+  }
+
+  function toggleCollapse(name: string) {
+    const next = new Set(collapsedGroups);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    collapsedGroups = next;
+  }
 </script>
+
+{#snippet processRow(proc: ProcessEntry)}
+  <tr
+    class:selected={$selectedPids.has(proc.pid)}
+    class:system={proc.is_system}
+    class:focused={$focusedPid === proc.pid}
+    onclick={() => handleRowClick(proc)}
+    ondblclick={() => handleRowDblClick(proc)}
+  >
+    <td class="col-check">
+      <input
+        type="checkbox"
+        checked={$selectedPids.has(proc.pid)}
+        disabled={proc.is_system}
+        onclick={(e: MouseEvent) => { e.stopPropagation(); toggleSelect(proc.pid); }}
+      />
+    </td>
+    <td class="col-name" title={proc.exec_name}>
+      <span class="name-text">{proc.name}</span>
+      {#if proc.idle}<span class="badge idle">idle</span>{/if}
+    </td>
+    <td class="col-pid mono">{proc.pid}</td>
+    <td class="col-ram mono" style="color: {ramColor(proc.ram_mb)}">
+      {proc.ram_mb.toFixed(1)}
+    </td>
+    <td class="col-cpu mono" style="color: {cpuColor(proc.cpu_pct)}">
+      {proc.cpu_pct.toFixed(1)}
+    </td>
+    <td class="col-uptime mono">{proc.uptime || "—"}</td>
+    <td class="col-state mono">{proc.state}</td>
+  </tr>
+{/snippet}
 
 <div class="table-wrap">
   <table>
@@ -66,42 +145,41 @@
         <th class="col-cpu sortable" onclick={() => setSort("cpu_pct")}>
           CPU{arrow("cpu_pct")}
         </th>
-        <th class="col-group sortable" onclick={() => setSort("group")}>
-          Group{arrow("group")}
-        </th>
+        <th class="col-uptime">Up</th>
         <th class="col-state">St</th>
       </tr>
     </thead>
     <tbody>
-      {#each sorted as proc (proc.pid)}
-        <tr
-          class:selected={$selectedPids.has(proc.pid)}
-          class:system={proc.is_system}
-          onclick={() => toggleSelect(proc.pid)}
-        >
-          <td class="col-check">
-            <input
-              type="checkbox"
-              checked={$selectedPids.has(proc.pid)}
-              disabled={proc.is_system}
-              onclick={(e: MouseEvent) => { e.stopPropagation(); toggleSelect(proc.pid); }}
-            />
-          </td>
-          <td class="col-name" title={proc.exec_name}>
-            <span class="name-text">{proc.name}</span>
-            {#if proc.idle}<span class="badge idle">idle</span>{/if}
-          </td>
-          <td class="col-pid mono">{proc.pid}</td>
-          <td class="col-ram mono" style="color: {ramColor(proc.ram_mb)}">
-            {proc.ram_mb.toFixed(1)}
-          </td>
-          <td class="col-cpu mono" style="color: {cpuColor(proc.cpu_pct)}">
-            {proc.cpu_pct.toFixed(1)}
-          </td>
-          <td class="col-group">{proc.group}</td>
-          <td class="col-state mono">{proc.state}</td>
-        </tr>
-      {/each}
+      {#if grouping}
+        {#each groups as group (group.name)}
+          {#if group.count === 1}
+            {@render processRow(group.procs[0])}
+          {:else}
+            <tr
+              class="group-header"
+              onclick={() => toggleCollapse(group.name)}
+            >
+              <td class="col-check"></td>
+              <td colspan="6" class="group-cell">
+                <span class="chevron" class:open={!collapsedGroups.has(group.name)}>&#9654;</span>
+                <span class="group-name">{group.name}</span>
+                <span class="group-meta">
+                  {group.count} &middot; {group.totalRam.toFixed(0)} MB &middot; {group.totalCpu.toFixed(1)}%
+                </span>
+              </td>
+            </tr>
+            {#if !collapsedGroups.has(group.name)}
+              {#each group.procs as proc (proc.pid)}
+                {@render processRow(proc)}
+              {/each}
+            {/if}
+          {/if}
+        {/each}
+      {:else}
+        {#each sorted as proc (proc.pid)}
+          {@render processRow(proc)}
+        {/each}
+      {/if}
     </tbody>
   </table>
 </div>
@@ -167,11 +245,55 @@
   tr.selected {
     background: var(--bg-selected);
   }
+  tr.focused {
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
+  }
   tr.system {
     opacity: 0.45;
   }
   tr.system:hover {
     opacity: 0.65;
+  }
+
+  .group-header {
+    cursor: pointer;
+    background: var(--bg-alt);
+  }
+  .group-header:hover {
+    background: var(--bg-hover);
+  }
+  .group-cell {
+    font-weight: 600;
+    font-size: 11px;
+    padding: 0 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+  }
+
+  .chevron {
+    font-size: 8px;
+    color: var(--fg-dim);
+    transition: transform 0.15s ease;
+    display: inline-block;
+  }
+  .chevron.open {
+    transform: rotate(90deg);
+  }
+
+  .group-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .group-meta {
+    color: var(--fg-dim);
+    font-weight: 400;
+    font-size: 10px;
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    flex-shrink: 0;
   }
 
   .mono {
@@ -189,22 +311,24 @@
     min-width: 120px;
   }
   .col-pid {
-    width: 60px;
-    text-align: right;
-  }
-  .col-ram {
-    width: 65px;
-    text-align: right;
-  }
-  .col-cpu {
     width: 55px;
     text-align: right;
   }
-  .col-group {
-    width: 90px;
+  .col-ram {
+    width: 60px;
+    text-align: right;
+  }
+  .col-cpu {
+    width: 50px;
+    text-align: right;
+  }
+  .col-uptime {
+    width: 42px;
+    text-align: right;
+    color: var(--fg-dim);
   }
   .col-state {
-    width: 28px;
+    width: 24px;
     text-align: center;
     color: var(--fg-dim);
   }
