@@ -51,6 +51,7 @@
   } from "./stores/preferences";
   import type { ThemeMode } from "./stores/preferences";
   import { ipcValidateApiKey, ipcCheckApiKey, ipcAnalyzeContext } from "./lib/ipc";
+  import { listen } from "@tauri-apps/api/event";
   import { t, locale, initI18n } from "./lib/i18n";
   import type { LocaleCode } from "./lib/i18n";
 
@@ -205,11 +206,30 @@
     const unsubLocale = localePreference.subscribe((val) => {
       locale.set(val);
     });
+
+    // Pause polling when the window is hidden to tray, resume when shown
+    let unlistenVisibility: (() => void) | null = null;
+    let unlistenSettings: (() => void) | null = null;
+    listen<boolean>("window-visibility", (event) => {
+      if (event.payload) {
+        startPolling(2000);
+      } else {
+        stopPolling();
+      }
+    }).then((fn) => { unlistenVisibility = fn; });
+
+    // Open settings from tray menu
+    listen("open-settings", () => {
+      showSettings = true;
+    }).then((fn) => { unlistenSettings = fn; });
+
     return () => {
       stopPolling();
       clearTimeout(debounceTimer);
       unsubPrefs();
       unsubLocale();
+      unlistenVisibility?.();
+      unlistenSettings?.();
     };
   });
 

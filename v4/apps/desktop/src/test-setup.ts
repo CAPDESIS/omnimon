@@ -5,6 +5,11 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(() => Promise.resolve(() => {})),
+  emit: vi.fn(() => Promise.resolve()),
+}));
+
 vi.mock("svelte-i18n", () => {
   const locale = writable("en");
   const dictionary = writable<Record<string, unknown>>({});

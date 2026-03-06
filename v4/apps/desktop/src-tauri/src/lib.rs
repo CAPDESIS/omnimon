@@ -5,9 +5,9 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use sysinfo::{Pid, ProcessRefreshKind, System};
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    Manager,
+    Emitter, Manager,
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -361,6 +361,30 @@ async fn analyze_context(
         .map_err(|e| e.to_string())
 }
 
+/// IPC: Query whether the main window is currently visible.
+#[tauri::command]
+fn get_window_visible(app: tauri::AppHandle) -> bool {
+    app.get_webview_window("main")
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(false)
+}
+
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        let _ = app.emit("window-visibility", true);
+    }
+}
+
+fn hide_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.hide();
+        let _ = app.emit("window-visibility", false);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -370,24 +394,44 @@ pub fn run() {
             // Start the background watcher thread for system-level metrics
             macmon_core::watcher::start_watcher();
 
+            // --- System Tray Menu ---
+            let show = MenuItem::with_id(app, "show", "Open Dashboard", true, None::<&str>)?;
+            let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+            let sep = PredefinedMenuItem::separator(app)?;
             let quit = MenuItem::with_id(app, "quit", "Quit OmniMon", true, None::<&str>)?;
-            let show = MenuItem::with_id(app, "show", "Show Monitor", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &quit])?;
+
+            let menu = Menu::with_items(app, &[&show, &settings, &sep, &quit])?;
 
             let _tray = TrayIconBuilder::new()
                 .menu(&menu)
                 .tooltip("OmniMon - System Monitor")
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "quit" => app.exit(0),
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
+                    "show" => show_main_window(app),
+                    "settings" => {
+                        show_main_window(app);
+                        let _ = app.emit("open-settings", ());
                     }
                     _ => {}
                 })
+                .on_tray_icon_event(|tray, event| {
+                    if let tauri::tray::TrayIconEvent::DoubleClick { .. } = event {
+                        show_main_window(tray.app_handle());
+                    }
+                })
                 .build(app)?;
+
+            // --- Window close intercept: hide instead of quit ---
+            if let Some(window) = app.get_webview_window("main") {
+                let app_handle = app.handle().clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        // Prevent the window from actually closing
+                        api.prevent_close();
+                        hide_main_window(&app_handle);
+                    }
+                });
+            }
 
             Ok(())
         })
@@ -403,6 +447,7 @@ pub fn run() {
             get_browser_tabs,
             close_browser_tab,
             focus_browser_tab,
+            get_window_visible,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

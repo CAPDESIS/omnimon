@@ -217,3 +217,9 @@ export async function ipcAnalyzeProcesses(profile: string, provider: string, mod
 
   return data.map((raw, i) => validateProcessSuggestion(raw, i));
 }
+
+export async function ipcGetWindowVisible(): Promise<boolean> {
+  const result: unknown = await invoke("get_window_visible");
+  assertBoolean("get_window_visible result", result);
+  return result;
+}
