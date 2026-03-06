@@ -517,7 +517,7 @@ fn main() {
                 println!("Validating and saving CrabNebula API Key...");
                 let entry = keyring::Entry::new("omnimon_crabnebula", "cn_api_key")
                     .expect("Failed to create keyring entry");
-                match entry.set_password(&key) {
+                match entry.set_password(key) {
                     Ok(_) => println!("CrabNebula API Key securely saved to the OS keyring."),
                     Err(e) => {
                         eprintln!("Failed to save CrabNebula API Key: {}", e);
@@ -556,7 +556,7 @@ fn main() {
         Commands::SecurityScan { cve_db } => {
             println!("Initiating Local Security Scan...");
             let db = if let Some(db_path) = cve_db {
-                match core::audit::LocalCveDatabase::from_file(&db_path) {
+                match core::audit::LocalCveDatabase::from_file(db_path) {
                     Ok(db) => db,
                     Err(e) => {
                         eprintln!("Failed to load CVE DB: {}", e);

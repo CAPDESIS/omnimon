@@ -139,9 +139,10 @@ static RULES_STATE: OnceLock<RwLock<RulesState>> = OnceLock::new();
 
 fn state() -> &'static RwLock<RulesState> {
     RULES_STATE.get_or_init(|| {
-        let mut s = RulesState::default();
-        s.geo_db = default_geo_db();
-        RwLock::new(s)
+        RwLock::new(RulesState {
+            rules: Vec::new(),
+            geo_db: default_geo_db(),
+        })
     })
 }
 
