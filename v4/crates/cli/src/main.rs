@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
 #[command(name = "macmon")]
-#[command(version = "4.2.0", about = "OmniMon: Monitor de sistema y navegador de próxima generación de alto rendimiento.", long_about = None)]
+#[command(version = "4.3.0", about = "OmniMon: Monitor de sistema y navegador de próxima generación de alto rendimiento.", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
