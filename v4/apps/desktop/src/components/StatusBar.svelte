@@ -1,5 +1,6 @@
 <script lang="ts">
   import { stats, filtered, processes } from "../stores/processes";
+  import { t } from "../lib/i18n";
 
   let ramColor = $derived(
     $stats
@@ -24,13 +25,19 @@
   let idleCount = $derived(
     $processes.filter((p) => p.idle).length,
   );
+
+  function formatRate(bytesPerSec: number): string {
+    if (bytesPerSec < 1024) return `${bytesPerSec} B/s`;
+    if (bytesPerSec < 1_048_576) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
+    return `${(bytesPerSec / 1_048_576).toFixed(1)} MB/s`;
+  }
 </script>
 
 {#if $stats}
   <div class="status-bar">
     <div class="metric">
-      <span class="label">RAM</span>
-      <div class="bar-track" role="progressbar" aria-label="RAM usage" aria-valuenow={$stats.ram_used_pct} aria-valuemin={0} aria-valuemax={100}>
+      <span class="label">{t("status.ram")}</span>
+      <div class="bar-track" role="progressbar" aria-label={t("status.ramUsage")} aria-valuenow={$stats.ram_used_pct} aria-valuemin={0} aria-valuemax={100}>
         <div
           class="bar-fill"
           style="width: {$stats.ram_used_pct}%; background: {ramColor}"
@@ -41,8 +48,8 @@
       </span>
     </div>
     <div class="metric">
-      <span class="label">CPU</span>
-      <div class="bar-track" role="progressbar" aria-label="Average CPU usage" aria-valuenow={Math.round(avgCpu)} aria-valuemin={0} aria-valuemax={100}>
+      <span class="label">{t("status.cpu")}</span>
+      <div class="bar-track" role="progressbar" aria-label={t("status.cpuUsage")} aria-valuenow={Math.round(avgCpu)} aria-valuemin={0} aria-valuemax={100}>
         <div
           class="bar-fill"
           style="width: {Math.min(avgCpu, 100)}%; background: {cpuColor}"
@@ -53,15 +60,20 @@
       </span>
     </div>
     <div class="metric">
-      <span class="label">Swap</span>
+      <span class="label">{t("status.swap")}</span>
       <span class="value">{$stats.swap_used_mb} MB</span>
     </div>
     <div class="metric">
-      <span class="label">Procs</span>
+      <span class="label">{t("status.net")}</span>
+      <span class="value">↓ {formatRate($stats.net_rx_bytes_per_sec)}</span>
+      <span class="value">↑ {formatRate($stats.net_tx_bytes_per_sec)}</span>
+    </div>
+    <div class="metric">
+      <span class="label">{t("status.procs")}</span>
       <span class="value">{$filtered.length}</span>
     </div>
     <div class="metric">
-      <span class="label">Idle</span>
+      <span class="label">{t("status.idle")}</span>
       <span class="value">{idleCount}</span>
     </div>
   </div>

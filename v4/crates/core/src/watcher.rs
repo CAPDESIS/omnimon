@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use sysinfo::System;
+use sysinfo::{Networks, System};
 
 static CACHED_STATE: OnceLock<Arc<RwLock<SystemState>>> = OnceLock::new();
 static WATCHER_STARTED: AtomicBool = AtomicBool::new(false);
@@ -15,6 +15,8 @@ pub struct SystemState {
     pub free_percent: u32,
     pub swap_used_mb: u64,
     pub cpu_usage_percent: f32,
+    pub net_rx_bytes_per_sec: u64,
+    pub net_tx_bytes_per_sec: u64,
     pub updated_at_unix_ms: u128,
 }
 
@@ -57,6 +59,8 @@ fn collect_state(system: &mut System) -> SystemState {
         free_percent,
         swap_used_mb,
         cpu_usage_percent,
+        net_rx_bytes_per_sec: 0,
+        net_tx_bytes_per_sec: 0,
         updated_at_unix_ms,
     }
 }
@@ -79,6 +83,11 @@ pub fn start_watcher() {
 
         runtime.block_on(async move {
             let mut system = System::new_all();
+            let mut networks = Networks::new_with_refreshed_list();
+
+            // Initial totals for delta computation
+            let mut prev_rx: u64 = networks.iter().map(|(_, n)| n.total_received()).sum();
+            let mut prev_tx: u64 = networks.iter().map(|(_, n)| n.total_transmitted()).sum();
 
             let initial = collect_state(&mut system);
             if let Ok(mut guard) = cache.write() {
@@ -88,7 +97,17 @@ pub fn start_watcher() {
             let mut interval = tokio::time::interval(Duration::from_secs(2));
             loop {
                 interval.tick().await;
-                let snapshot = collect_state(&mut system);
+                networks.refresh();
+                let total_rx: u64 = networks.iter().map(|(_, n)| n.total_received()).sum();
+                let total_tx: u64 = networks.iter().map(|(_, n)| n.total_transmitted()).sum();
+                let net_rx_bytes_per_sec = total_rx.saturating_sub(prev_rx) / 2;
+                let net_tx_bytes_per_sec = total_tx.saturating_sub(prev_tx) / 2;
+                prev_rx = total_rx;
+                prev_tx = total_tx;
+
+                let mut snapshot = collect_state(&mut system);
+                snapshot.net_rx_bytes_per_sec = net_rx_bytes_per_sec;
+                snapshot.net_tx_bytes_per_sec = net_tx_bytes_per_sec;
                 if let Ok(mut guard) = cache.write() {
                     *guard = snapshot;
                 }

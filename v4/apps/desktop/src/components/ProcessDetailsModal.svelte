@@ -4,6 +4,7 @@
   import { ipcCloseBrowserTab, ipcFocusBrowserTab, ipcAnalyzeContext } from "../lib/ipc";
   import { browserTabs } from "../stores/processes";
   import { aiProviderConfig } from "../stores/preferences";
+  import { t } from "../lib/i18n";
 
   interface Props {
     process: ProcessEntry;
@@ -206,61 +207,61 @@
   >
     <div class="header">
       <h2 class="title" id="modal-title">{process.name}</h2>
-      <span class="pid">PID {process.pid}</span>
-      <button class="close-btn" onclick={onclose} aria-label="Close">&times;</button>
+      <span class="pid">{t("process.pidLabel", { pid: process.pid })}</span>
+      <button class="close-btn" onclick={onclose} aria-label={t("common.close")}>&times;</button>
     </div>
     <div class="body">
-      <div class="section-label">Process</div>
+      <div class="section-label">{t("process.section")}</div>
       <div class="row">
-        <span class="label">Name</span>
+        <span class="label">{t("process.name")}</span>
         <span class="value mono">{process.name}</span>
       </div>
       <div class="row">
-        <span class="label">Executable</span>
+        <span class="label">{t("process.executable")}</span>
         <span class="value mono">{process.exec_name}</span>
       </div>
       <div class="row">
-        <span class="label">PID</span>
+        <span class="label">{t("process.pid")}</span>
         <span class="value mono">{process.pid}</span>
       </div>
       <div class="row">
-        <span class="label">Group</span>
+        <span class="label">{t("process.group")}</span>
         <span class="value">{process.group || "\u2014"}</span>
       </div>
       <div class="row">
-        <span class="label">State</span>
+        <span class="label">{t("process.state")}</span>
         <span class="value mono">{process.state}</span>
       </div>
       <div class="row">
-        <span class="label">System</span>
-        <span class="value">{process.is_system ? "Yes" : "No"}</span>
+        <span class="label">{t("process.system")}</span>
+        <span class="value">{process.is_system ? t("common.yes") : t("common.no")}</span>
       </div>
 
       <div class="section-divider"></div>
-      <div class="section-label">Resources</div>
+      <div class="section-label">{t("process.resources")}</div>
       <div class="row">
-        <span class="label">RAM</span>
+        <span class="label">{t("process.ram")}</span>
         <span class="value mono" style="color: {ramColor(process.ram_mb)}">{process.ram_mb.toFixed(1)} MB</span>
       </div>
       <div class="row">
-        <span class="label">CPU</span>
+        <span class="label">{t("process.cpu")}</span>
         <span class="value mono" style="color: {cpuColor(process.cpu_pct)}">{process.cpu_pct.toFixed(1)}%</span>
       </div>
       <div class="row">
-        <span class="label">Uptime</span>
+        <span class="label">{t("process.uptime")}</span>
         <span class="value mono">{process.uptime || "\u2014"}</span>
       </div>
 
       {#if allBrowserTabs.length > 0}
         <div class="section-divider"></div>
         <div class="tabs-header">
-          <div class="section-label">Browser Tabs ({allBrowserTabs.length})</div>
+          <div class="section-label">{t("process.browserTabs", { count: allBrowserTabs.length })}</div>
           <div class="tabs-actions">
-            <button class="btn-tab-action" onclick={selectAllTabs} title="Select all tabs">All</button>
-            <button class="btn-tab-action" onclick={selectNoneTabs} title="Deselect all">None</button>
+            <button class="btn-tab-action" onclick={selectAllTabs} title={t("process.selectAllTabs")}>{t("common.all")}</button>
+            <button class="btn-tab-action" onclick={selectNoneTabs} title={t("process.deselectAll")}>{t("common.none")}</button>
             {#if selectedCount > 0}
-              <button class="btn-tab-close-selected" onclick={closeSelectedTabs} title="Close {selectedCount} selected tab(s)">
-                Close {selectedCount}
+              <button class="btn-tab-close-selected" onclick={closeSelectedTabs} title={t("process.closeCountTitle", { count: selectedCount })}>
+                {t("process.closeCount", { count: selectedCount })}
               </button>
             {/if}
           </div>
@@ -269,14 +270,14 @@
           <input
             class="tab-filter"
             type="text"
-            placeholder="Filter tabs..."
+            placeholder={t("process.filterTabs")}
             value={tabFilter}
             oninput={(e) => tabFilter = (e.target as HTMLInputElement).value}
-            aria-label="Filter browser tabs"
+            aria-label={t("process.filterTabsLabel")}
           />
         </div>
         {#if tabFilter && filteredTabs.length < allBrowserTabs.length}
-          <div class="tab-filter-info">{filteredTabs.length}/{allBrowserTabs.length} tabs</div>
+          <div class="tab-filter-info">{t("process.tabsFiltered", { count: filteredTabs.length, total: allBrowserTabs.length })}</div>
         {/if}
         <div class="tab-list">
           {#each filteredTabs as tab (tab.id)}
@@ -288,29 +289,29 @@
               <input
                 type="checkbox"
                 checked={selectedTabIds.has(tab.id)}
-                aria-label="Select {tab.title}"
+                aria-label={t("process.selectTab", { title: tab.title })}
                 onclick={() => toggleTab(tab.id)}
               />
               <button
                 class="tab-title-btn"
                 onclick={() => focusTab(tab)}
-                title="Go to tab: {tab.title}\n{tab.url}"
+                title={t("process.goToTab", { title: tab.title, url: tab.url })}
               >
-                {tab.title || "(Untitled)"}
+                {tab.title || t("common.untitled")}
               </button>
               <span class="tab-domain" title={tab.url}>{getDomain(tab.url)}</span>
               <button
                 class="btn-tab-kill"
                 onclick={() => closeTab(tab)}
                 disabled={closingTabs.has(tab.id)}
-                title="Close this tab"
+                title={t("process.closeThisTab")}
               >
                 &#10005;
               </button>
             </div>
           {/each}
           {#if filteredTabs.length === 0}
-            <div class="tab-empty">No matching tabs</div>
+            <div class="tab-empty">{t("common.noMatchingTabs")}</div>
           {/if}
         </div>
       {/if}
@@ -318,13 +319,13 @@
       <div class="section-divider"></div>
       <div class="ai-section">
         <div class="ai-header-row">
-          <div class="section-label">AI Analysis</div>
+          <div class="section-label">{t("process.aiAnalysis")}</div>
           <button
             class="btn-ask-ai"
             onclick={askAi}
             disabled={aiAnalyzing}
           >
-            {aiAnalyzing ? "Analyzing..." : "Ask AI"}
+            {aiAnalyzing ? t("process.analyzing") : t("process.askAi")}
           </button>
         </div>
         {#if aiError}
@@ -333,12 +334,12 @@
         {#if aiResponse}
           <div class="ai-response">{aiResponse}</div>
         {:else if !aiAnalyzing && !aiError}
-          <div class="ai-hint">Click "Ask AI" to get insights about this process{allBrowserTabs.length > 0 ? " and its browser tabs" : ""}.</div>
+          <div class="ai-hint">{allBrowserTabs.length > 0 ? t("process.aiHintWithTabs") : t("process.aiHint")}</div>
         {/if}
       </div>
     </div>
     <div class="footer">
-      <span class="hint">Esc to close</span>
+      <span class="hint">{t("process.escToClose")}</span>
     </div>
   </div>
 </div>

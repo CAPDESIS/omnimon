@@ -7,6 +7,7 @@ import {
   idleThreshold,
   theme,
   tabPanelHeight,
+  localePreference,
   loadPreferences,
   savePreferences,
   initPreferenceSubscriptions,
@@ -17,6 +18,7 @@ import {
   DEFAULT_COLUMNS,
   DEFAULT_AI_CONFIG,
   DEFAULT_IDLE_THRESHOLD,
+  DEFAULT_LOCALE,
   MIN_IDLE_THRESHOLD,
   MAX_IDLE_THRESHOLD,
   MIN_FONT_SIZE,
@@ -50,6 +52,7 @@ beforeEach(() => {
   idleThreshold.set(DEFAULT_IDLE_THRESHOLD);
   theme.set("auto");
   tabPanelHeight.set(160);
+  localePreference.set(DEFAULT_LOCALE);
 });
 
 describe("loadPreferences", () => {

@@ -2,6 +2,7 @@ import { writable, derived, get } from "svelte/store";
 import { ipcGetMetrics, ipcKillProcess, ipcKillProcesses, ipcGetBrowserTabs, ipcSaveAiConfig, ipcAnalyzeProcesses } from "../lib/ipc";
 import type { ProcessEntry, SystemStats, BrowserTab, ProcessSuggestion } from "../lib/types";
 import { confirmAction } from "../lib/confirm";
+import { t } from "../lib/i18n";
 import { idleThreshold } from "./preferences";
 
 // --- Core stores ---
@@ -107,7 +108,7 @@ export async function fetchMetrics(): Promise<void> {
 export async function killSelected(): Promise<number[]> {
   const pids = Array.from(get(selectedPids));
   if (pids.length === 0) return [];
-  if (!confirmAction(`Kill ${pids.length} selected process(es)?`)) return [];
+  if (!confirmAction(t("processes.confirmKillSelected", { count: pids.length }))) return [];
   try {
     const killed = await ipcKillProcesses(pids);
     // Immediately remove killed processes from UI
@@ -121,7 +122,7 @@ export async function killSelected(): Promise<number[]> {
 }
 
 export async function killSingle(pid: number, name?: string): Promise<boolean> {
-  if (!confirmAction(`Kill process "${name ?? pid}" (PID ${pid})?`)) return false;
+  if (!confirmAction(t("processes.confirmKillSingle", { name: name ?? String(pid), pid }))) return false;
   try {
     const ok = await ipcKillProcess(pid);
     if (ok) {
@@ -183,7 +184,7 @@ export async function analyzeWithAi(provider?: string, model?: string): Promise<
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.includes("No matching entry") || msg.includes("not found in secure storage") || msg.includes("keyring")) {
-      aiError.set("No API key configured. Go to Settings to add your API key.");
+      aiError.set(t("processes.noApiKey"));
     } else {
       aiError.set(msg);
     }

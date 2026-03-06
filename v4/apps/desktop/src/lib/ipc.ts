@@ -73,12 +73,16 @@ function validateSystemStats(raw: unknown): SystemStats {
   assertFiniteNumber("stats.ram_used_pct", r.ram_used_pct);
   assertFiniteNumber("stats.swap_used_mb", r.swap_used_mb);
   assertFiniteNumber("stats.total_processes", r.total_processes);
+  assertFiniteNumber("stats.net_rx_bytes_per_sec", r.net_rx_bytes_per_sec);
+  assertFiniteNumber("stats.net_tx_bytes_per_sec", r.net_tx_bytes_per_sec);
 
   return {
     ram_total_gb: r.ram_total_gb as number,
     ram_used_pct: r.ram_used_pct as number,
     swap_used_mb: r.swap_used_mb as number,
     total_processes: r.total_processes as number,
+    net_rx_bytes_per_sec: r.net_rx_bytes_per_sec as number,
+    net_tx_bytes_per_sec: r.net_tx_bytes_per_sec as number,
   };
 }
 

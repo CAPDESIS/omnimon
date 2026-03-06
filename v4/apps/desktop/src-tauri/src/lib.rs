@@ -30,6 +30,8 @@ pub struct SystemStats {
     pub ram_used_pct: u32,
     pub swap_used_mb: u32,
     pub total_processes: u32,
+    pub net_rx_bytes_per_sec: u64,
+    pub net_tx_bytes_per_sec: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -143,6 +145,8 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
         },
         swap_used_mb: 0,
         total_processes: total_procs,
+        net_rx_bytes_per_sec: sys_state.net_rx_bytes_per_sec,
+        net_tx_bytes_per_sec: sys_state.net_tx_bytes_per_sec,
     };
 
     Ok(Metrics { processes, stats })

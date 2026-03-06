@@ -39,6 +39,7 @@
     idleThreshold,
     theme,
     tabPanelHeight as tabPanelHeightStore,
+    localePreference,
     loadPreferences,
     initPreferenceSubscriptions,
     increaseFontSize,
@@ -50,6 +51,8 @@
   } from "./stores/preferences";
   import type { ThemeMode } from "./stores/preferences";
   import { ipcValidateApiKey } from "./lib/ipc";
+  import { t, locale, initI18n } from "./lib/i18n";
+  import type { LocaleCode } from "./lib/i18n";
 
   let detailProcess: ProcessEntry | null = $state(null);
   let searchInput: HTMLInputElement | undefined = $state();
@@ -106,12 +109,12 @@
       // Validate key before saving
       const trimmed = apiKeyInput.trim();
       if (!trimmed) {
-        settingsError = "API key cannot be empty.";
+        settingsError = t("settings.apiKeyEmpty");
         return;
       }
       const valid = await ipcValidateApiKey($aiProviderConfig.provider, trimmed);
       if (!valid) {
-        settingsError = "API key validation failed. Check your key and try again.";
+        settingsError = t("settings.apiKeyFailed");
         return;
       }
       await saveAiConfigAction($aiProviderConfig.provider, $aiProviderConfig.model, trimmed);
@@ -156,13 +159,18 @@
 
   onMount(() => {
     loadPreferences().then(() => {
+      initI18n($localePreference);
       startPolling(2000);
     });
     const unsubPrefs = initPreferenceSubscriptions();
+    const unsubLocale = localePreference.subscribe((val) => {
+      locale.set(val);
+    });
     return () => {
       stopPolling();
       clearTimeout(debounceTimer);
       unsubPrefs();
+      unsubLocale();
     };
   });
 
@@ -246,8 +254,8 @@
       <input
         class="search"
         type="text"
-        placeholder="Filter by name, PID, group... (Cmd+F)"
-        aria-label="Search processes"
+        placeholder={t("toolbar.searchPlaceholder")}
+        aria-label={t("toolbar.searchLabel")}
         value={searchValue}
         oninput={onSearchInput}
         bind:this={searchInput}
@@ -256,7 +264,7 @@
         <button
           class="search-clear"
           onclick={() => { searchValue = ""; $search = ""; }}
-          aria-label="Clear search"
+          aria-label={t("toolbar.clearSearch")}
         >&times;</button>
       {/if}
     </div>
@@ -265,19 +273,19 @@
         class="btn btn-sm"
         class:active={$grouping}
         onclick={() => $grouping = !$grouping}
-        title="Toggle grouping"
+        title={t("toolbar.toggleGrouping")}
       >
-        Groups
+        {t("toolbar.groups")}
       </button>
-      <button class="btn btn-sm" onclick={selectAllVisible} aria-label="Select all processes">All</button>
-      <button class="btn btn-sm" onclick={selectNone} aria-label="Deselect all processes">None</button>
+      <button class="btn btn-sm" onclick={selectAllVisible} aria-label={t("toolbar.selectAll")}>{t("toolbar.all")}</button>
+      <button class="btn btn-sm" onclick={selectNone} aria-label={t("toolbar.deselectAll")}>{t("toolbar.none")}</button>
       <button
         class="btn btn-kill"
         onclick={killSelected}
         disabled={$selectedCount === 0}
-        aria-label="Close selected processes"
+        aria-label={t("toolbar.closeSelected")}
       >
-        Close{#if $selectedCount > 0}
+        {t("toolbar.close")}{#if $selectedCount > 0}
           &nbsp;({$selectedCount} &middot; {$selectedRamMB.toFixed(0)} MB){/if}
       </button>
       <span class="separator"></span>
@@ -285,40 +293,40 @@
         class="profile-select"
         value={$aiProfile}
         onchange={(e) => $aiProfile = (e.target as HTMLSelectElement).value}
-        aria-label="AI profile"
+        aria-label={t("toolbar.aiProfile")}
       >
-        <option value="general">General</option>
-        <option value="developer">Developer</option>
-        <option value="gaming">Gaming</option>
-        <option value="battery">Battery Saver</option>
+        <option value="general">{t("toolbar.general")}</option>
+        <option value="developer">{t("toolbar.developer")}</option>
+        <option value="gaming">{t("toolbar.gaming")}</option>
+        <option value="battery">{t("toolbar.batterySaver")}</option>
       </select>
       <button
         class="btn btn-ai"
         onclick={() => analyzeWithAi($aiProviderConfig.provider, $aiProviderConfig.model)}
         disabled={$aiLoading}
       >
-        {$aiLoading ? "Analyzing..." : "AI Analyze"}
+        {$aiLoading ? t("toolbar.analyzing") : t("toolbar.aiAnalyze")}
       </button>
       <button
         class="btn btn-sm"
         onclick={() => showSettings = true}
-        title="AI Settings"
+        title={t("toolbar.aiSettings")}
       >
-        Settings
+        {t("toolbar.settings")}
       </button>
       <span class="separator"></span>
       <button
         class="btn btn-sm"
         onclick={decreaseFontSize}
-        title="Decrease font size (Cmd+-)"
-        aria-label="Decrease font size"
+        title={t("toolbar.decreaseFont")}
+        aria-label={t("toolbar.decreaseFontLabel")}
       >A-</button>
       <span class="font-size-display">{$fontSize}</span>
       <button
         class="btn btn-sm"
         onclick={increaseFontSize}
-        title="Increase font size (Cmd+=)"
-        aria-label="Increase font size"
+        title={t("toolbar.increaseFont")}
+        aria-label={t("toolbar.increaseFontLabel")}
       >A+</button>
     </div>
   </header>
@@ -334,12 +342,12 @@
     onmousedown={onDividerMousedown}
     role="separator"
     aria-orientation="horizontal"
-    aria-label="Resize tab panel"
+    aria-label={t("common.resizeTabPanel")}
     tabindex="-1"
   ></div>
 
   {#if $loading}
-    <div class="loading" role="status" aria-busy="true">Loading...</div>
+    <div class="loading" role="status" aria-busy="true">{t("common.loading")}</div>
   {:else}
     <ProcessTable
       processes={$filtered}
@@ -351,10 +359,10 @@
   {/if}
 
   {#if $aiError || $aiSuggestions.length > 0}
-    <div class="ai-panel" role="region" aria-label="AI Suggestions">
+    <div class="ai-panel" role="region" aria-label={t("ai.suggestions")}>
       <div class="ai-header">
-        <span class="ai-title">AI Suggestions</span>
-        <button class="btn btn-sm" onclick={dismissAiSuggestions}>Dismiss</button>
+        <span class="ai-title">{t("ai.suggestions")}</span>
+        <button class="btn btn-sm" onclick={dismissAiSuggestions}>{t("ai.dismiss")}</button>
       </div>
       {#if $aiError}
         <div class="ai-error">{$aiError}</div>
@@ -362,24 +370,24 @@
       {#each $aiSuggestions as suggestion (suggestion.pid)}
         <div class="ai-row">
           <span class="ai-name">{suggestion.name}</span>
-          <span class="ai-pid">PID {suggestion.pid}</span>
+          <span class="ai-pid">{t("ai.pid", { pid: suggestion.pid })}</span>
           <span class="ai-reason">{suggestion.reason}</span>
           <button
             class="btn btn-kill btn-sm"
             onclick={() => killSingle(suggestion.pid)}
-          >Close</button>
+          >{t("ai.close")}</button>
         </div>
       {/each}
     </div>
   {/if}
 
   <footer class="statusline" aria-live="polite" aria-atomic="true">
-    {$filtered.length} processes{#if $filtered.length !== $processes.length}
-      &nbsp;(filtered from {$processes.length}){/if}
+    {t("footer.processes", { count: $filtered.length })}{#if $filtered.length !== $processes.length}
+      &nbsp;{t("footer.filteredFrom", { count: $processes.length })}{/if}
     {#if $selectedCount > 0}
-      <span aria-hidden="true">&nbsp;&middot;&nbsp;</span>{$selectedCount} selected ({$selectedRamMB.toFixed(0)} MB)
+      <span aria-hidden="true">&nbsp;&middot;&nbsp;</span>{t("footer.selected", { count: $selectedCount, ram: $selectedRamMB.toFixed(0) })}
     {/if}
-    <span class="shortcuts" aria-hidden="true"><kbd>Cmd+I</kbd> detail <kbd>Cmd+F</kbd> search <kbd>Del</kbd> close</span>
+    <span class="shortcuts" aria-hidden="true"><kbd>Cmd+I</kbd> {t("footer.shortcutDetail")} <kbd>Cmd+F</kbd> {t("footer.shortcutSearch")} <kbd>Del</kbd> {t("footer.shortcutClose")}</span>
   </footer>
 </main>
 
@@ -395,12 +403,12 @@
     <!-- svelte-ignore a11y_interactive_supports_focus -->
     <div class="settings-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
       <div class="settings-header">
-        <h2 class="settings-title" id="settings-title">OmniMon Settings</h2>
-        <button class="close-btn" onclick={closeSettings} aria-label="Close settings">&times;</button>
+        <h2 class="settings-title" id="settings-title">{t("settings.title")}</h2>
+        <button class="close-btn" onclick={closeSettings} aria-label={t("settings.closeSettings")}>&times;</button>
       </div>
       <div class="settings-body">
         <div class="settings-row">
-          <label class="settings-label" for="provider-select">Provider</label>
+          <label class="settings-label" for="provider-select">{t("settings.provider")}</label>
           <select
             id="provider-select"
             class="settings-select"
@@ -416,12 +424,12 @@
           </select>
         </div>
         <div class="settings-row">
-          <label class="settings-label" for="model-input">Model</label>
+          <label class="settings-label" for="model-input">{t("settings.model")}</label>
           <input
             id="model-input"
             class="settings-input"
             type="text"
-            placeholder="e.g. gpt-4o, claude-sonnet-4, gemini-2.0-flash"
+            placeholder={t("settings.modelPlaceholder")}
             value={$aiProviderConfig.model}
             oninput={(e) => {
               aiProviderConfig.update((c) => ({ ...c, model: (e.target as HTMLInputElement).value }));
@@ -429,12 +437,12 @@
           />
         </div>
         <div class="settings-row">
-          <label class="settings-label" for="api-key-input">API Key</label>
+          <label class="settings-label" for="api-key-input">{t("settings.apiKey")}</label>
           <input
             id="api-key-input"
             class="settings-input"
             type="password"
-            placeholder="Enter {AI_PROVIDERS.find((p) => p.id === $aiProviderConfig.provider)?.label ?? ''} API key"
+            placeholder={t("settings.apiKeyPlaceholder", { provider: AI_PROVIDERS.find((p) => p.id === $aiProviderConfig.provider)?.label ?? '' })}
             bind:value={apiKeyInput}
           />
         </div>
@@ -442,11 +450,11 @@
           <div class="settings-error">{settingsError}</div>
         {/if}
         {#if settingsSaved}
-          <div class="settings-success">API key saved to keychain.</div>
+          <div class="settings-success">{t("settings.apiKeySaved")}</div>
         {/if}
 
         <div class="settings-divider"></div>
-        <div class="settings-section-label">Columns (drag to reorder)</div>
+        <div class="settings-section-label">{t("settings.columns")}</div>
         <div class="settings-columns-list">
           {#each $columnOrder as key, i (key)}
             <div class="col-order-row">
@@ -461,15 +469,15 @@
                   class="col-move-btn"
                   disabled={i === 0}
                   onclick={() => moveColumnUp(key)}
-                  title="Move up"
-                  aria-label="Move {key} column up"
+                  title={t("settings.moveUp")}
+                  aria-label={t("settings.moveColumnUp", { column: key })}
                 >&#9650;</button>
                 <button
                   class="col-move-btn"
                   disabled={i === $columnOrder.length - 1}
                   onclick={() => moveColumnDown(key)}
-                  title="Move down"
-                  aria-label="Move {key} column down"
+                  title={t("settings.moveDown")}
+                  aria-label={t("settings.moveColumnDown", { column: key })}
                 >&#9660;</button>
               </div>
             </div>
@@ -477,25 +485,38 @@
         </div>
 
         <div class="settings-divider"></div>
-        <div class="settings-section-label">Appearance</div>
+        <div class="settings-section-label">{t("settings.appearance")}</div>
         <div class="settings-row">
-          <label class="settings-label" for="theme-select">Theme</label>
+          <label class="settings-label" for="theme-select">{t("settings.theme")}</label>
           <select
             id="theme-select"
             class="settings-select"
             value={$theme}
             onchange={(e) => { $theme = (e.target as HTMLSelectElement).value as ThemeMode; }}
           >
-            <option value="auto">Auto (System)</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
+            <option value="auto">{t("settings.themeAuto")}</option>
+            <option value="light">{t("settings.themeLight")}</option>
+            <option value="dark">{t("settings.themeDark")}</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="locale-select">{t("settings.language")}</label>
+          <select
+            id="locale-select"
+            class="settings-select"
+            value={$localePreference}
+            onchange={(e) => { $localePreference = (e.target as HTMLSelectElement).value as LocaleCode; }}
+          >
+            <option value="auto">{t("settings.langAuto")}</option>
+            <option value="en">{t("settings.langEn")}</option>
+            <option value="es">{t("settings.langEs")}</option>
           </select>
         </div>
 
         <div class="settings-divider"></div>
-        <div class="settings-section-label">Performance</div>
+        <div class="settings-section-label">{t("settings.performance")}</div>
         <div class="settings-row">
-          <label class="settings-label" for="idle-threshold">Idle CPU%</label>
+          <label class="settings-label" for="idle-threshold">{t("settings.idleCpu")}</label>
           <input
             id="idle-threshold"
             class="settings-input"
@@ -511,7 +532,7 @@
               }
             }}
           />
-          <span class="settings-hint">Processes below this CPU% are idle</span>
+          <span class="settings-hint">{t("settings.idleHint")}</span>
         </div>
       </div>
       <div class="settings-footer">
@@ -520,7 +541,7 @@
           onclick={handleSaveSettings}
           disabled={settingsSaving || !apiKeyInput}
         >
-          {settingsSaving ? "Saving..." : "Save API Key"}
+          {settingsSaving ? t("settings.saving") : t("settings.saveApiKey")}
         </button>
       </div>
     </div>

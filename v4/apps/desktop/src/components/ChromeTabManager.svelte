@@ -3,6 +3,7 @@
   import { ipcCloseBrowserTab, ipcFocusBrowserTab } from "../lib/ipc";
   import { browserTabs, chromeProcesses } from "../stores/processes";
   import { confirmAction } from "../lib/confirm";
+  import { t } from "../lib/i18n";
 
   interface Props {
     filter?: string;
@@ -127,7 +128,7 @@
   }
 
   async function closeTab(tab: BrowserTab) {
-    if (!confirmAction(`Close tab "${tab.title}"?`)) return;
+    if (!confirmAction(t("tabs.confirmCloseTab", { title: tab.title }))) return;
     const next = new Set(closing);
     next.add(tab.id);
     closing = next;
@@ -146,7 +147,7 @@
     const allTabs = $browserTabs;
     const toClose = allTabs.filter((t) => selectedTabIds.has(t.id));
     if (toClose.length === 0) return;
-    if (!confirmAction(`Close ${toClose.length} selected tab(s)?`)) return;
+    if (!confirmAction(t("tabs.confirmCloseSelected", { count: toClose.length }))) return;
     for (const tab of toClose) {
       const next = new Set(closing);
       next.add(tab.id);
@@ -165,7 +166,7 @@
 
   async function closeAllTabs(tabs: BrowserTab[]) {
     if (tabs.length === 0) return;
-    if (!confirmAction(`Close all ${tabs.length} tab(s)?`)) return;
+    if (!confirmAction(t("tabs.confirmCloseAll", { count: tabs.length }))) return;
     for (const tab of tabs) {
       const next = new Set(closing);
       next.add(tab.id);
@@ -193,45 +194,45 @@
       role="button"
       tabindex="0"
       aria-expanded={isExpanded}
-      aria-label="{section.name} tabs"
+      aria-label={t("tabs.browserTabs", { browser: section.name })}
     >
       <span class="chevron" class:open={isExpanded} aria-hidden="true">&#9654;</span>
       <span class="browser-icon" style="color: {section.color}" aria-hidden="true">&#9679;</span>
       <span class="browser-title">{section.name}</span>
       <span class="browser-meta">
         {#if section.tabs.length < section.totalTabs}
-          {section.tabs.length}/{section.totalTabs} tab{section.totalTabs !== 1 ? "s" : ""}
+          {section.totalTabs !== 1 ? t("tabs.tabCountFilteredPlural", { count: section.tabs.length, total: section.totalTabs }) : t("tabs.tabCountFiltered", { count: section.tabs.length, total: section.totalTabs })}
         {:else}
-          {section.tabs.length} tab{section.tabs.length !== 1 ? "s" : ""}
+          {section.tabs.length !== 1 ? t("tabs.tabCountPlural", { count: section.tabs.length }) : t("tabs.tabCount", { count: section.tabs.length })}
         {/if}
-        &middot; <span style="color: {ramColor(section.totalRam)}">{section.totalRam.toFixed(0)} MB</span>
+        &middot; <span style="color: {ramColor(section.totalRam)}">{t("tabs.mb", { value: section.totalRam.toFixed(0) })}</span>
       </span>
       <div class="header-actions">
         <button
           class="btn-header"
           onclick={(e: MouseEvent) => { e.stopPropagation(); selectAllTabs(section.tabs); }}
-          title="Select all {section.name} tabs"
-        >All</button>
+          title={t("tabs.selectAllBrowser", { browser: section.name })}
+        >{t("common.all")}</button>
         <button
           class="btn-header"
           onclick={(e: MouseEvent) => { e.stopPropagation(); selectNoneTabs(); }}
-          title="Deselect all"
-        >None</button>
+          title={t("tabs.deselectAll")}
+        >{t("common.none")}</button>
         {#if selectedCount > 0}
           <button
             class="btn-close-selected"
             onclick={(e: MouseEvent) => { e.stopPropagation(); closeSelected(); }}
-            title="Close {selectedCount} selected tab(s)"
+            title={t("tabs.closeCountTitle", { count: selectedCount })}
           >
-            Close {selectedCount}
+            {t("tabs.closeCount", { count: selectedCount })}
           </button>
         {/if}
         <button
           class="btn-close-all"
           onclick={(e: MouseEvent) => { e.stopPropagation(); closeAllTabs(section.tabs); }}
-          title="Close all {section.name} tabs"
+          title={t("tabs.closeAllTitle", { browser: section.name })}
         >
-          Close All
+          {t("tabs.closeAll")}
         </button>
       </div>
     </div>
@@ -240,8 +241,8 @@
       <div class="tab-list">
         <div class="tab-list-header sticky-header">
           <span class="th-check"></span>
-          <span class="th-name">Title</span>
-          <span class="th-domain">Domain</span>
+          <span class="th-name">{t("tabs.title")}</span>
+          <span class="th-domain">{t("tabs.domain")}</span>
           <span class="th-action"></span>
         </div>
         {#each section.tabs as tab (tab.id)}
@@ -257,20 +258,20 @@
             <input
               type="checkbox"
               checked={selectedTabIds.has(tab.id)}
-              aria-label="Select {tab.title}"
+              aria-label={t("tabs.selectTab", { title: tab.title })}
               onclick={(e: MouseEvent) => { e.stopPropagation(); toggleTab(tab.id); }}
             />
             <button
               class="tab-title-btn"
-              title="Click to focus this tab in {tab.browser}"
+              title={t("tabs.focusTab", { browser: tab.browser })}
               onclick={(e: MouseEvent) => { e.stopPropagation(); focusTab(tab); }}
-            >{tab.title || "(Untitled)"}</button>
+            >{tab.title || t("common.untitled")}</button>
             <span class="tab-domain mono" title={tab.url}>{extractDomain(tab.url)}</span>
             <button
               class="btn-kill"
               onclick={(e: MouseEvent) => { e.stopPropagation(); closeTab(tab); }}
               disabled={closing.has(tab.id)}
-              title="Close this tab"
+              title={t("tabs.closeThisTab")}
             >
               &#10005;
             </button>
@@ -278,7 +279,7 @@
         {/each}
       </div>
     {:else if isExpanded && section.tabs.length === 0}
-      <div class="tab-empty">No matching tabs</div>
+      <div class="tab-empty">{t("common.noMatchingTabs")}</div>
     {/if}
   </div>
 {/snippet}

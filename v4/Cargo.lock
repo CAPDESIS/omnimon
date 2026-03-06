@@ -470,7 +470,7 @@ checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
 
 [[package]]
 name = "cli"
-version = "4.1.0"
+version = "4.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -521,7 +521,7 @@ dependencies = [
 
 [[package]]
 name = "core"
-version = "4.1.0"
+version = "4.2.0"
 dependencies = [
  "criterion",
  "keyring",
@@ -2421,7 +2421,7 @@ dependencies = [
 
 [[package]]
 name = "omnimon-desktop"
-version = "4.1.0"
+version = "4.2.0"
 dependencies = [
  "core",
  "serde",

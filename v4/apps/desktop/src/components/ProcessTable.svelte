@@ -4,6 +4,7 @@
   import type { ColumnConfig, ColumnKey } from "../stores/preferences";
   import { COLUMN_KEYS } from "../stores/preferences";
   import { toggleSelect, selectedPids, focusedPid, browserTabs } from "../stores/processes";
+  import { t } from "../lib/i18n";
 
   interface Props {
     processes: ProcessEntry[];
@@ -51,7 +52,9 @@
     const browser = detectBrowser(proc);
     if (browser) {
       const count = tabCountByBrowser.get(browser);
-      if (count) return `${count} ${browser} tab${count !== 1 ? "s" : ""} open`;
+      if (count) return count !== 1
+        ? t("table.tabsOpenPlural", { count, browser })
+        : t("table.tabsOpen", { count, browser });
     }
     return proc.exec_name !== proc.name ? proc.exec_name : "";
   }
@@ -217,7 +220,7 @@
   {#if key === "name"}
     <td class="col-name" title={proc.exec_name}>
       <span class="name-text">{proc.name}</span>
-      {#if proc.idle}<span class="badge idle">idle</span>{/if}
+      {#if proc.idle}<span class="badge idle">{t("table.idle")}</span>{/if}
     </td>
   {:else if key === "detail"}
     <td class="col-detail" title={getDetail(proc)}>
@@ -253,7 +256,7 @@
         type="checkbox"
         checked={$selectedPids.has(proc.pid)}
         disabled={proc.is_system}
-        aria-label="Select {proc.name}"
+        aria-label={t("table.selectProcess", { name: proc.name })}
         onclick={(e: MouseEvent) => { e.stopPropagation(); toggleSelect(proc.pid); }}
       />
     </td>
@@ -271,7 +274,7 @@
     tabindex="0"
     role="button"
     aria-expanded={!collapsedGroups.has(group.name)}
-    aria-label="Toggle {group.name} group"
+    aria-label={t("table.toggleGroup", { name: group.name })}
   >
     <td class="col-check"></td>
     <td colspan={visibleColCount} class="group-cell">
@@ -285,40 +288,40 @@
 {/snippet}
 
 <div class="table-wrap" bind:this={wrapEl} onscroll={onScroll}>
-  <table aria-label="Process list">
+  <table aria-label={t("table.processList")}>
     <thead>
       <tr>
-        <th class="col-check" scope="col"><span class="sr-only">Select</span></th>
+        <th class="col-check" scope="col"><span class="sr-only">{t("table.select")}</span></th>
         {#each orderedVisibleCols as key (key)}
           {#if key === "name"}
-            <th class="col-name sortable" scope="col" aria-sort={sortKey === "name" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by name" onclick={() => setSort("name")}>
-              Name<span aria-hidden="true">{arrow("name")}</span>
+            <th class="col-name sortable" scope="col" aria-sort={sortKey === "name" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByName")} onclick={() => setSort("name")}>
+              {t("table.name")}<span aria-hidden="true">{arrow("name")}</span>
             </th>
           {:else if key === "detail"}
-            <th class="col-detail" scope="col">Detail</th>
+            <th class="col-detail" scope="col">{t("table.detail")}</th>
           {:else if key === "group"}
             <th class="col-group sortable" scope="col" aria-sort={sortKey === "group" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("group")}>
-              Group<span aria-hidden="true">{arrow("group")}</span>
+              {t("table.group")}<span aria-hidden="true">{arrow("group")}</span>
             </th>
           {:else if key === "ram"}
-            <th class="col-ram sortable" scope="col" aria-sort={sortKey === "ram_mb" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by RAM" onclick={() => setSort("ram_mb")}>
-              RAM<span aria-hidden="true">{arrow("ram_mb")}</span>
+            <th class="col-ram sortable" scope="col" aria-sort={sortKey === "ram_mb" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByRam")} onclick={() => setSort("ram_mb")}>
+              {t("table.ram")}<span aria-hidden="true">{arrow("ram_mb")}</span>
             </th>
           {:else if key === "cpu"}
-            <th class="col-cpu sortable" scope="col" aria-sort={sortKey === "cpu_pct" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by CPU" onclick={() => setSort("cpu_pct")}>
-              CPU<span aria-hidden="true">{arrow("cpu_pct")}</span>
+            <th class="col-cpu sortable" scope="col" aria-sort={sortKey === "cpu_pct" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByCpu")} onclick={() => setSort("cpu_pct")}>
+              {t("table.cpu")}<span aria-hidden="true">{arrow("cpu_pct")}</span>
             </th>
           {:else if key === "uptime"}
             <th class="col-uptime sortable" scope="col" aria-sort={sortKey === "uptime" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("uptime")}>
-              Time<span aria-hidden="true">{arrow("uptime")}</span>
+              {t("table.time")}<span aria-hidden="true">{arrow("uptime")}</span>
             </th>
           {:else if key === "pid"}
-            <th class="col-pid sortable" scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by PID" onclick={() => setSort("pid")}>
-              PID<span aria-hidden="true">{arrow("pid")}</span>
+            <th class="col-pid sortable" scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByPid")} onclick={() => setSort("pid")}>
+              {t("table.pid")}<span aria-hidden="true">{arrow("pid")}</span>
             </th>
           {:else if key === "state"}
             <th class="col-state sortable" scope="col" aria-sort={sortKey === "state" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("state")}>
-              ST<span aria-hidden="true">{arrow("state")}</span>
+              {t("table.st")}<span aria-hidden="true">{arrow("state")}</span>
             </th>
           {/if}
         {/each}

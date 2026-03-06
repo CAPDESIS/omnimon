@@ -1,4 +1,5 @@
 import { writable, get } from "svelte/store";
+import type { LocaleCode } from "../lib/i18n";
 
 export interface ColumnConfig {
   name: boolean;
@@ -48,6 +49,8 @@ const DEFAULT_IDLE_THRESHOLD = 1.0;
 
 const DEFAULT_THEME: ThemeMode = "auto";
 
+const DEFAULT_LOCALE: LocaleCode = "auto";
+
 const DEFAULT_TAB_PANEL_HEIGHT = 160;
 const MIN_TAB_PANEL_HEIGHT = 40;
 const MAX_TAB_PANEL_HEIGHT = 800;
@@ -59,6 +62,7 @@ export const aiProviderConfig = writable<AiProviderConfig>({ ...DEFAULT_AI_CONFI
 export const idleThreshold = writable(DEFAULT_IDLE_THRESHOLD);
 export const theme = writable<ThemeMode>(DEFAULT_THEME);
 export const tabPanelHeight = writable(DEFAULT_TAB_PANEL_HEIGHT);
+export const localePreference = writable<LocaleCode>(DEFAULT_LOCALE);
 
 let storeInstance: any = null;
 
@@ -128,6 +132,11 @@ export async function loadPreferences(): Promise<void> {
     if (typeof savedTabPanelHeight === "number" && savedTabPanelHeight >= MIN_TAB_PANEL_HEIGHT && savedTabPanelHeight <= MAX_TAB_PANEL_HEIGHT) {
       tabPanelHeight.set(savedTabPanelHeight);
     }
+
+    const savedLocale = await store.get("locale");
+    if (typeof savedLocale === "string" && (savedLocale === "en" || savedLocale === "es" || savedLocale === "auto")) {
+      localePreference.set(savedLocale as LocaleCode);
+    }
   } catch {
     // Use defaults on any read error
   }
@@ -145,6 +154,7 @@ export async function savePreferences(): Promise<void> {
     await store.set("idleThreshold", get(idleThreshold));
     await store.set("theme", get(theme));
     await store.set("tabPanelHeight", get(tabPanelHeight));
+    await store.set("locale", get(localePreference));
     await store.save();
   } catch {
     // Best-effort persistence
@@ -169,6 +179,7 @@ export function initPreferenceSubscriptions(): () => void {
     idleThreshold.subscribe(() => debouncedSave()),
     theme.subscribe(() => debouncedSave()),
     tabPanelHeight.subscribe(() => debouncedSave()),
+    localePreference.subscribe(() => debouncedSave()),
   ];
   return () => {
     unsubs.forEach((u) => u());
@@ -212,4 +223,5 @@ export {
   MIN_IDLE_THRESHOLD,
   MAX_IDLE_THRESHOLD,
   DEFAULT_IDLE_THRESHOLD,
+  DEFAULT_LOCALE,
 };

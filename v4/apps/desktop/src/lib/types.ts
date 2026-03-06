@@ -16,6 +16,8 @@ export interface SystemStats {
   ram_used_pct: number;
   swap_used_mb: number;
   total_processes: number;
+  net_rx_bytes_per_sec: number;
+  net_tx_bytes_per_sec: number;
 }
 
 export interface Metrics {
