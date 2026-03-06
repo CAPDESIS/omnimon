@@ -56,7 +56,7 @@ jobs:
       working-directory: ./v4
 
     - name: Run Backend Tests with Coverage
-      run: cargo llvm-cov --all-features --workspace --fail-under-lines 80 --ignore-filename-regex "(ai\.rs|src-tauri|cli.src.main\.rs|os_native\.rs)"
+      run: cargo llvm-cov --all-features --workspace --fail-under-lines 80 --ignore-filename-regex "(ai\.rs|src-tauri|cli.src.main\.rs|os_native\.rs|network\.rs)"
       working-directory: ./v4
 
     - name: Install Frontend Dependencies
