@@ -126,3 +126,58 @@ jobs:
         releaseBody: "Automated multiplatform release for OmniMon ${{ github.ref_name }}"
         releaseDraft: false
         prerelease: false
+
+  rename-assets:
+    name: Rename Release Assets
+    needs: [release]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - name: Rename assets to user-friendly names
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG: ${{ github.ref_name }}
+      run: |
+        REPO="chochy2001/omnimon"
+        # Wait for all assets to be uploaded
+        sleep 30
+        # Fetch asset list
+        ASSETS=$(gh api "repos/$REPO/releases/tags/$TAG" --jq '.assets[] | "\(.id)|\(.name)"')
+        echo "Found assets:"
+        echo "$ASSETS"
+        # Rename each asset based on extension/pattern
+        while IFS='|' read -r ID NAME; do
+          NEW_NAME=""
+          LABEL=""
+          case "$NAME" in
+            *aarch64*.dmg)
+              NEW_NAME="OmniMon-${TAG#v}-macOS-Apple-Silicon.dmg"
+              LABEL="macOS (Apple Silicon)"
+              ;;
+            *x64*.dmg|*amd64*.dmg)
+              NEW_NAME="OmniMon-${TAG#v}-macOS-Intel.dmg"
+              LABEL="macOS (Intel)"
+              ;;
+            *.AppImage)
+              NEW_NAME="OmniMon-${TAG#v}-Linux.AppImage"
+              LABEL="Linux (AppImage - universal)"
+              ;;
+            *.deb)
+              NEW_NAME="OmniMon-${TAG#v}-Linux.deb"
+              LABEL="Linux (Debian/Ubuntu)"
+              ;;
+            *.msi)
+              NEW_NAME="OmniMon-${TAG#v}-Windows.msi"
+              LABEL="Windows (64-bit installer)"
+              ;;
+            *)
+              echo "Skipping unknown asset: $NAME"
+              continue
+              ;;
+          esac
+          echo "Renaming: $NAME -> $NEW_NAME ($LABEL)"
+          gh api "repos/$REPO/releases/assets/$ID" -X PATCH -f name="$NEW_NAME" -f label="$LABEL" --silent
+        done <<< "$ASSETS"
+        echo "All assets renamed successfully."
