@@ -28,11 +28,21 @@ pub fn sanitize_tab_url(url: &str) -> Result<(), String> {
     }
     if !url.is_empty() {
         let allowed_prefixes = [
-            "http://", "https://", "about:", "chrome://", "chrome-extension://",
-            "safari-web-extension://", "brave://", "edge://", "arc://",
+            "http://",
+            "https://",
+            "about:",
+            "chrome://",
+            "chrome-extension://",
+            "safari-web-extension://",
+            "brave://",
+            "edge://",
+            "arc://",
         ];
         if !allowed_prefixes.iter().any(|p| url.starts_with(p)) {
-            return Err(format!("Tab URL has disallowed scheme: {}", url.split(':').next().unwrap_or("")));
+            return Err(format!(
+                "Tab URL has disallowed scheme: {}",
+                url.split(':').next().unwrap_or("")
+            ));
         }
     }
     Ok(())
@@ -51,7 +61,10 @@ pub enum BrowserKind {
 impl BrowserKind {
     /// Whether this browser supports CDP (Chrome DevTools Protocol).
     pub fn supports_cdp(&self) -> bool {
-        matches!(self, BrowserKind::Chrome | BrowserKind::Brave | BrowserKind::Edge | BrowserKind::Arc)
+        matches!(
+            self,
+            BrowserKind::Chrome | BrowserKind::Brave | BrowserKind::Edge | BrowserKind::Arc
+        )
     }
 
     /// macOS application name for AppleScript.
@@ -99,7 +112,6 @@ impl BrowserKind {
             BrowserKind::Arc,
         ]
     }
-
 }
 
 impl std::str::FromStr for BrowserKind {
@@ -194,7 +206,8 @@ pub fn cdp_close_tab(base_url: &str, tab_id: &str) -> Result<bool, String> {
         return Ok(false);
     }
 
-    if tab_id.contains('/') || tab_id.contains('\\') || tab_id.contains('?') || tab_id.contains('#') {
+    if tab_id.contains('/') || tab_id.contains('\\') || tab_id.contains('?') || tab_id.contains('#')
+    {
         return Err("Invalid tab ID".to_string());
     }
 
@@ -267,7 +280,8 @@ impl NativeTabProvider {
 
     /// Generic Chromium tab listing (Chrome, Brave, Edge, Arc all use `title of t`).
     fn list_chromium_tabs(&self, browser: BrowserKind) -> Result<Vec<BrowserTab>, String> {
-        let app_name = browser.applescript_app_name()
+        let app_name = browser
+            .applescript_app_name()
             .ok_or_else(|| format!("{} does not support AppleScript", browser.display_name()))?;
         let script = format!(
             r#"
@@ -330,7 +344,8 @@ end tell
     fn close_chromium_tab(&self, browser: BrowserKind, tab: &BrowserTab) -> Result<bool, String> {
         sanitize_tab_id(&tab.id)?;
         sanitize_tab_url(&tab.url)?;
-        let app_name = browser.applescript_app_name()
+        let app_name = browser
+            .applescript_app_name()
             .ok_or_else(|| format!("{} does not support AppleScript", browser.display_name()))?;
         let script = format!(
             r#"
@@ -360,7 +375,8 @@ end run
     fn focus_chromium_tab(&self, browser: BrowserKind, tab: &BrowserTab) -> Result<bool, String> {
         sanitize_tab_id(&tab.id)?;
         sanitize_tab_url(&tab.url)?;
-        let app_name = browser.applescript_app_name()
+        let app_name = browser
+            .applescript_app_name()
             .ok_or_else(|| format!("{} does not support AppleScript", browser.display_name()))?;
         let script = format!(
             r#"
@@ -513,7 +529,8 @@ pub fn cdp_activate_tab(base_url: &str, tab_id: &str) -> Result<bool, String> {
     if tab_id.trim().is_empty() {
         return Ok(false);
     }
-    if tab_id.contains('/') || tab_id.contains('\\') || tab_id.contains('?') || tab_id.contains('#') {
+    if tab_id.contains('/') || tab_id.contains('\\') || tab_id.contains('?') || tab_id.contains('#')
+    {
         return Err("Invalid tab ID".to_string());
     }
     let runtime = build_runtime()?;
@@ -699,7 +716,10 @@ mod tests {
 
     #[test]
     fn browser_kind_from_str_works() {
-        assert_eq!(BrowserKind::from_str("Chrome").unwrap(), BrowserKind::Chrome);
+        assert_eq!(
+            BrowserKind::from_str("Chrome").unwrap(),
+            BrowserKind::Chrome
+        );
         assert_eq!(BrowserKind::from_str("Brave").unwrap(), BrowserKind::Brave);
         assert_eq!(BrowserKind::from_str("Edge").unwrap(), BrowserKind::Edge);
         assert_eq!(BrowserKind::from_str("Arc").unwrap(), BrowserKind::Arc);
@@ -786,8 +806,8 @@ mod tests {
             )
             .create();
 
-        let tabs = cdp_list_tabs(&server.url())
-            .expect("missing optional fields should use defaults");
+        let tabs =
+            cdp_list_tabs(&server.url()).expect("missing optional fields should use defaults");
         assert_eq!(tabs.len(), 2);
         assert_eq!(tabs[0].title, "");
         assert_eq!(tabs[0].url, "");

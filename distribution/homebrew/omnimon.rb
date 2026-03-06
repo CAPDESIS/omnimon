@@ -1,6 +1,6 @@
 cask "omnimon" do
   version "4.2.0"
-  sha256 "0459b7664600f2bf3cae3bd3d64eeec696aaf5d1226375a41e8a20f5cee8da24"
+  sha256 "67d8e65a92d0b7f6fa6051b9ca6fb3c320725d1a8bff57e64e986e65f5bcbe4f"
 
   url "https://github.com/chochy2001/omnimon/releases/download/v#{version}/OmniMon_#{version}_aarch64.dmg"
   name "OmniMon"

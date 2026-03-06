@@ -159,7 +159,12 @@ static TAB_CACHE: OnceLock<Mutex<(Vec<BrowserTab>, Instant)>> = OnceLock::new();
 const TAB_CACHE_TTL_SECS: u64 = 5;
 
 fn tab_cache() -> &'static Mutex<(Vec<BrowserTab>, Instant)> {
-    TAB_CACHE.get_or_init(|| Mutex::new((Vec::new(), Instant::now() - std::time::Duration::from_secs(TAB_CACHE_TTL_SECS + 1))))
+    TAB_CACHE.get_or_init(|| {
+        Mutex::new((
+            Vec::new(),
+            Instant::now() - std::time::Duration::from_secs(TAB_CACHE_TTL_SECS + 1),
+        ))
+    })
 }
 
 fn refresh_tab_cache_if_stale() -> Vec<BrowserTab> {
@@ -173,7 +178,11 @@ fn refresh_tab_cache_if_stale() -> Vec<BrowserTab> {
     for browser in BrowserKind::all() {
         match provider.list_tabs(*browser) {
             Ok(t) => tabs.extend(t),
-            Err(e) => eprintln!("[tab-cache] {} tab listing failed: {}", browser.display_name(), e),
+            Err(e) => eprintln!(
+                "[tab-cache] {} tab listing failed: {}",
+                browser.display_name(),
+                e
+            ),
         }
     }
     cache.0 = tabs.clone();

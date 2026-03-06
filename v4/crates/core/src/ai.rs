@@ -30,7 +30,9 @@ impl AiProvider {
         match self {
             AiProvider::OpenRouter => "https://openrouter.ai/api/v1/chat/completions",
             AiProvider::OpenAI => "https://api.openai.com/v1/chat/completions",
-            AiProvider::Gemini => "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+            AiProvider::Gemini => {
+                "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+            }
             AiProvider::Anthropic => "https://api.anthropic.com/v1/messages",
         }
     }
@@ -43,7 +45,6 @@ impl AiProvider {
             AiProvider::Anthropic => "Anthropic",
         }
     }
-
 }
 
 impl std::str::FromStr for AiProvider {
@@ -134,7 +135,9 @@ async fn send_with_retry(
                 // Server error or rate limit — retry
                 if attempt == MAX_RETRIES {
                     let err_text = r.text().await.unwrap_or_default();
-                    return Err(format!("API Error after {} retries: {}", MAX_RETRIES, err_text).into());
+                    return Err(
+                        format!("API Error after {} retries: {}", MAX_RETRIES, err_text).into(),
+                    );
                 }
             }
             Err(e) => {
@@ -189,7 +192,8 @@ pub async fn analyze_with_ai(
             .post(provider.api_url())
             .header("Authorization", format!("Bearer {}", api_key))
             .json(&body)
-    }).await?;
+    })
+    .await?;
 
     if resp.status().is_client_error() {
         let err_text = resp.text().await?;
@@ -230,7 +234,8 @@ async fn analyze_anthropic(
             .header("anthropic-version", "2023-06-01")
             .header("content-type", "application/json")
             .json(&body)
-    }).await?;
+    })
+    .await?;
 
     if resp.status().is_client_error() {
         let err_text = resp.text().await?;
@@ -271,7 +276,8 @@ pub async fn analyze_context(
                 .header("anthropic-version", "2023-06-01")
                 .header("content-type", "application/json")
                 .json(&body)
-        }).await?;
+        })
+        .await?;
         if resp.status().is_client_error() {
             return Err(format!("API Error: {}", resp.text().await?).into());
         }
@@ -295,7 +301,8 @@ pub async fn analyze_context(
             .post(provider.api_url())
             .header("Authorization", format!("Bearer {}", api_key))
             .json(&body)
-    }).await?;
+    })
+    .await?;
     if resp.status().is_client_error() {
         return Err(format!("API Error: {}", resp.text().await?).into());
     }
@@ -306,7 +313,9 @@ pub async fn analyze_context(
         .ok_or_else(|| "Invalid response format".into())
 }
 
-fn parse_suggestions(content: &str) -> Result<Vec<ProcessSuggestion>, Box<dyn Error + Send + Sync>> {
+fn parse_suggestions(
+    content: &str,
+) -> Result<Vec<ProcessSuggestion>, Box<dyn Error + Send + Sync>> {
     let content_clean = content
         .trim()
         .trim_start_matches("```json")
@@ -325,10 +334,16 @@ mod tests {
 
     #[test]
     fn ai_provider_from_str_works() {
-        assert_eq!(AiProvider::from_str("openrouter").unwrap(), AiProvider::OpenRouter);
+        assert_eq!(
+            AiProvider::from_str("openrouter").unwrap(),
+            AiProvider::OpenRouter
+        );
         assert_eq!(AiProvider::from_str("OpenAI").unwrap(), AiProvider::OpenAI);
         assert_eq!(AiProvider::from_str("GEMINI").unwrap(), AiProvider::Gemini);
-        assert_eq!(AiProvider::from_str("anthropic").unwrap(), AiProvider::Anthropic);
+        assert_eq!(
+            AiProvider::from_str("anthropic").unwrap(),
+            AiProvider::Anthropic
+        );
         assert!(AiProvider::from_str("unknown").is_err());
     }
 
@@ -355,8 +370,17 @@ mod tests {
 
     #[test]
     fn ai_provider_api_urls_are_https() {
-        for provider in &[AiProvider::OpenRouter, AiProvider::OpenAI, AiProvider::Gemini, AiProvider::Anthropic] {
-            assert!(provider.api_url().starts_with("https://"), "{:?} url must be https", provider);
+        for provider in &[
+            AiProvider::OpenRouter,
+            AiProvider::OpenAI,
+            AiProvider::Gemini,
+            AiProvider::Anthropic,
+        ] {
+            assert!(
+                provider.api_url().starts_with("https://"),
+                "{:?} url must be https",
+                provider
+            );
         }
     }
 
@@ -383,27 +407,39 @@ mod tests {
     #[tokio::test]
     async fn send_with_retry_succeeds_on_first_try() {
         let mut server = mockito::Server::new_async().await;
-        let _m = server.mock("POST", "/test")
+        let _m = server
+            .mock("POST", "/test")
             .with_status(200)
             .with_body("ok")
-            .create_async().await;
+            .create_async()
+            .await;
 
-        let client = Client::builder().timeout(Duration::from_secs(5)).build().unwrap();
+        let client = Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()
+            .unwrap();
         let url = server.url();
-        let resp = send_with_retry(|| client.post(format!("{}/test", url))).await.unwrap();
+        let resp = send_with_retry(|| client.post(format!("{}/test", url)))
+            .await
+            .unwrap();
         assert!(resp.status().is_success());
     }
 
     #[tokio::test]
     async fn send_with_retry_retries_on_server_error() {
         let mut server = mockito::Server::new_async().await;
-        let _m = server.mock("POST", "/test")
+        let _m = server
+            .mock("POST", "/test")
             .with_status(500)
             .with_body("internal error")
             .expect_at_least(2)
-            .create_async().await;
+            .create_async()
+            .await;
 
-        let client = Client::builder().timeout(Duration::from_secs(5)).build().unwrap();
+        let client = Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()
+            .unwrap();
         let url = server.url();
         let result = send_with_retry(|| client.post(format!("{}/test", url))).await;
         assert!(result.is_err());
@@ -413,15 +449,22 @@ mod tests {
     #[tokio::test]
     async fn send_with_retry_does_not_retry_client_errors() {
         let mut server = mockito::Server::new_async().await;
-        let _m = server.mock("POST", "/test")
+        let _m = server
+            .mock("POST", "/test")
             .with_status(401)
             .with_body("unauthorized")
             .expect(1)
-            .create_async().await;
+            .create_async()
+            .await;
 
-        let client = Client::builder().timeout(Duration::from_secs(5)).build().unwrap();
+        let client = Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()
+            .unwrap();
         let url = server.url();
-        let resp = send_with_retry(|| client.post(format!("{}/test", url))).await.unwrap();
+        let resp = send_with_retry(|| client.post(format!("{}/test", url)))
+            .await
+            .unwrap();
         assert_eq!(resp.status().as_u16(), 401);
     }
 }
