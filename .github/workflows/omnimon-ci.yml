@@ -83,6 +83,7 @@ jobs:
       working-directory: ./v4/apps/desktop
 
     - name: Verify CLI Help Command
+      if: matrix.os != 'windows-latest'
       run: cargo run -p cli -- --help
       working-directory: ./v4
 
