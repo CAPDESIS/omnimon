@@ -1,5 +1,8 @@
 # OmniMon v4
 
+*Read this in other languages: [Español](README_ES.md)*
+
+
 [![CI/CD](https://github.com/chochy2001/omnimon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/omnimon/actions) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_+_Svelte-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#)
 
 OmniMon is a next-generation system monitor rewritten from scratch in a modern monorepo. It replaces the legacy AppKit/Bash architecture with a hyper-optimized native core and a reactive UI with zero memory leaks.
@@ -64,3 +67,11 @@ cargo run -p cli -- status --format json
 ## License
 
 [MIT](LICENSE)
+
+## Support and Sponsorship (Funding)
+
+OmniMon is open-source software under the MIT license. It is completely free to compile from source for your own use. However, if you wish to support the project's development or prefer the convenience of pre-packaged installers and premium support, we invite you to become a sponsor:
+
+💖 **[Sponsor OmniMon on GitHub Sponsors](https://github.com/sponsors/chochy2001)**
+
+Sponsors get access to pre-built premium installers (.exe, .dmg, .deb) and prioritized support, which helps keep this project sustainable long-term.

@@ -1,5 +1,8 @@
 # OmniMon Architecture
 
+*Read this in other languages: [Español](ARCHITECTURE_ES.md)*
+
+
 This document describes the high-level architecture of OmniMon, focusing on the communication and security of the system.
 
 ## Secure IPC Bridge
