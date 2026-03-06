@@ -1,9 +1,10 @@
 <script lang="ts">
-  import type { BrowserTab, ProcessEntry } from "../lib/types";
+  import type { BrowserTab } from "../lib/types";
   import { ipcCloseBrowserTab, ipcFocusBrowserTab } from "../lib/ipc";
   import { browserTabs, chromeProcesses } from "../stores/processes";
   import { confirmAction } from "../lib/confirm";
   import { t } from "../lib/i18n";
+  import { detectBrowser } from "../lib/browser";
 
   interface Props {
     filter?: string;
@@ -38,18 +39,6 @@
     } catch {
       return url;
     }
-  }
-
-  /** Map process to browser name — same logic as ProcessTable.detectBrowser */
-  function detectBrowser(proc: ProcessEntry): string | null {
-    if (proc.group !== "Browser") return null;
-    if (proc.exec_name.includes("Google Chrome") || proc.name.includes("Chrome")) return "Chrome";
-    if (proc.name === "com.apple.WebKit.WebContent" || proc.exec_name.includes("Safari") || proc.name.includes("Safari")) return "Safari";
-    if (proc.exec_name.includes("Brave Browser") || proc.name.includes("Brave")) return "Brave";
-    if (proc.exec_name.includes("Microsoft Edge") || proc.name.includes("Edge")) return "Edge";
-    if (proc.exec_name.includes("Arc") || proc.name.includes("Arc")) return "Arc";
-    if (proc.exec_name.includes("firefox") || proc.name.includes("firefox")) return "Firefox";
-    return null;
   }
 
   /** Per-browser RAM from process list */

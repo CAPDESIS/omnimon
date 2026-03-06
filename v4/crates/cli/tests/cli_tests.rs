@@ -8,8 +8,10 @@ fn test_status_json_format() {
 
     cmd.assert()
         .success()
-        .stdout(predicate::str::contains(r#""status":"running gracefully""#))
-        .stdout(predicate::str::contains(r#""memory_usage_bytes":"#));
+        .stdout(predicate::str::contains(r#""status": "running""#))
+        .stdout(predicate::str::contains(r#""total_memory_bytes""#))
+        .stdout(predicate::str::contains(r#""used_memory_bytes""#))
+        .stdout(predicate::str::contains(r#""top_processes""#));
 }
 
 #[test]
@@ -18,9 +20,12 @@ fn test_status_text_format() {
 
     cmd.arg("status").arg("--format").arg("text");
 
-    cmd.assert().success().stdout(predicate::str::contains(
-        "macmon status: running gracefully",
-    ));
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("macmon status: running"))
+        .stdout(predicate::str::contains("Memory:"))
+        .stdout(predicate::str::contains("CPU:"))
+        .stdout(predicate::str::contains("Top processes by memory:"));
 }
 
 #[test]

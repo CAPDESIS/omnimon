@@ -185,6 +185,7 @@ fn is_blocked_process_name(
     is_default_blocked || is_extra_blocked
 }
 
+#[cfg(test)]
 fn kill_process_by_name(
     pid: u32,
     process_name: String,
@@ -218,50 +219,65 @@ pub fn kill_process_safe(pid: i32, extra_blocklist: &[String]) -> Result<KillRes
     system.refresh_all();
 
     let process_pid = Pid::from_u32(pid_u32);
-    let process = system
-        .process(process_pid)
-        .ok_or(KillError::ProcessNotFound(pid_u32))?;
 
-    let process_name = process.name().to_string();
-    let process_exe = process.exe().map(|p| p.to_path_buf());
-    kill_process_by_name(
-        pid_u32,
-        process_name,
-        process_exe.as_deref(),
-        extra_blocklist,
-        || {
-            let graceful = process.kill_with(Signal::Term).unwrap_or(false) || process.kill();
-            if graceful {
-                std::thread::sleep(Duration::from_millis(120));
-                if !process_is_alive(pid_u32) {
-                    return true;
-                }
-            }
+    // Extract process info and attempt graceful kill while the borrow is active.
+    let (process_name, process_exe, graceful) = {
+        let process = system
+            .process(process_pid)
+            .ok_or(KillError::ProcessNotFound(pid_u32))?;
 
-            if !identity_matches(pid_u32, process.name(), process_exe.as_deref()) {
-                return false;
-            }
+        let name = process.name().to_string();
+        let exe = process.exe().map(|p| p.to_path_buf());
 
-            if crate::os_native::kill_process_force(pid_u32, process.name(), process_exe.as_deref())
+        // Check blocklist before attempting any kill
+        if is_blocked_process_name(&name, exe.as_deref(), extra_blocklist) {
+            return Err(KillError::Blocked(name));
+        }
+
+        let graceful = process.kill_with(Signal::Term).unwrap_or(false) || process.kill();
+        (name, exe, graceful)
+    };
+    // The immutable borrow on `system` is now dropped.
+
+    let killed = if graceful {
+        std::thread::sleep(Duration::from_millis(120));
+        if !process_is_alive(&mut system, pid_u32) {
+            true
+        } else if !identity_matches(&mut system, pid_u32, &process_name, process_exe.as_deref())
+            || crate::os_native::kill_process_force(pid_u32, &process_name, process_exe.as_deref())
                 .is_err()
-            {
-                return false;
-            }
-
+        {
+            false
+        } else {
             std::thread::sleep(Duration::from_millis(120));
-            !process_is_alive(pid_u32)
-        },
-    )
+            !process_is_alive(&mut system, pid_u32)
+        }
+    } else {
+        false
+    };
+
+    if !killed {
+        return Err(KillError::KillFailed(pid_u32));
+    }
+
+    Ok(KillResult {
+        pid: pid_u32,
+        process_name,
+        killed,
+    })
 }
 
-fn process_is_alive(pid: u32) -> bool {
-    let mut system = System::new_all();
+fn process_is_alive(system: &mut System, pid: u32) -> bool {
     system.refresh_all();
     system.process(Pid::from_u32(pid)).is_some()
 }
 
-fn identity_matches(pid: u32, expected_name: &str, expected_exe: Option<&Path>) -> bool {
-    let mut system = System::new_all();
+fn identity_matches(
+    system: &mut System,
+    pid: u32,
+    expected_name: &str,
+    expected_exe: Option<&Path>,
+) -> bool {
     system.refresh_all();
     let Some(current) = system.process(Pid::from_u32(pid)) else {
         return false;

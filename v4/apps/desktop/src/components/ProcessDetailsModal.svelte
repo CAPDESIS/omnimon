@@ -5,6 +5,7 @@
   import { browserTabs } from "../stores/processes";
   import { aiProviderConfig } from "../stores/preferences";
   import { t } from "../lib/i18n";
+  import { detectBrowser } from "../lib/browser";
 
   interface Props {
     process: ProcessEntry;
@@ -24,16 +25,7 @@
   let aiAnalyzing = $state(false);
   let aiError = $state<string | null>(null);
 
-  let detectedBrowser = $derived.by((): string | null => {
-    if (process.group !== "Browser") return null;
-    if (process.exec_name.includes("Google Chrome") || process.name.includes("Chrome")) return "Chrome";
-    if (process.name === "com.apple.WebKit.WebContent" || process.exec_name.includes("Safari") || process.name.includes("Safari")) return "Safari";
-    if (process.exec_name.includes("Brave Browser") || process.name.includes("Brave")) return "Brave";
-    if (process.exec_name.includes("Microsoft Edge") || process.name.includes("Edge")) return "Edge";
-    if (process.exec_name.includes("Arc") || process.name.includes("Arc")) return "Arc";
-    if (process.exec_name.includes("firefox") || process.name.includes("firefox")) return "Firefox";
-    return null;
-  });
+  let detectedBrowser = $derived(detectBrowser(process));
 
   let allBrowserTabs = $derived(
     detectedBrowser ? $browserTabs.filter((t) => t.browser === detectedBrowser) : [],

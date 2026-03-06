@@ -476,6 +476,8 @@ dependencies = [
  "clap",
  "core",
  "predicates",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
