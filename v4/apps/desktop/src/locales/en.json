@@ -39,7 +39,10 @@
     "suggestions": "AI Suggestions",
     "dismiss": "Dismiss",
     "pid": "PID {pid}",
-    "close": "Close"
+    "close": "Close",
+    "chatLabel": "Ask AI a question",
+    "chatPlaceholder": "Ask AI about your system... (e.g., \"What's using the most memory?\")",
+    "ask": "Ask"
   },
   "footer": {
     "processes": "{count} processes",

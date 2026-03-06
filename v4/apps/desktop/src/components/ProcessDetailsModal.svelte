@@ -26,11 +26,12 @@
 
   let detectedBrowser = $derived.by((): string | null => {
     if (process.group !== "Browser") return null;
-    if (process.exec_name.includes("Google Chrome Helper") || process.name.includes("Chrome")) return "Chrome";
-    if (process.name === "com.apple.WebKit.WebContent" || process.exec_name.includes("Safari")) return "Safari";
-    if (process.exec_name.includes("Brave Browser Helper") || process.name.includes("Brave")) return "Brave";
-    if (process.exec_name.includes("Microsoft Edge Helper") || process.name.includes("Edge")) return "Edge";
-    if (process.exec_name.includes("Arc Helper") || process.name.includes("Arc")) return "Arc";
+    if (process.exec_name.includes("Google Chrome") || process.name.includes("Chrome")) return "Chrome";
+    if (process.name === "com.apple.WebKit.WebContent" || process.exec_name.includes("Safari") || process.name.includes("Safari")) return "Safari";
+    if (process.exec_name.includes("Brave Browser") || process.name.includes("Brave")) return "Brave";
+    if (process.exec_name.includes("Microsoft Edge") || process.name.includes("Edge")) return "Edge";
+    if (process.exec_name.includes("Arc") || process.name.includes("Arc")) return "Arc";
+    if (process.exec_name.includes("firefox") || process.name.includes("firefox")) return "Firefox";
     return null;
   });
 
@@ -521,7 +522,7 @@
     color: var(--fg);
     font-size: calc(var(--base-font-size) * 0.833);
     outline: none;
-    height: 20px;
+    height: calc(var(--base-font-size) * 1.667);
   }
   .tab-filter:focus {
     border-color: var(--accent);

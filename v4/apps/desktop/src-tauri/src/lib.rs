@@ -107,11 +107,18 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
 
             // Tag Browser group by process name pattern — no AppleScript, instant
             let group = if exec_name.contains("Google Chrome Helper")
+                || exec_name.contains("Google Chrome")
                 || entry.name == "com.apple.WebKit.WebContent"
                 || exec_name.contains("Safari")
+                || entry.name.contains("Safari")
                 || exec_name.contains("Brave Browser Helper")
+                || exec_name.contains("Brave Browser")
                 || exec_name.contains("Microsoft Edge Helper")
+                || exec_name.contains("Microsoft Edge")
                 || exec_name.contains("Arc Helper")
+                || exec_name == "Arc"
+                || exec_name.contains("firefox")
+                || entry.name.contains("firefox")
             {
                 "Browser".to_string()
             } else {

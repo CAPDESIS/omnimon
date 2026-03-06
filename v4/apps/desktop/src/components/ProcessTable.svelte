@@ -4,6 +4,7 @@
   import type { ColumnConfig, ColumnKey } from "../stores/preferences";
   import { COLUMN_KEYS } from "../stores/preferences";
   import { toggleSelect, selectedPids, focusedPid, browserTabs } from "../stores/processes";
+  import { fontSize } from "../stores/preferences";
   import { t } from "../lib/i18n";
 
   interface Props {
@@ -22,7 +23,7 @@
   );
   let visibleColCount = $derived(orderedVisibleCols.length);
 
-  const ROW_HEIGHT = 20;
+  let ROW_HEIGHT = $derived(Math.round($fontSize * 1.667));
   const BUFFER = 10;
 
   type SortKey = "name" | "pid" | "ram_mb" | "cpu_pct" | "group" | "uptime" | "state";
@@ -40,11 +41,12 @@
 
   function detectBrowser(proc: ProcessEntry): string | null {
     if (proc.group !== "Browser") return null;
-    if (proc.exec_name.includes("Google Chrome Helper") || proc.name.includes("Chrome")) return "Chrome";
-    if (proc.name === "com.apple.WebKit.WebContent" || proc.exec_name.includes("Safari")) return "Safari";
-    if (proc.exec_name.includes("Brave Browser Helper") || proc.name.includes("Brave")) return "Brave";
-    if (proc.exec_name.includes("Microsoft Edge Helper") || proc.name.includes("Edge")) return "Edge";
-    if (proc.exec_name.includes("Arc Helper") || proc.name.includes("Arc")) return "Arc";
+    if (proc.exec_name.includes("Google Chrome") || proc.name.includes("Chrome")) return "Chrome";
+    if (proc.name === "com.apple.WebKit.WebContent" || proc.exec_name.includes("Safari") || proc.name.includes("Safari")) return "Safari";
+    if (proc.exec_name.includes("Brave Browser") || proc.name.includes("Brave")) return "Brave";
+    if (proc.exec_name.includes("Microsoft Edge") || proc.name.includes("Edge")) return "Edge";
+    if (proc.exec_name.includes("Arc") || proc.name.includes("Arc")) return "Arc";
+    if (proc.exec_name.includes("firefox") || proc.name.includes("firefox")) return "Firefox";
     return null;
   }
 
@@ -366,7 +368,7 @@
   }
 
   th {
-    height: 20px;
+    height: calc(var(--base-font-size) * 1.667);
     padding: 0 6px;
     text-align: left;
     background: var(--bg-alt);
@@ -378,7 +380,7 @@
     letter-spacing: 0.3px;
     user-select: none;
     white-space: nowrap;
-    line-height: 20px;
+    line-height: calc(var(--base-font-size) * 1.667);
   }
   th.sortable {
     cursor: pointer;
@@ -388,13 +390,13 @@
   }
 
   td {
-    height: 20px;
+    height: calc(var(--base-font-size) * 1.667);
     padding: 0 6px;
     border-bottom: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.15));
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: 20px;
+    line-height: calc(var(--base-font-size) * 1.667);
   }
 
   tr {
@@ -435,7 +437,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    height: 20px;
+    height: calc(var(--base-font-size) * 1.667);
   }
 
   .chevron {

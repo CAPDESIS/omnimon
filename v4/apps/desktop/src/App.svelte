@@ -50,7 +50,7 @@
     MAX_IDLE_THRESHOLD,
   } from "./stores/preferences";
   import type { ThemeMode } from "./stores/preferences";
-  import { ipcValidateApiKey } from "./lib/ipc";
+  import { ipcValidateApiKey, ipcAnalyzeContext } from "./lib/ipc";
   import { t, locale, initI18n } from "./lib/i18n";
   import type { LocaleCode } from "./lib/i18n";
 
@@ -92,6 +92,39 @@
     dragging = false;
     window.removeEventListener("mousemove", onDividerMousemove);
     window.removeEventListener("mouseup", onDividerMouseup);
+  }
+
+  // Dynamic AI chat state
+  let aiChatInput = $state("");
+  let aiChatResponse = $state("");
+  let aiChatLoading = $state(false);
+  let aiChatError = $state<string | null>(null);
+
+  async function handleAiChat() {
+    if (!aiChatInput.trim()) return;
+    aiChatLoading = true;
+    aiChatError = null;
+    aiChatResponse = "";
+    try {
+      const context = `User question: ${aiChatInput.trim()}\n\nSystem context:\n- Total processes: ${$filtered.length}\n- Top processes by RAM: ${$filtered.slice(0, 10).map((p) => `${p.name} (${p.ram_mb.toFixed(0)} MB, ${p.cpu_pct.toFixed(1)}% CPU)`).join(", ")}`;
+      const config = $aiProviderConfig;
+      aiChatResponse = await ipcAnalyzeContext(context, config.provider, config.model);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("No matching entry") || msg.includes("not found in secure storage") || msg.includes("keyring")) {
+        aiChatError = t("processes.noApiKey");
+      } else {
+        aiChatError = msg;
+      }
+    } finally {
+      aiChatLoading = false;
+    }
+  }
+
+  function clearAiChat() {
+    aiChatInput = "";
+    aiChatResponse = "";
+    aiChatError = null;
   }
 
   // AI settings modal state
@@ -381,6 +414,43 @@
     </div>
   {/if}
 
+  <div class="ai-chat" role="region" aria-label={t("ai.chatLabel")}>
+    <div class="ai-chat-row">
+      <div class="ai-chat-input-wrapper">
+        <input
+          class="ai-chat-input"
+          type="text"
+          placeholder={t("ai.chatPlaceholder")}
+          aria-label={t("ai.chatLabel")}
+          value={aiChatInput}
+          oninput={(e) => aiChatInput = (e.target as HTMLInputElement).value}
+          onkeydown={(e) => { if (e.key === "Enter" && !aiChatLoading) handleAiChat(); }}
+          disabled={aiChatLoading}
+        />
+        {#if aiChatInput}
+          <button
+            class="ai-chat-clear"
+            onclick={clearAiChat}
+            aria-label={t("toolbar.clearSearch")}
+          >&times;</button>
+        {/if}
+      </div>
+      <button
+        class="btn btn-ai btn-sm"
+        onclick={handleAiChat}
+        disabled={aiChatLoading || !aiChatInput.trim()}
+      >
+        {aiChatLoading ? t("toolbar.analyzing") : t("ai.ask")}
+      </button>
+    </div>
+    {#if aiChatError}
+      <div class="ai-chat-error">{aiChatError}</div>
+    {/if}
+    {#if aiChatResponse}
+      <div class="ai-chat-response">{aiChatResponse}</div>
+    {/if}
+  </div>
+
   <footer class="statusline" aria-live="polite" aria-atomic="true">
     {t("footer.processes", { count: $filtered.length })}{#if $filtered.length !== $processes.length}
       &nbsp;{t("footer.filteredFrom", { count: $processes.length })}{/if}
@@ -617,7 +687,7 @@
     background: var(--bg-alt);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
-    height: 28px;
+    min-height: calc(var(--base-font-size) * 2.333);
   }
 
   .search-wrapper {
@@ -636,7 +706,7 @@
     color: var(--fg);
     font-size: calc(var(--base-font-size) * 0.917);
     outline: none;
-    height: 20px;
+    height: calc(var(--base-font-size) * 1.667);
   }
   .search:focus {
     border-color: var(--accent);
@@ -679,8 +749,8 @@
     font-size: calc(var(--base-font-size) * 0.833);
     cursor: pointer;
     white-space: nowrap;
-    height: 20px;
-    line-height: 14px;
+    height: calc(var(--base-font-size) * 1.667);
+    line-height: calc(var(--base-font-size) * 1.167);
   }
   .btn:hover {
     background: var(--bg-hover);
@@ -712,6 +782,7 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    min-width: 0;
   }
 
   .resize-divider {
@@ -744,8 +815,8 @@
     background: var(--bg-alt);
     border-top: 1px solid var(--border);
     flex-shrink: 0;
-    height: 18px;
-    line-height: 14px;
+    min-height: calc(var(--base-font-size) * 1.5);
+    line-height: calc(var(--base-font-size) * 1.167);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
   }
 
@@ -759,7 +830,7 @@
 
   .separator {
     width: 1px;
-    height: 14px;
+    height: calc(var(--base-font-size) * 1.167);
     background: var(--border);
     flex-shrink: 0;
   }
@@ -768,9 +839,9 @@
     font-size: calc(var(--base-font-size) * 0.833);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     color: var(--fg-dim);
-    min-width: 16px;
+    min-width: calc(var(--base-font-size) * 1.333);
     text-align: center;
-    line-height: 20px;
+    line-height: calc(var(--base-font-size) * 1.667);
   }
 
   .profile-select {
@@ -780,7 +851,7 @@
     background: var(--bg);
     color: var(--fg);
     font-size: calc(var(--base-font-size) * 0.833);
-    height: 20px;
+    height: calc(var(--base-font-size) * 1.667);
     outline: none;
     cursor: pointer;
   }
@@ -860,6 +931,88 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* AI chat input */
+  .ai-chat {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    background: var(--bg-alt);
+    padding: 4px 8px;
+  }
+
+  .ai-chat-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .ai-chat-input-wrapper {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .ai-chat-input {
+    width: 100%;
+    padding: 2px 22px 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg);
+    color: var(--fg);
+    font-size: calc(var(--base-font-size) * 0.917);
+    outline: none;
+    height: calc(var(--base-font-size) * 1.667);
+  }
+  .ai-chat-input:focus {
+    border-color: var(--accent);
+  }
+  .ai-chat-input:disabled {
+    opacity: 0.5;
+  }
+
+  .ai-chat-clear {
+    position: absolute;
+    right: 2px;
+    width: 16px;
+    height: 16px;
+    border: none;
+    background: transparent;
+    color: var(--fg-dim);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+    border-radius: 2px;
+  }
+  .ai-chat-clear:hover {
+    color: var(--fg);
+    background: var(--bg-hover);
+  }
+
+  .ai-chat-error {
+    padding: 2px 0;
+    font-size: calc(var(--base-font-size) * 0.833);
+    color: var(--danger);
+  }
+
+  .ai-chat-response {
+    margin-top: 4px;
+    padding: 6px 8px;
+    font-size: calc(var(--base-font-size) * 0.833);
+    line-height: 1.5;
+    color: var(--fg);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 160px;
+    overflow-y: auto;
+    background: var(--bg);
+    border-radius: 4px;
+    border: 1px solid var(--border);
   }
 
   /* Settings modal */
@@ -947,7 +1100,7 @@
     color: var(--fg);
     font-size: calc(var(--base-font-size) * 0.917);
     outline: none;
-    height: 22px;
+    height: calc(var(--base-font-size) * 1.833);
     cursor: pointer;
   }
   .settings-select:focus {
@@ -963,7 +1116,7 @@
     color: var(--fg);
     font-size: calc(var(--base-font-size) * 0.917);
     outline: none;
-    height: 22px;
+    height: calc(var(--base-font-size) * 1.833);
   }
   .settings-input:focus {
     border-color: var(--accent);

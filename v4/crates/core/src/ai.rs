@@ -118,23 +118,37 @@ pub async fn validate_api_key(
     let client = build_client()?;
     let url = provider.api_url();
 
-    let resp = if matches!(provider, AiProvider::Anthropic) {
-        client
-            .post(url)
-            .header("x-api-key", key)
-            .header("anthropic-version", "2023-06-01")
-            .header("content-type", "application/json")
-            .body(r#"{"model":"claude-haiku-4-5-20251001","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}"#)
-            .send()
-            .await?
-    } else {
-        client
-            .post(url)
-            .header("Authorization", format!("Bearer {}", key))
-            .header("Content-Type", "application/json")
-            .body(r#"{"model":"gpt-4o-mini","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}"#)
-            .send()
-            .await?
+    let resp = match provider {
+        AiProvider::Anthropic => {
+            client
+                .post(url)
+                .header("x-api-key", key)
+                .header("anthropic-version", "2023-06-01")
+                .header("content-type", "application/json")
+                .body(r#"{"model":"claude-haiku-4-5-20251001","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}"#)
+                .send()
+                .await?
+        }
+        AiProvider::OpenRouter => {
+            client
+                .post(url)
+                .header("Authorization", format!("Bearer {}", key))
+                .header("Content-Type", "application/json")
+                .header("HTTP-Referer", "https://github.com/chochy2001/omnimon")
+                .header("X-Title", "OmniMon")
+                .body(r#"{"model":"meta-llama/llama-3.2-3b-instruct:free","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}"#)
+                .send()
+                .await?
+        }
+        _ => {
+            client
+                .post(url)
+                .header("Authorization", format!("Bearer {}", key))
+                .header("Content-Type", "application/json")
+                .body(r#"{"model":"gpt-4o-mini","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}"#)
+                .send()
+                .await?
+        }
     };
 
     let status = resp.status();
@@ -226,10 +240,15 @@ pub async fn analyze_with_ai(
     });
 
     let resp = send_with_retry(|| {
-        client
+        let mut req = client
             .post(provider.api_url())
-            .header("Authorization", format!("Bearer {}", api_key))
-            .json(&body)
+            .header("Authorization", format!("Bearer {}", api_key));
+        if provider == AiProvider::OpenRouter {
+            req = req
+                .header("HTTP-Referer", "https://github.com/chochy2001/omnimon")
+                .header("X-Title", "OmniMon");
+        }
+        req.json(&body)
     })
     .await?;
 
@@ -335,10 +354,15 @@ pub async fn analyze_context(
         ]
     });
     let resp = send_with_retry(|| {
-        client
+        let mut req = client
             .post(provider.api_url())
-            .header("Authorization", format!("Bearer {}", api_key))
-            .json(&body)
+            .header("Authorization", format!("Bearer {}", api_key));
+        if provider == AiProvider::OpenRouter {
+            req = req
+                .header("HTTP-Referer", "https://github.com/chochy2001/omnimon")
+                .header("X-Title", "OmniMon");
+        }
+        req.json(&body)
     })
     .await?;
     if resp.status().is_client_error() {

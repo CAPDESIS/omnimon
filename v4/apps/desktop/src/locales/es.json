@@ -39,7 +39,10 @@
     "suggestions": "Sugerencias IA",
     "dismiss": "Descartar",
     "pid": "PID {pid}",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "chatLabel": "Haz una pregunta a la IA",
+    "chatPlaceholder": "Pregunta a la IA sobre tu sistema... (ej. \"¿Qué está usando más memoria?\")",
+    "ask": "Preguntar"
   },
   "footer": {
     "processes": "{count} procesos",

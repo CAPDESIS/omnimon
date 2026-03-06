@@ -89,7 +89,7 @@
     border-bottom: 1px solid var(--border);
     font-size: calc(var(--base-font-size) * 0.833);
     flex-shrink: 0;
-    height: 20px;
+    min-height: calc(var(--base-font-size) * 1.667);
   }
 
   .metric {

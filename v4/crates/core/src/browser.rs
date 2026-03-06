@@ -324,13 +324,29 @@ tell application "Safari"
     set wIdx to 0
     repeat with w in windows
         set wIdx to wIdx + 1
+        try
+            set tabList to tabs of w
+        on error
+            -- Skip non-tab windows (Downloads, History, Preferences, etc.)
+            set tabList to {}
+        end try
         set tIdx to 0
-        repeat with t in tabs of w
+        repeat with t in tabList
             set tIdx to tIdx + 1
             set tabID to ("s" & wIdx & ":" & tIdx) as text
-            set tabTitle to my sanitizeText(name of t as text)
-            set tabURL to my sanitizeText(URL of t as text)
-            set output to output & tabID & sep & tabTitle & sep & tabURL & linefeed
+            try
+                set tabTitle to my sanitizeText(name of t as text)
+            on error
+                set tabTitle to "(Untitled)"
+            end try
+            try
+                set tabURL to my sanitizeText(URL of t as text)
+            on error
+                set tabURL to ""
+            end try
+            if tabURL is not "" then
+                set output to output & tabID & sep & tabTitle & sep & tabURL & linefeed
+            end if
         end repeat
     end repeat
     return output

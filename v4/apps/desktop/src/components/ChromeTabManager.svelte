@@ -43,11 +43,12 @@
   /** Map process to browser name — same logic as ProcessTable.detectBrowser */
   function detectBrowser(proc: ProcessEntry): string | null {
     if (proc.group !== "Browser") return null;
-    if (proc.exec_name.includes("Google Chrome Helper") || proc.name.includes("Chrome")) return "Chrome";
-    if (proc.name === "com.apple.WebKit.WebContent" || proc.exec_name.includes("Safari")) return "Safari";
-    if (proc.exec_name.includes("Brave Browser Helper") || proc.name.includes("Brave")) return "Brave";
-    if (proc.exec_name.includes("Microsoft Edge Helper") || proc.name.includes("Edge")) return "Edge";
-    if (proc.exec_name.includes("Arc Helper") || proc.name.includes("Arc")) return "Arc";
+    if (proc.exec_name.includes("Google Chrome") || proc.name.includes("Chrome")) return "Chrome";
+    if (proc.name === "com.apple.WebKit.WebContent" || proc.exec_name.includes("Safari") || proc.name.includes("Safari")) return "Safari";
+    if (proc.exec_name.includes("Brave Browser") || proc.name.includes("Brave")) return "Brave";
+    if (proc.exec_name.includes("Microsoft Edge") || proc.name.includes("Edge")) return "Edge";
+    if (proc.exec_name.includes("Arc") || proc.name.includes("Arc")) return "Arc";
+    if (proc.exec_name.includes("firefox") || proc.name.includes("firefox")) return "Firefox";
     return null;
   }
 
@@ -295,7 +296,9 @@
 <style>
   .chrome-manager {
     overflow-y: auto;
+    overflow-x: hidden;
     min-height: 0;
+    min-width: 0;
     flex: 1;
   }
 
@@ -319,7 +322,7 @@
     font-weight: 600;
     cursor: pointer;
     text-align: left;
-    height: 24px;
+    min-height: calc(var(--base-font-size) * 2);
   }
   .browser-header:hover {
     background: var(--bg-hover);
@@ -412,7 +415,7 @@
     align-items: center;
     gap: 6px;
     padding: 0 8px 0 12px;
-    height: 18px;
+    min-height: calc(var(--base-font-size) * 1.5);
     font-size: calc(var(--base-font-size) * 0.75);
     font-weight: 600;
     text-transform: uppercase;
@@ -450,7 +453,7 @@
     align-items: center;
     gap: 6px;
     padding: 0 8px 0 12px;
-    height: 22px;
+    min-height: calc(var(--base-font-size) * 1.833);
     font-size: calc(var(--base-font-size) * 0.917);
     border-bottom: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.1));
     cursor: pointer;

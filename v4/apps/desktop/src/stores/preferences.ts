@@ -25,7 +25,7 @@ export type ThemeMode = "auto" | "light" | "dark";
 
 const DEFAULT_FONT_SIZE = 12;
 const MIN_FONT_SIZE = 8;
-const MAX_FONT_SIZE = 24;
+const MAX_FONT_SIZE = 48;
 
 const DEFAULT_COLUMNS: ColumnConfig = {
   name: true,
