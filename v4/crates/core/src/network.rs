@@ -585,7 +585,7 @@ mod linux_ebpf {
             if let Some(map) = bpf.map_mut("PROCESS_NET_TCP_BYTES") {
                 if let Ok(mut tcp_map) = BpfHashMap::<_, u32, u64>::try_from(map) {
                     for pid in tcp_map.keys().flatten() {
-                        if let Ok(Some(current)) = tcp_map.get(&pid, 0) {
+                        if let Ok(current) = tcp_map.get(&pid, 0) {
                             let prev = self.prev_tcp.insert(pid, current).unwrap_or(0);
                             let delta = current.saturating_sub(prev);
                             let entry = process_traffic
@@ -614,7 +614,7 @@ mod linux_ebpf {
             if let Some(map) = bpf.map_mut("PROCESS_NET_UDP_BYTES") {
                 if let Ok(mut udp_map) = BpfHashMap::<_, u32, u64>::try_from(map) {
                     for pid in udp_map.keys().flatten() {
-                        if let Ok(Some(current)) = udp_map.get(&pid, 0) {
+                        if let Ok(current) = udp_map.get(&pid, 0) {
                             let prev = self.prev_udp.insert(pid, current).unwrap_or(0);
                             let delta = current.saturating_sub(prev);
                             let entry = process_traffic
@@ -676,8 +676,8 @@ mod linux_ebpf {
 
         let mut ip_map = BpfHashMap::<_, u32, u32>::try_from(ip_map).ok()?;
         let mut port_map = BpfHashMap::<_, u32, u16>::try_from(port_map).ok()?;
-        let ip = ip_map.get(&pid, 0).ok().flatten()?;
-        let port = port_map.get(&pid, 0).ok().flatten()?;
+        let ip = ip_map.get(&pid, 0).ok()?;
+        let port = port_map.get(&pid, 0).ok()?;
         Some((Ipv4Addr::from(ip).to_string(), port))
     }
 }
