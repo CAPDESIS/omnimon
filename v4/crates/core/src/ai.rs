@@ -392,8 +392,8 @@ fn parse_suggestions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Arc, Mutex};
     use std::str::FromStr;
+    use std::sync::{Arc, Mutex};
 
     #[test]
     fn ai_provider_from_str_works() {

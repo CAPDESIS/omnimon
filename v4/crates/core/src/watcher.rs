@@ -86,8 +86,8 @@ pub fn start_watcher() {
             let mut networks = Networks::new_with_refreshed_list();
 
             // Initial totals for delta computation
-            let mut prev_rx: u64 = networks.iter().map(|(_, n)| n.total_received()).sum();
-            let mut prev_tx: u64 = networks.iter().map(|(_, n)| n.total_transmitted()).sum();
+            let mut prev_rx: u64 = networks.values().map(|n| n.total_received()).sum();
+            let mut prev_tx: u64 = networks.values().map(|n| n.total_transmitted()).sum();
 
             let initial = collect_state(&mut system);
             if let Ok(mut guard) = cache.write() {
@@ -98,8 +98,8 @@ pub fn start_watcher() {
             loop {
                 interval.tick().await;
                 networks.refresh();
-                let total_rx: u64 = networks.iter().map(|(_, n)| n.total_received()).sum();
-                let total_tx: u64 = networks.iter().map(|(_, n)| n.total_transmitted()).sum();
+                let total_rx: u64 = networks.values().map(|n| n.total_received()).sum();
+                let total_tx: u64 = networks.values().map(|n| n.total_transmitted()).sum();
                 let net_rx_bytes_per_sec = total_rx.saturating_sub(prev_rx) / 2;
                 let net_tx_bytes_per_sec = total_tx.saturating_sub(prev_tx) / 2;
                 prev_rx = total_rx;
