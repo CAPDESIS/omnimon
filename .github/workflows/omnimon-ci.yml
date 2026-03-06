@@ -124,5 +124,5 @@ jobs:
         tagName: ${{ github.ref_name }}
         releaseName: "OmniMon ${{ github.ref_name }}"
         releaseBody: "Automated multiplatform release for OmniMon ${{ github.ref_name }}"
-        releaseDraft: true
+        releaseDraft: false
         prerelease: false
