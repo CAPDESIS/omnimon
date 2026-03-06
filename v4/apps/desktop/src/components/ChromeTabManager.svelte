@@ -3,6 +3,12 @@
   import { ipcCloseBrowserTab } from "../lib/ipc";
   import { browserTabs, chromeProcesses } from "../stores/processes";
 
+  interface Props {
+    filter?: string;
+  }
+
+  let { filter = "" }: Props = $props();
+
   let expanded = $state(true);
   let closing = $state<Set<string>>(new Set());
   let selectedTabIds = $state<Set<string>>(new Set());
@@ -11,6 +17,7 @@
     name: string;
     color: string;
     tabs: BrowserTab[];
+    totalTabs: number;
   }
 
   const BROWSER_COLORS: Record<string, string> = {
@@ -22,17 +29,30 @@
     Firefox: "#ff7139",
   };
 
-  let sections = $derived.by((): BrowserSection[] => {
-    const map = new Map<string, BrowserTab[]>();
-    for (const tab of $browserTabs) {
-      const arr = map.get(tab.browser);
-      if (arr) arr.push(tab);
-      else map.set(tab.browser, [tab]);
+  function extractDomain(url: string): string {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return url;
     }
-    return [...map.entries()].map(([name, tabs]) => ({
+  }
+
+  let sections = $derived.by((): BrowserSection[] => {
+    const q = filter.trim().toLowerCase();
+    const map = new Map<string, { filtered: BrowserTab[]; total: number }>();
+    for (const tab of $browserTabs) {
+      const entry = map.get(tab.browser) ?? { filtered: [], total: 0 };
+      entry.total++;
+      if (!q || tab.title.toLowerCase().includes(q) || tab.url.toLowerCase().includes(q) || extractDomain(tab.url).toLowerCase().includes(q)) {
+        entry.filtered.push(tab);
+      }
+      map.set(tab.browser, entry);
+    }
+    return [...map.entries()].map(([name, { filtered: tabs, total }]) => ({
       name,
       color: BROWSER_COLORS[name] ?? "var(--fg-dim)",
       tabs,
+      totalTabs: total,
     }));
   });
 
@@ -41,14 +61,6 @@
   );
 
   let selectedCount = $derived(selectedTabIds.size);
-
-  function extractDomain(url: string): string {
-    try {
-      return new URL(url).hostname;
-    } catch {
-      return url;
-    }
-  }
 
   function ramColor(mb: number): string {
     if (mb >= 1024) return "var(--danger)";
@@ -129,111 +141,114 @@
   }
 </script>
 
-{#snippet tabSection(label: string, tabs: BrowserTab[], iconColor: string)}
-  {#if tabs.length > 0}
-    <div class="browser-section">
-      <div
-        class="browser-header"
-        onclick={() => expanded = !expanded}
-        onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); expanded = !expanded; } }}
-        role="button"
-        tabindex="0"
-        aria-expanded={expanded}
-        aria-label="{label} tabs"
-      >
-        <span class="chevron" class:open={expanded} aria-hidden="true">&#9654;</span>
-        <span class="browser-icon" style="color: {iconColor}" aria-hidden="true">&#9679;</span>
-        <span class="browser-title">{label}</span>
-        <span class="browser-meta">
+{#snippet tabSection(label: string, tabs: BrowserTab[], totalTabs: number, iconColor: string)}
+  <div class="browser-section">
+    <div
+      class="browser-header"
+      onclick={() => expanded = !expanded}
+      onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); expanded = !expanded; } }}
+      role="button"
+      tabindex="0"
+      aria-expanded={expanded}
+      aria-label="{label} tabs"
+    >
+      <span class="chevron" class:open={expanded} aria-hidden="true">&#9654;</span>
+      <span class="browser-icon" style="color: {iconColor}" aria-hidden="true">&#9679;</span>
+      <span class="browser-title">{label}</span>
+      <span class="browser-meta">
+        {#if tabs.length < totalTabs}
+          {tabs.length}/{totalTabs} tab{totalTabs !== 1 ? "s" : ""}
+        {:else}
           {tabs.length} tab{tabs.length !== 1 ? "s" : ""}
-          &middot; <span style="color: {ramColor(totalRam)}">{totalRam.toFixed(0)} MB</span>
-        </span>
-        <div class="header-actions">
+        {/if}
+        &middot; <span style="color: {ramColor(totalRam)}">{totalRam.toFixed(0)} MB</span>
+      </span>
+      <div class="header-actions">
+        <button
+          class="btn-header"
+          onclick={(e: MouseEvent) => { e.stopPropagation(); selectAllTabs(tabs); }}
+          title="Select all {label} tabs"
+        >All</button>
+        <button
+          class="btn-header"
+          onclick={(e: MouseEvent) => { e.stopPropagation(); selectNoneTabs(); }}
+          title="Deselect all"
+        >None</button>
+        {#if selectedCount > 0}
           <button
-            class="btn-header"
-            onclick={(e: MouseEvent) => { e.stopPropagation(); selectAllTabs(tabs); }}
-            title="Select all {label} tabs"
-          >All</button>
-          <button
-            class="btn-header"
-            onclick={(e: MouseEvent) => { e.stopPropagation(); selectNoneTabs(); }}
-            title="Deselect all"
-          >None</button>
-          {#if selectedCount > 0}
-            <button
-              class="btn-close-selected"
-              onclick={(e: MouseEvent) => { e.stopPropagation(); closeSelected(); }}
-              title="Close {selectedCount} selected tab(s)"
-            >
-              Close {selectedCount}
-            </button>
-          {/if}
-          <button
-            class="btn-close-all"
-            onclick={(e: MouseEvent) => { e.stopPropagation(); closeAllTabs(tabs); }}
-            title="Close all {label} tabs"
+            class="btn-close-selected"
+            onclick={(e: MouseEvent) => { e.stopPropagation(); closeSelected(); }}
+            title="Close {selectedCount} selected tab(s)"
           >
-            Close All
+            Close {selectedCount}
           </button>
-        </div>
+        {/if}
+        <button
+          class="btn-close-all"
+          onclick={(e: MouseEvent) => { e.stopPropagation(); closeAllTabs(tabs); }}
+          title="Close all {label} tabs"
+        >
+          Close All
+        </button>
       </div>
-
-      {#if expanded}
-        <div class="tab-list">
-          <div class="tab-list-header">
-            <span class="th-check"></span>
-            <span class="th-name">Title</span>
-            <span class="th-domain">Domain</span>
-            <span class="th-url">URL</span>
-            <span class="th-action"></span>
-          </div>
-          {#each tabs as tab (tab.id)}
-            <div
-              class="tab-row"
-              class:closing={closing.has(tab.id)}
-              class:selected={selectedTabIds.has(tab.id)}
-              onclick={() => toggleTab(tab.id)}
-              onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleTab(tab.id); } }}
-              tabindex="0"
-              role="row"
-            >
-              <input
-                type="checkbox"
-                checked={selectedTabIds.has(tab.id)}
-                aria-label="Select {tab.title}"
-                onclick={(e: MouseEvent) => { e.stopPropagation(); toggleTab(tab.id); }}
-              />
-              <span class="tab-title" title={tab.title}>{tab.title || "(Untitled)"}</span>
-              <span class="tab-domain mono" title={extractDomain(tab.url)}>{extractDomain(tab.url)}</span>
-              <span class="tab-url mono" title={tab.url}>{tab.url}</span>
-              <button
-                class="btn-kill"
-                onclick={(e: MouseEvent) => { e.stopPropagation(); closeTab(tab); }}
-                disabled={closing.has(tab.id)}
-                title="Close this tab"
-              >
-                &#10005;
-              </button>
-            </div>
-          {/each}
-        </div>
-      {/if}
     </div>
-  {/if}
+
+    {#if expanded && tabs.length > 0}
+      <div class="tab-list">
+        <div class="tab-list-header">
+          <span class="th-check"></span>
+          <span class="th-name">Title</span>
+          <span class="th-domain">Domain</span>
+          <span class="th-action"></span>
+        </div>
+        {#each tabs as tab (tab.id)}
+          <div
+            class="tab-row"
+            class:closing={closing.has(tab.id)}
+            class:selected={selectedTabIds.has(tab.id)}
+            onclick={() => toggleTab(tab.id)}
+            onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleTab(tab.id); } }}
+            tabindex="0"
+            role="row"
+          >
+            <input
+              type="checkbox"
+              checked={selectedTabIds.has(tab.id)}
+              aria-label="Select {tab.title}"
+              onclick={(e: MouseEvent) => { e.stopPropagation(); toggleTab(tab.id); }}
+            />
+            <span class="tab-title" title={tab.title}>{tab.title || "(Untitled)"}</span>
+            <span class="tab-domain mono" title={tab.url}>{extractDomain(tab.url)}</span>
+            <button
+              class="btn-kill"
+              onclick={(e: MouseEvent) => { e.stopPropagation(); closeTab(tab); }}
+              disabled={closing.has(tab.id)}
+              title="Close this tab"
+            >
+              &#10005;
+            </button>
+          </div>
+        {/each}
+      </div>
+    {:else if expanded && tabs.length === 0}
+      <div class="tab-empty">No matching tabs</div>
+    {/if}
+  </div>
 {/snippet}
 
 {#if sections.length > 0}
   <div class="chrome-manager">
     {#each sections as section (section.name)}
-      {@render tabSection(section.name, section.tabs, section.color)}
+      {@render tabSection(section.name, section.tabs, section.totalTabs, section.color)}
     {/each}
   </div>
 {/if}
 
 <style>
   .chrome-manager {
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
+    overflow-y: auto;
+    min-height: 0;
+    flex: 1;
   }
 
   .browser-section {
@@ -341,7 +356,6 @@
   }
 
   .tab-list {
-    max-height: 240px;
     overflow-y: auto;
   }
 
@@ -365,16 +379,12 @@
     flex-shrink: 0;
   }
   .th-name {
-    flex: 2;
+    flex: 3;
     min-width: 120px;
   }
   .th-domain {
-    flex: 1;
-    min-width: 100px;
-  }
-  .th-url {
     flex: 2;
-    min-width: 120px;
+    min-width: 100px;
   }
   .th-action {
     width: 22px;
@@ -403,7 +413,7 @@
   }
 
   .tab-title {
-    flex: 2;
+    flex: 3;
     min-width: 120px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -411,7 +421,7 @@
   }
 
   .tab-domain {
-    flex: 1;
+    flex: 2;
     min-width: 100px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -419,14 +429,11 @@
     color: var(--fg-dim);
   }
 
-  .tab-url {
-    flex: 2;
-    min-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--fg-dim);
+  .tab-empty {
+    padding: 6px 12px;
     font-size: 10px;
+    color: var(--fg-dim);
+    font-style: italic;
   }
 
   .mono {

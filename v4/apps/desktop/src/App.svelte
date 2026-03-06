@@ -46,6 +46,32 @@
   let searchValue = $state("");
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
+  // Resizable tab panel
+  let tabPanelHeight = $state(160);
+  let dragging = $state(false);
+  let dragStartY = 0;
+  let dragStartHeight = 0;
+
+  function onDividerMousedown(e: MouseEvent) {
+    e.preventDefault();
+    dragging = true;
+    dragStartY = e.clientY;
+    dragStartHeight = tabPanelHeight;
+    window.addEventListener("mousemove", onDividerMousemove);
+    window.addEventListener("mouseup", onDividerMouseup);
+  }
+
+  function onDividerMousemove(e: MouseEvent) {
+    const delta = e.clientY - dragStartY;
+    tabPanelHeight = Math.max(40, Math.min(dragStartHeight + delta, window.innerHeight - 200));
+  }
+
+  function onDividerMouseup() {
+    dragging = false;
+    window.removeEventListener("mousemove", onDividerMousemove);
+    window.removeEventListener("mouseup", onDividerMouseup);
+  }
+
   // AI settings modal state
   let showSettings = $state(false);
   let apiKeyInput = $state("");
@@ -244,7 +270,19 @@
   </header>
 
   <StatusBar />
-  <ChromeTabManager />
+  <div class="tab-panel" style="height: {tabPanelHeight}px">
+    <ChromeTabManager filter={searchValue} />
+  </div>
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div
+    class="resize-divider"
+    class:active={dragging}
+    onmousedown={onDividerMousedown}
+    role="separator"
+    aria-orientation="horizontal"
+    aria-label="Resize tab panel"
+    tabindex="-1"
+  ></div>
 
   {#if $loading}
     <div class="loading" role="status" aria-busy="true">Loading...</div>
@@ -498,6 +536,25 @@
   }
   .btn-kill:hover:not(:disabled) {
     background: #b71c1c;
+  }
+
+  .tab-panel {
+    flex-shrink: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .resize-divider {
+    flex-shrink: 0;
+    height: 4px;
+    background: var(--border);
+    cursor: ns-resize;
+    position: relative;
+  }
+  .resize-divider:hover,
+  .resize-divider.active {
+    background: var(--accent);
   }
 
   .loading {

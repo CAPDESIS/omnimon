@@ -296,4 +296,56 @@ describe("ChromeTabManager", () => {
     await fireEvent.click(row);
     expect(checkbox).not.toBeChecked();
   });
+
+  it("filters tabs by title when filter prop is set", () => {
+    browserTabs.set([
+      makeTab({ id: "t1", title: "YouTube Music", url: "https://music.youtube.com", browser: "Chrome" }),
+      makeTab({ id: "t2", title: "GitHub", url: "https://github.com", browser: "Chrome" }),
+    ]);
+    processes.set([makeProc()]);
+
+    render(ChromeTabManager, { props: { filter: "youtube" } });
+
+    expect(screen.getByText("YouTube Music")).toBeInTheDocument();
+    expect(screen.queryByText("GitHub")).not.toBeInTheDocument();
+    // Shows filtered count
+    expect(screen.getByText(/1\/2/)).toBeInTheDocument();
+  });
+
+  it("filters tabs by domain when filter prop is set", () => {
+    browserTabs.set([
+      makeTab({ id: "t1", title: "Home", url: "https://github.com/repo", browser: "Chrome" }),
+      makeTab({ id: "t2", title: "Search", url: "https://google.com/search", browser: "Chrome" }),
+    ]);
+    processes.set([makeProc()]);
+
+    render(ChromeTabManager, { props: { filter: "github" } });
+
+    expect(screen.getByText("Home")).toBeInTheDocument();
+    expect(screen.queryByText("Search")).not.toBeInTheDocument();
+  });
+
+  it("shows 'No matching tabs' when filter excludes all tabs", () => {
+    browserTabs.set([
+      makeTab({ id: "t1", title: "Tab A", url: "https://example.com", browser: "Chrome" }),
+    ]);
+    processes.set([makeProc()]);
+
+    render(ChromeTabManager, { props: { filter: "nonexistent" } });
+
+    expect(screen.getByText("No matching tabs")).toBeInTheDocument();
+  });
+
+  it("shows all tabs when filter is empty", () => {
+    browserTabs.set([
+      makeTab({ id: "t1", title: "Tab A", browser: "Chrome" }),
+      makeTab({ id: "t2", title: "Tab B", browser: "Chrome" }),
+    ]);
+    processes.set([makeProc()]);
+
+    render(ChromeTabManager, { props: { filter: "" } });
+
+    expect(screen.getByText("Tab A")).toBeInTheDocument();
+    expect(screen.getByText("Tab B")).toBeInTheDocument();
+  });
 });
