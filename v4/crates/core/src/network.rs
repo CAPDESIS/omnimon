@@ -582,8 +582,11 @@ mod linux_ebpf {
             let mut process_traffic = HashMap::new();
             let mut recent_connections = Vec::new();
 
+            // Collect TCP traffic data first, then do destination lookups
+            // (avoids double mutable borrow of bpf)
+            let mut tcp_deltas: Vec<(u32, u64)> = Vec::new();
             if let Some(map) = bpf.map_mut("PROCESS_NET_TCP_BYTES") {
-                if let Ok(mut tcp_map) = BpfHashMap::<_, u32, u64>::try_from(map) {
+                if let Ok(tcp_map) = BpfHashMap::<_, u32, u64>::try_from(map) {
                     for pid in tcp_map.keys().flatten() {
                         if let Ok(current) = tcp_map.get(&pid, 0) {
                             let prev = self.prev_tcp.insert(pid, current).unwrap_or(0);
@@ -593,26 +596,30 @@ mod linux_ebpf {
                                 .or_insert_with(ProcessTrafficAcc::default);
                             entry.tx_bytes = entry.tx_bytes.saturating_add(delta);
                             entry.tcp_packets = entry.tcp_packets.saturating_add(1);
-
-                            if let Some((dst_ip, dst_port)) = tcp_destination_for_pid(bpf, pid) {
-                                recent_connections.push(ProcessConnectionEvent {
-                                    pid,
-                                    protocol: TransportProtocol::Tcp,
-                                    direction: TrafficDirection::Outbound,
-                                    src_ip: "0.0.0.0".to_string(),
-                                    dst_ip,
-                                    src_port: 0,
-                                    dst_port,
-                                    bytes: delta,
-                                });
-                            }
+                            tcp_deltas.push((pid, delta));
                         }
                     }
                 }
             }
+            for (pid, delta) in tcp_deltas {
+                if let Some((dst_ip, dst_port)) = tcp_destination_for_pid(bpf, pid) {
+                    recent_connections.push(ProcessConnectionEvent {
+                        pid,
+                        protocol: TransportProtocol::Tcp,
+                        direction: TrafficDirection::Outbound,
+                        src_ip: "0.0.0.0".to_string(),
+                        dst_ip,
+                        src_port: 0,
+                        dst_port,
+                        bytes: delta,
+                    });
+                }
+            }
 
+            // Collect UDP traffic data first, then do destination lookups
+            let mut udp_deltas: Vec<(u32, u64)> = Vec::new();
             if let Some(map) = bpf.map_mut("PROCESS_NET_UDP_BYTES") {
-                if let Ok(mut udp_map) = BpfHashMap::<_, u32, u64>::try_from(map) {
+                if let Ok(udp_map) = BpfHashMap::<_, u32, u64>::try_from(map) {
                     for pid in udp_map.keys().flatten() {
                         if let Ok(current) = udp_map.get(&pid, 0) {
                             let prev = self.prev_udp.insert(pid, current).unwrap_or(0);
@@ -622,21 +629,23 @@ mod linux_ebpf {
                                 .or_insert_with(ProcessTrafficAcc::default);
                             entry.tx_bytes = entry.tx_bytes.saturating_add(delta);
                             entry.udp_packets = entry.udp_packets.saturating_add(1);
-
-                            if let Some((dst_ip, dst_port)) = udp_destination_for_pid(bpf, pid) {
-                                recent_connections.push(ProcessConnectionEvent {
-                                    pid,
-                                    protocol: TransportProtocol::Udp,
-                                    direction: TrafficDirection::Outbound,
-                                    src_ip: "0.0.0.0".to_string(),
-                                    dst_ip,
-                                    src_port: 0,
-                                    dst_port,
-                                    bytes: delta,
-                                });
-                            }
+                            udp_deltas.push((pid, delta));
                         }
                     }
+                }
+            }
+            for (pid, delta) in udp_deltas {
+                if let Some((dst_ip, dst_port)) = udp_destination_for_pid(bpf, pid) {
+                    recent_connections.push(ProcessConnectionEvent {
+                        pid,
+                        protocol: TransportProtocol::Udp,
+                        direction: TrafficDirection::Outbound,
+                        src_ip: "0.0.0.0".to_string(),
+                        dst_ip,
+                        src_port: 0,
+                        dst_port,
+                        bytes: delta,
+                    });
                 }
             }
 
@@ -671,13 +680,17 @@ mod linux_ebpf {
         ip_map_name: &str,
         port_map_name: &str,
     ) -> Option<(String, u16)> {
-        let ip_map = bpf.map_mut(ip_map_name)?;
-        let port_map = bpf.map_mut(port_map_name)?;
-
-        let mut ip_map = BpfHashMap::<_, u32, u32>::try_from(ip_map).ok()?;
-        let mut port_map = BpfHashMap::<_, u32, u16>::try_from(port_map).ok()?;
-        let ip = ip_map.get(&pid, 0).ok()?;
-        let port = port_map.get(&pid, 0).ok()?;
+        // Look up IP first, drop the borrow, then look up port
+        let ip = {
+            let map = bpf.map_mut(ip_map_name)?;
+            let ip_map = BpfHashMap::<_, u32, u32>::try_from(map).ok()?;
+            ip_map.get(&pid, 0).ok()?
+        };
+        let port = {
+            let map = bpf.map_mut(port_map_name)?;
+            let port_map = BpfHashMap::<_, u32, u16>::try_from(map).ok()?;
+            port_map.get(&pid, 0).ok()?
+        };
         Some((Ipv4Addr::from(ip).to_string(), port))
     }
 }
