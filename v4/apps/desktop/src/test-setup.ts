@@ -33,7 +33,9 @@ vi.mock("svelte-i18n", () => {
     locale,
     dictionary,
     _: translate,
+    $_: translate,
     t: (key: string, params?: Record<string, string | number>) => get(translate)(key, params),
+    $t: (key: string, params?: Record<string, string | number>) => get(translate)(key, params),
     init: vi.fn(),
     addMessages: vi.fn((lang: string, msgs: Record<string, unknown>) => {
       dictionary.update((d) => ({ ...d, [lang]: msgs }));

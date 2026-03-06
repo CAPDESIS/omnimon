@@ -33,6 +33,13 @@ describe("i18n", () => {
     expect(get(locale)).toBe("es");
   });
 
+  it("changes locale store directly", () => {
+    locale.set("es");
+    expect(get(locale)).toBe("es");
+    locale.set("en");
+    expect(get(locale)).toBe("en");
+  });
+
   it("resolves auto locale from navigator", () => {
     const langSpy = vi.spyOn(window.navigator, "language", "get").mockReturnValue("es-ES");
 
