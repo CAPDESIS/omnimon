@@ -2,17 +2,27 @@ import { get } from "svelte/store";
 import {
   fontSize,
   columns,
+  columnOrder,
   aiProviderConfig,
+  idleThreshold,
+  theme,
+  tabPanelHeight,
   loadPreferences,
   savePreferences,
   initPreferenceSubscriptions,
   increaseFontSize,
   decreaseFontSize,
+  moveColumnUp,
+  moveColumnDown,
   DEFAULT_COLUMNS,
   DEFAULT_AI_CONFIG,
+  DEFAULT_IDLE_THRESHOLD,
+  MIN_IDLE_THRESHOLD,
+  MAX_IDLE_THRESHOLD,
   MIN_FONT_SIZE,
   MAX_FONT_SIZE,
 } from "../preferences";
+import { load } from "@tauri-apps/plugin-store";
 
 // Mock the tauri store
 const mockStore = {
@@ -20,6 +30,8 @@ const mockStore = {
   set: vi.fn(),
   save: vi.fn(),
 };
+
+const mockLoad = vi.mocked(load);
 
 vi.mock("@tauri-apps/plugin-store", () => ({
   load: vi.fn(() => Promise.resolve(mockStore)),
@@ -34,6 +46,10 @@ beforeEach(() => {
   fontSize.set(12);
   columns.set({ ...DEFAULT_COLUMNS });
   aiProviderConfig.set({ ...DEFAULT_AI_CONFIG });
+  columnOrder.set(["name", "detail", "group", "ram", "cpu", "uptime", "pid", "state"]);
+  idleThreshold.set(DEFAULT_IDLE_THRESHOLD);
+  theme.set("auto");
+  tabPanelHeight.set(160);
 });
 
 describe("loadPreferences", () => {
@@ -106,6 +122,65 @@ describe("loadPreferences", () => {
     expect(get(columns)).toEqual(DEFAULT_COLUMNS);
     expect(get(aiProviderConfig)).toEqual(DEFAULT_AI_CONFIG);
   });
+
+  it("loads and sanitizes columnOrder, appending missing keys", async () => {
+    mockStore.get.mockImplementation((key: string) => {
+      if (key === "columnOrder") return ["cpu", "name", "invalid-key"];
+      return undefined;
+    });
+
+    await loadPreferences();
+
+    const order = get(columnOrder);
+    expect(order[0]).toBe("cpu");
+    expect(order[1]).toBe("name");
+    expect(order).toContain("pid");
+    expect(order).toContain("state");
+    expect(order).not.toContain("invalid-key" as never);
+  });
+
+  it("loads idle threshold, theme, and tab panel height when valid", async () => {
+    mockStore.get.mockImplementation((key: string) => {
+      if (key === "idleThreshold") return 2.5;
+      if (key === "theme") return "dark";
+      if (key === "tabPanelHeight") return 240;
+      return undefined;
+    });
+
+    await loadPreferences();
+
+    expect(get(idleThreshold)).toBe(2.5);
+    expect(get(theme)).toBe("dark");
+    expect(get(tabPanelHeight)).toBe(240);
+  });
+
+  it("ignores out-of-range and invalid preference values", async () => {
+    mockStore.get.mockImplementation((key: string) => {
+      if (key === "idleThreshold") return MAX_IDLE_THRESHOLD + 1;
+      if (key === "theme") return "neon";
+      if (key === "tabPanelHeight") return 5;
+      if (key === "aiProviderConfig") return { provider: 42, model: null };
+      return undefined;
+    });
+
+    await loadPreferences();
+
+    expect(get(idleThreshold)).toBe(DEFAULT_IDLE_THRESHOLD);
+    expect(get(theme)).toBe("auto");
+    expect(get(tabPanelHeight)).toBe(160);
+    expect(get(aiProviderConfig)).toEqual(DEFAULT_AI_CONFIG);
+  });
+
+  it("handles plugin-store unavailability gracefully", async () => {
+    mockLoad.mockRejectedValueOnce(new Error("plugin not available"));
+    await expect(loadPreferences()).resolves.toBeUndefined();
+  });
+
+  it("falls back to defaults when store read throws", async () => {
+    mockStore.get.mockRejectedValue(new Error("read failed"));
+    await expect(loadPreferences()).resolves.toBeUndefined();
+    expect(get(fontSize)).toBe(12);
+  });
 });
 
 describe("savePreferences", () => {
@@ -123,6 +198,16 @@ describe("savePreferences", () => {
       expect.objectContaining({ provider: "anthropic" }),
     );
     expect(mockStore.save).toHaveBeenCalled();
+  });
+
+  it("no-ops when plugin-store is unavailable", async () => {
+    mockLoad.mockRejectedValueOnce(new Error("plugin missing"));
+    await expect(savePreferences()).resolves.toBeUndefined();
+  });
+
+  it("swallows persistence failures", async () => {
+    mockStore.set.mockRejectedValueOnce(new Error("disk full"));
+    await expect(savePreferences()).resolves.toBeUndefined();
   });
 });
 
@@ -177,5 +262,60 @@ describe("font size helpers", () => {
     fontSize.set(MIN_FONT_SIZE);
     decreaseFontSize();
     expect(get(fontSize)).toBe(MIN_FONT_SIZE);
+  });
+});
+
+describe("column ordering helpers", () => {
+  it("moveColumnUp reorders a non-first column", () => {
+    columnOrder.set(["name", "detail", "group", "ram", "cpu", "uptime", "pid", "state"]);
+    moveColumnUp("group");
+    expect(get(columnOrder).slice(0, 4)).toEqual(["name", "group", "detail", "ram"]);
+  });
+
+  it("moveColumnUp no-ops when column is first", () => {
+    const before = get(columnOrder);
+    moveColumnUp("name");
+    expect(get(columnOrder)).toEqual(before);
+  });
+
+  it("moveColumnDown reorders a non-last column", () => {
+    columnOrder.set(["name", "detail", "group", "ram", "cpu", "uptime", "pid", "state"]);
+    moveColumnDown("detail");
+    expect(get(columnOrder).slice(0, 4)).toEqual(["name", "group", "detail", "ram"]);
+  });
+
+  it("moveColumnDown no-ops for missing or last column", () => {
+    const before = get(columnOrder);
+    moveColumnDown("state");
+    expect(get(columnOrder)).toEqual(before);
+
+    moveColumnDown("missing" as never);
+    expect(get(columnOrder)).toEqual(before);
+  });
+});
+
+describe("idle threshold bounds", () => {
+  it("keeps valid minimum idle threshold", async () => {
+    mockStore.get.mockImplementation((key: string) => {
+      if (key === "idleThreshold") return MIN_IDLE_THRESHOLD;
+      return undefined;
+    });
+    await loadPreferences();
+    expect(get(idleThreshold)).toBe(MIN_IDLE_THRESHOLD);
+  });
+});
+
+describe("module fallback paths", () => {
+  it("returns early from load/save when plugin-store cannot load", async () => {
+    vi.resetModules();
+    vi.doMock("@tauri-apps/plugin-store", () => ({
+      load: vi.fn(async () => {
+        throw new Error("plugin unavailable");
+      }),
+    }));
+
+    const prefs = await import("../preferences");
+    await expect(prefs.loadPreferences()).resolves.toBeUndefined();
+    await expect(prefs.savePreferences()).resolves.toBeUndefined();
   });
 });

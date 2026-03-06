@@ -86,6 +86,28 @@ describe("ChromeTabManager", () => {
     expect(screen.queryByText("Safari")).not.toBeInTheDocument();
   });
 
+  it("detects Brave, Edge and Arc process RAM totals", () => {
+    browserTabs.set([
+      makeTab({ id: "b1", title: "Brave", browser: "Brave", url: "https://brave.com" }),
+      makeTab({ id: "e1", title: "Edge", browser: "Edge", url: "https://microsoft.com" }),
+      makeTab({ id: "a1", title: "Arc", browser: "Arc", url: "https://arc.net" }),
+    ]);
+    processes.set([
+      makeProc({ name: "Brave Worker", exec_name: "Brave Browser Helper", group: "Browser", ram_mb: 333 }),
+      makeProc({ name: "Edge Worker", exec_name: "Microsoft Edge Helper", group: "Browser", ram_mb: 444 }),
+      makeProc({ name: "Arc Worker", exec_name: "Arc Helper", group: "Browser", ram_mb: 555 }),
+    ]);
+
+    render(ChromeTabManager);
+
+    expect(screen.getAllByText("Brave").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Edge").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Arc").length).toBeGreaterThan(0);
+    expect(screen.getByText("333 MB")).toBeInTheDocument();
+    expect(screen.getByText("444 MB")).toBeInTheDocument();
+    expect(screen.getByText("555 MB")).toBeInTheDocument();
+  });
+
   it("closes a single tab and survives AppleScript permission errors", async () => {
     browserTabs.set([makeTab({ id: "chrome-2", url: "https://docs.example.com", browser: "Chrome" })]);
     mockInvoke.mockRejectedValueOnce(new Error("AppleScript permission denied"));
@@ -235,6 +257,32 @@ describe("ChromeTabManager", () => {
     expect(screen.getByText("My Tab")).toBeInTheDocument();
   });
 
+  it("ignores unrelated keyboard key on tab row", async () => {
+    browserTabs.set([makeTab({ id: "chrome-1", title: "My Tab", browser: "Chrome" })]);
+    render(ChromeTabManager);
+
+    const row = screen.getByRole("row");
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).not.toBeChecked();
+
+    await fireEvent.keyDown(row, { key: "A" });
+    expect(checkbox).not.toBeChecked();
+  });
+
+  it("supports Enter and Space keys on tab rows", async () => {
+    browserTabs.set([makeTab({ id: "k1", title: "Key Tab", browser: "Chrome" })]);
+    render(ChromeTabManager);
+
+    const row = screen.getByRole("row");
+    const checkbox = screen.getByRole("checkbox");
+
+    await fireEvent.keyDown(row, { key: "Enter" });
+    expect(checkbox).toBeChecked();
+
+    await fireEvent.keyDown(row, { key: " " });
+    expect(checkbox).not.toBeChecked();
+  });
+
   it("renders nothing when there are no tabs", () => {
     browserTabs.set([]);
     const { container } = render(ChromeTabManager);
@@ -337,6 +385,73 @@ describe("ChromeTabManager", () => {
     render(ChromeTabManager, { props: { filter: "nonexistent" } });
 
     expect(screen.getByText("No matching tabs")).toBeInTheDocument();
+  });
+
+  it("focuses tab and handles focus errors", async () => {
+    browserTabs.set([makeTab({ id: "f1", title: "Focus Me", browser: "Chrome", url: "https://focus.com" })]);
+    render(ChromeTabManager);
+
+    mockInvoke.mockResolvedValueOnce(true);
+    await fireEvent.click(screen.getByText("Focus Me"));
+    expect(mockInvoke).toHaveBeenCalledWith("focus_browser_tab", {
+      tabId: "f1",
+      tabUrl: "https://focus.com",
+      browser: "Chrome",
+    });
+
+    mockInvoke.mockRejectedValueOnce(new Error("focus denied"));
+    await fireEvent.click(screen.getByText("Focus Me"));
+    expect(screen.getByText("Focus Me")).toBeInTheDocument();
+  });
+
+  it("does not close tab when confirmation is canceled", async () => {
+    browserTabs.set([makeTab({ id: "c1", title: "Cancelable", browser: "Chrome" })]);
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(ChromeTabManager);
+    await fireEvent.click(screen.getByTitle("Close this tab"));
+
+    expect(mockInvoke).not.toHaveBeenCalledWith("close_browser_tab", expect.anything());
+    expect(screen.getByText("Cancelable")).toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
+
+  it("returns early when Close All gets empty filtered tabs", async () => {
+    browserTabs.set([makeTab({ id: "x1", title: "Alpha", browser: "Chrome", url: "https://alpha.com" })]);
+    render(ChromeTabManager, { props: { filter: "zzz" } });
+
+    await fireEvent.click(screen.getByTitle("Close all Chrome tabs"));
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
+  it("does not close selected when selected ids no longer exist", async () => {
+    browserTabs.set([
+      makeTab({ id: "s1", title: "One", browser: "Chrome", url: "https://one.com" }),
+      makeTab({ id: "s2", title: "Two", browser: "Chrome", url: "https://two.com" }),
+    ]);
+    render(ChromeTabManager);
+
+    await fireEvent.click(screen.getByTitle("Select all Chrome tabs"));
+    browserTabs.set([makeTab({ id: "new", title: "New", browser: "Chrome", url: "https://new.com" })]);
+    await fireEvent.click(screen.getByTitle("Close 2 selected tab(s)"));
+
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
+  it("respects canceled confirmation for Close Selected and Close All", async () => {
+    browserTabs.set([
+      makeTab({ id: "k1", title: "One", browser: "Chrome", url: "https://one.com" }),
+      makeTab({ id: "k2", title: "Two", browser: "Chrome", url: "https://two.com" }),
+    ]);
+    render(ChromeTabManager);
+    await fireEvent.click(screen.getByTitle("Select all Chrome tabs"));
+
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    await fireEvent.click(screen.getByTitle("Close 2 selected tab(s)"));
+    await fireEvent.click(screen.getByTitle("Close all Chrome tabs"));
+
+    expect(mockInvoke).not.toHaveBeenCalledWith("close_browser_tab", expect.anything());
+    confirmSpy.mockRestore();
   });
 
   it("shows all tabs when filter is empty", () => {

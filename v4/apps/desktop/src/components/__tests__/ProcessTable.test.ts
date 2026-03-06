@@ -120,6 +120,30 @@ describe("rendering", () => {
     expect(screen.getByText("Safari")).toBeInTheDocument();
   });
 
+  it("detects Brave, Edge, and Arc helpers", () => {
+    browserTabs.set([
+      { id: "b1", title: "Brave", url: "https://brave.com", browser: "Brave" },
+      { id: "e1", title: "Edge", url: "https://microsoft.com", browser: "Edge" },
+      { id: "a1", title: "Arc", url: "https://arc.net", browser: "Arc" },
+    ]);
+
+    const { rerender } = render(ProcessTable, {
+      props: {
+        processes: [makeProc({ pid: 31, name: "Brave", exec_name: "Brave Browser Helper", group: "Browser" })],
+      },
+    });
+    expect(screen.getByText("1 Brave tab open")).toBeInTheDocument();
+    expect(screen.getAllByText("Brave").length).toBeGreaterThan(0);
+
+    rerender({ processes: [makeProc({ pid: 32, name: "Edge", exec_name: "Microsoft Edge Helper", group: "Browser" })] });
+    expect(screen.getByText("1 Edge tab open")).toBeInTheDocument();
+    expect(screen.getAllByText("Edge").length).toBeGreaterThan(0);
+
+    rerender({ processes: [makeProc({ pid: 33, name: "Arc", exec_name: "Arc Helper", group: "Browser" })] });
+    expect(screen.getByText("1 Arc tab open")).toBeInTheDocument();
+    expect(screen.getAllByText("Arc").length).toBeGreaterThan(0);
+  });
+
   it("uses exec_name for non-tab details", () => {
     render(ProcessTable, {
       props: {

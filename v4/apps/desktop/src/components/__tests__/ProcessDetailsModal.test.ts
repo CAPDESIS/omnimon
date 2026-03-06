@@ -132,6 +132,28 @@ describe("rendering", () => {
     expect(screen.getByText("Safari Tab")).toBeInTheDocument();
   });
 
+  it("detects Brave, Edge, and Arc helpers", () => {
+    browserTabs.set([
+      { id: "b1", title: "Brave Tab", url: "https://brave.com", browser: "Brave" },
+      { id: "e1", title: "Edge Tab", url: "https://microsoft.com", browser: "Edge" },
+      { id: "a1", title: "Arc Tab", url: "https://arc.net", browser: "Arc" },
+    ]);
+
+    const view = render(ProcessDetailsModal, {
+      props: {
+        process: makeProc({ name: "Brave Worker", exec_name: "Brave Browser Helper", group: "Browser" }),
+        onclose: vi.fn(),
+      },
+    });
+    expect(screen.getByText("Brave Tab")).toBeInTheDocument();
+
+    view.rerender({ process: makeProc({ name: "Edge Worker", exec_name: "Microsoft Edge Helper", group: "Browser" }), onclose: vi.fn() });
+    expect(screen.getByText("Edge Tab")).toBeInTheDocument();
+
+    view.rerender({ process: makeProc({ name: "Arc Worker", exec_name: "Arc Helper", group: "Browser" }), onclose: vi.fn() });
+    expect(screen.getByText("Arc Tab")).toBeInTheDocument();
+  });
+
   it("does not show browser tabs for non-Browser group", () => {
     browserTabs.set([
       { id: "tab-1", title: "GitHub", url: "https://github.com", browser: "Chrome" },
@@ -316,6 +338,17 @@ describe("focus trap", () => {
     await fireEvent.keyDown(backdrop, { key: "Tab" });
     expect(document.activeElement).toBe(first);
   });
+
+  it("wraps Tab from last focusable back to first", async () => {
+    render(ProcessDetailsModal, { props: { process: makeProc(), onclose: vi.fn() } });
+    const backdrop = screen.getByRole("presentation");
+    const closeBtn = screen.getByLabelText("Close");
+    const askAiBtn = screen.getByText("Ask AI");
+
+    askAiBtn.focus();
+    await fireEvent.keyDown(backdrop, { key: "Tab" });
+    expect(document.activeElement).toBe(closeBtn);
+  });
 });
 
 describe("tab management", () => {
@@ -384,6 +417,22 @@ describe("tab management", () => {
     });
   });
 
+  it("toggles a single tab checkbox and clears with None button", async () => {
+    browserTabs.set([
+      { id: "tab-1", title: "Tab A", url: "https://a.com", browser: "Chrome" },
+      { id: "tab-2", title: "Tab B", url: "https://b.com", browser: "Chrome" },
+    ]);
+
+    render(ProcessDetailsModal, { props: { process: browserProc, onclose: vi.fn() } });
+
+    const tabCheckbox = screen.getByRole("checkbox", { name: "Select Tab A" });
+    await fireEvent.click(tabCheckbox);
+    expect(tabCheckbox).toBeChecked();
+
+    await fireEvent.click(screen.getByTitle("Deselect all"));
+    expect(tabCheckbox).not.toBeChecked();
+  });
+
   it("focuses a tab in the browser when clicking title", async () => {
     browserTabs.set([
       { id: "tab-1", title: "GitHub", url: "https://github.com", browser: "Chrome" },
@@ -416,6 +465,46 @@ describe("tab management", () => {
     expect(screen.getByText("YouTube Music")).toBeInTheDocument();
     expect(screen.queryByText("GitHub")).not.toBeInTheDocument();
   });
+
+  it("shows empty tab list when filter excludes all tabs", async () => {
+    browserTabs.set([
+      { id: "tab-1", title: "One", url: "https://one.com", browser: "Chrome" },
+    ]);
+
+    render(ProcessDetailsModal, { props: { process: browserProc, onclose: vi.fn() } });
+
+    const filterInput = screen.getByPlaceholderText("Filter tabs...");
+    await fireEvent.input(filterInput, { target: { value: "zzz" } });
+    expect(screen.getByText("No matching tabs")).toBeInTheDocument();
+  });
+
+  it("continues closing selected tabs when one close fails", async () => {
+    browserTabs.set([
+      { id: "tab-1", title: "One", url: "https://one.com", browser: "Chrome" },
+      { id: "tab-2", title: "Two", url: "https://two.com", browser: "Chrome" },
+    ]);
+    mockInvoke.mockRejectedValueOnce(new Error("permission denied"));
+    mockInvoke.mockResolvedValueOnce(true);
+
+    render(ProcessDetailsModal, { props: { process: browserProc, onclose: vi.fn() } });
+    await fireEvent.click(screen.getByTitle("Select all tabs"));
+    await fireEvent.click(screen.getByTitle("Close 2 selected tab(s)"));
+
+    await waitFor(() => {
+      expect(mockInvoke.mock.calls.filter((c) => c[0] === "close_browser_tab")).toHaveLength(2);
+    });
+  });
+
+  it("handles focus and close tab errors without crashing", async () => {
+    browserTabs.set([{ id: "tab-1", title: "Fail Tab", url: "https://fail.com", browser: "Chrome" }]);
+    mockInvoke.mockRejectedValue(new Error("denied"));
+
+    render(ProcessDetailsModal, { props: { process: browserProc, onclose: vi.fn() } });
+    await fireEvent.click(screen.getByText("Fail Tab"));
+    await fireEvent.click(screen.getByTitle("Close this tab"));
+
+    expect(screen.getByText("Fail Tab")).toBeInTheDocument();
+  });
 });
 
 describe("AI analysis", () => {
@@ -443,6 +532,30 @@ describe("AI analysis", () => {
     });
   });
 
+  it("includes browser tab context lines for AI analysis", async () => {
+    browserTabs.set([{ id: "tab-1", title: "", url: "https://example.com/path", browser: "Chrome" }]);
+    mockInvoke.mockResolvedValueOnce("ok");
+
+    render(ProcessDetailsModal, {
+      props: {
+        process: makeProc({ name: "Chrome Helper", exec_name: "Google Chrome Helper", group: "Browser" }),
+        onclose: vi.fn(),
+      },
+    });
+    await fireEvent.click(screen.getByText("Ask AI"));
+
+    await waitFor(() => {
+      const call = mockInvoke.mock.calls.find((c) => c[0] === "analyze_context");
+      expect(call?.[1]).toEqual(
+        expect.objectContaining({
+          context: expect.stringContaining("Open tabs (1):"),
+        }),
+      );
+      expect((call?.[1] as { context: string }).context).toContain("(Untitled)");
+      expect((call?.[1] as { context: string }).context).toContain("example.com");
+    });
+  });
+
   it("displays AI response text", async () => {
     mockInvoke.mockResolvedValueOnce("This process is safe to close.");
 
@@ -462,6 +575,17 @@ describe("AI analysis", () => {
 
     await waitFor(() => {
       expect(screen.getByText("API key missing")).toBeInTheDocument();
+    });
+  });
+
+  it("stringifies unknown AI errors", async () => {
+    mockInvoke.mockRejectedValueOnce("401 Unauthorized");
+
+    render(ProcessDetailsModal, { props: { process: makeProc(), onclose: vi.fn() } });
+    await fireEvent.click(screen.getByText("Ask AI"));
+
+    await waitFor(() => {
+      expect(screen.getByText("401 Unauthorized")).toBeInTheDocument();
     });
   });
 });

@@ -6,6 +6,7 @@ import {
   ipcGetBrowserTabs,
   ipcCloseBrowserTab,
   ipcSaveAiConfig,
+  ipcValidateApiKey,
   ipcAnalyzeProcesses,
   IPCValidationError,
 } from "../ipc";
@@ -34,6 +35,8 @@ function validStats(overrides: Record<string, unknown> = {}) {
     ram_used_pct: 55.3,
     swap_used_mb: 128,
     total_processes: 300,
+    net_rx_bytes_per_sec: 1024,
+    net_tx_bytes_per_sec: 512,
     ...overrides,
   };
 }
@@ -241,6 +244,29 @@ describe("ipcSaveAiConfig", () => {
   it("propagates tauri transport failures", async () => {
     mockInvoke.mockRejectedValue(new Error("tauri invoke timeout"));
     await expect(ipcSaveAiConfig("openai", "gpt-4o-mini", "sk-test")).rejects.toThrow("tauri invoke timeout");
+  });
+});
+
+describe("ipcValidateApiKey", () => {
+  it("returns true on simulated 200 OK", async () => {
+    mockInvoke.mockResolvedValue(true);
+    await expect(ipcValidateApiKey("openai", "sk-fake")).resolves.toBe(true);
+    expect(mockInvoke).toHaveBeenCalledWith("validate_api_key", { provider: "openai", key: "sk-fake" });
+  });
+
+  it("returns false on simulated invalid key", async () => {
+    mockInvoke.mockResolvedValue(false);
+    await expect(ipcValidateApiKey("openrouter", "bad-key")).resolves.toBe(false);
+  });
+
+  it("rejects non-boolean validation payload", async () => {
+    mockInvoke.mockResolvedValue({ ok: true });
+    await expect(ipcValidateApiKey("openai", "sk-fake")).rejects.toThrow(IPCValidationError);
+  });
+
+  it("propagates simulated 401 Unauthorized from Tauri", async () => {
+    mockInvoke.mockRejectedValue(new Error("401 Unauthorized"));
+    await expect(ipcValidateApiKey("openai", "sk-fake")).rejects.toThrow("401 Unauthorized");
   });
 });
 
