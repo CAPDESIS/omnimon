@@ -14,6 +14,12 @@ This suite launches the real Tauri desktop binary and drives it through `@crabne
 npm run test:e2e
 ```
 
+On macOS without `CN_API_KEY`, the runner skips by default. To enforce failure when prerequisites are missing:
+
+```bash
+E2E_STRICT=1 npm run test:e2e
+```
+
 macOS example:
 
 ```bash
