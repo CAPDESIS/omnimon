@@ -196,6 +196,12 @@ export async function ipcSaveAiConfig(provider: string, model: string, key: stri
   await invoke("save_ai_config", { provider, model, key });
 }
 
+export async function ipcCheckApiKey(provider: string): Promise<boolean> {
+  const result: unknown = await invoke("check_api_key", { provider });
+  assertBoolean("check_api_key result", result);
+  return result;
+}
+
 export async function ipcValidateApiKey(provider: string, key: string): Promise<boolean> {
   const result: unknown = await invoke("validate_api_key", { provider, key });
   assertBoolean("validate_api_key result", result);

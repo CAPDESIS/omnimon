@@ -50,7 +50,7 @@
     MAX_IDLE_THRESHOLD,
   } from "./stores/preferences";
   import type { ThemeMode } from "./stores/preferences";
-  import { ipcValidateApiKey, ipcAnalyzeContext } from "./lib/ipc";
+  import { ipcValidateApiKey, ipcCheckApiKey, ipcAnalyzeContext } from "./lib/ipc";
   import { t, locale, initI18n } from "./lib/i18n";
   import type { LocaleCode } from "./lib/i18n";
 
@@ -151,6 +151,12 @@
         return;
       }
       await saveAiConfigAction($aiProviderConfig.provider, $aiProviderConfig.model, trimmed);
+      // Verify the key was actually persisted to the OS keyring
+      const stored = await ipcCheckApiKey($aiProviderConfig.provider);
+      if (!stored) {
+        settingsError = "API key could not be saved to the system keyring.";
+        return;
+      }
       settingsSaved = true;
       apiKeyInput = "";
     } catch (e) {

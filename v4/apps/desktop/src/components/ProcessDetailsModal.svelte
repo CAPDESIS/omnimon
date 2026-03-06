@@ -158,7 +158,12 @@
       const config = $aiProviderConfig;
       aiResponse = await ipcAnalyzeContext(context, config.provider, config.model);
     } catch (e) {
-      aiError = e instanceof Error ? e.message : String(e);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("No matching entry") || msg.includes("not found in secure storage") || msg.includes("keyring")) {
+        aiError = t("processes.noApiKey");
+      } else {
+        aiError = msg;
+      }
     } finally {
       aiAnalyzing = false;
     }

@@ -290,6 +290,16 @@ fn save_ai_config(provider: String, _model: String, key: String) -> Result<(), S
     macmon_core::ai::save_api_key(ai_provider, &trimmed_key).map_err(|e| e.to_string())
 }
 
+/// IPC: Check whether an API key exists in the OS keyring for the given provider.
+#[tauri::command]
+fn check_api_key(provider: String) -> Result<bool, String> {
+    let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
+    match macmon_core::ai::get_api_key(ai_provider) {
+        Ok(_) => Ok(true),
+        Err(_) => Ok(false),
+    }
+}
+
 /// IPC: Validate AI API key by making a test request
 #[tauri::command]
 async fn validate_api_key(provider: String, key: String) -> Result<bool, String> {
@@ -386,6 +396,7 @@ pub fn run() {
             kill_process,
             kill_processes,
             save_ai_config,
+            check_api_key,
             validate_api_key,
             analyze_processes,
             analyze_context,
