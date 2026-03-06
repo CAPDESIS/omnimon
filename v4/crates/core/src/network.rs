@@ -865,6 +865,7 @@ mod windows_collector {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 struct ParsedTransport {
     protocol: TransportProtocol,
@@ -875,6 +876,7 @@ struct ParsedTransport {
     total_len: u64,
 }
 
+#[allow(dead_code)]
 fn parse_ipv4_transport(frame: &[u8]) -> Option<ParsedTransport> {
     if frame.len() < 34 {
         return None;
@@ -891,6 +893,7 @@ fn parse_ipv4_transport_no_eth(frame: &[u8]) -> Option<ParsedTransport> {
     parse_ipv4_transport_inner(frame, 0)
 }
 
+#[allow(dead_code)]
 fn parse_ipv4_transport_inner(frame: &[u8], ip_offset: usize) -> Option<ParsedTransport> {
     if frame.len() < ip_offset + 20 {
         return None;
