@@ -236,6 +236,33 @@ describe("ChromeTabManager", () => {
     });
   });
 
+  it("confirms and closes exactly 3 selected tabs", async () => {
+    browserTabs.set([
+      makeTab({ id: "c1", title: "Tab 1", browser: "Chrome", url: "https://1.com" }),
+      makeTab({ id: "c2", title: "Tab 2", browser: "Chrome", url: "https://2.com" }),
+      makeTab({ id: "c3", title: "Tab 3", browser: "Chrome", url: "https://3.com" }),
+    ]);
+    processes.set([makeProc()]);
+    mockInvoke.mockResolvedValue(true);
+
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    confirmSpy.mockClear();
+
+    render(ChromeTabManager);
+
+    await fireEvent.click(screen.getByTitle("Select all Chrome tabs"));
+    await fireEvent.click(screen.getByTitle("Close 3 selected tab(s)"));
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("3"));
+    await waitFor(() => {
+      const calls = mockInvoke.mock.calls.filter((call) => call[0] === "close_browser_tab");
+      expect(calls).toHaveLength(3);
+    });
+
+    confirmSpy.mockRestore();
+  });
+
   it("toggles section collapse via header click", async () => {
     browserTabs.set([makeTab({ id: "chrome-1", title: "My Tab", browser: "Chrome" })]);
     processes.set([makeProc()]);

@@ -2,6 +2,7 @@ use keyring::Entry;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
+use std::future::Future;
 use std::time::Duration;
 
 const MAX_RETRIES: u32 = 3;
@@ -64,6 +65,43 @@ pub fn save_api_key(provider: AiProvider, key: &str) -> Result<(), Box<dyn Error
     let entry = Entry::new(provider.keyring_service(), "ai_api_key")?;
     entry.set_password(key)?;
     Ok(())
+}
+
+fn normalize_api_key(key: &str) -> Result<String, Box<dyn Error + Send + Sync>> {
+    let trimmed = key.trim();
+    if trimmed.is_empty() {
+        return Err("API key cannot be empty".into());
+    }
+    Ok(trimmed.to_string())
+}
+
+async fn save_api_key_validated_impl<V, VFut, S>(
+    key: &str,
+    validate: V,
+    save: S,
+) -> Result<(), Box<dyn Error + Send + Sync>>
+where
+    V: FnOnce(String) -> VFut,
+    VFut: Future<Output = Result<(), Box<dyn Error + Send + Sync>>>,
+    S: FnOnce(String) -> Result<(), Box<dyn Error + Send + Sync>>,
+{
+    let normalized = normalize_api_key(key)?;
+    validate(normalized.clone()).await?;
+    save(normalized)?;
+    Ok(())
+}
+
+pub async fn save_api_key_with_ping(
+    provider: AiProvider,
+    model: &str,
+    key: &str,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    save_api_key_validated_impl(
+        key,
+        |normalized| async move { validate_api_key(provider, model, &normalized).await },
+        |normalized| save_api_key(provider, &normalized),
+    )
+    .await
 }
 
 pub fn get_api_key(provider: AiProvider) -> Result<String, Box<dyn Error + Send + Sync>> {
@@ -330,6 +368,7 @@ fn parse_suggestions(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
     use std::str::FromStr;
 
     #[test]
@@ -466,5 +505,122 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status().as_u16(), 401);
+    }
+
+    #[tokio::test]
+    async fn save_api_key_with_ping_trims_key_before_validation_and_save() {
+        let seen_validate = Arc::new(Mutex::new(String::new()));
+        let seen_save = Arc::new(Mutex::new(String::new()));
+
+        let seen_validate_closure = Arc::clone(&seen_validate);
+        let seen_save_closure = Arc::clone(&seen_save);
+
+        let result = save_api_key_validated_impl(
+            "  sk-api-key  ",
+            move |normalized| {
+                let seen_validate_inner = Arc::clone(&seen_validate_closure);
+                async move {
+                    *seen_validate_inner.lock().unwrap() = normalized;
+                    Ok(())
+                }
+            },
+            move |normalized| {
+                *seen_save_closure.lock().unwrap() = normalized;
+                Ok(())
+            },
+        )
+        .await;
+
+        assert!(result.is_ok());
+        assert_eq!(&*seen_validate.lock().unwrap(), "sk-api-key");
+        assert_eq!(&*seen_save.lock().unwrap(), "sk-api-key");
+    }
+
+    #[tokio::test]
+    async fn save_api_key_with_ping_does_not_save_when_ping_fails() {
+        let mut server = mockito::Server::new_async().await;
+        let _m = server
+            .mock("POST", "/ping")
+            .match_header("authorization", "Bearer sk-invalid")
+            .with_status(401)
+            .with_body("unauthorized")
+            .create_async()
+            .await;
+
+        let saved = Arc::new(Mutex::new(false));
+        let saved_closure = Arc::clone(&saved);
+        let url = format!("{}/ping", server.url());
+
+        let result = save_api_key_validated_impl(
+            "  sk-invalid  ",
+            move |_normalized| {
+                let url_inner = url.clone();
+                async move {
+                    let client = Client::new();
+                    let resp = client
+                        .post(url_inner)
+                        .header("Authorization", "Bearer sk-invalid")
+                        .send()
+                        .await?;
+                    if resp.status().is_success() {
+                        Ok(())
+                    } else {
+                        Err("Invalid API key — authentication failed".into())
+                    }
+                }
+            },
+            move |_normalized| {
+                *saved_closure.lock().unwrap() = true;
+                Ok(())
+            },
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(*saved.lock().unwrap(), false);
+    }
+
+    #[tokio::test]
+    async fn save_api_key_with_ping_saves_when_ping_succeeds() {
+        let mut server = mockito::Server::new_async().await;
+        let _m = server
+            .mock("POST", "/ping")
+            .match_header("authorization", "Bearer sk-valid")
+            .with_status(200)
+            .with_body("ok")
+            .create_async()
+            .await;
+
+        let saved_value = Arc::new(Mutex::new(String::new()));
+        let saved_value_closure = Arc::clone(&saved_value);
+        let url = format!("{}/ping", server.url());
+
+        let result = save_api_key_validated_impl(
+            "  sk-valid  ",
+            move |_normalized| {
+                let url_inner = url.clone();
+                async move {
+                    let client = Client::new();
+                    let resp = client
+                        .post(url_inner)
+                        .header("Authorization", "Bearer sk-valid")
+                        .send()
+                        .await?;
+                    if resp.status().is_success() {
+                        Ok(())
+                    } else {
+                        Err("Invalid API key — authentication failed".into())
+                    }
+                }
+            },
+            move |normalized| {
+                *saved_value_closure.lock().unwrap() = normalized;
+                Ok(())
+            },
+        )
+        .await;
+
+        assert!(result.is_ok());
+        assert_eq!(&*saved_value.lock().unwrap(), "sk-valid");
     }
 }
