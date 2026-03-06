@@ -210,6 +210,66 @@ async fn analyze_anthropic(
     parse_suggestions(content)
 }
 
+/// Free-form AI analysis: send context, get back plain text insight.
+pub async fn analyze_context(
+    provider: AiProvider,
+    model: &str,
+    context: &str,
+) -> Result<String, Box<dyn Error + Send + Sync>> {
+    let api_key = get_api_key(provider)?;
+    let client = build_client()?;
+
+    let system_msg = "You are macmon, a macOS system monitor assistant. Analyze the given process and browser tab information. Provide concise, actionable insights: what the process does, whether it's safe to close, memory impact, and any recommendations. Use short paragraphs. Be direct.";
+
+    if provider == AiProvider::Anthropic {
+        let body = serde_json::json!({
+            "model": model,
+            "max_tokens": 2048,
+            "system": system_msg,
+            "messages": [{ "role": "user", "content": context }]
+        });
+        let resp = send_with_retry(|| {
+            client
+                .post(AiProvider::Anthropic.api_url())
+                .header("x-api-key", &api_key)
+                .header("anthropic-version", "2023-06-01")
+                .header("content-type", "application/json")
+                .json(&body)
+        }).await?;
+        if resp.status().is_client_error() {
+            return Err(format!("API Error: {}", resp.text().await?).into());
+        }
+        let resp_json: serde_json::Value = resp.json().await?;
+        return resp_json["content"][0]["text"]
+            .as_str()
+            .map(|s| s.to_string())
+            .ok_or_else(|| "Invalid Anthropic response format".into());
+    }
+
+    // OpenAI-compatible
+    let body = serde_json::json!({
+        "model": model,
+        "messages": [
+            { "role": "system", "content": system_msg },
+            { "role": "user", "content": context }
+        ]
+    });
+    let resp = send_with_retry(|| {
+        client
+            .post(provider.api_url())
+            .header("Authorization", format!("Bearer {}", api_key))
+            .json(&body)
+    }).await?;
+    if resp.status().is_client_error() {
+        return Err(format!("API Error: {}", resp.text().await?).into());
+    }
+    let resp_json: serde_json::Value = resp.json().await?;
+    resp_json["choices"][0]["message"]["content"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Invalid response format".into())
+}
+
 fn parse_suggestions(content: &str) -> Result<Vec<ProcessSuggestion>, Box<dyn Error + Send + Sync>> {
     let content_clean = content
         .trim()

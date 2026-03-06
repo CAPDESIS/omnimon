@@ -1,7 +1,10 @@
-import { render, screen, fireEvent } from "@testing-library/svelte";
+import { render, screen, fireEvent, waitFor } from "@testing-library/svelte";
+import { invoke } from "@tauri-apps/api/core";
 import ProcessDetailsModal from "../ProcessDetailsModal.svelte";
 import type { ProcessEntry } from "../../lib/types";
 import { _resetForTest, browserTabs } from "../../stores/processes";
+
+const mockInvoke = vi.mocked(invoke);
 
 function makeProc(overrides: Partial<ProcessEntry> = {}): ProcessEntry {
   return {
@@ -21,6 +24,7 @@ function makeProc(overrides: Partial<ProcessEntry> = {}): ProcessEntry {
 
 beforeEach(() => {
   _resetForTest();
+  mockInvoke.mockReset();
 });
 
 describe("rendering", () => {
@@ -252,11 +256,13 @@ describe("focus trap", () => {
     const onclose = vi.fn();
     render(ProcessDetailsModal, { props: { process: makeProc(), onclose } });
     const closeBtn = screen.getByLabelText("Close");
+    const askAiBtn = screen.getByText("Ask AI");
 
     closeBtn.focus();
     const backdrop = screen.getByRole("presentation");
     await fireEvent.keyDown(backdrop, { key: "Tab", shiftKey: true });
-    expect(document.activeElement).toBe(closeBtn);
+    // Last focusable is now the "Ask AI" button
+    expect(document.activeElement).toBe(askAiBtn);
   });
 
   it("returns early when no focusable elements exist", async () => {
@@ -281,5 +287,153 @@ describe("focus trap", () => {
 
     await fireEvent.keyDown(backdrop, { key: "Tab" });
     expect(document.activeElement).toBe(first);
+  });
+});
+
+describe("tab management", () => {
+  const browserProc = makeProc({
+    name: "Google Chrome Helper (Renderer)",
+    exec_name: "Google Chrome Helper (Renderer)",
+    group: "Browser",
+  });
+
+  it("shows close buttons on browser tabs", () => {
+    browserTabs.set([
+      { id: "tab-1", title: "GitHub", url: "https://github.com", browser: "Chrome" },
+    ]);
+    render(ProcessDetailsModal, { props: { process: browserProc, onclose: vi.fn() } });
+
+    expect(screen.getByTitle("Close this tab")).toBeInTheDocument();
+  });
+
+  it("closes a tab via the X button", async () => {
+    browserTabs.set([
+      { id: "tab-1", title: "GitHub", url: "https://github.com", browser: "Chrome" },
+      { id: "tab-2", title: "Google", url: "https://google.com", browser: "Chrome" },
+    ]);
+    mockInvoke.mockResolvedValueOnce(true);
+
+    render(ProcessDetailsModal, { props: { process: browserProc, onclose: vi.fn() } });
+
+    const closeButtons = screen.getAllByTitle("Close this tab");
+    await fireEvent.click(closeButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.queryByText("GitHub")).not.toBeInTheDocument();
+      expect(screen.getByText("Google")).toBeInTheDocument();
+    });
+  });
+
+  it("shows select all / none buttons for browser tabs", () => {
+    browserTabs.set([
+      { id: "tab-1", title: "Tab A", url: "https://a.com", browser: "Chrome" },
+    ]);
+    render(ProcessDetailsModal, { props: { process: browserProc, onclose: vi.fn() } });
+
+    expect(screen.getByTitle("Select all tabs")).toBeInTheDocument();
+    expect(screen.getByTitle("Deselect all")).toBeInTheDocument();
+  });
+
+  it("selects and closes multiple tabs", async () => {
+    browserTabs.set([
+      { id: "tab-1", title: "Tab A", url: "https://a.com", browser: "Chrome" },
+      { id: "tab-2", title: "Tab B", url: "https://b.com", browser: "Chrome" },
+    ]);
+    mockInvoke.mockResolvedValue(true);
+
+    render(ProcessDetailsModal, { props: { process: browserProc, onclose: vi.fn() } });
+
+    // Select all
+    await fireEvent.click(screen.getByTitle("Select all tabs"));
+
+    // "Close 2" button should appear
+    const closeSelectedBtn = screen.getByTitle("Close 2 selected tab(s)");
+    await fireEvent.click(closeSelectedBtn);
+
+    await waitFor(() => {
+      const calls = mockInvoke.mock.calls.filter((call) => call[0] === "close_browser_tab");
+      expect(calls).toHaveLength(2);
+    });
+  });
+
+  it("focuses a tab in the browser when clicking title", async () => {
+    browserTabs.set([
+      { id: "tab-1", title: "GitHub", url: "https://github.com", browser: "Chrome" },
+    ]);
+    mockInvoke.mockResolvedValueOnce(true);
+
+    render(ProcessDetailsModal, { props: { process: browserProc, onclose: vi.fn() } });
+
+    const titleBtn = screen.getByText("GitHub");
+    await fireEvent.click(titleBtn);
+
+    expect(mockInvoke).toHaveBeenCalledWith("focus_browser_tab", {
+      tabId: "tab-1",
+      tabUrl: "https://github.com",
+      browser: "Chrome",
+    });
+  });
+
+  it("filters tabs by search text", async () => {
+    browserTabs.set([
+      { id: "tab-1", title: "YouTube Music", url: "https://music.youtube.com", browser: "Chrome" },
+      { id: "tab-2", title: "GitHub", url: "https://github.com", browser: "Chrome" },
+    ]);
+
+    render(ProcessDetailsModal, { props: { process: browserProc, onclose: vi.fn() } });
+
+    const filterInput = screen.getByPlaceholderText("Filter tabs...");
+    await fireEvent.input(filterInput, { target: { value: "youtube" } });
+
+    expect(screen.getByText("YouTube Music")).toBeInTheDocument();
+    expect(screen.queryByText("GitHub")).not.toBeInTheDocument();
+  });
+});
+
+describe("AI analysis", () => {
+  it("shows Ask AI button", () => {
+    render(ProcessDetailsModal, { props: { process: makeProc(), onclose: vi.fn() } });
+    expect(screen.getByText("Ask AI")).toBeInTheDocument();
+  });
+
+  it("shows AI hint text", () => {
+    render(ProcessDetailsModal, { props: { process: makeProc(), onclose: vi.fn() } });
+    expect(screen.getByText(/Click "Ask AI" to get insights/)).toBeInTheDocument();
+  });
+
+  it("calls analyze_context on AI button click", async () => {
+    mockInvoke.mockResolvedValueOnce("This process uses moderate memory.");
+
+    render(ProcessDetailsModal, { props: { process: makeProc(), onclose: vi.fn() } });
+
+    await fireEvent.click(screen.getByText("Ask AI"));
+
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith("analyze_context", expect.objectContaining({
+        context: expect.stringContaining("TestApp"),
+      }));
+    });
+  });
+
+  it("displays AI response text", async () => {
+    mockInvoke.mockResolvedValueOnce("This process is safe to close.");
+
+    render(ProcessDetailsModal, { props: { process: makeProc(), onclose: vi.fn() } });
+    await fireEvent.click(screen.getByText("Ask AI"));
+
+    await waitFor(() => {
+      expect(screen.getByText("This process is safe to close.")).toBeInTheDocument();
+    });
+  });
+
+  it("displays AI error message", async () => {
+    mockInvoke.mockRejectedValueOnce(new Error("API key missing"));
+
+    render(ProcessDetailsModal, { props: { process: makeProc(), onclose: vi.fn() } });
+    await fireEvent.click(screen.getByText("Ask AI"));
+
+    await waitFor(() => {
+      expect(screen.getByText("API key missing")).toBeInTheDocument();
+    });
   });
 });

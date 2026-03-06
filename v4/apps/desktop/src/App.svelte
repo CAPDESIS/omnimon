@@ -34,11 +34,14 @@
   import {
     fontSize,
     columns,
+    columnOrder,
     aiProviderConfig,
     loadPreferences,
     initPreferenceSubscriptions,
     increaseFontSize,
     decreaseFontSize,
+    moveColumnUp,
+    moveColumnDown,
   } from "./stores/preferences";
 
   let detailProcess: ProcessEntry | null = $state(null);
@@ -291,6 +294,7 @@
       processes={$filtered}
       grouping={$grouping}
       columns={$columns}
+      columnOrder={$columnOrder}
       oninspect={inspectProcess}
     />
   {/if}
@@ -391,17 +395,33 @@
         {/if}
 
         <div class="settings-divider"></div>
-        <div class="settings-section-label">Visible Columns</div>
-        <div class="settings-columns">
-          {#each Object.entries($columns) as [key, visible]}
-            <label class="col-toggle">
+        <div class="settings-section-label">Columns (drag to reorder)</div>
+        <div class="settings-columns-list">
+          {#each $columnOrder as key, i (key)}
+            <div class="col-order-row">
               <input
                 type="checkbox"
-                checked={visible}
+                checked={$columns[key]}
                 onchange={() => columns.update((c) => ({ ...c, [key]: !c[key as keyof typeof c] }))}
               />
-              <span>{key.charAt(0).toUpperCase() + key.slice(1)}</span>
-            </label>
+              <span class="col-order-name">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
+              <div class="col-order-btns">
+                <button
+                  class="col-move-btn"
+                  disabled={i === 0}
+                  onclick={() => moveColumnUp(key)}
+                  title="Move up"
+                  aria-label="Move {key} column up"
+                >&#9650;</button>
+                <button
+                  class="col-move-btn"
+                  disabled={i === $columnOrder.length - 1}
+                  onclick={() => moveColumnDown(key)}
+                  title="Move down"
+                  aria-label="Move {key} column down"
+                >&#9660;</button>
+              </div>
+            </div>
           {/each}
         </div>
       </div>
@@ -827,24 +847,53 @@
     margin-bottom: 4px;
   }
 
-  .settings-columns {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 3px 12px;
+  .settings-columns-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
-  .col-toggle {
+  .col-order-row {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    padding: 2px 0;
     font-size: 11px;
-    cursor: pointer;
   }
-  .col-toggle input {
+  .col-order-row input[type="checkbox"] {
     margin: 0;
     width: 12px;
     height: 12px;
     cursor: pointer;
+  }
+  .col-order-name {
+    flex: 1;
+  }
+  .col-order-btns {
+    display: flex;
+    gap: 2px;
+  }
+  .col-move-btn {
+    width: 18px;
+    height: 16px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    background: transparent;
+    color: var(--fg-dim);
+    font-size: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .col-move-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--fg);
+  }
+  .col-move-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
   }
 
   .settings-footer {

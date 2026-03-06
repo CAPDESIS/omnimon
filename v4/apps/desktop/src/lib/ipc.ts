@@ -159,6 +159,18 @@ export async function ipcCloseBrowserTab(tabId: string, tabUrl: string, browser:
   return result;
 }
 
+export async function ipcFocusBrowserTab(tabId: string, tabUrl: string, browser: string): Promise<boolean> {
+  const result: unknown = await invoke("focus_browser_tab", { tabId, tabUrl, browser });
+  assertBoolean("focus_browser_tab result", result);
+  return result;
+}
+
+export async function ipcAnalyzeContext(context: string, provider: string, model: string): Promise<string> {
+  const result: unknown = await invoke("analyze_context", { context, provider, model });
+  assertString("analyze_context result", result);
+  return result;
+}
+
 function validateProcessSuggestion(raw: unknown, index: number): ProcessSuggestion {
   if (raw == null || typeof raw !== "object") {
     throw new IPCValidationError(`suggestions[${index}]`, raw, `Expected object at index ${index}`);

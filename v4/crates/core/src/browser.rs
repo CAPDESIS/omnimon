@@ -128,6 +128,7 @@ pub struct BrowserTab {
 pub trait TabProvider {
     fn list_tabs(&self, browser: BrowserKind) -> Result<Vec<BrowserTab>, String>;
     fn close_tab(&self, browser: BrowserKind, tab: &BrowserTab) -> Result<bool, String>;
+    fn focus_tab(&self, browser: BrowserKind, tab: &BrowserTab) -> Result<bool, String>;
 }
 
 #[derive(Debug, Deserialize)]
@@ -351,6 +352,66 @@ end run
         Ok(out.trim() == "closed")
     }
 
+    /// Generic Chromium focus tab (activate window + switch to tab).
+    fn focus_chromium_tab(&self, browser: BrowserKind, tab: &BrowserTab) -> Result<bool, String> {
+        sanitize_tab_id(&tab.id)?;
+        sanitize_tab_url(&tab.url)?;
+        let app_name = browser.applescript_app_name()
+            .ok_or_else(|| format!("{} does not support AppleScript", browser.display_name()))?;
+        let script = format!(
+            r#"
+on run argv
+    set targetID to item 1 of argv
+    set targetURL to item 2 of argv
+    tell application "{app}"
+        repeat with w in windows
+            set tabIdx to 0
+            repeat with t in tabs of w
+                set tabIdx to tabIdx + 1
+                if ((id of t as text) is targetID) or ((URL of t as text) is targetURL) then
+                    set active tab index of w to tabIdx
+                    set index of w to 1
+                    activate
+                    return "focused"
+                end if
+            end repeat
+        end repeat
+    end tell
+    return "not_found"
+end run
+"#,
+            app = app_name
+        );
+        let out = Self::run_osascript(&script, &[&tab.id, &tab.url])?;
+        Ok(out.trim() == "focused")
+    }
+
+    fn focus_safari_tab(&self, tab: &BrowserTab) -> Result<bool, String> {
+        sanitize_tab_id(&tab.id)?;
+        sanitize_tab_url(&tab.url)?;
+        let script = r#"
+on run argv
+    set targetID to item 1 of argv
+    set targetURL to item 2 of argv
+    tell application "Safari"
+        repeat with w in windows
+            repeat with t in tabs of w
+                if ((id of t as text) is targetID) or ((URL of t as text) is targetURL) then
+                    set current tab of w to t
+                    set index of w to 1
+                    activate
+                    return "focused"
+                end if
+            end repeat
+        end repeat
+    end tell
+    return "not_found"
+end run
+"#;
+        let out = Self::run_osascript(script, &[&tab.id, &tab.url])?;
+        Ok(out.trim() == "focused")
+    }
+
     fn close_safari_tab(&self, tab: &BrowserTab) -> Result<bool, String> {
         sanitize_tab_id(&tab.id)?;
         sanitize_tab_url(&tab.url)?;
@@ -397,6 +458,16 @@ impl TabProvider for NativeTabProvider {
             BrowserKind::Firefox => Ok(false),
         }
     }
+
+    fn focus_tab(&self, browser: BrowserKind, tab: &BrowserTab) -> Result<bool, String> {
+        match browser {
+            BrowserKind::Safari => self.focus_safari_tab(tab),
+            BrowserKind::Chrome | BrowserKind::Brave | BrowserKind::Edge | BrowserKind::Arc => {
+                self.focus_chromium_tab(browser, tab)
+            }
+            BrowserKind::Firefox => Ok(false),
+        }
+    }
 }
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
@@ -422,6 +493,39 @@ impl TabProvider for NativeTabProvider {
         } else {
             Ok(false)
         }
+    }
+
+    fn focus_tab(&self, browser: BrowserKind, tab: &BrowserTab) -> Result<bool, String> {
+        if browser.supports_cdp() {
+            let port = browser.cdp_port();
+            let base = format!("http://localhost:{}", port);
+            cdp_activate_tab(&base, &tab.id)
+        } else {
+            Ok(false)
+        }
+    }
+}
+
+/// Activate a tab via CDP WebSocket (send Page.bringToFront).
+pub fn cdp_activate_tab(base_url: &str, tab_id: &str) -> Result<bool, String> {
+    if tab_id.trim().is_empty() {
+        return Ok(false);
+    }
+    if tab_id.contains('/') || tab_id.contains('\\') || tab_id.contains('?') || tab_id.contains('#') {
+        return Err("Invalid tab ID".to_string());
+    }
+    let runtime = build_runtime()?;
+    let result = runtime.block_on(async {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()?;
+        let endpoint = format!("{}/json/activate/{}", base_url, tab_id);
+        let response = client.get(endpoint).send().await?;
+        Ok::<bool, reqwest::Error>(response.status().is_success())
+    });
+    match result {
+        Ok(ok) => Ok(ok),
+        Err(_) => Ok(false),
     }
 }
 

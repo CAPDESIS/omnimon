@@ -212,6 +212,26 @@ fn close_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result
     provider.close_tab(kind, &tab)
 }
 
+/// IPC: Focus (navigate to) a browser tab via AppleScript/CDP.
+#[tauri::command]
+fn focus_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result<bool, String> {
+    if tab_id.len() > 512 {
+        return Err("tab_id exceeds maximum length of 512".to_string());
+    }
+    if tab_url.len() > 4096 {
+        return Err("tab_url exceeds maximum length of 4096".to_string());
+    }
+    let kind = BrowserKind::from_str(&browser)?;
+    let provider = NativeTabProvider;
+    let tab = BrowserTab {
+        id: tab_id,
+        title: String::new(),
+        url: tab_url,
+        browser: kind,
+    };
+    provider.focus_tab(kind, &tab)
+}
+
 /// IPC: Kill a single process by PID using the real OS-native killer.
 #[tauri::command]
 fn kill_process(pid: u32) -> Result<bool, String> {
@@ -276,6 +296,19 @@ async fn analyze_processes(
     Ok(suggestions)
 }
 
+/// IPC: Free-form AI analysis of a process context (returns plain text).
+#[tauri::command]
+async fn analyze_context(
+    context: String,
+    provider: String,
+    model: String,
+) -> Result<String, String> {
+    let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
+    macmon_core::ai::analyze_context(ai_provider, &model, &context)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -312,8 +345,10 @@ pub fn run() {
             kill_processes,
             save_ai_config,
             analyze_processes,
+            analyze_context,
             get_browser_tabs,
             close_browser_tab,
+            focus_browser_tab,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

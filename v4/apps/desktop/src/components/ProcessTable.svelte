@@ -1,20 +1,25 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { ProcessEntry } from "../lib/types";
-  import type { ColumnConfig } from "../stores/preferences";
+  import type { ColumnConfig, ColumnKey } from "../stores/preferences";
+  import { COLUMN_KEYS } from "../stores/preferences";
   import { toggleSelect, selectedPids, focusedPid, browserTabs } from "../stores/processes";
 
   interface Props {
     processes: ProcessEntry[];
     grouping?: boolean;
     columns?: ColumnConfig;
+    columnOrder?: ColumnKey[];
     oninspect?: (proc: ProcessEntry) => void;
   }
 
-  let { processes, grouping = false, columns, oninspect }: Props = $props();
+  let { processes, grouping = false, columns, columnOrder, oninspect }: Props = $props();
 
   let cols = $derived(columns ?? { name: true, detail: true, group: true, ram: true, cpu: true, uptime: true, pid: true, state: true });
-  let visibleColCount = $derived(Object.values(cols).filter(Boolean).length);
+  let orderedVisibleCols = $derived(
+    (columnOrder ?? COLUMN_KEYS).filter((k) => cols[k]),
+  );
+  let visibleColCount = $derived(orderedVisibleCols.length);
 
   const ROW_HEIGHT = 20;
   const BUFFER = 10;
@@ -206,6 +211,33 @@
   }
 </script>
 
+{#snippet colCell(key: ColumnKey, proc: ProcessEntry)}
+  {#if key === "name"}
+    <td class="col-name" title={proc.exec_name}>
+      <span class="name-text">{proc.name}</span>
+      {#if proc.idle}<span class="badge idle">idle</span>{/if}
+    </td>
+  {:else if key === "detail"}
+    <td class="col-detail" title={getDetail(proc)}>
+      <span class="detail-text">{getDetail(proc)}</span>
+    </td>
+  {:else if key === "group"}
+    <td class="col-group" title={getGroup(proc)}>
+      <span class="group-text">{getGroup(proc)}</span>
+    </td>
+  {:else if key === "ram"}
+    <td class="col-ram mono" style="color: {ramColor(proc.ram_mb)}">{proc.ram_mb.toFixed(1)}</td>
+  {:else if key === "cpu"}
+    <td class="col-cpu mono" style="color: {cpuColor(proc.cpu_pct)}">{proc.cpu_pct.toFixed(1)}</td>
+  {:else if key === "uptime"}
+    <td class="col-uptime mono">{proc.uptime || "\u2014"}</td>
+  {:else if key === "pid"}
+    <td class="col-pid mono">{proc.pid}</td>
+  {:else if key === "state"}
+    <td class="col-state mono">{proc.state}</td>
+  {/if}
+{/snippet}
+
 {#snippet processRow(proc: ProcessEntry)}
   <tr
     class:selected={$selectedPids.has(proc.pid)}
@@ -223,25 +255,9 @@
         onclick={(e: MouseEvent) => { e.stopPropagation(); toggleSelect(proc.pid); }}
       />
     </td>
-    {#if cols.name}<td class="col-name" title={proc.exec_name}>
-      <span class="name-text">{proc.name}</span>
-      {#if proc.idle}<span class="badge idle">idle</span>{/if}
-    </td>{/if}
-    {#if cols.detail}<td class="col-detail" title={getDetail(proc)}>
-      <span class="detail-text">{getDetail(proc)}</span>
-    </td>{/if}
-    {#if cols.group}<td class="col-group" title={getGroup(proc)}>
-      <span class="group-text">{getGroup(proc)}</span>
-    </td>{/if}
-    {#if cols.ram}<td class="col-ram mono" style="color: {ramColor(proc.ram_mb)}">
-      {proc.ram_mb.toFixed(1)}
-    </td>{/if}
-    {#if cols.cpu}<td class="col-cpu mono" style="color: {cpuColor(proc.cpu_pct)}">
-      {proc.cpu_pct.toFixed(1)}
-    </td>{/if}
-    {#if cols.uptime}<td class="col-uptime mono">{proc.uptime || "\u2014"}</td>{/if}
-    {#if cols.pid}<td class="col-pid mono">{proc.pid}</td>{/if}
-    {#if cols.state}<td class="col-state mono">{proc.state}</td>{/if}
+    {#each orderedVisibleCols as key (key)}
+      {@render colCell(key, proc)}
+    {/each}
   </tr>
 {/snippet}
 
@@ -271,28 +287,39 @@
     <thead>
       <tr>
         <th class="col-check" scope="col"><span class="sr-only">Select</span></th>
-        {#if cols.name}<th class="col-name sortable" scope="col" aria-sort={sortKey === "name" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by name" onclick={() => setSort("name")}>
-          Name<span aria-hidden="true">{arrow("name")}</span>
-        </th>{/if}
-        {#if cols.detail}<th class="col-detail" scope="col">Detail</th>{/if}
-        {#if cols.group}<th class="col-group sortable" scope="col" aria-sort={sortKey === "group" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("group")}>
-          Group<span aria-hidden="true">{arrow("group")}</span>
-        </th>{/if}
-        {#if cols.ram}<th class="col-ram sortable" scope="col" aria-sort={sortKey === "ram_mb" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by RAM" onclick={() => setSort("ram_mb")}>
-          RAM<span aria-hidden="true">{arrow("ram_mb")}</span>
-        </th>{/if}
-        {#if cols.cpu}<th class="col-cpu sortable" scope="col" aria-sort={sortKey === "cpu_pct" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by CPU" onclick={() => setSort("cpu_pct")}>
-          CPU<span aria-hidden="true">{arrow("cpu_pct")}</span>
-        </th>{/if}
-        {#if cols.uptime}<th class="col-uptime sortable" scope="col" aria-sort={sortKey === "uptime" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("uptime")}>
-          Time<span aria-hidden="true">{arrow("uptime")}</span>
-        </th>{/if}
-        {#if cols.pid}<th class="col-pid sortable" scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by PID" onclick={() => setSort("pid")}>
-          PID<span aria-hidden="true">{arrow("pid")}</span>
-        </th>{/if}
-        {#if cols.state}<th class="col-state sortable" scope="col" aria-sort={sortKey === "state" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("state")}>
-          ST<span aria-hidden="true">{arrow("state")}</span>
-        </th>{/if}
+        {#each orderedVisibleCols as key (key)}
+          {#if key === "name"}
+            <th class="col-name sortable" scope="col" aria-sort={sortKey === "name" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by name" onclick={() => setSort("name")}>
+              Name<span aria-hidden="true">{arrow("name")}</span>
+            </th>
+          {:else if key === "detail"}
+            <th class="col-detail" scope="col">Detail</th>
+          {:else if key === "group"}
+            <th class="col-group sortable" scope="col" aria-sort={sortKey === "group" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("group")}>
+              Group<span aria-hidden="true">{arrow("group")}</span>
+            </th>
+          {:else if key === "ram"}
+            <th class="col-ram sortable" scope="col" aria-sort={sortKey === "ram_mb" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by RAM" onclick={() => setSort("ram_mb")}>
+              RAM<span aria-hidden="true">{arrow("ram_mb")}</span>
+            </th>
+          {:else if key === "cpu"}
+            <th class="col-cpu sortable" scope="col" aria-sort={sortKey === "cpu_pct" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by CPU" onclick={() => setSort("cpu_pct")}>
+              CPU<span aria-hidden="true">{arrow("cpu_pct")}</span>
+            </th>
+          {:else if key === "uptime"}
+            <th class="col-uptime sortable" scope="col" aria-sort={sortKey === "uptime" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("uptime")}>
+              Time<span aria-hidden="true">{arrow("uptime")}</span>
+            </th>
+          {:else if key === "pid"}
+            <th class="col-pid sortable" scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label="Sort by PID" onclick={() => setSort("pid")}>
+              PID<span aria-hidden="true">{arrow("pid")}</span>
+            </th>
+          {:else if key === "state"}
+            <th class="col-state sortable" scope="col" aria-sort={sortKey === "state" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("state")}>
+              ST<span aria-hidden="true">{arrow("state")}</span>
+            </th>
+          {/if}
+        {/each}
       </tr>
     </thead>
     <tbody>

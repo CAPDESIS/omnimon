@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { ProcessEntry } from "../lib/types";
+  import type { ProcessEntry, BrowserTab } from "../lib/types";
+  import { ipcCloseBrowserTab, ipcFocusBrowserTab, ipcAnalyzeContext } from "../lib/ipc";
   import { browserTabs } from "../stores/processes";
+  import { aiProviderConfig } from "../stores/preferences";
 
   interface Props {
     process: ProcessEntry;
@@ -10,6 +12,16 @@
 
   let { process, onclose }: Props = $props();
   let modalEl: HTMLDivElement | undefined = $state();
+
+  // Tab management state
+  let selectedTabIds = $state<Set<string>>(new Set());
+  let closingTabs = $state<Set<string>>(new Set());
+  let tabFilter = $state("");
+
+  // AI analysis state
+  let aiResponse = $state("");
+  let aiAnalyzing = $state(false);
+  let aiError = $state<string | null>(null);
 
   let detectedBrowser = $derived.by((): string | null => {
     if (process.group !== "Browser") return null;
@@ -21,9 +33,22 @@
     return null;
   });
 
-  let browserTabsForProcess = $derived(
+  let allBrowserTabs = $derived(
     detectedBrowser ? $browserTabs.filter((t) => t.browser === detectedBrowser) : [],
   );
+
+  let filteredTabs = $derived.by(() => {
+    const q = tabFilter.trim().toLowerCase();
+    if (!q) return allBrowserTabs;
+    return allBrowserTabs.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        t.url.toLowerCase().includes(q) ||
+        getDomain(t.url).toLowerCase().includes(q),
+    );
+  });
+
+  let selectedCount = $derived(selectedTabIds.size);
 
   function ramColor(mb: number): string {
     if (mb >= 1024) return "var(--danger)";
@@ -41,13 +66,108 @@
     try { return new URL(url).hostname; } catch { return ""; }
   }
 
+  function toggleTab(tabId: string) {
+    const next = new Set(selectedTabIds);
+    if (next.has(tabId)) next.delete(tabId);
+    else next.add(tabId);
+    selectedTabIds = next;
+  }
+
+  function selectAllTabs() {
+    selectedTabIds = new Set(filteredTabs.map((t) => t.id));
+  }
+
+  function selectNoneTabs() {
+    selectedTabIds = new Set();
+  }
+
+  async function closeTab(tab: BrowserTab) {
+    closingTabs = new Set([...closingTabs, tab.id]);
+    try {
+      await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
+      browserTabs.update(($tabs) => $tabs.filter((t) => t.id !== tab.id));
+      const next = new Set(selectedTabIds);
+      next.delete(tab.id);
+      selectedTabIds = next;
+    } catch (e) {
+      console.error("Failed to close tab:", e);
+    }
+    const after = new Set(closingTabs);
+    after.delete(tab.id);
+    closingTabs = after;
+  }
+
+  async function closeSelectedTabs() {
+    const toClose = allBrowserTabs.filter((t) => selectedTabIds.has(t.id));
+    for (const tab of toClose) {
+      closingTabs = new Set([...closingTabs, tab.id]);
+      try {
+        await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
+        browserTabs.update(($tabs) => $tabs.filter((t) => t.id !== tab.id));
+        const next = new Set(selectedTabIds);
+        next.delete(tab.id);
+        selectedTabIds = next;
+      } catch {
+        // continue closing others
+      }
+      const after = new Set(closingTabs);
+      after.delete(tab.id);
+      closingTabs = after;
+    }
+  }
+
+  async function focusTab(tab: BrowserTab) {
+    try {
+      await ipcFocusBrowserTab(tab.id, tab.url, tab.browser);
+    } catch (e) {
+      console.error("Failed to focus tab:", e);
+    }
+  }
+
+  function buildAiContext(): string {
+    const lines = [
+      `Process: ${process.name}`,
+      `Executable: ${process.exec_name}`,
+      `PID: ${process.pid}`,
+      `RAM: ${process.ram_mb.toFixed(1)} MB`,
+      `CPU: ${process.cpu_pct.toFixed(1)}%`,
+      `Uptime: ${process.uptime}`,
+      `Group: ${process.group || "none"}`,
+      `State: ${process.state}`,
+      `System process: ${process.is_system ? "Yes" : "No"}`,
+    ];
+    if (allBrowserTabs.length > 0) {
+      lines.push(`\nBrowser: ${detectedBrowser}`);
+      lines.push(`Open tabs (${allBrowserTabs.length}):`);
+      for (const tab of allBrowserTabs) {
+        lines.push(`  - ${tab.title || "(Untitled)"} | ${getDomain(tab.url)} | ${tab.url}`);
+      }
+    }
+    lines.push("\nPlease analyze this process: What is it doing? Is the memory/CPU usage normal? Are any tabs particularly heavy or suspicious? Any recommendations?");
+    return lines.join("\n");
+  }
+
+  async function askAi() {
+    aiAnalyzing = true;
+    aiError = null;
+    aiResponse = "";
+    try {
+      const context = buildAiContext();
+      const config = $aiProviderConfig;
+      aiResponse = await ipcAnalyzeContext(context, config.provider, config.model);
+    } catch (e) {
+      aiError = e instanceof Error ? e.message : String(e);
+    } finally {
+      aiAnalyzing = false;
+    }
+  }
+
   onMount(() => {
     modalEl?.focus();
   });
 
   function handleBackdropKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") onclose();
-    // Focus trap: keep Tab inside modal
     if (e.key === "Tab" && modalEl) {
       const focusable = modalEl.querySelectorAll<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -131,18 +251,91 @@
         <span class="value mono">{process.uptime || "\u2014"}</span>
       </div>
 
-      {#if browserTabsForProcess.length > 0}
+      {#if allBrowserTabs.length > 0}
         <div class="section-divider"></div>
-        <div class="section-label">Browser Tabs ({browserTabsForProcess.length})</div>
+        <div class="tabs-header">
+          <div class="section-label">Browser Tabs ({allBrowserTabs.length})</div>
+          <div class="tabs-actions">
+            <button class="btn-tab-action" onclick={selectAllTabs} title="Select all tabs">All</button>
+            <button class="btn-tab-action" onclick={selectNoneTabs} title="Deselect all">None</button>
+            {#if selectedCount > 0}
+              <button class="btn-tab-close-selected" onclick={closeSelectedTabs} title="Close {selectedCount} selected tab(s)">
+                Close {selectedCount}
+              </button>
+            {/if}
+          </div>
+        </div>
+        <div class="tab-filter-row">
+          <input
+            class="tab-filter"
+            type="text"
+            placeholder="Filter tabs..."
+            value={tabFilter}
+            oninput={(e) => tabFilter = (e.target as HTMLInputElement).value}
+            aria-label="Filter browser tabs"
+          />
+        </div>
+        {#if tabFilter && filteredTabs.length < allBrowserTabs.length}
+          <div class="tab-filter-info">{filteredTabs.length}/{allBrowserTabs.length} tabs</div>
+        {/if}
         <div class="tab-list">
-          {#each browserTabsForProcess as tab (tab.id)}
-            <div class="tab-item">
-              <span class="tab-title">{tab.title}</span>
-              <span class="tab-domain">{getDomain(tab.url)}</span>
+          {#each filteredTabs as tab (tab.id)}
+            <div
+              class="tab-item"
+              class:closing={closingTabs.has(tab.id)}
+              class:selected={selectedTabIds.has(tab.id)}
+            >
+              <input
+                type="checkbox"
+                checked={selectedTabIds.has(tab.id)}
+                aria-label="Select {tab.title}"
+                onclick={() => toggleTab(tab.id)}
+              />
+              <button
+                class="tab-title-btn"
+                onclick={() => focusTab(tab)}
+                title="Go to tab: {tab.title}\n{tab.url}"
+              >
+                {tab.title || "(Untitled)"}
+              </button>
+              <span class="tab-domain" title={tab.url}>{getDomain(tab.url)}</span>
+              <button
+                class="btn-tab-kill"
+                onclick={() => closeTab(tab)}
+                disabled={closingTabs.has(tab.id)}
+                title="Close this tab"
+              >
+                &#10005;
+              </button>
             </div>
           {/each}
+          {#if filteredTabs.length === 0}
+            <div class="tab-empty">No matching tabs</div>
+          {/if}
         </div>
       {/if}
+
+      <div class="section-divider"></div>
+      <div class="ai-section">
+        <div class="ai-header-row">
+          <div class="section-label">AI Analysis</div>
+          <button
+            class="btn-ask-ai"
+            onclick={askAi}
+            disabled={aiAnalyzing}
+          >
+            {aiAnalyzing ? "Analyzing..." : "Ask AI"}
+          </button>
+        </div>
+        {#if aiError}
+          <div class="ai-error">{aiError}</div>
+        {/if}
+        {#if aiResponse}
+          <div class="ai-response">{aiResponse}</div>
+        {:else if !aiAnalyzing && !aiError}
+          <div class="ai-hint">Click "Ask AI" to get insights about this process{allBrowserTabs.length > 0 ? " and its browser tabs" : ""}.</div>
+        {/if}
+      </div>
     </div>
     <div class="footer">
       <span class="hint">Esc to close</span>
@@ -165,8 +358,8 @@
     background: var(--bg-alt);
     border: 1px solid var(--border);
     border-radius: 6px;
-    width: 420px;
-    max-height: 80vh;
+    width: 480px;
+    max-height: 85vh;
     overflow-y: auto;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   }
@@ -270,37 +463,221 @@
     margin: 4px 10px;
   }
 
+  /* --- Tab section --- */
+  .tabs-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-right: 10px;
+  }
+
+  .tabs-actions {
+    display: flex;
+    gap: 3px;
+  }
+
+  .btn-tab-action {
+    padding: 1px 5px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--fg-dim);
+    font-size: 9px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-tab-action:hover {
+    background: var(--bg-hover);
+    color: var(--fg);
+  }
+
+  .btn-tab-close-selected {
+    padding: 1px 6px;
+    border: 1px solid var(--danger);
+    border-radius: 3px;
+    background: var(--danger);
+    color: white;
+    font-size: 9px;
+    font-weight: 600;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .btn-tab-close-selected:hover {
+    background: #b71c1c;
+  }
+
+  .tab-filter-row {
+    padding: 2px 10px;
+  }
+
+  .tab-filter {
+    width: 100%;
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 10px;
+    outline: none;
+    height: 20px;
+  }
+  .tab-filter:focus {
+    border-color: var(--accent);
+  }
+
+  .tab-filter-info {
+    padding: 0 10px;
+    font-size: 9px;
+    color: var(--fg-dim);
+  }
+
   .tab-list {
-    max-height: 180px;
+    max-height: 200px;
     overflow-y: auto;
     margin: 2px 0;
   }
 
   .tab-item {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    padding: 3px 10px;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
     font-size: 10px;
-    gap: 8px;
   }
   .tab-item:hover {
     background: var(--bg-hover);
   }
+  .tab-item.selected {
+    background: var(--bg-selected);
+  }
+  .tab-item.closing {
+    opacity: 0.4;
+    pointer-events: none;
+  }
 
-  .tab-title {
+  .tab-item input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+  }
+
+  .tab-title-btn {
     flex: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    background: none;
+    border: none;
+    padding: 0;
     color: var(--fg);
+    font-size: 10px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .tab-title-btn:hover {
+    color: var(--accent);
+    text-decoration: underline;
   }
 
   .tab-domain {
     flex-shrink: 0;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     color: var(--fg-dim);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     font-size: 9px;
+  }
+
+  .btn-tab-kill {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--fg-dim);
+    font-size: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .btn-tab-kill:hover {
+    background: rgba(211, 47, 47, 0.15);
+    color: var(--danger);
+    border-color: var(--danger);
+  }
+
+  .tab-empty {
+    padding: 4px 10px;
+    font-size: 10px;
+    color: var(--fg-dim);
+    font-style: italic;
+  }
+
+  /* --- AI section --- */
+  .ai-section {
+    padding: 0 0 4px;
+  }
+
+  .ai-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-right: 10px;
+  }
+
+  .btn-ask-ai {
+    padding: 2px 8px;
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    background: var(--accent);
+    color: white;
+    font-size: 9px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-ask-ai:hover:not(:disabled) {
+    background: #005fa3;
+  }
+  .btn-ask-ai:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .ai-error {
+    padding: 4px 10px;
+    font-size: 10px;
+    color: var(--danger);
+  }
+
+  .ai-response {
+    padding: 6px 10px;
+    font-size: 10px;
+    line-height: 1.5;
+    color: var(--fg);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--bg);
+    margin: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  .ai-hint {
+    padding: 4px 10px;
+    font-size: 9px;
+    color: var(--fg-dim);
+    font-style: italic;
   }
 
   .footer {
