@@ -1,6 +1,8 @@
 import { writable, derived, get } from "svelte/store";
 import { ipcGetMetrics, ipcKillProcess, ipcKillProcesses, ipcGetBrowserTabs, ipcSaveAiConfig, ipcAnalyzeProcesses } from "../lib/ipc";
 import type { ProcessEntry, SystemStats, BrowserTab, ProcessSuggestion } from "../lib/types";
+import { confirmAction } from "../lib/confirm";
+import { idleThreshold } from "./preferences";
 
 // --- Core stores ---
 export const processes = writable<ProcessEntry[]>([]);
@@ -76,7 +78,7 @@ export function applyDiff(current: ProcessEntry[], incoming: ProcessEntry[]): Pr
 // --- IPC actions ---
 export async function fetchMetrics(): Promise<void> {
   try {
-    const data = await ipcGetMetrics();
+    const data = await ipcGetMetrics(get(idleThreshold));
     const current = get(processes);
     const updated = applyDiff(current, data.processes);
     processes.set(updated);
@@ -105,6 +107,7 @@ export async function fetchMetrics(): Promise<void> {
 export async function killSelected(): Promise<number[]> {
   const pids = Array.from(get(selectedPids));
   if (pids.length === 0) return [];
+  if (!confirmAction(`Kill ${pids.length} selected process(es)?`)) return [];
   try {
     const killed = await ipcKillProcesses(pids);
     // Immediately remove killed processes from UI
@@ -117,7 +120,8 @@ export async function killSelected(): Promise<number[]> {
   }
 }
 
-export async function killSingle(pid: number): Promise<boolean> {
+export async function killSingle(pid: number, name?: string): Promise<boolean> {
+  if (!confirmAction(`Kill process "${name ?? pid}" (PID ${pid})?`)) return false;
   try {
     const ok = await ipcKillProcess(pid);
     if (ok) {
@@ -173,11 +177,16 @@ export async function analyzeWithAi(provider?: string, model?: string): Promise<
   try {
     const profile = get(aiProfile);
     const p = provider ?? "openrouter";
-    const m = model ?? "google/gemini-flash-1.5-8b";
+    const m = model ?? "meta-llama/llama-3.2-3b-instruct:free";
     const suggestions = await ipcAnalyzeProcesses(profile, p, m);
     aiSuggestions.set(suggestions);
   } catch (e) {
-    aiError.set(e instanceof Error ? e.message : String(e));
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("No matching entry") || msg.includes("not found in secure storage") || msg.includes("keyring")) {
+      aiError.set("No API key configured. Go to Settings to add your API key.");
+    } else {
+      aiError.set(msg);
+    }
   } finally {
     aiLoading.set(false);
   }

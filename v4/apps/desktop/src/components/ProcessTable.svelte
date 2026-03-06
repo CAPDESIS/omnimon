@@ -93,9 +93,11 @@
     if (!grouping) return [];
     const map = new Map<string, ProcessEntry[]>();
     for (const p of sorted) {
-      const arr = map.get(p.name);
+      const browser = detectBrowser(p);
+      const groupKey = browser ?? p.name;
+      const arr = map.get(groupKey);
       if (arr) arr.push(p);
-      else map.set(p.name, [p]);
+      else map.set(groupKey, [p]);
     }
     return [...map.entries()]
       .map(([name, procs]) => ({
@@ -350,7 +352,7 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11px;
+    font-size: calc(var(--base-font-size) * 0.917);
     table-layout: fixed;
   }
 
@@ -368,7 +370,7 @@
     border-bottom: 1px solid var(--border);
     color: var(--fg-dim);
     font-weight: 600;
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     text-transform: uppercase;
     letter-spacing: 0.3px;
     user-select: none;
@@ -425,7 +427,7 @@
   }
   .group-cell {
     font-weight: 600;
-    font-size: 11px;
+    font-size: calc(var(--base-font-size) * 0.917);
     padding: 0 6px;
     display: flex;
     align-items: center;
@@ -434,7 +436,7 @@
   }
 
   .chevron {
-    font-size: 8px;
+    font-size: calc(var(--base-font-size) * 0.667);
     color: var(--fg-dim);
     transition: transform 0.15s ease;
     display: inline-block;
@@ -451,7 +453,7 @@
   .group-meta {
     color: var(--fg-dim);
     font-weight: 400;
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     flex-shrink: 0;
   }
@@ -459,7 +461,7 @@
   .mono {
     font-variant-numeric: tabular-nums;
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    font-size: 10.5px;
+    font-size: calc(var(--base-font-size) * 0.875);
   }
 
   .col-check {
@@ -474,13 +476,13 @@
     width: 24%;
     min-width: 140px;
     color: var(--fg-dim);
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
   }
   .col-group {
     width: 12%;
     min-width: 80px;
     color: var(--fg-dim);
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
   }
   .col-ram {
     width: 55px;
@@ -529,7 +531,7 @@
     display: inline-block;
     padding: 0 3px;
     border-radius: 2px;
-    font-size: 8px;
+    font-size: calc(var(--base-font-size) * 0.667);
     font-weight: 700;
     margin-left: 4px;
     vertical-align: middle;

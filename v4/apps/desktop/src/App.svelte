@@ -36,24 +36,40 @@
     columns,
     columnOrder,
     aiProviderConfig,
+    idleThreshold,
+    theme,
+    tabPanelHeight as tabPanelHeightStore,
     loadPreferences,
     initPreferenceSubscriptions,
     increaseFontSize,
     decreaseFontSize,
     moveColumnUp,
     moveColumnDown,
+    MIN_IDLE_THRESHOLD,
+    MAX_IDLE_THRESHOLD,
   } from "./stores/preferences";
+  import type { ThemeMode } from "./stores/preferences";
+  import { ipcValidateApiKey } from "./lib/ipc";
 
   let detailProcess: ProcessEntry | null = $state(null);
   let searchInput: HTMLInputElement | undefined = $state();
   let searchValue = $state("");
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
-  // Resizable tab panel
-  let tabPanelHeight = $state(160);
+  // Resizable tab panel (backed by store for persistence)
+  let tabPanelHeight = $state($tabPanelHeightStore);
   let dragging = $state(false);
   let dragStartY = 0;
   let dragStartHeight = 0;
+
+  // Sync local → store when resizing
+  $effect(() => {
+    $tabPanelHeightStore = tabPanelHeight;
+  });
+  // Sync store → local on load
+  $effect(() => {
+    tabPanelHeight = $tabPanelHeightStore;
+  });
 
   function onDividerMousedown(e: MouseEvent) {
     e.preventDefault();
@@ -87,7 +103,18 @@
     settingsError = null;
     settingsSaved = false;
     try {
-      await saveAiConfigAction($aiProviderConfig.provider, $aiProviderConfig.model, apiKeyInput);
+      // Validate key before saving
+      const trimmed = apiKeyInput.trim();
+      if (!trimmed) {
+        settingsError = "API key cannot be empty.";
+        return;
+      }
+      const valid = await ipcValidateApiKey($aiProviderConfig.provider, trimmed);
+      if (!valid) {
+        settingsError = "API key validation failed. Check your key and try again.";
+        return;
+      }
+      await saveAiConfigAction($aiProviderConfig.provider, $aiProviderConfig.model, trimmed);
       settingsSaved = true;
       apiKeyInput = "";
     } catch (e) {
@@ -96,6 +123,21 @@
       settingsSaving = false;
     }
   }
+
+  // Apply theme to document
+  function applyTheme(mode: ThemeMode) {
+    if (typeof document === "undefined") return;
+    const html = document.documentElement;
+    if (mode === "auto") {
+      html.removeAttribute("data-theme");
+    } else {
+      html.setAttribute("data-theme", mode);
+    }
+  }
+
+  $effect(() => {
+    applyTheme($theme);
+  });
 
   function closeSettings() {
     showSettings = false;
@@ -200,15 +242,24 @@
 
 <main style="--base-font-size: {$fontSize}px">
   <header class="toolbar">
-    <input
-      class="search"
-      type="text"
-      placeholder="Filter by name, PID, group... (Cmd+F)"
-      aria-label="Search processes"
-      value={searchValue}
-      oninput={onSearchInput}
-      bind:this={searchInput}
-    />
+    <div class="search-wrapper">
+      <input
+        class="search"
+        type="text"
+        placeholder="Filter by name, PID, group... (Cmd+F)"
+        aria-label="Search processes"
+        value={searchValue}
+        oninput={onSearchInput}
+        bind:this={searchInput}
+      />
+      {#if searchValue}
+        <button
+          class="search-clear"
+          onclick={() => { searchValue = ""; $search = ""; }}
+          aria-label="Clear search"
+        >&times;</button>
+      {/if}
+    </div>
     <div class="actions">
       <button
         class="btn btn-sm"
@@ -344,7 +395,7 @@
     <!-- svelte-ignore a11y_interactive_supports_focus -->
     <div class="settings-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
       <div class="settings-header">
-        <h2 class="settings-title" id="settings-title">AI Settings</h2>
+        <h2 class="settings-title" id="settings-title">OmniMon Settings</h2>
         <button class="close-btn" onclick={closeSettings} aria-label="Close settings">&times;</button>
       </div>
       <div class="settings-body">
@@ -424,6 +475,44 @@
             </div>
           {/each}
         </div>
+
+        <div class="settings-divider"></div>
+        <div class="settings-section-label">Appearance</div>
+        <div class="settings-row">
+          <label class="settings-label" for="theme-select">Theme</label>
+          <select
+            id="theme-select"
+            class="settings-select"
+            value={$theme}
+            onchange={(e) => { $theme = (e.target as HTMLSelectElement).value as ThemeMode; }}
+          >
+            <option value="auto">Auto (System)</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </div>
+
+        <div class="settings-divider"></div>
+        <div class="settings-section-label">Performance</div>
+        <div class="settings-row">
+          <label class="settings-label" for="idle-threshold">Idle CPU%</label>
+          <input
+            id="idle-threshold"
+            class="settings-input"
+            type="number"
+            step="0.1"
+            min={MIN_IDLE_THRESHOLD}
+            max={MAX_IDLE_THRESHOLD}
+            value={$idleThreshold}
+            oninput={(e) => {
+              const v = parseFloat((e.target as HTMLInputElement).value);
+              if (!isNaN(v) && v >= MIN_IDLE_THRESHOLD && v <= MAX_IDLE_THRESHOLD) {
+                $idleThreshold = v;
+              }
+            }}
+          />
+          <span class="settings-hint">Processes below this CPU% are idle</span>
+        </div>
       </div>
       <div class="settings-footer">
         <button
@@ -431,7 +520,7 @@
           onclick={handleSaveSettings}
           disabled={settingsSaving || !apiKeyInput}
         >
-          {settingsSaving ? "Saving..." : "Save"}
+          {settingsSaving ? "Saving..." : "Save API Key"}
         </button>
       </div>
     </div>
@@ -456,7 +545,7 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  :global(:root) {
+  :global(:root), :global([data-theme="dark"]) {
     --bg: #1a1a1a;
     --bg-alt: #222;
     --bg-hover: #2a2a2a;
@@ -470,8 +559,18 @@
     --yellow: #ffc107;
   }
 
+  :global([data-theme="light"]) {
+    --bg: #f8f8f8;
+    --bg-alt: #eee;
+    --bg-hover: #e0e0e0;
+    --bg-selected: #cce5ff;
+    --fg: #1a1a1a;
+    --fg-dim: #595959;
+    --border: #d0d0d0;
+  }
+
   @media (prefers-color-scheme: light) {
-    :global(:root) {
+    :global(:root:not([data-theme="dark"])) {
       --bg: #f8f8f8;
       --bg-alt: #eee;
       --bg-hover: #e0e0e0;
@@ -500,19 +599,48 @@
     height: 28px;
   }
 
-  .search {
+  .search-wrapper {
     flex: 1;
-    padding: 2px 6px;
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .search {
+    width: 100%;
+    padding: 2px 22px 2px 6px;
     border: 1px solid var(--border);
     border-radius: 3px;
     background: var(--bg);
     color: var(--fg);
-    font-size: 11px;
+    font-size: calc(var(--base-font-size) * 0.917);
     outline: none;
     height: 20px;
   }
   .search:focus {
     border-color: var(--accent);
+  }
+
+  .search-clear {
+    position: absolute;
+    right: 2px;
+    width: 16px;
+    height: 16px;
+    border: none;
+    background: transparent;
+    color: var(--fg-dim);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+    border-radius: 2px;
+  }
+  .search-clear:hover {
+    color: var(--fg);
+    background: var(--bg-hover);
   }
 
   .actions {
@@ -527,7 +655,7 @@
     border-radius: 3px;
     background: var(--bg);
     color: var(--fg);
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     cursor: pointer;
     white-space: nowrap;
     height: 20px;
@@ -583,14 +711,14 @@
     align-items: center;
     justify-content: center;
     color: var(--fg-dim);
-    font-size: 11px;
+    font-size: calc(var(--base-font-size) * 0.917);
   }
 
   .statusline {
     display: flex;
     justify-content: space-between;
     padding: 2px 8px;
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     color: var(--fg-dim);
     background: var(--bg-alt);
     border-top: 1px solid var(--border);
@@ -616,7 +744,7 @@
   }
 
   .font-size-display {
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     color: var(--fg-dim);
     min-width: 16px;
@@ -630,7 +758,7 @@
     border-radius: 3px;
     background: var(--bg);
     color: var(--fg);
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     height: 20px;
     outline: none;
     cursor: pointer;
@@ -664,7 +792,7 @@
   }
 
   .ai-title {
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -673,7 +801,7 @@
 
   .ai-error {
     padding: 4px 8px;
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     color: var(--danger);
   }
 
@@ -682,7 +810,7 @@
     align-items: center;
     gap: 8px;
     padding: 3px 8px;
-    font-size: 11px;
+    font-size: calc(var(--base-font-size) * 0.917);
     border-bottom: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.15));
   }
   .ai-row:hover {
@@ -699,14 +827,14 @@
 
   .ai-pid {
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     color: var(--fg-dim);
     flex-shrink: 0;
   }
 
   .ai-reason {
     flex: 1;
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     color: var(--fg-dim);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -742,7 +870,7 @@
 
   .settings-title {
     font-weight: 700;
-    font-size: 12px;
+    font-size: var(--base-font-size);
     margin: 0;
   }
 
@@ -753,7 +881,7 @@
     border-radius: 3px;
     background: transparent;
     color: var(--fg-dim);
-    font-size: 16px;
+    font-size: calc(var(--base-font-size) * 1.333);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -776,13 +904,13 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 11px;
+    font-size: calc(var(--base-font-size) * 0.917);
   }
 
   .settings-label {
     width: 64px;
     flex-shrink: 0;
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     font-weight: 600;
     color: var(--fg-dim);
     text-transform: uppercase;
@@ -796,7 +924,7 @@
     border-radius: 3px;
     background: var(--bg);
     color: var(--fg);
-    font-size: 11px;
+    font-size: calc(var(--base-font-size) * 0.917);
     outline: none;
     height: 22px;
     cursor: pointer;
@@ -812,7 +940,7 @@
     border-radius: 3px;
     background: var(--bg);
     color: var(--fg);
-    font-size: 11px;
+    font-size: calc(var(--base-font-size) * 0.917);
     outline: none;
     height: 22px;
   }
@@ -821,13 +949,13 @@
   }
 
   .settings-error {
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     color: var(--danger);
     padding: 2px 0;
   }
 
   .settings-success {
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     color: var(--green);
     padding: 2px 0;
   }
@@ -839,7 +967,7 @@
   }
 
   .settings-section-label {
-    font-size: 9px;
+    font-size: calc(var(--base-font-size) * 0.75);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -858,7 +986,7 @@
     align-items: center;
     gap: 6px;
     padding: 2px 0;
-    font-size: 11px;
+    font-size: calc(var(--base-font-size) * 0.917);
   }
   .col-order-row input[type="checkbox"] {
     margin: 0;
@@ -881,7 +1009,7 @@
     border-radius: 2px;
     background: transparent;
     color: var(--fg-dim);
-    font-size: 8px;
+    font-size: calc(var(--base-font-size) * 0.667);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -894,6 +1022,12 @@
   .col-move-btn:disabled {
     opacity: 0.3;
     cursor: default;
+  }
+
+  .settings-hint {
+    font-size: calc(var(--base-font-size) * 0.75);
+    color: var(--fg-dim);
+    white-space: nowrap;
   }
 
   .settings-footer {

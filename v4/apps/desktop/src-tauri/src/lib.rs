@@ -60,7 +60,7 @@ fn format_uptime(secs: u64) -> String {
 
 /// IPC: Return real processes + system stats in a single call.
 #[tauri::command]
-fn get_metrics() -> Result<Metrics, String> {
+fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
     // System-level stats from the cached watcher (O(1))
     let sys_state = macmon_core::watcher::get_cached_state();
 
@@ -100,7 +100,8 @@ fn get_metrics() -> Result<Metrics, String> {
 
             let ram_mb = entry.memory_bytes as f64 / 1_048_576.0;
             let is_system = macmon_core::killer::is_immutable_blocked_process_name(&entry.name);
-            let idle = cpu_pct < 1.0 && !is_system;
+            let threshold = idle_threshold.unwrap_or(1.0);
+            let idle = cpu_pct < threshold && !is_system;
 
             // Tag Browser group by process name pattern — no AppleScript, instant
             let group = if exec_name.contains("Google Chrome Helper")
@@ -166,7 +167,10 @@ fn refresh_tab_cache_if_stale() -> Vec<BrowserTab> {
     let provider = NativeTabProvider;
     let mut tabs = Vec::new();
     for browser in BrowserKind::all() {
-        tabs.extend(provider.list_tabs(*browser).unwrap_or_default());
+        match provider.list_tabs(*browser) {
+            Ok(t) => tabs.extend(t),
+            Err(e) => eprintln!("[tab-cache] {} tab listing failed: {}", browser.display_name(), e),
+        }
     }
     cache.0 = tabs.clone();
     cache.1 = Instant::now();
@@ -258,8 +262,26 @@ fn kill_processes(pids: Vec<u32>) -> Result<Vec<u32>, String> {
 /// IPC: Save AI Configuration to OS Keyring
 #[tauri::command]
 fn save_ai_config(provider: String, _model: String, key: String) -> Result<(), String> {
+    let trimmed_key = key.trim().to_string();
+    if trimmed_key.is_empty() {
+        return Err("API key cannot be empty".to_string());
+    }
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
-    macmon_core::ai::save_api_key(ai_provider, &key).map_err(|e| e.to_string())
+    macmon_core::ai::save_api_key(ai_provider, &trimmed_key).map_err(|e| e.to_string())
+}
+
+/// IPC: Validate AI API key by making a test request
+#[tauri::command]
+async fn validate_api_key(provider: String, key: String) -> Result<bool, String> {
+    let trimmed_key = key.trim().to_string();
+    if trimmed_key.is_empty() {
+        return Err("API key cannot be empty".to_string());
+    }
+    let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
+    match macmon_core::ai::validate_api_key(ai_provider, "", &trimmed_key).await {
+        Ok(()) => Ok(true),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 /// IPC: Analyze processes using AI
@@ -318,13 +340,13 @@ pub fn run() {
             // Start the background watcher thread for system-level metrics
             macmon_core::watcher::start_watcher();
 
-            let quit = MenuItem::with_id(app, "quit", "Quit macmon", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit OmniMon", true, None::<&str>)?;
             let show = MenuItem::with_id(app, "show", "Show Monitor", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
 
             let _tray = TrayIconBuilder::new()
                 .menu(&menu)
-                .tooltip("macmon - System Monitor")
+                .tooltip("OmniMon - System Monitor")
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "quit" => app.exit(0),
                     "show" => {
@@ -344,6 +366,7 @@ pub fn run() {
             kill_process,
             kill_processes,
             save_ai_config,
+            validate_api_key,
             analyze_processes,
             analyze_context,
             get_browser_tabs,

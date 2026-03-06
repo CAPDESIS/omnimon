@@ -82,8 +82,8 @@ function validateSystemStats(raw: unknown): SystemStats {
   };
 }
 
-export async function ipcGetMetrics(): Promise<Metrics> {
-  const data: unknown = await invoke("get_metrics");
+export async function ipcGetMetrics(idleThreshold?: number): Promise<Metrics> {
+  const data: unknown = await invoke("get_metrics", { idleThreshold: idleThreshold ?? 1.0 });
 
   if (data == null || typeof data !== "object") {
     throw new IPCValidationError("metrics", data, "Expected object from get_metrics");
@@ -190,6 +190,12 @@ function validateProcessSuggestion(raw: unknown, index: number): ProcessSuggesti
 
 export async function ipcSaveAiConfig(provider: string, model: string, key: string): Promise<void> {
   await invoke("save_ai_config", { provider, model, key });
+}
+
+export async function ipcValidateApiKey(provider: string, key: string): Promise<boolean> {
+  const result: unknown = await invoke("validate_api_key", { provider, key });
+  assertBoolean("validate_api_key result", result);
+  return result;
 }
 
 export async function ipcAnalyzeProcesses(profile: string, provider: string, model: string): Promise<ProcessSuggestion[]> {

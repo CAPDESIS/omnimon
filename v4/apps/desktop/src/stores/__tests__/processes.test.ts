@@ -49,9 +49,14 @@ function makeProc(overrides: Partial<ProcessEntry> = {}): ProcessEntry {
   };
 }
 
+// Mock window.confirm for confirmation dialogs
+window.confirm = vi.fn(() => true);
+
 beforeEach(() => {
   _resetForTest();
   mockInvoke.mockReset();
+  // Confirm dialogs default to "yes" so existing tests pass
+  (window.confirm as ReturnType<typeof vi.fn>).mockReturnValue(true);
 });
 
 // --- applyDiff ---
@@ -266,6 +271,18 @@ describe("killSelected", () => {
     expect(killed).toEqual([]);
     expect(mockInvoke).not.toHaveBeenCalled();
   });
+
+  it("returns empty array when user cancels confirmation", async () => {
+    (window.confirm as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    processes.set([makeProc({ pid: 1 })]);
+    selectedPids.set(new Set([1]));
+    mockInvoke.mockResolvedValue([1]);
+
+    const killed = await killSelected();
+    expect(killed).toEqual([]);
+    expect(mockInvoke).not.toHaveBeenCalled();
+    expect(get(processes)).toHaveLength(1);
+  });
 });
 
 // --- killSingle ---
@@ -292,6 +309,17 @@ describe("killSingle", () => {
 
     const ok = await killSingle(1);
     expect(ok).toBe(false);
+    expect(get(processes)).toHaveLength(1);
+  });
+
+  it("returns false when user cancels confirmation", async () => {
+    (window.confirm as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    processes.set([makeProc({ pid: 1 })]);
+    mockInvoke.mockResolvedValue(true);
+
+    const ok = await killSingle(1, "TestApp");
+    expect(ok).toBe(false);
+    expect(mockInvoke).not.toHaveBeenCalled();
     expect(get(processes)).toHaveLength(1);
   });
 
@@ -453,7 +481,7 @@ describe("analyzeWithAi", () => {
 
     await analyzeWithAi();
 
-    expect(mockInvoke).toHaveBeenCalledWith("analyze_processes", { profile: "general", provider: "openrouter", model: "google/gemini-flash-1.5-8b" });
+    expect(mockInvoke).toHaveBeenCalledWith("analyze_processes", { profile: "general", provider: "openrouter", model: "meta-llama/llama-3.2-3b-instruct:free" });
   });
 
   it("sets loading during execution", async () => {

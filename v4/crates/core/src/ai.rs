@@ -70,6 +70,42 @@ pub fn get_api_key(provider: AiProvider) -> Result<String, Box<dyn Error + Send 
     Ok(entry.get_password()?)
 }
 
+/// Validate an API key by making a lightweight test request to the provider.
+pub async fn validate_api_key(
+    provider: AiProvider,
+    _model: &str,
+    key: &str,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let client = build_client()?;
+    let url = provider.api_url();
+
+    let resp = if matches!(provider, AiProvider::Anthropic) {
+        client
+            .post(url)
+            .header("x-api-key", key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .body(r#"{"model":"claude-haiku-4-5-20251001","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}"#)
+            .send()
+            .await?
+    } else {
+        client
+            .post(url)
+            .header("Authorization", format!("Bearer {}", key))
+            .header("Content-Type", "application/json")
+            .body(r#"{"model":"gpt-4o-mini","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}"#)
+            .send()
+            .await?
+    };
+
+    let status = resp.status();
+    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+        return Err("Invalid API key — authentication failed".into());
+    }
+    // Any other response (including 400 for bad model) means the key itself is valid
+    Ok(())
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ProcessSuggestion {
     pub pid: u32,

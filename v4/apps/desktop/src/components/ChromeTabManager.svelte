@@ -1,7 +1,8 @@
 <script lang="ts">
-  import type { BrowserTab } from "../lib/types";
-  import { ipcCloseBrowserTab } from "../lib/ipc";
+  import type { BrowserTab, ProcessEntry } from "../lib/types";
+  import { ipcCloseBrowserTab, ipcFocusBrowserTab } from "../lib/ipc";
   import { browserTabs, chromeProcesses } from "../stores/processes";
+  import { confirmAction } from "../lib/confirm";
 
   interface Props {
     filter?: string;
@@ -9,7 +10,7 @@
 
   let { filter = "" }: Props = $props();
 
-  let expanded = $state(true);
+  let expandedBrowsers = $state<Set<string>>(new Set(["Chrome", "Safari", "Brave", "Edge", "Arc", "Firefox"]));
   let closing = $state<Set<string>>(new Set());
   let selectedTabIds = $state<Set<string>>(new Set());
 
@@ -18,6 +19,7 @@
     color: string;
     tabs: BrowserTab[];
     totalTabs: number;
+    totalRam: number;
   }
 
   const BROWSER_COLORS: Record<string, string> = {
@@ -37,6 +39,29 @@
     }
   }
 
+  /** Map process to browser name — same logic as ProcessTable.detectBrowser */
+  function detectBrowser(proc: ProcessEntry): string | null {
+    if (proc.group !== "Browser") return null;
+    if (proc.exec_name.includes("Google Chrome Helper") || proc.name.includes("Chrome")) return "Chrome";
+    if (proc.name === "com.apple.WebKit.WebContent" || proc.exec_name.includes("Safari")) return "Safari";
+    if (proc.exec_name.includes("Brave Browser Helper") || proc.name.includes("Brave")) return "Brave";
+    if (proc.exec_name.includes("Microsoft Edge Helper") || proc.name.includes("Edge")) return "Edge";
+    if (proc.exec_name.includes("Arc Helper") || proc.name.includes("Arc")) return "Arc";
+    return null;
+  }
+
+  /** Per-browser RAM from process list */
+  let ramByBrowser = $derived.by((): Map<string, number> => {
+    const map = new Map<string, number>();
+    for (const p of $chromeProcesses) {
+      const browser = detectBrowser(p);
+      if (browser) {
+        map.set(browser, (map.get(browser) ?? 0) + p.ram_mb);
+      }
+    }
+    return map;
+  });
+
   let sections = $derived.by((): BrowserSection[] => {
     const q = filter.trim().toLowerCase();
     const map = new Map<string, { filtered: BrowserTab[]; total: number }>();
@@ -53,14 +78,18 @@
       color: BROWSER_COLORS[name] ?? "var(--fg-dim)",
       tabs,
       totalTabs: total,
+      totalRam: ramByBrowser.get(name) ?? 0,
     }));
   });
 
-  let totalRam = $derived(
-    $chromeProcesses.reduce((sum, p) => sum + p.ram_mb, 0),
-  );
-
   let selectedCount = $derived(selectedTabIds.size);
+
+  function toggleBrowserExpanded(name: string) {
+    const next = new Set(expandedBrowsers);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    expandedBrowsers = next;
+  }
 
   function ramColor(mb: number): string {
     if (mb >= 1024) return "var(--danger)";
@@ -89,7 +118,16 @@
     selectedTabIds = new Set(selectedTabIds);
   }
 
+  async function focusTab(tab: BrowserTab) {
+    try {
+      await ipcFocusBrowserTab(tab.id, tab.url, tab.browser);
+    } catch (e) {
+      console.error("Failed to focus tab:", e);
+    }
+  }
+
   async function closeTab(tab: BrowserTab) {
+    if (!confirmAction(`Close tab "${tab.title}"?`)) return;
     const next = new Set(closing);
     next.add(tab.id);
     closing = next;
@@ -107,6 +145,8 @@
   async function closeSelected() {
     const allTabs = $browserTabs;
     const toClose = allTabs.filter((t) => selectedTabIds.has(t.id));
+    if (toClose.length === 0) return;
+    if (!confirmAction(`Close ${toClose.length} selected tab(s)?`)) return;
     for (const tab of toClose) {
       const next = new Set(closing);
       next.add(tab.id);
@@ -124,6 +164,8 @@
   }
 
   async function closeAllTabs(tabs: BrowserTab[]) {
+    if (tabs.length === 0) return;
+    if (!confirmAction(`Close all ${tabs.length} tab(s)?`)) return;
     for (const tab of tabs) {
       const next = new Set(closing);
       next.add(tab.id);
@@ -141,33 +183,34 @@
   }
 </script>
 
-{#snippet tabSection(label: string, tabs: BrowserTab[], totalTabs: number, iconColor: string)}
+{#snippet tabSection(section: BrowserSection)}
+  {@const isExpanded = expandedBrowsers.has(section.name)}
   <div class="browser-section">
     <div
       class="browser-header"
-      onclick={() => expanded = !expanded}
-      onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); expanded = !expanded; } }}
+      onclick={() => toggleBrowserExpanded(section.name)}
+      onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleBrowserExpanded(section.name); } }}
       role="button"
       tabindex="0"
-      aria-expanded={expanded}
-      aria-label="{label} tabs"
+      aria-expanded={isExpanded}
+      aria-label="{section.name} tabs"
     >
-      <span class="chevron" class:open={expanded} aria-hidden="true">&#9654;</span>
-      <span class="browser-icon" style="color: {iconColor}" aria-hidden="true">&#9679;</span>
-      <span class="browser-title">{label}</span>
+      <span class="chevron" class:open={isExpanded} aria-hidden="true">&#9654;</span>
+      <span class="browser-icon" style="color: {section.color}" aria-hidden="true">&#9679;</span>
+      <span class="browser-title">{section.name}</span>
       <span class="browser-meta">
-        {#if tabs.length < totalTabs}
-          {tabs.length}/{totalTabs} tab{totalTabs !== 1 ? "s" : ""}
+        {#if section.tabs.length < section.totalTabs}
+          {section.tabs.length}/{section.totalTabs} tab{section.totalTabs !== 1 ? "s" : ""}
         {:else}
-          {tabs.length} tab{tabs.length !== 1 ? "s" : ""}
+          {section.tabs.length} tab{section.tabs.length !== 1 ? "s" : ""}
         {/if}
-        &middot; <span style="color: {ramColor(totalRam)}">{totalRam.toFixed(0)} MB</span>
+        &middot; <span style="color: {ramColor(section.totalRam)}">{section.totalRam.toFixed(0)} MB</span>
       </span>
       <div class="header-actions">
         <button
           class="btn-header"
-          onclick={(e: MouseEvent) => { e.stopPropagation(); selectAllTabs(tabs); }}
-          title="Select all {label} tabs"
+          onclick={(e: MouseEvent) => { e.stopPropagation(); selectAllTabs(section.tabs); }}
+          title="Select all {section.name} tabs"
         >All</button>
         <button
           class="btn-header"
@@ -185,23 +228,23 @@
         {/if}
         <button
           class="btn-close-all"
-          onclick={(e: MouseEvent) => { e.stopPropagation(); closeAllTabs(tabs); }}
-          title="Close all {label} tabs"
+          onclick={(e: MouseEvent) => { e.stopPropagation(); closeAllTabs(section.tabs); }}
+          title="Close all {section.name} tabs"
         >
           Close All
         </button>
       </div>
     </div>
 
-    {#if expanded && tabs.length > 0}
+    {#if isExpanded && section.tabs.length > 0}
       <div class="tab-list">
-        <div class="tab-list-header">
+        <div class="tab-list-header sticky-header">
           <span class="th-check"></span>
           <span class="th-name">Title</span>
           <span class="th-domain">Domain</span>
           <span class="th-action"></span>
         </div>
-        {#each tabs as tab (tab.id)}
+        {#each section.tabs as tab (tab.id)}
           <div
             class="tab-row"
             class:closing={closing.has(tab.id)}
@@ -217,7 +260,11 @@
               aria-label="Select {tab.title}"
               onclick={(e: MouseEvent) => { e.stopPropagation(); toggleTab(tab.id); }}
             />
-            <span class="tab-title" title={tab.title}>{tab.title || "(Untitled)"}</span>
+            <button
+              class="tab-title-btn"
+              title="Click to focus this tab in {tab.browser}"
+              onclick={(e: MouseEvent) => { e.stopPropagation(); focusTab(tab); }}
+            >{tab.title || "(Untitled)"}</button>
             <span class="tab-domain mono" title={tab.url}>{extractDomain(tab.url)}</span>
             <button
               class="btn-kill"
@@ -230,7 +277,7 @@
           </div>
         {/each}
       </div>
-    {:else if expanded && tabs.length === 0}
+    {:else if isExpanded && section.tabs.length === 0}
       <div class="tab-empty">No matching tabs</div>
     {/if}
   </div>
@@ -239,7 +286,7 @@
 {#if sections.length > 0}
   <div class="chrome-manager">
     {#each sections as section (section.name)}
-      {@render tabSection(section.name, section.tabs, section.totalTabs, section.color)}
+      {@render tabSection(section)}
     {/each}
   </div>
 {/if}
@@ -267,7 +314,7 @@
     background: var(--bg-alt);
     border: none;
     color: var(--fg);
-    font-size: 11px;
+    font-size: calc(var(--base-font-size) * 0.917);
     font-weight: 600;
     cursor: pointer;
     text-align: left;
@@ -278,7 +325,7 @@
   }
 
   .chevron {
-    font-size: 8px;
+    font-size: calc(var(--base-font-size) * 0.667);
     color: var(--fg-dim);
     transition: transform 0.15s ease;
     display: inline-block;
@@ -288,7 +335,7 @@
   }
 
   .browser-icon {
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
   }
 
   .browser-title {
@@ -299,7 +346,7 @@
     flex: 1;
     color: var(--fg-dim);
     font-weight: 400;
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
   }
 
   .header-actions {
@@ -314,7 +361,7 @@
     border-radius: 3px;
     background: transparent;
     color: var(--fg-dim);
-    font-size: 9px;
+    font-size: calc(var(--base-font-size) * 0.75);
     font-weight: 600;
     cursor: pointer;
   }
@@ -329,7 +376,7 @@
     border-radius: 3px;
     background: var(--danger);
     color: white;
-    font-size: 9px;
+    font-size: calc(var(--base-font-size) * 0.75);
     font-weight: 600;
     cursor: pointer;
     text-transform: uppercase;
@@ -345,7 +392,7 @@
     border-radius: 3px;
     background: transparent;
     color: var(--danger);
-    font-size: 9px;
+    font-size: calc(var(--base-font-size) * 0.75);
     font-weight: 600;
     cursor: pointer;
     text-transform: uppercase;
@@ -365,13 +412,19 @@
     gap: 6px;
     padding: 0 8px 0 12px;
     height: 18px;
-    font-size: 9px;
+    font-size: calc(var(--base-font-size) * 0.75);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.3px;
     color: var(--fg-dim);
     background: var(--bg-alt);
     border-bottom: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.1));
+  }
+
+  .sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
   }
 
   .th-check {
@@ -397,7 +450,7 @@
     gap: 6px;
     padding: 0 8px 0 12px;
     height: 22px;
-    font-size: 11px;
+    font-size: calc(var(--base-font-size) * 0.917);
     border-bottom: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.1));
     cursor: pointer;
   }
@@ -412,12 +465,23 @@
     pointer-events: none;
   }
 
-  .tab-title {
+  .tab-title-btn {
     flex: 3;
     min-width: 120px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    background: none;
+    border: none;
+    color: var(--fg);
+    text-align: left;
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+  }
+  .tab-title-btn:hover {
+    color: var(--accent);
+    text-decoration: underline;
   }
 
   .tab-domain {
@@ -431,7 +495,7 @@
 
   .tab-empty {
     padding: 6px 12px;
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     color: var(--fg-dim);
     font-style: italic;
   }
@@ -439,7 +503,7 @@
   .mono {
     font-variant-numeric: tabular-nums;
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
   }
 
   input[type="checkbox"] {
@@ -458,7 +522,7 @@
     border-radius: 3px;
     background: transparent;
     color: var(--fg-dim);
-    font-size: 12px;
+    font-size: var(--base-font-size);
     cursor: pointer;
     display: flex;
     align-items: center;

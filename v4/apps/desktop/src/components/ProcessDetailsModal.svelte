@@ -374,7 +374,7 @@
 
   .title {
     font-weight: 700;
-    font-size: 12px;
+    font-size: var(--base-font-size);
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -384,7 +384,7 @@
 
   .pid {
     color: var(--fg-dim);
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     flex-shrink: 0;
   }
@@ -396,7 +396,7 @@
     border-radius: 3px;
     background: transparent;
     color: var(--fg-dim);
-    font-size: 16px;
+    font-size: calc(var(--base-font-size) * 1.333);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -415,7 +415,7 @@
 
   .section-label {
     padding: 4px 10px 2px;
-    font-size: 9px;
+    font-size: calc(var(--base-font-size) * 0.75);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -426,7 +426,7 @@
     display: flex;
     align-items: baseline;
     padding: 3px 10px;
-    font-size: 11px;
+    font-size: calc(var(--base-font-size) * 0.917);
     gap: 8px;
   }
   .row:hover {
@@ -437,7 +437,7 @@
     width: 72px;
     flex-shrink: 0;
     color: var(--fg-dim);
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -453,7 +453,7 @@
 
   .mono {
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    font-size: 11px;
+    font-size: calc(var(--base-font-size) * 0.917);
     font-variant-numeric: tabular-nums;
   }
 
@@ -482,7 +482,7 @@
     border-radius: 3px;
     background: transparent;
     color: var(--fg-dim);
-    font-size: 9px;
+    font-size: calc(var(--base-font-size) * 0.75);
     font-weight: 600;
     cursor: pointer;
   }
@@ -497,7 +497,7 @@
     border-radius: 3px;
     background: var(--danger);
     color: white;
-    font-size: 9px;
+    font-size: calc(var(--base-font-size) * 0.75);
     font-weight: 600;
     cursor: pointer;
     text-transform: uppercase;
@@ -518,7 +518,7 @@
     border-radius: 3px;
     background: var(--bg);
     color: var(--fg);
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     outline: none;
     height: 20px;
   }
@@ -528,7 +528,7 @@
 
   .tab-filter-info {
     padding: 0 10px;
-    font-size: 9px;
+    font-size: calc(var(--base-font-size) * 0.75);
     color: var(--fg-dim);
   }
 
@@ -543,7 +543,7 @@
     align-items: center;
     gap: 4px;
     padding: 2px 10px;
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
   }
   .tab-item:hover {
     background: var(--bg-hover);
@@ -574,7 +574,7 @@
     border: none;
     padding: 0;
     color: var(--fg);
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     cursor: pointer;
     text-align: left;
   }
@@ -591,7 +591,7 @@
     white-space: nowrap;
     color: var(--fg-dim);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    font-size: 9px;
+    font-size: calc(var(--base-font-size) * 0.75);
   }
 
   .btn-tab-kill {
@@ -602,7 +602,7 @@
     border-radius: 3px;
     background: transparent;
     color: var(--fg-dim);
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -617,7 +617,7 @@
 
   .tab-empty {
     padding: 4px 10px;
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     color: var(--fg-dim);
     font-style: italic;
   }
@@ -640,7 +640,7 @@
     border-radius: 3px;
     background: var(--accent);
     color: white;
-    font-size: 9px;
+    font-size: calc(var(--base-font-size) * 0.75);
     font-weight: 600;
     cursor: pointer;
   }
@@ -654,13 +654,13 @@
 
   .ai-error {
     padding: 4px 10px;
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     color: var(--danger);
   }
 
   .ai-response {
     padding: 6px 10px;
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     line-height: 1.5;
     color: var(--fg);
     white-space: pre-wrap;
@@ -675,7 +675,7 @@
 
   .ai-hint {
     padding: 4px 10px;
-    font-size: 9px;
+    font-size: calc(var(--base-font-size) * 0.75);
     color: var(--fg-dim);
     font-style: italic;
   }
@@ -687,7 +687,7 @@
   }
 
   .hint {
-    font-size: 9px;
+    font-size: calc(var(--base-font-size) * 0.75);
     color: var(--fg-dim);
   }
 </style>

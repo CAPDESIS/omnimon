@@ -307,9 +307,13 @@ end sanitizeText
 tell application "Safari"
     set sep to (character id 31)
     set output to ""
+    set wIdx to 0
     repeat with w in windows
+        set wIdx to wIdx + 1
+        set tIdx to 0
         repeat with t in tabs of w
-            set tabID to (id of t as text)
+            set tIdx to tIdx + 1
+            set tabID to ("s" & wIdx & ":" & tIdx) as text
             set tabTitle to my sanitizeText(name of t as text)
             set tabURL to my sanitizeText(URL of t as text)
             set output to output & tabID & sep & tabTitle & sep & tabURL & linefeed
@@ -391,12 +395,11 @@ end run
         sanitize_tab_url(&tab.url)?;
         let script = r#"
 on run argv
-    set targetID to item 1 of argv
-    set targetURL to item 2 of argv
+    set targetURL to item 1 of argv
     tell application "Safari"
         repeat with w in windows
             repeat with t in tabs of w
-                if ((id of t as text) is targetID) or ((URL of t as text) is targetURL) then
+                if (URL of t as text) is targetURL then
                     set current tab of w to t
                     set index of w to 1
                     activate
@@ -408,7 +411,7 @@ on run argv
     return "not_found"
 end run
 "#;
-        let out = Self::run_osascript(script, &[&tab.id, &tab.url])?;
+        let out = Self::run_osascript(script, &[&tab.url])?;
         Ok(out.trim() == "focused")
     }
 
@@ -417,12 +420,11 @@ end run
         sanitize_tab_url(&tab.url)?;
         let script = r#"
 on run argv
-    set targetID to item 1 of argv
-    set targetURL to item 2 of argv
+    set targetURL to item 1 of argv
     tell application "Safari"
         repeat with w in windows
             repeat with t in tabs of w
-                if ((id of t as text) is targetID) or ((URL of t as text) is targetURL) then
+                if (URL of t as text) is targetURL then
                     close t
                     return "closed"
                 end if
@@ -432,7 +434,7 @@ on run argv
     return "not_found"
 end run
 "#;
-        let out = Self::run_osascript(script, &[&tab.id, &tab.url])?;
+        let out = Self::run_osascript(script, &[&tab.url])?;
         Ok(out.trim() == "closed")
     }
 }

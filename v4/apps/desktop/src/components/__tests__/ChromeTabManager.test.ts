@@ -6,6 +6,9 @@ import { _resetForTest, browserTabs, processes } from "../../stores/processes";
 
 const mockInvoke = vi.mocked(invoke);
 
+// Mock window.confirm for confirmation dialogs
+window.confirm = vi.fn(() => true);
+
 function makeTab(overrides: Partial<BrowserTab> = {}): BrowserTab {
   return {
     id: "tab-1",

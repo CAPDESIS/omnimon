@@ -75,7 +75,7 @@
     padding: 3px 10px;
     background: var(--bg-alt);
     border-bottom: 1px solid var(--border);
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     flex-shrink: 0;
     height: 20px;
   }
@@ -90,14 +90,14 @@
     color: var(--fg-dim);
     font-weight: 600;
     text-transform: uppercase;
-    font-size: 9px;
+    font-size: calc(var(--base-font-size) * 0.75);
     letter-spacing: 0.3px;
   }
 
   .value {
     font-variant-numeric: tabular-nums;
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    font-size: 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
   }
 
   .bar-track {

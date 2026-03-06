@@ -20,9 +20,11 @@ export interface AiProviderConfig {
   model: string;
 }
 
+export type ThemeMode = "auto" | "light" | "dark";
+
 const DEFAULT_FONT_SIZE = 12;
 const MIN_FONT_SIZE = 8;
-const MAX_FONT_SIZE = 18;
+const MAX_FONT_SIZE = 24;
 
 const DEFAULT_COLUMNS: ColumnConfig = {
   name: true,
@@ -37,13 +39,26 @@ const DEFAULT_COLUMNS: ColumnConfig = {
 
 const DEFAULT_AI_CONFIG: AiProviderConfig = {
   provider: "openrouter",
-  model: "google/gemini-flash-1.5-8b",
+  model: "meta-llama/llama-3.2-3b-instruct:free",
 };
+
+const MIN_IDLE_THRESHOLD = 0.1;
+const MAX_IDLE_THRESHOLD = 10.0;
+const DEFAULT_IDLE_THRESHOLD = 1.0;
+
+const DEFAULT_THEME: ThemeMode = "auto";
+
+const DEFAULT_TAB_PANEL_HEIGHT = 160;
+const MIN_TAB_PANEL_HEIGHT = 40;
+const MAX_TAB_PANEL_HEIGHT = 800;
 
 export const fontSize = writable(DEFAULT_FONT_SIZE);
 export const columns = writable<ColumnConfig>({ ...DEFAULT_COLUMNS });
 export const columnOrder = writable<ColumnKey[]>([...COLUMN_KEYS]);
 export const aiProviderConfig = writable<AiProviderConfig>({ ...DEFAULT_AI_CONFIG });
+export const idleThreshold = writable(DEFAULT_IDLE_THRESHOLD);
+export const theme = writable<ThemeMode>(DEFAULT_THEME);
+export const tabPanelHeight = writable(DEFAULT_TAB_PANEL_HEIGHT);
 
 let storeInstance: any = null;
 
@@ -98,6 +113,21 @@ export async function loadPreferences(): Promise<void> {
         model: typeof ai.model === "string" ? ai.model : DEFAULT_AI_CONFIG.model,
       });
     }
+
+    const savedIdleThreshold = await store.get("idleThreshold");
+    if (typeof savedIdleThreshold === "number" && savedIdleThreshold >= MIN_IDLE_THRESHOLD && savedIdleThreshold <= MAX_IDLE_THRESHOLD) {
+      idleThreshold.set(savedIdleThreshold);
+    }
+
+    const savedTheme = await store.get("theme");
+    if (typeof savedTheme === "string" && (savedTheme === "auto" || savedTheme === "light" || savedTheme === "dark")) {
+      theme.set(savedTheme as ThemeMode);
+    }
+
+    const savedTabPanelHeight = await store.get("tabPanelHeight");
+    if (typeof savedTabPanelHeight === "number" && savedTabPanelHeight >= MIN_TAB_PANEL_HEIGHT && savedTabPanelHeight <= MAX_TAB_PANEL_HEIGHT) {
+      tabPanelHeight.set(savedTabPanelHeight);
+    }
   } catch {
     // Use defaults on any read error
   }
@@ -112,6 +142,9 @@ export async function savePreferences(): Promise<void> {
     await store.set("columns", get(columns));
     await store.set("columnOrder", get(columnOrder));
     await store.set("aiProviderConfig", get(aiProviderConfig));
+    await store.set("idleThreshold", get(idleThreshold));
+    await store.set("theme", get(theme));
+    await store.set("tabPanelHeight", get(tabPanelHeight));
     await store.save();
   } catch {
     // Best-effort persistence
@@ -133,6 +166,9 @@ export function initPreferenceSubscriptions(): () => void {
     columns.subscribe(() => debouncedSave()),
     columnOrder.subscribe(() => debouncedSave()),
     aiProviderConfig.subscribe(() => debouncedSave()),
+    idleThreshold.subscribe(() => debouncedSave()),
+    theme.subscribe(() => debouncedSave()),
+    tabPanelHeight.subscribe(() => debouncedSave()),
   ];
   return () => {
     unsubs.forEach((u) => u());
@@ -168,4 +204,12 @@ export function moveColumnDown(key: ColumnKey): void {
   });
 }
 
-export { MIN_FONT_SIZE, MAX_FONT_SIZE, DEFAULT_COLUMNS, DEFAULT_AI_CONFIG };
+export {
+  MIN_FONT_SIZE,
+  MAX_FONT_SIZE,
+  DEFAULT_COLUMNS,
+  DEFAULT_AI_CONFIG,
+  MIN_IDLE_THRESHOLD,
+  MAX_IDLE_THRESHOLD,
+  DEFAULT_IDLE_THRESHOLD,
+};

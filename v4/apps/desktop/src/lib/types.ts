@@ -51,7 +51,7 @@ export const AI_PROVIDERS: AiProviderDef[] = [
     id: "openrouter",
     label: "OpenRouter",
     models: [
-      "google/gemini-flash-1.5-8b",
+      "meta-llama/llama-3.2-3b-instruct:free",
       "google/gemini-2.0-flash-001",
       "meta-llama/llama-3.1-8b-instruct",
       "anthropic/claude-sonnet-4",
