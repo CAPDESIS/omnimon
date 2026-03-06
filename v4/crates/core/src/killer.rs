@@ -65,6 +65,7 @@ const LINUX_PROTECTED_PROCESSES: &[&str] = &[
     "networkmanager",
 ];
 
+/// Result of a process kill attempt, including the target PID, name, and outcome.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KillResult {
     pub pid: u32,
@@ -72,11 +73,16 @@ pub struct KillResult {
     pub killed: bool,
 }
 
+/// Errors that can occur when attempting to kill a process.
 #[derive(Debug)]
 pub enum KillError {
+    /// The provided PID is invalid (e.g., <= 1).
     InvalidPid(i32),
+    /// No process with this PID was found.
     ProcessNotFound(u32),
+    /// The process is on the protected blocklist and cannot be killed.
     Blocked(String),
+    /// The kill signal was sent but the process did not terminate.
     KillFailed(u32),
 }
 
@@ -95,6 +101,9 @@ impl fmt::Display for KillError {
 
 impl std::error::Error for KillError {}
 
+/// Returns `true` if the process name matches a hardcoded OS-critical protected process.
+///
+/// Checks against a default list and platform-specific lists (macOS, Windows, Linux).
 pub fn is_immutable_blocked_process_name(process_name: &str) -> bool {
     let lowered_name = process_name.to_ascii_lowercase();
     if DEFAULT_PROTECTED_PROCESSES
@@ -209,6 +218,10 @@ fn kill_process_by_name(
     })
 }
 
+/// Attempt to terminate a process by PID, respecting the protected-process blocklist.
+///
+/// Sends SIGTERM first, then escalates to a force kill if the process survives.
+/// Returns an error if the PID is invalid, not found, blocked, or if the kill fails.
 pub fn kill_process_safe(pid: i32, extra_blocklist: &[String]) -> Result<KillResult, KillError> {
     if pid <= 1 {
         return Err(KillError::InvalidPid(pid));

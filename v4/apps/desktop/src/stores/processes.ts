@@ -6,14 +6,28 @@ import { t } from "../lib/i18n";
 import { idleThreshold } from "./preferences";
 
 // --- Core stores ---
+
+/** Writable store holding the current list of system processes. */
 export const processes = writable<ProcessEntry[]>([]);
+
+/** Writable store holding system-wide statistics (RAM, swap, network), or null before first fetch. */
 export const stats = writable<SystemStats | null>(null);
+
+/** Writable store holding the list of open browser tabs across all supported browsers. */
 export const browserTabs = writable<BrowserTab[]>([]);
+
+/** Whether the initial metrics fetch is still in progress. */
 export const loading = writable(true);
+
+/** Current search/filter query entered by the user in the process table. */
 export const search = writable("");
+
+/** Set of PIDs currently selected by the user for batch actions. */
 export const selectedPids = writable<Set<number>>(new Set());
 
 // --- Derived stores ---
+
+/** Derived store of processes filtered by the current search query (matches name, PID, or group). */
 export const filtered = derived([processes, search], ([$processes, $search]) => {
   const q = $search.trim().toLowerCase();
   if (!q) return $processes;
@@ -25,12 +39,15 @@ export const filtered = derived([processes, search], ([$processes, $search]) => 
   );
 });
 
+/** Derived store containing only processes in the "Browser" group. */
 export const chromeProcesses = derived(processes, ($processes) =>
   $processes.filter((p) => p.group === "Browser"),
 );
 
+/** Derived store with the count of currently selected PIDs. */
 export const selectedCount = derived(selectedPids, ($pids) => $pids.size);
 
+/** Derived store with the total RAM (in MB) consumed by all selected processes. */
 export const selectedRamMB = derived(
   [processes, selectedPids],
   ([$processes, $pids]) =>
@@ -39,11 +56,10 @@ export const selectedRamMB = derived(
       .reduce((sum, p) => sum + p.ram_mb, 0),
 );
 
-// --- Diff-based refresh ---
-// Compares incoming processes with current state:
-// 1. Adds new PIDs
-// 2. Updates changed metrics on existing PIDs (no re-create)
-// 3. Removes dead PIDs (ghost prevention)
+/**
+ * Applies a diff-based update to the process list: adds new PIDs, updates changed metrics
+ * (reusing object references when unchanged), and removes dead PIDs.
+ */
 export function applyDiff(current: ProcessEntry[], incoming: ProcessEntry[]): ProcessEntry[] {
   const incomingMap = new Map<number, ProcessEntry>();
   for (const p of incoming) incomingMap.set(p.pid, p);
@@ -76,7 +92,7 @@ export function applyDiff(current: ProcessEntry[], incoming: ProcessEntry[]): Pr
   return result;
 }
 
-// --- IPC actions ---
+/** Fetches metrics from the backend, applies diff updates to the process store, and prunes stale selected PIDs. */
 export async function fetchMetrics(): Promise<void> {
   try {
     const data = await ipcGetMetrics(get(idleThreshold));
@@ -105,6 +121,7 @@ export async function fetchMetrics(): Promise<void> {
   }
 }
 
+/** Kills all currently selected processes after user confirmation. Returns the PIDs that were killed. */
 export async function killSelected(): Promise<number[]> {
   const pids = Array.from(get(selectedPids));
   if (pids.length === 0) return [];
@@ -121,6 +138,7 @@ export async function killSelected(): Promise<number[]> {
   }
 }
 
+/** Kills a single process by PID after user confirmation. Returns true if successfully killed. */
 export async function killSingle(pid: number, name?: string): Promise<boolean> {
   if (!confirmAction(t("processes.confirmKillSingle", { name: name ?? String(pid), pid }))) return false;
   try {
@@ -143,6 +161,7 @@ export async function killSingle(pid: number, name?: string): Promise<boolean> {
   }
 }
 
+/** Toggles the selection state of a process by PID. */
 export function toggleSelect(pid: number): void {
   selectedPids.update(($pids) => {
     const next = new Set($pids);
@@ -152,26 +171,40 @@ export function toggleSelect(pid: number): void {
   });
 }
 
+/** Selects all non-system processes currently visible in the filtered list. */
 export function selectAllVisible(): void {
   const visible = get(filtered);
   selectedPids.set(new Set(visible.filter((p) => !p.is_system).map((p) => p.pid)));
 }
 
+/** Clears all process selections. */
 export function selectNone(): void {
   selectedPids.set(new Set());
 }
 
 // --- AI stores ---
+
+/** Writable store holding AI-generated suggestions for processes to kill/optimize. */
 export const aiSuggestions = writable<ProcessSuggestion[]>([]);
+
+/** Whether an AI analysis request is currently in flight. */
 export const aiLoading = writable(false);
+
+/** Error message from the most recent AI analysis, or null if none. */
 export const aiError = writable<string | null>(null);
+
+/** Current AI analysis profile (e.g., "general", "gaming", "development"). */
 export const aiProfile = writable("general");
 
 // --- UI state ---
+
+/** PID of the process row currently focused/highlighted in the table, or null. */
 export const focusedPid = writable<number | null>(null);
+
+/** Whether the process table is displayed in grouped-by-category mode. */
 export const grouping = writable(false);
 
-// --- AI actions ---
+/** Triggers AI-powered process analysis using the selected profile and provider. Updates aiSuggestions/aiError stores. */
 export async function analyzeWithAi(provider?: string, model?: string): Promise<void> {
   aiLoading.set(true);
   aiError.set(null);
@@ -193,10 +226,12 @@ export async function analyzeWithAi(provider?: string, model?: string): Promise<
   }
 }
 
+/** Persists AI provider configuration (provider, model, API key) to the backend's secure storage. */
 export async function saveAiConfigAction(provider: string, model: string, key: string): Promise<void> {
   await ipcSaveAiConfig(provider, model, key);
 }
 
+/** Clears AI suggestions and errors from the UI. */
 export function dismissAiSuggestions(): void {
   aiSuggestions.set([]);
   aiError.set(null);
@@ -216,6 +251,7 @@ async function fetchBrowserTabs(): Promise<void> {
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let tabIntervalId: ReturnType<typeof setInterval> | null = null;
 
+/** Starts periodic polling for metrics (every intervalMs) and browser tabs (every 5s). */
 export function startPolling(intervalMs = 2000): void {
   stopPolling();
   fetchMetrics();
@@ -224,6 +260,7 @@ export function startPolling(intervalMs = 2000): void {
   tabIntervalId = setInterval(fetchBrowserTabs, 5000); // tabs every 5s, not 2s
 }
 
+/** Stops all active polling intervals for metrics and browser tabs. */
 export function stopPolling(): void {
   if (intervalId !== null) {
     clearInterval(intervalId);

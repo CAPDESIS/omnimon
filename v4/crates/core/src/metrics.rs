@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sysinfo::System;
 
+/// A single process entry with its PID, name, and memory usage in bytes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcessMemoryEntry {
     pub pid: u32,
@@ -8,6 +9,7 @@ pub struct ProcessMemoryEntry {
     pub memory_bytes: u64,
 }
 
+/// Snapshot of system-wide memory: total, free, and used bytes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemMemory {
     pub total_memory_bytes: u64,
@@ -15,6 +17,7 @@ pub struct SystemMemory {
     pub used_memory_bytes: u64,
 }
 
+/// Returns the top `limit` processes sorted by memory usage in descending order.
 pub fn top_processes_by_memory(limit: usize) -> Vec<ProcessMemoryEntry> {
     let mut system = System::new_all();
     system.refresh_all();
@@ -34,6 +37,7 @@ pub fn top_processes_by_memory(limit: usize) -> Vec<ProcessMemoryEntry> {
     entries
 }
 
+/// Collects a snapshot of system memory, preferring native OS APIs over sysinfo fallback.
 pub fn free_system_memory() -> SystemMemory {
     if let Some(native) = crate::os_native::collect_native_memory_snapshot() {
         return SystemMemory {

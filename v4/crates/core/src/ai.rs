@@ -9,6 +9,7 @@ const MAX_RETRIES: u32 = 3;
 const INITIAL_BACKOFF_MS: u64 = 500;
 const REQUEST_TIMEOUT_SECS: u64 = 30;
 
+/// Supported AI backend providers for process analysis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AiProvider {
     OpenRouter,
@@ -61,6 +62,7 @@ impl std::str::FromStr for AiProvider {
     }
 }
 
+/// Persists an API key for the given provider in the OS keyring.
 pub fn save_api_key(provider: AiProvider, key: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
     let entry = Entry::new(provider.keyring_service(), "ai_api_key")?;
     entry.set_password(key)?;
@@ -91,6 +93,7 @@ where
     Ok(())
 }
 
+/// Validates the API key with a lightweight ping request, then saves it to the keyring.
 pub async fn save_api_key_with_ping(
     provider: AiProvider,
     model: &str,
@@ -104,6 +107,7 @@ pub async fn save_api_key_with_ping(
     .await
 }
 
+/// Retrieves the stored API key for the given provider from the OS keyring.
 pub fn get_api_key(provider: AiProvider) -> Result<String, Box<dyn Error + Send + Sync>> {
     let entry = Entry::new(provider.keyring_service(), "ai_api_key")?;
     Ok(entry.get_password()?)
@@ -159,6 +163,7 @@ pub async fn validate_api_key(
     Ok(())
 }
 
+/// An AI-generated suggestion to close a specific process, with a human-readable reason.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ProcessSuggestion {
     pub pid: u32,
@@ -186,10 +191,12 @@ async fn send_with_retry(
                 }
                 // Server error or rate limit — retry
                 if attempt == MAX_RETRIES {
-                    let err_text = r.text().await.unwrap_or_default();
-                    return Err(
-                        format!("API Error after {} retries: {}", MAX_RETRIES, err_text).into(),
-                    );
+                    return Err(format!(
+                        "AI service unavailable after {} retries (status {})",
+                        MAX_RETRIES,
+                        status.as_u16()
+                    )
+                    .into());
                 }
             }
             Err(e) => {
@@ -204,6 +211,7 @@ async fn send_with_retry(
     unreachable!()
 }
 
+/// Sends the running process list to the AI provider and returns kill suggestions.
 pub async fn analyze_with_ai(
     provider: AiProvider,
     model: &str,
@@ -253,8 +261,8 @@ pub async fn analyze_with_ai(
     .await?;
 
     if resp.status().is_client_error() {
-        let err_text = resp.text().await?;
-        return Err(format!("API Error: {}", err_text).into());
+        let status = resp.status().as_u16();
+        return Err(format!("AI request failed (status {})", status).into());
     }
 
     let resp_json: serde_json::Value = resp.json().await?;
@@ -295,8 +303,8 @@ async fn analyze_anthropic(
     .await?;
 
     if resp.status().is_client_error() {
-        let err_text = resp.text().await?;
-        return Err(format!("API Error: {}", err_text).into());
+        let status = resp.status().as_u16();
+        return Err(format!("AI request failed (status {})", status).into());
     }
 
     let resp_json: serde_json::Value = resp.json().await?;
@@ -336,7 +344,7 @@ pub async fn analyze_context(
         })
         .await?;
         if resp.status().is_client_error() {
-            return Err(format!("API Error: {}", resp.text().await?).into());
+            return Err(format!("AI request failed (status {})", resp.status().as_u16()).into());
         }
         let resp_json: serde_json::Value = resp.json().await?;
         return resp_json["content"][0]["text"]
@@ -506,7 +514,10 @@ mod tests {
         let url = server.url();
         let result = send_with_retry(|| client.post(format!("{}/test", url))).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("API Error after"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("AI service unavailable after"));
     }
 
     #[tokio::test]

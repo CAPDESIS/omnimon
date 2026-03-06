@@ -7,6 +7,7 @@ use sysinfo::{Networks, System};
 static CACHED_STATE: OnceLock<Arc<RwLock<SystemState>>> = OnceLock::new();
 static WATCHER_STARTED: AtomicBool = AtomicBool::new(false);
 
+/// Periodically refreshed snapshot of system health: memory, CPU, swap, and network I/O.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SystemState {
     pub total_memory_bytes: u64,
@@ -65,6 +66,9 @@ fn collect_state(system: &mut System) -> SystemState {
     }
 }
 
+/// Spawns a background thread that refreshes the cached [`SystemState`] every 2 seconds.
+///
+/// Calling this more than once is a no-op.
 pub fn start_watcher() {
     if WATCHER_STARTED.swap(true, Ordering::SeqCst) {
         return;
@@ -116,6 +120,9 @@ pub fn start_watcher() {
     });
 }
 
+/// Returns the most recent [`SystemState`] snapshot from the watcher.
+///
+/// If the watcher has not been started, returns a zeroed default state.
 pub fn get_cached_state() -> SystemState {
     let cache = state_handle();
     cache

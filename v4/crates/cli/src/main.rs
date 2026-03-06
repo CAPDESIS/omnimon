@@ -282,8 +282,19 @@ fn main() {
             let core_provider = ai.to_core_provider();
             let model = ai.default_model();
 
-            let top_procs = metrics::top_processes_by_memory(25);
-            let procs_json = serde_json::to_string(&top_procs).unwrap_or_else(|_| "[]".to_string());
+            let top_procs = metrics::top_processes_by_memory(30);
+            let mut procs_to_send: Vec<serde_json::Value> = Vec::new();
+            for p in &top_procs {
+                if !killer::is_immutable_blocked_process_name(&p.name) {
+                    procs_to_send.push(serde_json::json!({
+                        "pid": p.pid,
+                        "name": p.name,
+                        "memory_mb": p.memory_bytes / 1_048_576
+                    }));
+                }
+            }
+            let procs_json =
+                serde_json::to_string(&procs_to_send).unwrap_or_else(|_| "[]".to_string());
 
             let profile = target_name;
 
@@ -298,7 +309,8 @@ fn main() {
                 &procs_json,
                 profile,
             )) {
-                Ok(suggestions) => {
+                Ok(mut suggestions) => {
+                    suggestions.retain(|s| !killer::is_immutable_blocked_process_name(&s.name));
                     if suggestions.is_empty() {
                         println!("No optimization suggestions — your system looks healthy.");
                     } else {

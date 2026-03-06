@@ -55,13 +55,28 @@ const DEFAULT_TAB_PANEL_HEIGHT = 160;
 const MIN_TAB_PANEL_HEIGHT = 40;
 const MAX_TAB_PANEL_HEIGHT = 800;
 
+/** Current font size (in px) for the process table. */
 export const fontSize = writable(DEFAULT_FONT_SIZE);
+
+/** Visibility toggle for each column in the process table. */
 export const columns = writable<ColumnConfig>({ ...DEFAULT_COLUMNS });
+
+/** Display order of columns in the process table. */
 export const columnOrder = writable<ColumnKey[]>([...COLUMN_KEYS]);
+
+/** Selected AI provider and model for process analysis. */
 export const aiProviderConfig = writable<AiProviderConfig>({ ...DEFAULT_AI_CONFIG });
+
+/** CPU usage threshold (in %) below which a process is considered idle. */
 export const idleThreshold = writable(DEFAULT_IDLE_THRESHOLD);
+
+/** Current theme mode: "auto" follows system, or forced "light"/"dark". */
 export const theme = writable<ThemeMode>(DEFAULT_THEME);
+
+/** Height (in px) of the browser tabs panel at the bottom of the UI. */
 export const tabPanelHeight = writable(DEFAULT_TAB_PANEL_HEIGHT);
+
+/** User's preferred locale ("en", "es", or "auto" for system detection). */
 export const localePreference = writable<LocaleCode>(DEFAULT_LOCALE);
 
 let storeInstance: any = null;
@@ -77,6 +92,7 @@ async function getStore() {
   }
 }
 
+/** Loads all user preferences from the Tauri persistent store, falling back to defaults on error. */
 export async function loadPreferences(): Promise<void> {
   const store = await getStore();
   if (!store) return;
@@ -142,6 +158,7 @@ export async function loadPreferences(): Promise<void> {
   }
 }
 
+/** Persists all current preference values to the Tauri persistent store. */
 export async function savePreferences(): Promise<void> {
   const store = await getStore();
   if (!store) return;
@@ -170,6 +187,7 @@ function debouncedSave() {
   }, 500);
 }
 
+/** Subscribes to all preference stores and auto-saves on changes (debounced). Returns an unsubscribe function. */
 export function initPreferenceSubscriptions(): () => void {
   const unsubs = [
     fontSize.subscribe(() => debouncedSave()),
@@ -187,14 +205,17 @@ export function initPreferenceSubscriptions(): () => void {
   };
 }
 
+/** Increases the font size by 1px, clamped to MAX_FONT_SIZE. */
 export function increaseFontSize(): void {
   fontSize.update((v) => Math.min(v + 1, MAX_FONT_SIZE));
 }
 
+/** Decreases the font size by 1px, clamped to MIN_FONT_SIZE. */
 export function decreaseFontSize(): void {
   fontSize.update((v) => Math.max(v - 1, MIN_FONT_SIZE));
 }
 
+/** Moves the given column one position earlier (left) in the column order. */
 export function moveColumnUp(key: ColumnKey): void {
   columnOrder.update((order) => {
     const idx = order.indexOf(key);
@@ -205,6 +226,7 @@ export function moveColumnUp(key: ColumnKey): void {
   });
 }
 
+/** Moves the given column one position later (right) in the column order. */
 export function moveColumnDown(key: ColumnKey): void {
   columnOrder.update((order) => {
     const idx = order.indexOf(key);

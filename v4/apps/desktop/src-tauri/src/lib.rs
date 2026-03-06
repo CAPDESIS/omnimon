@@ -150,7 +150,7 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
         } else {
             0
         },
-        swap_used_mb: 0,
+        swap_used_mb: sys_state.swap_used_mb as u32,
         total_processes: total_procs,
         net_rx_bytes_per_sec: sys_state.net_rx_bytes_per_sec,
         net_tx_bytes_per_sec: sys_state.net_tx_bytes_per_sec,

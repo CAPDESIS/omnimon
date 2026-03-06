@@ -48,6 +48,7 @@ pub fn sanitize_tab_url(url: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Known browser types supported for tab enumeration and control.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum BrowserKind {
     Chrome,
@@ -129,6 +130,7 @@ impl std::str::FromStr for BrowserKind {
     }
 }
 
+/// Represents a single open browser tab with its ID, title, URL, and owning browser.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowserTab {
     pub id: String,
@@ -137,6 +139,7 @@ pub struct BrowserTab {
     pub browser: BrowserKind,
 }
 
+/// Abstraction for listing, closing, and focusing browser tabs across platforms.
 pub trait TabProvider {
     fn list_tabs(&self, browser: BrowserKind) -> Result<Vec<BrowserTab>, String>;
     fn close_tab(&self, browser: BrowserKind, tab: &BrowserTab) -> Result<bool, String>;
@@ -172,10 +175,12 @@ fn map_cdp_targets_to_tabs(targets: Vec<CdpTabTarget>, browser: BrowserKind) -> 
         .collect()
 }
 
+/// Lists open tabs via the Chrome DevTools Protocol, defaulting to [`BrowserKind::Chrome`].
 pub fn cdp_list_tabs(base_url: &str) -> Result<Vec<BrowserTab>, String> {
     cdp_list_tabs_for(base_url, BrowserKind::Chrome)
 }
 
+/// Lists open tabs via CDP for a specific browser kind, filtering to page-type targets.
 pub fn cdp_list_tabs_for(base_url: &str, browser: BrowserKind) -> Result<Vec<BrowserTab>, String> {
     let runtime = build_runtime()?;
     let targets_result = runtime.block_on(async {
@@ -201,6 +206,7 @@ pub fn cdp_list_tabs_for(base_url: &str, browser: BrowserKind) -> Result<Vec<Bro
     Ok(map_cdp_targets_to_tabs(targets, browser))
 }
 
+/// Closes a browser tab by its CDP target ID. Returns `true` if the tab was successfully closed.
 pub fn cdp_close_tab(base_url: &str, tab_id: &str) -> Result<bool, String> {
     if tab_id.trim().is_empty() {
         return Ok(false);
