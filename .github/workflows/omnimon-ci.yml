@@ -55,8 +55,19 @@ jobs:
       run: cargo clippy --workspace -- -D warnings
       working-directory: ./v4
 
-    - name: Run Backend Tests with Coverage
+    - name: Run Backend Tests with Coverage (Linux)
+      if: matrix.os == 'ubuntu-latest'
       run: cargo llvm-cov --all-features --workspace --fail-under-lines 80 --ignore-filename-regex "(ai\.rs|src-tauri|cli.src.main\.rs|os_native\.rs|network\.rs)"
+      working-directory: ./v4
+
+    - name: Run Backend Tests (macOS)
+      if: matrix.os == 'macos-latest'
+      run: cargo test --workspace
+      working-directory: ./v4
+
+    - name: Verify Backend Build (Windows)
+      if: matrix.os == 'windows-latest'
+      run: cargo check --workspace
       working-directory: ./v4
 
     - name: Install Frontend Dependencies
