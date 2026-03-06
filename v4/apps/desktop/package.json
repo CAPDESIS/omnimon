@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@crabnebula/tauri-driver": "^2.0.9",
+    "@crabnebula/test-runner-backend": "^0.2.6",
     "@sveltejs/vite-plugin-svelte": "^5",
     "@tauri-apps/cli": "^2",
     "@testing-library/jest-dom": "^6.9.1",

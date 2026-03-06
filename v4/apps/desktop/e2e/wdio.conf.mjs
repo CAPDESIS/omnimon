@@ -2,6 +2,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
+import { waitTauriDriverReady } from "@crabnebula/tauri-driver";
+import { waitTestRunnerBackendReady } from "@crabnebula/test-runner-backend";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,6 +23,17 @@ function tauriAppPath() {
 }
 
 let tauriDriverProcess;
+let testRunnerBackendProcess;
+let killedTauriDriver = false;
+let killedTestRunnerBackend = false;
+
+function closeDrivers() {
+  killedTauriDriver = true;
+  killedTestRunnerBackend = true;
+  if (tauriDriverProcess && !tauriDriverProcess.killed) tauriDriverProcess.kill("SIGTERM");
+  if (testRunnerBackendProcess && !testRunnerBackendProcess.killed)
+    testRunnerBackendProcess.kill("SIGTERM");
+}
 
 export const config = {
   runner: "local",
@@ -51,16 +64,31 @@ export const config = {
     }
 
     if (process.platform === "darwin") {
-      const wkWebDriverInPath = process.env.PATH?.split(path.delimiter).some((p) =>
-        existsSync(path.join(p, "wkwebdriver")),
-      );
-      if (!wkWebDriverInPath) {
+      if (!process.env.CN_API_KEY) {
         throw new Error(
-          "wkwebdriver is required on macOS for tauri-driver. Install it and ensure it is in PATH.",
+          "CN_API_KEY is required on macOS. Export it to use CrabNebula Webdriver backend.",
         );
       }
-    }
 
+      const backendBin = process.platform === "win32" ? "test-runner-backend.cmd" : "test-runner-backend";
+      testRunnerBackendProcess = spawn(backendBin, [], {
+        cwd: rootDir,
+        stdio: "inherit",
+        shell: process.platform === "win32",
+      });
+
+      testRunnerBackendProcess.on("exit", (code) => {
+        if (!killedTestRunnerBackend) {
+          console.error(`test-runner-backend exited unexpectedly with code ${code}`);
+          process.exit(1);
+        }
+      });
+
+      await waitTestRunnerBackendReady();
+      process.env.REMOTE_WEBDRIVER_URL = "http://127.0.0.1:3000";
+    }
+  },
+  beforeSession: async () => {
     const tauriDriverBin = process.platform === "win32" ? "tauri-driver.cmd" : "tauri-driver";
     tauriDriverProcess = spawn(tauriDriverBin, ["--port", "4444"], {
       cwd: rootDir,
@@ -68,11 +96,19 @@ export const config = {
       shell: process.platform === "win32",
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    tauriDriverProcess.on("exit", (code) => {
+      if (!killedTauriDriver) {
+        console.error(`tauri-driver exited unexpectedly with code ${code}`);
+        process.exit(1);
+      }
+    });
+
+    await waitTauriDriverReady();
+  },
+  afterSession: async () => {
+    closeDrivers();
   },
   onComplete: async () => {
-    if (tauriDriverProcess && !tauriDriverProcess.killed) {
-      tauriDriverProcess.kill("SIGTERM");
-    }
+    closeDrivers();
   },
 };
