@@ -98,6 +98,28 @@ describe("rendering", () => {
     expect(screen.getByText("Safari")).toBeInTheDocument();
   });
 
+  it("detects generic Chrome Helper name", () => {
+    browserTabs.set([{ id: "tab-1", title: "Docs", url: "https://docs.example.com", browser: "Chrome" }]);
+    render(ProcessTable, {
+      props: {
+        processes: [makeProc({ pid: 212, name: "Chrome Helper", exec_name: "Chrome Helper", group: "Browser" })],
+      },
+    });
+    expect(screen.getByText("1 Chrome tab open")).toBeInTheDocument();
+    expect(screen.getByText("Chrome")).toBeInTheDocument();
+  });
+
+  it("detects generic WebContent name", () => {
+    browserTabs.set([{ id: "tab-2", title: "Apple", url: "https://apple.com", browser: "Safari" }]);
+    render(ProcessTable, {
+      props: {
+        processes: [makeProc({ pid: 213, name: "WebContent", exec_name: "Safari WebContent", group: "Browser" })],
+      },
+    });
+    expect(screen.getByText("1 Safari tab open")).toBeInTheDocument();
+    expect(screen.getByText("Safari")).toBeInTheDocument();
+  });
+
   it("uses exec_name for non-tab details", () => {
     render(ProcessTable, {
       props: {

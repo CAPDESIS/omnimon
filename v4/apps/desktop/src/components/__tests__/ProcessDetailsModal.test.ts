@@ -104,6 +104,34 @@ describe("rendering", () => {
     expect(screen.queryByText("GitHub")).not.toBeInTheDocument();
   });
 
+  it("detects generic Chrome Helper process names", () => {
+    browserTabs.set([{ id: "tab-1", title: "Docs", url: "https://docs.example.com", browser: "Chrome" }]);
+
+    render(ProcessDetailsModal, {
+      props: {
+        process: makeProc({ name: "Chrome Helper", exec_name: "Chrome Helper", group: "Browser" }),
+        onclose: vi.fn(),
+      },
+    });
+
+    expect(screen.getByText("Browser Tabs (1)")).toBeInTheDocument();
+    expect(screen.getByText("Docs")).toBeInTheDocument();
+  });
+
+  it("detects generic WebContent process names", () => {
+    browserTabs.set([{ id: "tab-2", title: "Safari Tab", url: "https://apple.com", browser: "Safari" }]);
+
+    render(ProcessDetailsModal, {
+      props: {
+        process: makeProc({ name: "WebContent", exec_name: "WebContent Safari", group: "Browser" }),
+        onclose: vi.fn(),
+      },
+    });
+
+    expect(screen.getByText("Browser Tabs (1)")).toBeInTheDocument();
+    expect(screen.getByText("Safari Tab")).toBeInTheDocument();
+  });
+
   it("does not show browser tabs for non-Browser group", () => {
     browserTabs.set([
       { id: "tab-1", title: "GitHub", url: "https://github.com", browser: "Chrome" },

@@ -521,6 +521,11 @@ describe("saveAiConfigAction", () => {
       key: "secret-key",
     });
   });
+
+  it("bubbles tauri save errors", async () => {
+    mockInvoke.mockRejectedValue(new Error("keyring unavailable"));
+    await expect(saveAiConfigAction("openai", "gpt-5", "secret-key")).rejects.toThrow("keyring unavailable");
+  });
 });
 
 // --- Polling ---

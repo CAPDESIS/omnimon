@@ -237,6 +237,11 @@ describe("ipcSaveAiConfig", () => {
     mockInvoke.mockRejectedValue(new Error("keyring failed"));
     await expect(ipcSaveAiConfig("openrouter", "m", "k")).rejects.toThrow("keyring failed");
   });
+
+  it("propagates tauri transport failures", async () => {
+    mockInvoke.mockRejectedValue(new Error("tauri invoke timeout"));
+    await expect(ipcSaveAiConfig("openai", "gpt-4o-mini", "sk-test")).rejects.toThrow("tauri invoke timeout");
+  });
 });
 
 describe("ipcAnalyzeProcesses", () => {
@@ -276,6 +281,11 @@ describe("ipcAnalyzeProcesses", () => {
   it("propagates API errors", async () => {
     mockInvoke.mockRejectedValue(new Error("No API key configured"));
     await expect(ipcAnalyzeProcesses("developer", "openai", "gpt-4o")).rejects.toThrow("No API key configured");
+  });
+
+  it("propagates tauri backend errors", async () => {
+    mockInvoke.mockRejectedValue(new Error("AppleScript permission denied"));
+    await expect(ipcAnalyzeProcesses("general", "openrouter", "m")).rejects.toThrow("AppleScript permission denied");
   });
 });
 
