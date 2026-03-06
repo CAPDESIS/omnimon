@@ -38,3 +38,14 @@ fn test_cli_help() {
         .success()
         .stdout(predicate::str::contains("OmniMon: Monitor de sistema"));
 }
+
+#[test]
+fn test_settings_help() {
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cli");
+
+    cmd.arg("settings").arg("--help");
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Manage settings"));
+}

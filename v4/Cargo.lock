@@ -475,7 +475,9 @@ dependencies = [
  "assert_cmd",
  "clap",
  "core",
+ "dirs",
  "predicates",
+ "serde",
  "serde_json",
  "tokio",
 ]

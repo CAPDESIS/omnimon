@@ -1,8 +1,11 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use core::ai as core_ai;
+use core::browser::{BrowserKind, BrowserTab, NativeTabProvider, TabProvider};
 use core::killer;
 use core::metrics;
 use core::watcher;
+
+mod settings;
 
 #[derive(Parser)]
 #[command(name = "macmon")]
@@ -29,13 +32,6 @@ enum Commands {
         /// The Process ID to kill
         pid: u32,
     },
-    /// Manage profiles
-    Profile {
-        #[command(subcommand)]
-        command: ProfileCommands,
-    },
-    /// Update macmon to the latest version
-    Update,
     /// Smart Optimize via AI
     Optimize {
         /// AI Provider to use
@@ -45,14 +41,70 @@ enum Commands {
         #[arg(long)]
         target: Option<String>,
     },
+    /// Manage Browser Tabs
+    Tabs {
+        #[command(subcommand)]
+        command: TabCommands,
+    },
+    /// Analyze Context or Chat with AI Assistant
+    Chat {
+        /// AI Provider to use
+        #[arg(long, value_enum)]
+        ai: AiProvider,
+        /// Prompt/Context to send to the AI
+        prompt: String,
+    },
+    /// Save and validate an API Key for an AI Provider
+    Apikey {
+        /// AI Provider to use
+        #[arg(long, value_enum)]
+        ai: AiProvider,
+        /// The API Key to save
+        key: String,
+    },
+    /// Manage settings (theme, locale, etc.)
+    Settings {
+        #[command(subcommand)]
+        command: SettingsCommands,
+    },
 }
 
 #[derive(Subcommand)]
-enum ProfileCommands {
-    /// Use a specific profile
-    Use {
-        /// The name of the profile to use
-        name: String,
+enum SettingsCommands {
+    /// Show all settings
+    Get,
+    /// Set a specific setting
+    Set {
+        /// Setting to change (theme, font-size, locale, idle-threshold)
+        key: String,
+        /// New value for the setting
+        value: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum TabCommands {
+    /// List open browser tabs
+    List,
+    /// Close a browser tab by ID or URL
+    Close {
+        /// Target Browser (Chrome, Safari, Brave, Edge, Arc)
+        #[arg(long)]
+        browser: String,
+        #[arg(long, default_value_t = String::new())]
+        id: String,
+        #[arg(long, default_value_t = String::new())]
+        url: String,
+    },
+    /// Focus a browser tab by ID or URL
+    Focus {
+        /// Target Browser (Chrome, Safari, Brave, Edge, Arc)
+        #[arg(long)]
+        browser: String,
+        #[arg(long, default_value_t = String::new())]
+        id: String,
+        #[arg(long, default_value_t = String::new())]
+        url: String,
     },
 }
 
@@ -136,7 +188,6 @@ fn main() {
 
     match &cli.command {
         Commands::Status { format } => {
-            // Start the system watcher and wait for initial data collection
             watcher::start_watcher();
             std::thread::sleep(std::time::Duration::from_millis(2500));
 
@@ -220,16 +271,6 @@ fn main() {
                 }
             }
         }
-        Commands::Profile { command } => match command {
-            ProfileCommands::Use { name } => {
-                println!("Profile management is not yet implemented.");
-                println!("Would activate profile: {}", name);
-            }
-        },
-        Commands::Update => {
-            println!("Self-update is not yet implemented.");
-            println!("Check https://github.com/chochy2001/omnimon for the latest version.");
-        }
         Commands::Optimize { ai, target } => {
             let target_name = target.as_deref().unwrap_or("all");
             println!(
@@ -241,13 +282,11 @@ fn main() {
             let core_provider = ai.to_core_provider();
             let model = ai.default_model();
 
-            // Gather current process data
             let top_procs = metrics::top_processes_by_memory(25);
             let procs_json = serde_json::to_string(&top_procs).unwrap_or_else(|_| "[]".to_string());
 
             let profile = target_name;
 
-            // Build a tokio runtime for the async AI call
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
@@ -282,5 +321,147 @@ fn main() {
                 }
             }
         }
+        Commands::Tabs { command } => match command {
+            TabCommands::List => {
+                let provider = NativeTabProvider;
+                let mut all_tabs = Vec::new();
+                for browser in BrowserKind::all() {
+                    if let Ok(tabs) = provider.list_tabs(*browser) {
+                        all_tabs.extend(tabs);
+                    }
+                }
+                println!("Open Browser Tabs:");
+                for tab in all_tabs {
+                    println!(
+                        "  [{}] {} ({})",
+                        tab.browser.display_name(),
+                        tab.title,
+                        tab.url
+                    );
+                }
+            }
+            TabCommands::Close { browser, id, url } => {
+                use std::str::FromStr;
+                let kind = BrowserKind::from_str(browser).expect("Invalid browser");
+                let tab = BrowserTab {
+                    id: id.clone(),
+                    url: url.clone(),
+                    title: String::new(),
+                    browser: kind,
+                };
+                let provider = NativeTabProvider;
+                match provider.close_tab(kind, &tab) {
+                    Ok(true) => println!("Tab successfully closed."),
+                    Ok(false) => println!("Tab not found or could not be closed."),
+                    Err(e) => eprintln!("Error closing tab: {}", e),
+                }
+            }
+            TabCommands::Focus { browser, id, url } => {
+                use std::str::FromStr;
+                let kind = BrowserKind::from_str(browser).expect("Invalid browser");
+                let tab = BrowserTab {
+                    id: id.clone(),
+                    url: url.clone(),
+                    title: String::new(),
+                    browser: kind,
+                };
+                let provider = NativeTabProvider;
+                match provider.focus_tab(kind, &tab) {
+                    Ok(true) => println!("Tab successfully focused."),
+                    Ok(false) => println!("Tab not found or could not be focused."),
+                    Err(e) => eprintln!("Error focusing tab: {}", e),
+                }
+            }
+        },
+        Commands::Chat { ai, prompt } => {
+            println!("Sending context analysis to {}...", ai.display_name());
+            let core_provider = ai.to_core_provider();
+            let model = ai.default_model();
+
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to create async runtime");
+
+            let prompt_clone = prompt.clone();
+            match rt.block_on(core_ai::analyze_context(
+                core_provider,
+                model,
+                &prompt_clone,
+            )) {
+                Ok(response) => {
+                    println!("\nAI Response:\n{}", response);
+                }
+                Err(e) => {
+                    eprintln!("Chat failed: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        Commands::Apikey { ai, key } => {
+            println!("Validating and saving API Key for {}...", ai.display_name());
+            let core_provider = ai.to_core_provider();
+            let model = ai.default_model();
+
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to create async runtime");
+
+            match rt.block_on(core_ai::save_api_key_with_ping(core_provider, model, key)) {
+                Ok(()) => println!("API Key successfully validated and saved to native keyring."),
+                Err(e) => {
+                    eprintln!("Failed to validate or save API key: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        Commands::Settings { command } => match command {
+            SettingsCommands::Get => {
+                let s = settings::read_settings();
+                println!("Current Settings:");
+                println!("  theme:          {}", s.theme.as_deref().unwrap_or("auto"));
+                println!("  font-size:      {}", s.font_size.unwrap_or(12));
+                println!(
+                    "  locale:         {}",
+                    s.locale.as_deref().unwrap_or("auto")
+                );
+                println!("  idle-threshold: {}", s.idle_threshold.unwrap_or(1.0));
+            }
+            SettingsCommands::Set { key, value } => {
+                let mut s = settings::read_settings();
+                match key.as_str() {
+                    "theme" => s.theme = Some(value.clone()),
+                    "font-size" => {
+                        if let Ok(fs) = value.parse::<u32>() {
+                            s.font_size = Some(fs);
+                        } else {
+                            eprintln!("Error: font-size must be an integer");
+                            std::process::exit(1);
+                        }
+                    }
+                    "locale" => s.locale = Some(value.clone()),
+                    "idle-threshold" => {
+                        if let Ok(thresh) = value.parse::<f64>() {
+                            s.idle_threshold = Some(thresh);
+                        } else {
+                            eprintln!("Error: idle-threshold must be a number");
+                            std::process::exit(1);
+                        }
+                    }
+                    _ => {
+                        eprintln!("Error: unknown setting '{}'", key);
+                        std::process::exit(1);
+                    }
+                }
+                match settings::write_settings(&s) {
+                    Ok(_) => println!("Setting '{}' updated to '{}'", key, value),
+                    Err(e) => {
+                        eprintln!("Failed to save settings: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+        },
     }
 }
