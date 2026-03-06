@@ -4,6 +4,9 @@ import type { ProcessEntry, SystemStats, BrowserTab, ProcessSuggestion } from ".
 import { confirmAction } from "../lib/confirm";
 import { t } from "../lib/i18n";
 import { idleThreshold } from "./preferences";
+import { pushMetrics } from "./metricsHistory";
+import { evaluateAlerts } from "./alerts";
+import { refreshSecurityAnalysis, refreshNetworkConnections } from "./security";
 
 // --- Core stores ---
 
@@ -100,6 +103,14 @@ export async function fetchMetrics(): Promise<void> {
     const updated = applyDiff(current, data.processes);
     processes.set(updated);
     stats.set(data.stats);
+
+    // Feed time-series history & alert evaluation
+    const cpuAvg = updated.length > 0
+      ? updated.reduce((s, p) => s + p.cpu_pct, 0) / updated.length
+      : 0;
+    pushMetrics(data.stats, cpuAvg);
+    evaluateAlerts(data.stats, updated);
+    refreshSecurityAnalysis(updated);
 
     // Prune selected PIDs that no longer exist
     const livePids = new Set(updated.map((p) => p.pid));
@@ -242,6 +253,7 @@ async function fetchBrowserTabs(): Promise<void> {
   try {
     const tabs = await ipcGetBrowserTabs();
     browserTabs.set(tabs);
+    refreshNetworkConnections(get(processes), tabs);
   } catch {
     // Best-effort — don't block anything
   }

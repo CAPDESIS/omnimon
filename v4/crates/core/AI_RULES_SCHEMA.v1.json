@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "rules": [
+    {
+      "id": "geo-cn-001",
+      "name": "Alert Chrome to CN",
+      "enabled": true,
+      "kind": "process_country",
+      "process_contains": "chrome",
+      "country_code": "CN",
+      "destination_ip": null,
+      "destination_cidr": null,
+      "destination_port": null,
+      "protocol": "tcp",
+      "process_memory_mb_gt": null,
+      "mitre_technique_id": "T1571"
+    },
+    {
+      "id": "cidr-block-002",
+      "name": "Block suspicious CIDR",
+      "enabled": true,
+      "kind": "process_cidr",
+      "process_contains": null,
+      "country_code": null,
+      "destination_ip": null,
+      "destination_cidr": "103.27.202.0/24",
+      "destination_port": null,
+      "protocol": "any",
+      "process_memory_mb_gt": null,
+      "mitre_technique_id": "T1043"
+    },
+    {
+      "id": "port-rule-003",
+      "name": "Unusual outbound port",
+      "enabled": true,
+      "kind": "process_port",
+      "process_contains": "node",
+      "country_code": null,
+      "destination_ip": null,
+      "destination_cidr": null,
+      "destination_port": 4444,
+      "protocol": "tcp",
+      "process_memory_mb_gt": null,
+      "mitre_technique_id": "T1571"
+    },
+    {
+      "id": "proc-mem-004",
+      "name": "Alert if node > 1GB",
+      "enabled": true,
+      "kind": "process_memory",
+      "process_contains": "node",
+      "country_code": null,
+      "destination_ip": null,
+      "destination_cidr": null,
+      "destination_port": null,
+      "protocol": "any",
+      "process_memory_mb_gt": 1024,
+      "mitre_technique_id": "T1499"
+    }
+  ]
+}

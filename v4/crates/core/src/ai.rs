@@ -219,6 +219,17 @@ pub async fn analyze_with_ai(
     profile: &str,
 ) -> Result<Vec<ProcessSuggestion>, Box<dyn Error + Send + Sync>> {
     let api_key = get_api_key(provider)?;
+    analyze_with_ai_key(provider, model, processes_json, profile, &api_key).await
+}
+
+/// Like `analyze_with_ai` but accepts an explicit API key (for Tauri Store fallback).
+pub async fn analyze_with_ai_key(
+    provider: AiProvider,
+    model: &str,
+    processes_json: &str,
+    profile: &str,
+    api_key: &str,
+) -> Result<Vec<ProcessSuggestion>, Box<dyn Error + Send + Sync>> {
     let client = build_client()?;
 
     let prompt = format!(
@@ -229,7 +240,7 @@ pub async fn analyze_with_ai(
     );
 
     if provider == AiProvider::Anthropic {
-        return analyze_anthropic(&client, &api_key, model, &prompt).await;
+        return analyze_anthropic(&client, api_key, model, &prompt).await;
     }
 
     // OpenAI-compatible endpoint (OpenRouter, OpenAI, Gemini)
@@ -323,6 +334,16 @@ pub async fn analyze_context(
     context: &str,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
     let api_key = get_api_key(provider)?;
+    analyze_context_key(provider, model, context, &api_key).await
+}
+
+/// Like `analyze_context` but accepts an explicit API key (for Tauri Store fallback).
+pub async fn analyze_context_key(
+    provider: AiProvider,
+    model: &str,
+    context: &str,
+    api_key: &str,
+) -> Result<String, Box<dyn Error + Send + Sync>> {
     let client = build_client()?;
 
     let system_msg = "You are macmon, a macOS system monitor assistant. Analyze the given process and browser tab information. Provide concise, actionable insights: what the process does, whether it's safe to close, memory impact, and any recommendations. Use short paragraphs. Be direct.";
@@ -337,7 +358,7 @@ pub async fn analyze_context(
         let resp = send_with_retry(|| {
             client
                 .post(AiProvider::Anthropic.api_url())
-                .header("x-api-key", &api_key)
+                .header("x-api-key", api_key)
                 .header("anthropic-version", "2023-06-01")
                 .header("content-type", "application/json")
                 .json(&body)
@@ -364,7 +385,7 @@ pub async fn analyze_context(
     let resp = send_with_retry(|| {
         let mut req = client
             .post(provider.api_url())
-            .header("Authorization", format!("Bearer {}", api_key));
+            .header("Authorization", format!("Bearer {api_key}"));
         if provider == AiProvider::OpenRouter {
             req = req
                 .header("HTTP-Referer", "https://github.com/chochy2001/omnimon")

@@ -40,6 +40,139 @@ export interface ProcessSuggestion {
   reason: string;
 }
 
+// --- Security & Telemetry Types ---
+// Mirror Rust structs from crates/core/src/security.rs and audit.rs
+// Ready to consume once IPC commands are exposed.
+
+export type BehaviorIndicator =
+  | "DllInjection"
+  | "RemoteThreadInjection"
+  | "ProcessHollowing"
+  | "SuspiciousMemoryRead"
+  | "UnsignedModuleLoad";
+
+export interface MitreTechnique {
+  technique_id: string;   // e.g. "T1055.001"
+  tactic: string;         // e.g. "Defense Evasion / Privilege Escalation"
+  name: string;           // Human-readable
+}
+
+export interface ProcessThreatLabel {
+  pid: number;
+  process_name: string;
+  indicator: BehaviorIndicator;
+  mitre_techniques: MitreTechnique[];
+  confidence: number;     // 0.0 - 1.0
+}
+
+export interface CveMatch {
+  pid: number;
+  process_name: string;
+  product: string;
+  detected_version: string;
+  cve_id: string;         // e.g. "CVE-2024-12345"
+  severity: string | null; // "low" | "medium" | "high" | "critical"
+  summary: string | null;
+}
+
+/** Aggregated security status per-process for the UI. */
+export interface ProcessSecurityInfo {
+  pid: number;
+  threats: ProcessThreatLabel[];
+  cves: CveMatch[];
+}
+
+// --- Network Telemetry Types ---
+// Mirror Rust structs from crates/core/src/network.rs and metrics.rs
+
+export interface NetworkConnection {
+  pid: number;
+  process_name: string;
+  remote_addr: string;      // IP or hostname
+  remote_port: number;
+  protocol: "tcp" | "udp";
+  direction: "outbound" | "inbound";
+  bytes_sent: number;
+  bytes_recv: number;
+  state: string;            // ESTABLISHED, LISTEN, etc.
+}
+
+export interface SuperProcess {
+  binary_key: string;
+  display_name: string;
+  process_count: number;
+  pids: number[];
+  total_memory_bytes: number;
+  total_cpu_usage_percent: number;
+  connections: NetworkConnection[];
+}
+
+// --- NIST Security Snapshot Types ---
+// Mirror Rust struct NistSecuritySnapshot from crates/core/src/audit.rs
+
+export type NistSeverity = "critical" | "high" | "medium" | "low" | "info";
+
+export interface NistFinding {
+  id: string;
+  category: "threat" | "vulnerability" | "network" | "compliance";
+  severity: NistSeverity;
+  title: string;
+  description: string;
+  affected_process: string;
+  pid: number;
+  mitre_id?: string;
+  cve_id?: string;
+  recommendation: string;
+}
+
+export interface NistSecuritySnapshot {
+  timestamp: number;
+  hostname: string;
+  total_processes: number;
+  findings: NistFinding[];
+  risk_score: number; // 0-100
+  summary: string;
+}
+
+// --- Dynamic Alert (from Rust rules engine) ---
+// Mirror Rust struct DynamicAlert from crates/core/src/rules_engine.rs
+
+export interface DynamicAlert {
+  rule_id: string;
+  rule_name: string;
+  pid: number;
+  process_name: string;
+  dst_ip: string;
+  dst_port: number;
+  country_code: string | null;
+  mitre_technique_id: string;
+  message: string;
+}
+
+// --- AI Rules Engine Schema v1 ---
+
+export type AiRuleKind = "process_country" | "process_ip" | "process_cidr" | "process_port" | "process_memory";
+
+export interface AiRuleV1 {
+  id: string;
+  name: string;
+  enabled: boolean;
+  kind: AiRuleKind;
+  process_contains: string | null;
+  country_code: string | null;
+  destination_ip: string | null;
+  destination_cidr: string | null;
+  destination_port: number | null;
+  protocol: "any" | "tcp" | "udp";
+  process_memory_mb_gt: number | null;
+  mitre_technique_id: string | null;
+}
+
+export interface AiRulesPayload {
+  schema_version: 1;
+  rules: AiRuleV1[];
+}
+
 export type AiProviderKind = "openrouter" | "openai" | "gemini" | "anthropic";
 
 export interface AiProviderDef {

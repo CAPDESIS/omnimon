@@ -7,6 +7,8 @@
   import { fontSize } from "../stores/preferences";
   import { t } from "../lib/i18n";
   import { detectBrowser } from "../lib/browser";
+  import SecurityBadge from "./SecurityBadge.svelte";
+  import { iconForProcess } from "../lib/processIcons";
 
   interface Props {
     processes: ProcessEntry[];
@@ -75,6 +77,34 @@
       return sortAsc ? Number(va) - Number(vb) : Number(vb) - Number(va);
     }),
   );
+
+  // --- Rank change tracking for micro-animations ---
+  // Use plain variables (not $state) to avoid effect cycles
+  let _prevRanks = new Map<number, number>();
+  let movedUpPids = $state(new Set<number>());
+
+  $effect(() => {
+    const items = sorted; // subscribe to sorted changes
+    const newRanks = new Map<number, number>();
+    for (let i = 0; i < items.length; i++) {
+      newRanks.set(items[i].pid, i);
+    }
+
+    const moved = new Set<number>();
+    for (const [pid, newIdx] of newRanks) {
+      const oldIdx = _prevRanks.get(pid);
+      if (oldIdx !== undefined && oldIdx > newIdx && oldIdx - newIdx >= 2) {
+        moved.add(pid);
+      }
+    }
+
+    _prevRanks = newRanks;
+
+    if (moved.size > 0) {
+      movedUpPids = moved;
+      setTimeout(() => { movedUpPids = new Set(); }, 600);
+    }
+  });
 
   interface ProcessGroup {
     name: string;
@@ -211,8 +241,12 @@
 {#snippet colCell(key: ColumnKey, proc: ProcessEntry)}
   {#if key === "name"}
     <td class="col-name" title={proc.exec_name}>
+      <svg class="proc-icon" viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
+        <path d={iconForProcess(proc.name, proc.group)} />
+      </svg>
       <span class="name-text">{proc.name}</span>
       {#if proc.idle}<span class="badge idle">{t("table.idle")}</span>{/if}
+      <SecurityBadge pid={proc.pid} />
     </td>
   {:else if key === "detail"}
     <td class="col-detail" title={getDetail(proc)}>
@@ -240,6 +274,7 @@
     class:selected={$selectedPids.has(proc.pid)}
     class:system={proc.is_system}
     class:focused={$focusedPid === proc.pid}
+    class:rank-up={movedUpPids.has(proc.pid)}
     onclick={() => handleRowClick(proc)}
     ondblclick={() => handleRowDblClick(proc)}
   >
@@ -517,9 +552,25 @@
     height: 12px;
   }
 
+  .proc-icon {
+    flex-shrink: 0;
+    color: var(--fg-dim);
+    vertical-align: middle;
+    margin-right: 3px;
+  }
+
   .name-text {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  tr.rank-up {
+    animation: rank-pulse 0.5s ease-out;
+  }
+
+  @keyframes rank-pulse {
+    0% { background: var(--accent-dim, rgba(59,130,246,0.15)); }
+    100% { background: transparent; }
   }
 
   .badge {

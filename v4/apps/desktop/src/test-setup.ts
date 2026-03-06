@@ -1,6 +1,23 @@
 import "@testing-library/jest-dom/vitest";
 import { writable, derived, get } from "svelte/store";
 
+// Polyfill Element.prototype.animate for Svelte transitions in happy-dom
+if (typeof Element.prototype.animate !== "function") {
+  Element.prototype.animate = function () {
+    return {
+      finished: Promise.resolve(),
+      cancel: () => {},
+      finish: () => {},
+      play: () => {},
+      pause: () => {},
+      onfinish: null,
+      oncancel: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    } as unknown as Animation;
+  };
+}
+
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));

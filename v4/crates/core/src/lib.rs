@@ -1,6 +1,12 @@
 pub mod ai;
+pub mod audit;
+pub mod audit_trail;
 pub mod browser;
+pub mod crypto;
 pub mod killer;
 pub mod metrics;
+pub mod network;
 mod os_native;
+pub mod rules_engine;
+pub mod security;
 pub mod watcher;

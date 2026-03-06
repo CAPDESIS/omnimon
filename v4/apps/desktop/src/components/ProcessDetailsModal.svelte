@@ -119,26 +119,32 @@
   }
 
   function buildAiContext(): string {
-    const lines = [
-      `Process: ${process.name}`,
-      `Executable: ${process.exec_name}`,
-      `PID: ${process.pid}`,
-      `RAM: ${process.ram_mb.toFixed(1)} MB`,
-      `CPU: ${process.cpu_pct.toFixed(1)}%`,
-      `Uptime: ${process.uptime}`,
-      `Group: ${process.group || "none"}`,
-      `State: ${process.state}`,
-      `System process: ${process.is_system ? "Yes" : "No"}`,
-    ];
+    const context: Record<string, unknown> = {
+      process: {
+        name: process.name,
+        executable: process.exec_name,
+        pid: process.pid,
+        ram_mb: parseFloat(process.ram_mb.toFixed(1)),
+        cpu_pct: parseFloat(process.cpu_pct.toFixed(1)),
+        uptime: process.uptime,
+        group: process.group || null,
+        state: process.state,
+        is_system: process.is_system,
+      },
+      prompt: "Analyze this process: What is it doing? Is the memory/CPU usage normal? Are any tabs particularly heavy or suspicious? Any recommendations?",
+    };
     if (allBrowserTabs.length > 0) {
-      lines.push(`\nBrowser: ${detectedBrowser}`);
-      lines.push(`Open tabs (${allBrowserTabs.length}):`);
-      for (const tab of allBrowserTabs) {
-        lines.push(`  - ${tab.title || "(Untitled)"} | ${getDomain(tab.url)} | ${tab.url}`);
-      }
+      context.browser = {
+        name: detectedBrowser,
+        tab_count: allBrowserTabs.length,
+        tabs: allBrowserTabs.map((tab) => ({
+          title: tab.title || "(Untitled)",
+          domain: getDomain(tab.url),
+          url: tab.url,
+        })),
+      };
     }
-    lines.push("\nPlease analyze this process: What is it doing? Is the memory/CPU usage normal? Are any tabs particularly heavy or suspicious? Any recommendations?");
-    return lines.join("\n");
+    return JSON.stringify(context);
   }
 
   async function askAi() {

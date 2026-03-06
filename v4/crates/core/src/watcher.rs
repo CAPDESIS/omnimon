@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use sysinfo::{Networks, System};
+use sysinfo::System;
 
 static CACHED_STATE: OnceLock<Arc<RwLock<SystemState>>> = OnceLock::new();
 static WATCHER_STARTED: AtomicBool = AtomicBool::new(false);
@@ -18,6 +18,13 @@ pub struct SystemState {
     pub cpu_usage_percent: f32,
     pub net_rx_bytes_per_sec: u64,
     pub net_tx_bytes_per_sec: u64,
+    pub net_capture_backend: String,
+    pub net_dpi_active: bool,
+    pub top_network_processes: Vec<crate::network::ProcessNetworkThroughput>,
+    pub recent_network_connections: Vec<crate::network::ProcessConnectionEvent>,
+    pub mitre_network_alerts: Vec<crate::security::ProcessThreatLabel>,
+    pub dynamic_rule_alerts: Vec<crate::rules_engine::DynamicAlert>,
+    pub security_heartbeat: Option<crate::audit::SecurityHeartbeat>,
     pub updated_at_unix_ms: u128,
 }
 
@@ -62,6 +69,13 @@ fn collect_state(system: &mut System) -> SystemState {
         cpu_usage_percent,
         net_rx_bytes_per_sec: 0,
         net_tx_bytes_per_sec: 0,
+        net_capture_backend: "Unknown".to_string(),
+        net_dpi_active: false,
+        top_network_processes: Vec::new(),
+        recent_network_connections: Vec::new(),
+        mitre_network_alerts: Vec::new(),
+        dynamic_rule_alerts: Vec::new(),
+        security_heartbeat: None,
         updated_at_unix_ms,
     }
 }
@@ -87,11 +101,7 @@ pub fn start_watcher() {
 
         runtime.block_on(async move {
             let mut system = System::new_all();
-            let mut networks = Networks::new_with_refreshed_list();
-
-            // Initial totals for delta computation
-            let mut prev_rx: u64 = networks.values().map(|n| n.total_received()).sum();
-            let mut prev_tx: u64 = networks.values().map(|n| n.total_transmitted()).sum();
+            let mut network_engine = crate::network::NetworkTelemetryEngine::new();
 
             let initial = collect_state(&mut system);
             if let Ok(mut guard) = cache.write() {
@@ -101,17 +111,42 @@ pub fn start_watcher() {
             let mut interval = tokio::time::interval(Duration::from_secs(2));
             loop {
                 interval.tick().await;
-                networks.refresh();
-                let total_rx: u64 = networks.values().map(|n| n.total_received()).sum();
-                let total_tx: u64 = networks.values().map(|n| n.total_transmitted()).sum();
-                let net_rx_bytes_per_sec = total_rx.saturating_sub(prev_rx) / 2;
-                let net_tx_bytes_per_sec = total_tx.saturating_sub(prev_tx) / 2;
-                prev_rx = total_rx;
-                prev_tx = total_tx;
+                let sample = network_engine.sample();
+                let policy = crate::security::NetworkPolicy::default();
+                let network_observations =
+                    crate::security::evaluate_network_events(&sample.recent_connections, &policy);
+                let mitre_labels =
+                    crate::security::label_process_observations(&network_observations);
+                let runtime = crate::metrics::snapshot_process_telemetry()
+                    .into_iter()
+                    .map(|p| crate::rules_engine::ProcessRuntime {
+                        pid: p.pid,
+                        process_name: p.name,
+                        memory_bytes: p.memory_bytes,
+                    })
+                    .collect::<Vec<_>>();
+                let dynamic_alerts =
+                    crate::rules_engine::evaluate_events(&sample.recent_connections, &runtime);
+                let heartbeat = crate::audit::build_security_heartbeat(
+                    sample.process_throughput.len(),
+                    0,
+                    sample.deep_packet_inspection_active,
+                    network_observations.len() + dynamic_alerts.len(),
+                    mitre_labels.len() + dynamic_alerts.len(),
+                    true,
+                    "monitoring",
+                );
 
                 let mut snapshot = collect_state(&mut system);
-                snapshot.net_rx_bytes_per_sec = net_rx_bytes_per_sec;
-                snapshot.net_tx_bytes_per_sec = net_tx_bytes_per_sec;
+                snapshot.net_rx_bytes_per_sec = sample.net_rx_bytes_per_sec;
+                snapshot.net_tx_bytes_per_sec = sample.net_tx_bytes_per_sec;
+                snapshot.net_capture_backend = sample.backend_label;
+                snapshot.net_dpi_active = sample.deep_packet_inspection_active;
+                snapshot.top_network_processes = sample.process_throughput;
+                snapshot.recent_network_connections = sample.recent_connections;
+                snapshot.mitre_network_alerts = mitre_labels;
+                snapshot.dynamic_rule_alerts = dynamic_alerts;
+                snapshot.security_heartbeat = Some(heartbeat);
                 if let Ok(mut guard) = cache.write() {
                     *guard = snapshot;
                 }

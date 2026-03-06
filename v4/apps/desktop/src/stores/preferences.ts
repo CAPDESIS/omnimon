@@ -1,5 +1,7 @@
 import { writable, get } from "svelte/store";
 import type { LocaleCode } from "../lib/i18n";
+import type { CustomThemeOverrides } from "../lib/theme";
+import { setCustomThemeOverrides } from "../lib/theme";
 
 export interface ColumnConfig {
   name: boolean;
@@ -21,7 +23,7 @@ export interface AiProviderConfig {
   model: string;
 }
 
-export type ThemeMode = "auto" | "light" | "dark";
+export type ThemeMode = "auto" | "light" | "dark" | "cyberpunk" | "custom";
 
 const DEFAULT_FONT_SIZE = 12;
 const MIN_FONT_SIZE = 8;
@@ -78,6 +80,9 @@ export const tabPanelHeight = writable(DEFAULT_TAB_PANEL_HEIGHT);
 
 /** User's preferred locale ("en", "es", or "auto" for system detection). */
 export const localePreference = writable<LocaleCode>(DEFAULT_LOCALE);
+
+/** User-defined custom theme palette. Applied when theme === "custom". */
+export const customTheme = writable<CustomThemeOverrides | null>(null);
 
 let storeInstance: any = null;
 
@@ -140,8 +145,17 @@ export async function loadPreferences(): Promise<void> {
     }
 
     const savedTheme = await store.get("theme");
-    if (typeof savedTheme === "string" && (savedTheme === "auto" || savedTheme === "light" || savedTheme === "dark")) {
+    if (typeof savedTheme === "string" && (savedTheme === "auto" || savedTheme === "light" || savedTheme === "dark" || savedTheme === "cyberpunk" || savedTheme === "custom")) {
       theme.set(savedTheme as ThemeMode);
+    }
+
+    const savedCustomTheme = await store.get("customTheme");
+    if (savedCustomTheme && typeof savedCustomTheme === "object") {
+      const ct = savedCustomTheme as CustomThemeOverrides;
+      if (ct.name && ct.base && ct.overrides) {
+        customTheme.set(ct);
+        setCustomThemeOverrides(ct);
+      }
     }
 
     const savedTabPanelHeight = await store.get("tabPanelHeight");
@@ -172,6 +186,7 @@ export async function savePreferences(): Promise<void> {
     await store.set("theme", get(theme));
     await store.set("tabPanelHeight", get(tabPanelHeight));
     await store.set("locale", get(localePreference));
+    await store.set("customTheme", get(customTheme));
     await store.save();
   } catch {
     // Best-effort persistence
@@ -198,6 +213,10 @@ export function initPreferenceSubscriptions(): () => void {
     theme.subscribe(() => debouncedSave()),
     tabPanelHeight.subscribe(() => debouncedSave()),
     localePreference.subscribe(() => debouncedSave()),
+    customTheme.subscribe((ct) => {
+      setCustomThemeOverrides(ct);
+      debouncedSave();
+    }),
   ];
   return () => {
     unsubs.forEach((u) => u());

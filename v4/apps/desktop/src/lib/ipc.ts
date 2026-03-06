@@ -236,3 +236,17 @@ export async function ipcGetWindowVisible(): Promise<boolean> {
   assertBoolean("get_window_visible result", result);
   return result;
 }
+
+/** Sends AI-generated rules payload to the Rust rules engine. Returns number of rules applied. */
+export async function ipcApplyAiRules(payload: string): Promise<number> {
+  const result: unknown = await invoke("apply_ai_rules", { payload });
+  assertFiniteNumber("apply_ai_rules result", result);
+  return result;
+}
+
+/** Retrieves the JSON schema contract for AI rules from the Rust backend. */
+export async function ipcGetAiRulesSchema(): Promise<string> {
+  const result: unknown = await invoke("get_ai_rules_schema");
+  assertString("get_ai_rules_schema result", result);
+  return result;
+}

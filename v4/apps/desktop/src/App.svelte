@@ -5,8 +5,18 @@
   import ChromeTabManager from "./components/ChromeTabManager.svelte";
   import StatusBar from "./components/StatusBar.svelte";
   import ProcessDetailsModal from "./components/ProcessDetailsModal.svelte";
+  import SystemDashboard from "./components/SystemDashboard.svelte";
+  import ToastContainer from "./components/ToastContainer.svelte";
+  import AlertPanel from "./components/AlertPanel.svelte";
+  import AiCommandBar from "./components/AiCommandBar.svelte";
+  import NetworkMap from "./components/NetworkMap.svelte";
+  import SecurityReportView from "./components/SecurityReportView.svelte";
+  import AiInsightCard from "./components/AiInsightCard.svelte";
+  import { totalFindings } from "./stores/security";
+  import { initSecurityAlertListener } from "./stores/alerts";
   import type { ProcessEntry } from "./lib/types";
   import { AI_PROVIDERS, type AiProviderKind } from "./lib/types";
+  import { applyThemeTokens, detectPlatform, type ThemeId } from "./lib/theme";
   import {
     processes,
     filtered,
@@ -49,7 +59,7 @@
     MIN_IDLE_THRESHOLD,
     MAX_IDLE_THRESHOLD,
   } from "./stores/preferences";
-  import type { ThemeMode } from "./stores/preferences";
+  import { customTheme, type ThemeMode } from "./stores/preferences";
   import { ipcValidateApiKey, ipcCheckApiKey, ipcAnalyzeContext } from "./lib/ipc";
   import { listen } from "@tauri-apps/api/event";
   import { t, locale, initI18n } from "./lib/i18n";
@@ -60,17 +70,24 @@
   let searchValue = $state("");
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
+  // Dashboard collapse state
+  let dashboardCollapsed = $state(false);
+  let showSecurityReport = $state(false);
+
   // Resizable tab panel (backed by store for persistence)
   let tabPanelHeight = $state($tabPanelHeightStore);
   let dragging = $state(false);
   let dragStartY = 0;
   let dragStartHeight = 0;
 
-  // Sync local → store when resizing
+  // Platform detection for OS-specific styles
+  let platform = $state<"macos" | "windows" | "linux">("macos");
+
+  // Sync local to store when resizing
   $effect(() => {
     $tabPanelHeightStore = tabPanelHeight;
   });
-  // Sync store → local on load
+  // Sync store to local on load
   $effect(() => {
     tabPanelHeight = $tabPanelHeightStore;
   });
@@ -95,39 +112,6 @@
     window.removeEventListener("mouseup", onDividerMouseup);
   }
 
-  // Dynamic AI chat state
-  let aiChatInput = $state("");
-  let aiChatResponse = $state("");
-  let aiChatLoading = $state(false);
-  let aiChatError = $state<string | null>(null);
-
-  async function handleAiChat() {
-    if (!aiChatInput.trim()) return;
-    aiChatLoading = true;
-    aiChatError = null;
-    aiChatResponse = "";
-    try {
-      const context = `User question: ${aiChatInput.trim()}\n\nSystem context:\n- Total processes: ${$filtered.length}\n- Top processes by RAM: ${$filtered.slice(0, 10).map((p) => `${p.name} (${p.ram_mb.toFixed(0)} MB, ${p.cpu_pct.toFixed(1)}% CPU)`).join(", ")}`;
-      const config = $aiProviderConfig;
-      aiChatResponse = await ipcAnalyzeContext(context, config.provider, config.model);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("No matching entry") || msg.includes("not found in secure storage") || msg.includes("keyring")) {
-        aiChatError = t("processes.noApiKey");
-      } else {
-        aiChatError = msg;
-      }
-    } finally {
-      aiChatLoading = false;
-    }
-  }
-
-  function clearAiChat() {
-    aiChatInput = "";
-    aiChatResponse = "";
-    aiChatError = null;
-  }
-
   // AI settings modal state
   let showSettings = $state(false);
   let apiKeyInput = $state("");
@@ -140,7 +124,6 @@
     settingsError = null;
     settingsSaved = false;
     try {
-      // Validate key before saving
       const trimmed = apiKeyInput.trim();
       if (!trimmed) {
         settingsError = t("settings.apiKeyEmpty");
@@ -152,7 +135,6 @@
         return;
       }
       await saveAiConfigAction($aiProviderConfig.provider, $aiProviderConfig.model, trimmed);
-      // Verify the key was actually persisted to the OS keyring
       const stored = await ipcCheckApiKey($aiProviderConfig.provider);
       if (!stored) {
         settingsError = "API key could not be saved to the system keyring.";
@@ -167,19 +149,9 @@
     }
   }
 
-  // Apply theme to document
-  function applyTheme(mode: ThemeMode) {
-    if (typeof document === "undefined") return;
-    const html = document.documentElement;
-    if (mode === "auto") {
-      html.removeAttribute("data-theme");
-    } else {
-      html.setAttribute("data-theme", mode);
-    }
-  }
-
+  // Apply theme engine
   $effect(() => {
-    applyTheme($theme);
+    applyThemeTokens($theme as ThemeId);
   });
 
   function closeSettings() {
@@ -198,6 +170,9 @@
   }
 
   onMount(() => {
+    platform = detectPlatform();
+    document.documentElement.setAttribute("data-platform", platform);
+
     loadPreferences().then(() => {
       initI18n($localePreference);
       startPolling(2000);
@@ -207,9 +182,10 @@
       locale.set(val);
     });
 
-    // Pause polling when the window is hidden to tray, resume when shown
     let unlistenVisibility: (() => void) | null = null;
     let unlistenSettings: (() => void) | null = null;
+    let unlistenSecurityAlerts: (() => void) | null = null;
+    initSecurityAlertListener().then((fn) => { unlistenSecurityAlerts = fn; });
     listen<boolean>("window-visibility", (event) => {
       if (event.payload) {
         startPolling(2000);
@@ -218,7 +194,6 @@
       }
     }).then((fn) => { unlistenVisibility = fn; });
 
-    // Open settings from tray menu
     listen("open-settings", () => {
       showSettings = true;
     }).then((fn) => { unlistenSettings = fn; });
@@ -230,6 +205,7 @@
       unsubLocale();
       unlistenVisibility?.();
       unlistenSettings?.();
+      unlistenSecurityAlerts?.();
     };
   });
 
@@ -246,21 +222,16 @@
       e.target instanceof HTMLInputElement ||
       e.target instanceof HTMLTextAreaElement;
 
-    // Cmd/Ctrl+F → focus search
     if (mod && e.key === "f") {
       e.preventDefault();
       searchInput?.focus();
       return;
     }
-
-    // Cmd/Ctrl+I → inspect focused process
     if (mod && e.key === "i") {
       e.preventDefault();
       openDetailForFocused();
       return;
     }
-
-    // Cmd/Ctrl+= → zoom in, Cmd/Ctrl+- → zoom out
     if (mod && (e.key === "=" || e.key === "+")) {
       e.preventDefault();
       increaseFontSize();
@@ -271,8 +242,6 @@
       decreaseFontSize();
       return;
     }
-
-    // Escape → close modal/settings or blur search
     if (e.key === "Escape") {
       if (showSettings) {
         closeSettings();
@@ -287,8 +256,6 @@
         return;
       }
     }
-
-    // Delete/Backspace → kill selected (only when not typing)
     if ((e.key === "Delete" || e.key === "Backspace") && !inInput) {
       e.preventDefault();
       killSelected();
@@ -308,36 +275,51 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <main style="--base-font-size: {$fontSize}px">
+  <!-- Toolbar -->
   <header class="toolbar">
-    <div class="search-wrapper">
-      <input
-        class="search"
-        type="text"
-        placeholder={t("toolbar.searchPlaceholder")}
-        aria-label={t("toolbar.searchLabel")}
-        value={searchValue}
-        oninput={onSearchInput}
-        bind:this={searchInput}
-      />
-      {#if searchValue}
-        <button
-          class="search-clear"
-          onclick={() => { searchValue = ""; $search = ""; }}
-          aria-label={t("toolbar.clearSearch")}
-        >&times;</button>
-      {/if}
+    <div class="toolbar-left">
+      <div class="search-wrapper">
+        <svg class="search-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="6.5" cy="6.5" r="5"/>
+          <line x1="10" y1="10" x2="14" y2="14"/>
+        </svg>
+        <input
+          class="search"
+          type="text"
+          placeholder={t("toolbar.searchPlaceholder")}
+          aria-label={t("toolbar.searchLabel")}
+          value={searchValue}
+          oninput={onSearchInput}
+          bind:this={searchInput}
+        />
+        {#if searchValue}
+          <button
+            class="search-clear"
+            onclick={() => { searchValue = ""; $search = ""; }}
+            aria-label={t("toolbar.clearSearch")}
+          >&times;</button>
+        {/if}
+      </div>
     </div>
-    <div class="actions">
-      <button
-        class="btn btn-sm"
-        class:active={$grouping}
-        onclick={() => $grouping = !$grouping}
-        title={t("toolbar.toggleGrouping")}
-      >
-        {t("toolbar.groups")}
-      </button>
-      <button class="btn btn-sm" onclick={selectAllVisible} aria-label={t("toolbar.selectAll")}>{t("toolbar.all")}</button>
-      <button class="btn btn-sm" onclick={selectNone} aria-label={t("toolbar.deselectAll")}>{t("toolbar.none")}</button>
+    <div class="toolbar-right">
+      <div class="btn-group">
+        <button
+          class="btn"
+          class:active={$grouping}
+          onclick={() => $grouping = !$grouping}
+          title={t("toolbar.toggleGrouping")}
+        >
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+            <rect x="1" y="1" width="5" height="5" rx="1"/>
+            <rect x="1" y="9" width="5" height="5" rx="1"/>
+            <rect x="9" y="1" width="5" height="5" rx="1"/>
+            <rect x="9" y="9" width="5" height="5" rx="1"/>
+          </svg>
+        </button>
+        <button class="btn" onclick={selectAllVisible} aria-label={t("toolbar.selectAll")}>{t("toolbar.all")}</button>
+        <button class="btn" onclick={selectNone} aria-label={t("toolbar.deselectAll")}>{t("toolbar.none")}</button>
+      </div>
+
       <button
         class="btn btn-kill"
         onclick={killSelected}
@@ -347,7 +329,9 @@
         {t("toolbar.close")}{#if $selectedCount > 0}
           &nbsp;({$selectedCount} &middot; {$selectedRamMB.toFixed(0)} MB){/if}
       </button>
+
       <span class="separator"></span>
+
       <select
         class="profile-select"
         value={$aiProfile}
@@ -360,37 +344,77 @@
         <option value="battery">{t("toolbar.batterySaver")}</option>
       </select>
       <button
-        class="btn btn-ai"
+        class="btn btn-accent"
         onclick={() => analyzeWithAi($aiProviderConfig.provider, $aiProviderConfig.model)}
         disabled={$aiLoading}
       >
         {$aiLoading ? t("toolbar.analyzing") : t("toolbar.aiAnalyze")}
       </button>
+
+      <span class="separator"></span>
+
+      <AlertPanel />
+
       <button
-        class="btn btn-sm"
+        class="btn btn-icon"
+        class:has-findings={$totalFindings > 0}
+        onclick={() => showSecurityReport = true}
+        title="Security Report ({$totalFindings} findings)"
+      >
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+          <path d="M8 0L2 3v5c0 4 2.6 6.5 6 8 3.4-1.5 6-4 6-8V3L8 0zm0 2l4 2v4c0 3-1.9 5-4 6.3C5.9 13 4 11 4 8V4l4-2zm-1 4v3h2V6H7zm0 4v1.5h2V10H7z"/>
+        </svg>
+        {#if $totalFindings > 0}
+          <span class="findings-badge">{$totalFindings}</span>
+        {/if}
+      </button>
+
+      <button
+        class="btn btn-icon"
+        onclick={() => dashboardCollapsed = !dashboardCollapsed}
+        title={dashboardCollapsed ? "Show Dashboard" : "Hide Dashboard"}
+      >
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+          {#if dashboardCollapsed}
+            <path d="M3 4h10v1H3zM3 7h10v1H3zM3 10h10v1H3z"/>
+          {:else}
+            <path d="M1 1h6v6H1zM9 1h6v6H9zM1 9h6v6H1zM9 9h6v6H9z" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          {/if}
+        </svg>
+      </button>
+
+      <button
+        class="btn btn-icon"
         onclick={() => showSettings = true}
         title={t("toolbar.aiSettings")}
       >
-        {t("toolbar.settings")}
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+          <path d="M7 1h2v2.1a5 5 0 011.2.5l1.5-1.5 1.4 1.4-1.5 1.5a5 5 0 01.5 1.2H14v2h-2.1a5 5 0 01-.5 1.2l1.5 1.5-1.4 1.4-1.5-1.5a5 5 0 01-1.2.5V14H7v-2.1a5 5 0 01-1.2-.5l-1.5 1.5-1.4-1.4 1.5-1.5a5 5 0 01-.5-1.2H2V7h2.1a5 5 0 01.5-1.2L3.1 4.3l1.4-1.4 1.5 1.5A5 5 0 017 3.9V1zm1 5a2 2 0 100 4 2 2 0 000-4z"/>
+        </svg>
       </button>
-      <span class="separator"></span>
-      <button
-        class="btn btn-sm"
-        onclick={decreaseFontSize}
-        title={t("toolbar.decreaseFont")}
-        aria-label={t("toolbar.decreaseFontLabel")}
-      >A-</button>
-      <span class="font-size-display">{$fontSize}</span>
-      <button
-        class="btn btn-sm"
-        onclick={increaseFontSize}
-        title={t("toolbar.increaseFont")}
-        aria-label={t("toolbar.increaseFontLabel")}
-      >A+</button>
+
+      <div class="font-controls">
+        <button
+          class="btn btn-icon"
+          onclick={decreaseFontSize}
+          title={t("toolbar.decreaseFont")}
+          aria-label={t("toolbar.decreaseFontLabel")}
+        >A-</button>
+        <span class="font-size-display">{$fontSize}</span>
+        <button
+          class="btn btn-icon"
+          onclick={increaseFontSize}
+          title={t("toolbar.increaseFont")}
+          aria-label={t("toolbar.increaseFontLabel")}
+        >A+</button>
+      </div>
     </div>
   </header>
 
-  <StatusBar />
+  <!-- Dashboard with charts -->
+  <SystemDashboard collapsed={dashboardCollapsed} />
+
+  <!-- Browser Tabs Panel -->
   <div class="tab-panel" style="height: {tabPanelHeight}px">
     <ChromeTabManager filter={searchValue} />
   </div>
@@ -405,8 +429,12 @@
     tabindex="-1"
   ></div>
 
+  <!-- Process Table -->
   {#if $loading}
-    <div class="loading" role="status" aria-busy="true">{t("common.loading")}</div>
+    <div class="loading" role="status" aria-busy="true">
+      <div class="loading-spinner"></div>
+      <span>{t("common.loading")}</span>
+    </div>
   {:else}
     <ProcessTable
       processes={$filtered}
@@ -417,6 +445,7 @@
     />
   {/if}
 
+  <!-- AI Suggestions Panel -->
   {#if $aiError || $aiSuggestions.length > 0}
     <div class="ai-panel" role="region" aria-label={t("ai.suggestions")}>
       <div class="ai-header">
@@ -440,49 +469,24 @@
     </div>
   {/if}
 
-  <div class="ai-chat" role="region" aria-label={t("ai.chatLabel")}>
-    <div class="ai-chat-row">
-      <div class="ai-chat-input-wrapper">
-        <input
-          class="ai-chat-input"
-          type="text"
-          placeholder={t("ai.chatPlaceholder")}
-          aria-label={t("ai.chatLabel")}
-          value={aiChatInput}
-          oninput={(e) => aiChatInput = (e.target as HTMLInputElement).value}
-          onkeydown={(e) => { if (e.key === "Enter" && !aiChatLoading) handleAiChat(); }}
-          disabled={aiChatLoading}
-        />
-        {#if aiChatInput}
-          <button
-            class="ai-chat-clear"
-            onclick={clearAiChat}
-            aria-label={t("toolbar.clearSearch")}
-          >&times;</button>
-        {/if}
-      </div>
-      <button
-        class="btn btn-ai btn-sm"
-        onclick={handleAiChat}
-        disabled={aiChatLoading || !aiChatInput.trim()}
-      >
-        {aiChatLoading ? t("toolbar.analyzing") : t("ai.ask")}
-      </button>
-    </div>
-    {#if aiChatError}
-      <div class="ai-chat-error">{aiChatError}</div>
-    {/if}
-    {#if aiChatResponse}
-      <div class="ai-chat-response">{aiChatResponse}</div>
-    {/if}
-  </div>
+  <!-- AI Security Insights (human-readable) -->
+  <AiInsightCard />
 
+  <!-- Network Connection Map -->
+  <NetworkMap />
+
+  <!-- AI Command Bar (Natural Language Config) -->
+  <AiCommandBar />
+
+  <!-- Status Footer -->
   <footer class="statusline" aria-live="polite" aria-atomic="true">
-    {t("footer.processes", { count: $filtered.length })}{#if $filtered.length !== $processes.length}
-      &nbsp;{t("footer.filteredFrom", { count: $processes.length })}{/if}
-    {#if $selectedCount > 0}
-      <span aria-hidden="true">&nbsp;&middot;&nbsp;</span>{t("footer.selected", { count: $selectedCount, ram: $selectedRamMB.toFixed(0) })}
-    {/if}
+    <span>
+      {t("footer.processes", { count: $filtered.length })}{#if $filtered.length !== $processes.length}
+        &nbsp;{t("footer.filteredFrom", { count: $processes.length })}{/if}
+      {#if $selectedCount > 0}
+        <span aria-hidden="true">&nbsp;&middot;&nbsp;</span>{t("footer.selected", { count: $selectedCount, ram: $selectedRamMB.toFixed(0) })}
+      {/if}
+    </span>
     <span class="shortcuts" aria-hidden="true"><kbd>Cmd+I</kbd> {t("footer.shortcutDetail")} <kbd>Cmd+F</kbd> {t("footer.shortcutSearch")} <kbd>Del</kbd> {t("footer.shortcutClose")}</span>
   </footer>
 </main>
@@ -593,8 +597,67 @@
             <option value="auto">{t("settings.themeAuto")}</option>
             <option value="light">{t("settings.themeLight")}</option>
             <option value="dark">{t("settings.themeDark")}</option>
+            <option value="cyberpunk">Cyberpunk</option>
+            <option value="custom">Custom</option>
           </select>
         </div>
+        {#if $theme === "custom"}
+          <div class="custom-theme-editor">
+            <div class="settings-row">
+              <label class="settings-label" for="custom-base">Base</label>
+              <select
+                id="custom-base"
+                class="settings-select"
+                value={$customTheme?.base ?? "dark"}
+                onchange={(e) => {
+                  const base = (e.target as HTMLSelectElement).value as "dark" | "light" | "cyberpunk";
+                  customTheme.update((ct) => ({ name: ct?.name ?? "My Theme", base, overrides: ct?.overrides ?? {} }));
+                }}
+              >
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+                <option value="cyberpunk">Cyberpunk</option>
+              </select>
+            </div>
+            {#each [
+              { key: "--accent", label: "Accent" },
+              { key: "--bg", label: "Background" },
+              { key: "--fg", label: "Text" },
+              { key: "--danger", label: "Danger" },
+              { key: "--green", label: "Success" },
+              { key: "--yellow", label: "Warning" },
+            ] as colorOpt (colorOpt.key)}
+              <div class="settings-row color-row">
+                <label class="settings-label">{colorOpt.label}</label>
+                <input
+                  type="color"
+                  class="color-picker"
+                  value={($customTheme?.overrides as any)?.[colorOpt.key] ?? ""}
+                  oninput={(e) => {
+                    const val = (e.target as HTMLInputElement).value;
+                    customTheme.update((ct) => ({
+                      name: ct?.name ?? "My Theme",
+                      base: ct?.base ?? "dark",
+                      overrides: { ...ct?.overrides, [colorOpt.key]: val },
+                    }));
+                  }}
+                />
+                {#if ($customTheme?.overrides as any)?.[colorOpt.key]}
+                  <button
+                    class="btn btn-sm"
+                    onclick={() => {
+                      customTheme.update((ct) => {
+                        if (!ct) return ct;
+                        const { [colorOpt.key]: _, ...rest } = ct.overrides as any;
+                        return { ...ct, overrides: rest };
+                      });
+                    }}
+                  >Reset</button>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
         <div class="settings-row">
           <label class="settings-label" for="locale-select">{t("settings.language")}</label>
           <select
@@ -633,7 +696,7 @@
       </div>
       <div class="settings-footer">
         <button
-          class="btn btn-ai"
+          class="btn btn-accent"
           onclick={handleSaveSettings}
           disabled={settingsSaving || !apiKeyInput}
         >
@@ -644,7 +707,16 @@
   </div>
 {/if}
 
+{#if showSecurityReport}
+  <SecurityReportView onclose={() => showSecurityReport = false} />
+{/if}
+
+<ToastContainer />
+
 <style>
+  /* ==============================
+     GLOBAL RESET & BASE
+     ============================== */
   :global(*) {
     box-sizing: border-box;
   }
@@ -655,49 +727,74 @@
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
       Roboto, "Helvetica Neue", sans-serif;
     font-size: var(--base-font-size, 12px);
-    background: var(--bg);
-    color: var(--fg);
+    background: var(--bg, #0a0a0b);
+    color: var(--fg, #ededef);
     overflow: hidden;
     height: 100vh;
     -webkit-font-smoothing: antialiased;
   }
 
-  :global(:root), :global([data-theme="dark"]) {
-    --bg: #1a1a1a;
-    --bg-alt: #222;
-    --bg-hover: #2a2a2a;
-    --bg-selected: #0a3d6e;
-    --fg: #ccc;
-    --fg-dim: #999;
-    --border: #333;
-    --accent: #0078d4;
-    --danger: #d32f2f;
-    --green: #4caf50;
-    --yellow: #ffc107;
+  /* Platform-specific font tuning */
+  :global([data-platform="windows"]) :global(body) {
+    font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  }
+  :global([data-platform="linux"]) :global(body) {
+    font-family: "Cantarell", "Noto Sans", system-ui, sans-serif;
   }
 
-  :global([data-theme="light"]) {
-    --bg: #f8f8f8;
-    --bg-alt: #eee;
-    --bg-hover: #e0e0e0;
-    --bg-selected: #cce5ff;
-    --fg: #1a1a1a;
-    --fg-dim: #595959;
-    --border: #d0d0d0;
+  /* Fallback theme vars for components that load before theme engine */
+  :global(:root) {
+    --bg: #0a0a0b;
+    --bg-alt: #111113;
+    --bg-hover: #1a1a1e;
+    --bg-selected: #0d2847;
+    --bg-surface: #161618;
+    --fg: #ededef;
+    --fg-dim: #71717a;
+    --border: #27272a;
+    --border-subtle: rgba(255,255,255,0.06);
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --accent-dim: rgba(59,130,246,0.15);
+    --danger: #ef4444;
+    --danger-hover: #dc2626;
+    --green: #22c55e;
+    --yellow: #eab308;
+    --chart-cpu: #3b82f6;
+    --chart-ram: #a855f7;
+    --chart-net-rx: #22c55e;
+    --chart-net-tx: #f97316;
+    --chart-grid: rgba(255,255,255,0.04);
+    --chart-bg: #0a0a0b;
+    --toast-bg: #18181b;
+    --toast-border: #27272a;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.5);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.6);
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
   }
 
-  @media (prefers-color-scheme: light) {
-    :global(:root:not([data-theme="dark"])) {
-      --bg: #f8f8f8;
-      --bg-alt: #eee;
-      --bg-hover: #e0e0e0;
-      --bg-selected: #cce5ff;
-      --fg: #1a1a1a;
-      --fg-dim: #595959;
-      --border: #d0d0d0;
-    }
+  /* Smooth scrollbar styling */
+  :global(::-webkit-scrollbar) {
+    width: 6px;
+    height: 6px;
+  }
+  :global(::-webkit-scrollbar-track) {
+    background: transparent;
+  }
+  :global(::-webkit-scrollbar-thumb) {
+    background: var(--border);
+    border-radius: 3px;
+  }
+  :global(::-webkit-scrollbar-thumb:hover) {
+    background: var(--fg-dim);
   }
 
+  /* ==============================
+     LAYOUT
+     ============================== */
   main {
     display: flex;
     flex-direction: column;
@@ -705,42 +802,67 @@
     overflow: hidden;
   }
 
+  /* ==============================
+     TOOLBAR
+     ============================== */
   .toolbar {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
     background: var(--bg-alt);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
-    min-height: calc(var(--base-font-size) * 2.333);
+    min-height: calc(var(--base-font-size) * 2.5);
+  }
+
+  .toolbar-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
   }
 
   .search-wrapper {
-    flex: 1;
     position: relative;
     display: flex;
     align-items: center;
+    max-width: 320px;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 8px;
+    color: var(--fg-dim);
+    pointer-events: none;
   }
 
   .search {
     width: 100%;
-    padding: 2px 22px 2px 6px;
+    padding: 4px 24px 4px 28px;
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm, 4px);
     background: var(--bg);
     color: var(--fg);
     font-size: calc(var(--base-font-size) * 0.917);
     outline: none;
-    height: calc(var(--base-font-size) * 1.667);
+    height: calc(var(--base-font-size) * 2);
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
   .search:focus {
     border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-dim, rgba(59,130,246,0.15));
   }
 
   .search-clear {
     position: absolute;
-    right: 2px;
+    right: 4px;
     width: 16px;
     height: 16px;
     border: none;
@@ -760,49 +882,136 @@
     background: var(--bg-hover);
   }
 
-  .actions {
-    display: flex;
-    gap: 3px;
-    flex-shrink: 0;
-  }
-
+  /* ==============================
+     BUTTONS
+     ============================== */
   .btn {
-    padding: 2px 8px;
+    padding: 4px 10px;
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm, 4px);
     background: var(--bg);
     color: var(--fg);
     font-size: calc(var(--base-font-size) * 0.833);
     cursor: pointer;
     white-space: nowrap;
-    height: calc(var(--base-font-size) * 1.667);
-    line-height: calc(var(--base-font-size) * 1.167);
+    height: calc(var(--base-font-size) * 2);
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
   }
-  .btn:hover {
-    background: var(--bg-hover);
-  }
-  .btn:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
+  .btn:hover { background: var(--bg-hover); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
   .btn.active {
     background: var(--accent);
     color: white;
     border-color: var(--accent);
   }
-  .btn-sm {
-    padding: 2px 6px;
+
+  .btn-sm { padding: 2px 6px; height: auto; }
+
+  .btn-icon {
+    padding: 4px 6px;
+    font-size: calc(var(--base-font-size) * 0.833);
+    font-weight: 600;
   }
+
+  .btn-group {
+    display: flex;
+    gap: 0;
+  }
+  .btn-group .btn {
+    border-radius: 0;
+    margin-left: -1px;
+  }
+  .btn-group .btn:first-child {
+    border-radius: var(--radius-sm, 4px) 0 0 var(--radius-sm, 4px);
+    margin-left: 0;
+  }
+  .btn-group .btn:last-child {
+    border-radius: 0 var(--radius-sm, 4px) var(--radius-sm, 4px) 0;
+  }
+
   .btn-kill {
     background: var(--danger);
     color: white;
     border-color: var(--danger);
     font-weight: 600;
   }
-  .btn-kill:hover:not(:disabled) {
-    background: #b71c1c;
+  .btn-kill:hover:not(:disabled) { background: var(--danger-hover, #b71c1c); }
+
+  .btn-accent {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .btn-accent:hover:not(:disabled) { background: var(--accent-hover, #1d4ed8); }
+
+  /* ==============================
+     CONTROLS
+     ============================== */
+  .separator {
+    width: 1px;
+    height: calc(var(--base-font-size) * 1.333);
+    background: var(--border);
+    flex-shrink: 0;
   }
 
+  .has-findings {
+    position: relative;
+    color: var(--yellow);
+    border-color: var(--yellow);
+  }
+  .findings-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    background: var(--danger);
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3px;
+  }
+
+  .font-controls {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .font-size-display {
+    font-size: calc(var(--base-font-size) * 0.833);
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    color: var(--fg-dim);
+    min-width: calc(var(--base-font-size) * 1.667);
+    text-align: center;
+  }
+
+  .profile-select {
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--bg);
+    color: var(--fg);
+    font-size: calc(var(--base-font-size) * 0.833);
+    height: calc(var(--base-font-size) * 2);
+    outline: none;
+    cursor: pointer;
+  }
+  .profile-select:focus { border-color: var(--accent); }
+
+  /* ==============================
+     PANELS
+     ============================== */
   .tab-panel {
     flex-shrink: 0;
     overflow: hidden;
@@ -813,13 +1022,13 @@
 
   .resize-divider {
     flex-shrink: 0;
-    height: 4px;
+    height: 3px;
     background: var(--border);
     cursor: ns-resize;
     position: relative;
+    transition: background 0.15s;
   }
-  .resize-divider:hover,
-  .resize-divider.active {
+  .resize-divider:hover, .resize-divider.active {
     background: var(--accent);
   }
 
@@ -828,71 +1037,27 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 8px;
     color: var(--fg-dim);
     font-size: calc(var(--base-font-size) * 0.917);
   }
 
-  .statusline {
-    display: flex;
-    justify-content: space-between;
-    padding: 2px 8px;
-    font-size: calc(var(--base-font-size) * 0.833);
-    color: var(--fg-dim);
-    background: var(--bg-alt);
-    border-top: 1px solid var(--border);
-    flex-shrink: 0;
-    min-height: calc(var(--base-font-size) * 1.5);
-    line-height: calc(var(--base-font-size) * 1.167);
-    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  .loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
   }
 
-  .shortcuts {
-    opacity: 0.5;
-  }
-  .shortcuts :global(kbd) {
-    font-family: inherit;
-    font-size: inherit;
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
-  .separator {
-    width: 1px;
-    height: calc(var(--base-font-size) * 1.167);
-    background: var(--border);
-    flex-shrink: 0;
-  }
-
-  .font-size-display {
-    font-size: calc(var(--base-font-size) * 0.833);
-    font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    color: var(--fg-dim);
-    min-width: calc(var(--base-font-size) * 1.333);
-    text-align: center;
-    line-height: calc(var(--base-font-size) * 1.667);
-  }
-
-  .profile-select {
-    padding: 1px 4px;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    background: var(--bg);
-    color: var(--fg);
-    font-size: calc(var(--base-font-size) * 0.833);
-    height: calc(var(--base-font-size) * 1.667);
-    outline: none;
-    cursor: pointer;
-  }
-
-  .btn-ai {
-    background: var(--accent);
-    color: white;
-    border-color: var(--accent);
-    font-weight: 600;
-  }
-  .btn-ai:hover:not(:disabled) {
-    background: #005fa3;
-  }
-
-  /* AI results panel */
+  /* ==============================
+     AI PANEL
+     ============================== */
   .ai-panel {
     flex-shrink: 0;
     border-top: 1px solid var(--border);
@@ -905,20 +1070,20 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 4px 8px;
+    padding: 6px 10px;
     border-bottom: 1px solid var(--border);
   }
 
   .ai-title {
-    font-size: calc(var(--base-font-size) * 0.833);
+    font-size: calc(var(--base-font-size) * 0.75);
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.5px;
     color: var(--accent);
   }
 
   .ai-error {
-    padding: 4px 8px;
+    padding: 4px 10px;
     font-size: calc(var(--base-font-size) * 0.833);
     color: var(--danger);
   }
@@ -927,13 +1092,12 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 3px 8px;
+    padding: 4px 10px;
     font-size: calc(var(--base-font-size) * 0.917);
-    border-bottom: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.15));
+    border-bottom: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
+    transition: background 0.1s;
   }
-  .ai-row:hover {
-    background: var(--bg-hover);
-  }
+  .ai-row:hover { background: var(--bg-hover); }
 
   .ai-name {
     font-weight: 600;
@@ -959,93 +1123,42 @@
     white-space: nowrap;
   }
 
-  /* AI chat input */
-  .ai-chat {
-    flex-shrink: 0;
-    border-top: 1px solid var(--border);
-    background: var(--bg-alt);
-    padding: 4px 8px;
-  }
-
-  .ai-chat-row {
+  /* ==============================
+     FOOTER
+     ============================== */
+  .statusline {
     display: flex;
-    gap: 4px;
-    align-items: center;
-  }
-
-  .ai-chat-input-wrapper {
-    flex: 1;
-    position: relative;
-    display: flex;
-    align-items: center;
-  }
-
-  .ai-chat-input {
-    width: 100%;
-    padding: 2px 22px 2px 6px;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    background: var(--bg);
-    color: var(--fg);
-    font-size: calc(var(--base-font-size) * 0.917);
-    outline: none;
-    height: calc(var(--base-font-size) * 1.667);
-  }
-  .ai-chat-input:focus {
-    border-color: var(--accent);
-  }
-  .ai-chat-input:disabled {
-    opacity: 0.5;
-  }
-
-  .ai-chat-clear {
-    position: absolute;
-    right: 2px;
-    width: 16px;
-    height: 16px;
-    border: none;
-    background: transparent;
+    justify-content: space-between;
+    padding: 3px 10px;
+    font-size: calc(var(--base-font-size) * 0.833);
     color: var(--fg-dim);
-    font-size: 14px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    line-height: 1;
-    border-radius: 2px;
+    background: var(--bg-alt);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    min-height: calc(var(--base-font-size) * 1.667);
+    line-height: calc(var(--base-font-size) * 1.333);
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
   }
-  .ai-chat-clear:hover {
-    color: var(--fg);
+
+  .shortcuts { opacity: 0.5; }
+  .shortcuts :global(kbd) {
+    font-family: inherit;
+    font-size: inherit;
     background: var(--bg-hover);
-  }
-
-  .ai-chat-error {
-    padding: 2px 0;
-    font-size: calc(var(--base-font-size) * 0.833);
-    color: var(--danger);
-  }
-
-  .ai-chat-response {
-    margin-top: 4px;
-    padding: 6px 8px;
-    font-size: calc(var(--base-font-size) * 0.833);
-    line-height: 1.5;
-    color: var(--fg);
-    white-space: pre-wrap;
-    word-break: break-word;
-    max-height: 160px;
-    overflow-y: auto;
-    background: var(--bg);
-    border-radius: 4px;
+    padding: 1px 4px;
+    border-radius: 3px;
     border: 1px solid var(--border);
   }
 
-  /* Settings modal */
+  /* ==============================
+     SETTINGS MODAL
+     ============================== */
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1053,32 +1166,34 @@
   }
 
   .settings-modal {
-    background: var(--bg-alt);
+    background: var(--bg-surface, var(--bg-alt));
     border: 1px solid var(--border);
-    border-radius: 6px;
-    width: 360px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    border-radius: var(--radius-lg, 12px);
+    width: 400px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg, 0 8px 32px rgba(0,0,0,0.5));
   }
 
   .settings-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 10px;
+    padding: 12px 16px;
     border-bottom: 1px solid var(--border);
   }
 
   .settings-title {
     font-weight: 700;
-    font-size: var(--base-font-size);
+    font-size: calc(var(--base-font-size) * 1.083);
     margin: 0;
   }
 
   .close-btn {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     border: none;
-    border-radius: 3px;
+    border-radius: var(--radius-sm, 4px);
     background: transparent;
     color: var(--fg-dim);
     font-size: calc(var(--base-font-size) * 1.333);
@@ -1087,6 +1202,7 @@
     align-items: center;
     justify-content: center;
     line-height: 1;
+    transition: background 0.1s;
   }
   .close-btn:hover {
     background: var(--bg-hover);
@@ -1094,10 +1210,10 @@
   }
 
   .settings-body {
-    padding: 8px 10px;
+    padding: 12px 16px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
 
   .settings-row {
@@ -1108,10 +1224,11 @@
   }
 
   .settings-label {
-    width: 64px;
+    min-width: 80px;
+    width: auto;
     flex-shrink: 0;
-    font-size: calc(var(--base-font-size) * 0.833);
-    font-weight: 600;
+    font-size: calc(var(--base-font-size) * 0.75);
+    font-weight: 700;
     color: var(--fg-dim);
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -1119,34 +1236,32 @@
 
   .settings-select {
     flex: 1;
-    padding: 3px 6px;
+    padding: 4px 8px;
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm, 4px);
     background: var(--bg);
     color: var(--fg);
     font-size: calc(var(--base-font-size) * 0.917);
     outline: none;
-    height: calc(var(--base-font-size) * 1.833);
+    height: calc(var(--base-font-size) * 2);
     cursor: pointer;
+    transition: border-color 0.15s;
   }
-  .settings-select:focus {
-    border-color: var(--accent);
-  }
+  .settings-select:focus { border-color: var(--accent); }
 
   .settings-input {
     flex: 1;
-    padding: 3px 6px;
+    padding: 4px 8px;
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm, 4px);
     background: var(--bg);
     color: var(--fg);
     font-size: calc(var(--base-font-size) * 0.917);
     outline: none;
-    height: calc(var(--base-font-size) * 1.833);
+    height: calc(var(--base-font-size) * 2);
+    transition: border-color 0.15s;
   }
-  .settings-input:focus {
-    border-color: var(--accent);
-  }
+  .settings-input:focus { border-color: var(--accent); }
 
   .settings-error {
     font-size: calc(var(--base-font-size) * 0.833);
@@ -1163,14 +1278,14 @@
   .settings-divider {
     height: 1px;
     background: var(--border);
-    margin: 6px 0;
+    margin: 8px 0;
   }
 
   .settings-section-label {
-    font-size: calc(var(--base-font-size) * 0.75);
+    font-size: calc(var(--base-font-size) * 0.667);
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
     color: var(--accent);
     margin-bottom: 4px;
   }
@@ -1185,28 +1300,28 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 2px 0;
+    padding: 3px 4px;
     font-size: calc(var(--base-font-size) * 0.917);
+    border-radius: var(--radius-sm, 4px);
+    transition: background 0.1s;
   }
+  .col-order-row:hover { background: var(--bg-hover); }
+
   .col-order-row input[type="checkbox"] {
     margin: 0;
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
     cursor: pointer;
+    accent-color: var(--accent);
   }
-  .col-order-name {
-    flex: 1;
-  }
-  .col-order-btns {
-    display: flex;
-    gap: 2px;
-  }
+  .col-order-name { flex: 1; }
+  .col-order-btns { display: flex; gap: 2px; }
   .col-move-btn {
-    width: 18px;
-    height: 16px;
+    width: 20px;
+    height: 18px;
     padding: 0;
     border: 1px solid var(--border);
-    border-radius: 2px;
+    border-radius: 3px;
     background: transparent;
     color: var(--fg-dim);
     font-size: calc(var(--base-font-size) * 0.667);
@@ -1214,15 +1329,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: background 0.1s;
   }
   .col-move-btn:hover:not(:disabled) {
     background: var(--bg-hover);
     color: var(--fg);
   }
-  .col-move-btn:disabled {
-    opacity: 0.3;
-    cursor: default;
-  }
+  .col-move-btn:disabled { opacity: 0.3; cursor: default; }
 
   .settings-hint {
     font-size: calc(var(--base-font-size) * 0.75);
@@ -1230,8 +1343,35 @@
     white-space: nowrap;
   }
 
+  .custom-theme-editor {
+    padding: 6px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm, 4px);
+    padding: 8px;
+    background: var(--bg);
+  }
+
+  .color-row {
+    gap: 6px;
+  }
+
+  .color-picker {
+    width: 32px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: transparent;
+    cursor: pointer;
+  }
+  .color-picker::-webkit-color-swatch-wrapper { padding: 1px; }
+  .color-picker::-webkit-color-swatch { border-radius: 2px; border: none; }
+
   .settings-footer {
-    padding: 6px 10px;
+    padding: 8px 16px;
     border-top: 1px solid var(--border);
     display: flex;
     justify-content: flex-end;

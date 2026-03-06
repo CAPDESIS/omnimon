@@ -1,5 +1,6 @@
 use macmon_core::browser::{BrowserKind, BrowserTab, NativeTabProvider, TabProvider};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -7,8 +8,9 @@ use sysinfo::{Pid, ProcessRefreshKind, System};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    Emitter, Manager,
+    AppHandle, Emitter, Manager,
 };
+use tauri_plugin_store::StoreExt;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ProcessEntry {
@@ -279,25 +281,70 @@ fn kill_processes(pids: Vec<u32>) -> Result<Vec<u32>, String> {
     Ok(killed)
 }
 
-/// IPC: Save AI Configuration to OS Keyring
+/// Store key name for the fallback API key file.
+const STORE_FILENAME: &str = "ai_keys.json";
+
+/// Try keyring first, then Tauri Store.
+fn get_api_key_with_fallback(app: &AppHandle, provider: &str) -> Result<String, String> {
+    let ai_provider = macmon_core::ai::AiProvider::from_str(provider)?;
+
+    // 1) Try OS keyring
+    if let Ok(key) = macmon_core::ai::get_api_key(ai_provider) {
+        return Ok(key);
+    }
+
+    // 2) Fallback: Tauri Store
+    let store = app.store(STORE_FILENAME).map_err(|e| e.to_string())?;
+    store
+        .get(ai_provider.keyring_service())
+        .and_then(|v| v.as_str().map(|s| s.to_string()))
+        .ok_or_else(|| "No API key found (keyring and store both empty)".to_string())
+}
+
+/// IPC: Save AI Configuration — keyring first, Tauri Store as fallback.
 #[tauri::command]
-fn save_ai_config(provider: String, _model: String, key: String) -> Result<(), String> {
+fn save_ai_config(
+    app: AppHandle,
+    provider: String,
+    _model: String,
+    key: String,
+) -> Result<(), String> {
     let trimmed_key = key.trim().to_string();
     if trimmed_key.is_empty() {
         return Err("API key cannot be empty".to_string());
     }
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
-    macmon_core::ai::save_api_key(ai_provider, &trimmed_key).map_err(|e| e.to_string())
+
+    // Try keyring first
+    if macmon_core::ai::save_api_key(ai_provider, &trimmed_key).is_ok() {
+        return Ok(());
+    }
+
+    // Fallback: persist in Tauri Store
+    let store = app.store(STORE_FILENAME).map_err(|e| e.to_string())?;
+    store.set(
+        ai_provider.keyring_service(),
+        serde_json::Value::String(trimmed_key),
+    );
+    Ok(())
 }
 
-/// IPC: Check whether an API key exists in the OS keyring for the given provider.
+/// IPC: Check whether an API key exists (keyring or store).
 #[tauri::command]
-fn check_api_key(provider: String) -> Result<bool, String> {
-    let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
-    match macmon_core::ai::get_api_key(ai_provider) {
-        Ok(_) => Ok(true),
-        Err(_) => Ok(false),
-    }
+fn check_api_key(app: AppHandle, provider: String) -> Result<bool, String> {
+    Ok(get_api_key_with_fallback(&app, &provider).is_ok())
+}
+
+/// IPC: Apply AI-generated rules payload directly into core rules engine.
+#[tauri::command]
+fn apply_ai_rules(payload: String) -> Result<usize, String> {
+    macmon_core::rules_engine::upsert_rules_from_ai_json(&payload)
+}
+
+/// IPC: Return JSON schema contract for AI rules payload.
+#[tauri::command]
+fn get_ai_rules_schema() -> String {
+    macmon_core::rules_engine::ai_rules_schema_json()
 }
 
 /// IPC: Validate AI API key by making a test request
@@ -317,11 +364,13 @@ async fn validate_api_key(provider: String, key: String) -> Result<bool, String>
 /// IPC: Analyze processes using AI
 #[tauri::command]
 async fn analyze_processes(
+    app: AppHandle,
     profile: String,
     provider: String,
     model: String,
 ) -> Result<Vec<macmon_core::ai::ProcessSuggestion>, String> {
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
+    let api_key = get_api_key_with_fallback(&app, &provider)?;
 
     let top_procs = macmon_core::metrics::top_processes_by_memory(30);
     let mut procs_to_send = Vec::new();
@@ -338,10 +387,15 @@ async fn analyze_processes(
 
     let processes_json = serde_json::to_string(&procs_to_send).map_err(|e| e.to_string())?;
 
-    let mut suggestions =
-        macmon_core::ai::analyze_with_ai(ai_provider, &model, &processes_json, &profile)
-            .await
-            .map_err(|e| e.to_string())?;
+    let mut suggestions = macmon_core::ai::analyze_with_ai_key(
+        ai_provider,
+        &model,
+        &processes_json,
+        &profile,
+        &api_key,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     suggestions.retain(|s| !macmon_core::killer::is_immutable_blocked_process_name(&s.name));
 
@@ -351,12 +405,14 @@ async fn analyze_processes(
 /// IPC: Free-form AI analysis of a process context (returns plain text).
 #[tauri::command]
 async fn analyze_context(
+    app: AppHandle,
     context: String,
     provider: String,
     model: String,
 ) -> Result<String, String> {
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
-    macmon_core::ai::analyze_context(ai_provider, &model, &context)
+    let api_key = get_api_key_with_fallback(&app, &provider)?;
+    macmon_core::ai::analyze_context_key(ai_provider, &model, &context, &api_key)
         .await
         .map_err(|e| e.to_string())
 }
@@ -393,6 +449,30 @@ pub fn run() {
         .setup(|app| {
             // Start the background watcher thread for system-level metrics
             macmon_core::watcher::start_watcher();
+
+            // Emit dynamic security alerts to frontend in real time.
+            let app_for_alerts = app.handle().clone();
+            std::thread::spawn(move || {
+                let mut dedupe = HashMap::<String, Instant>::new();
+                loop {
+                    std::thread::sleep(std::time::Duration::from_millis(900));
+                    let state = macmon_core::watcher::get_cached_state();
+                    let now = Instant::now();
+                    dedupe.retain(|_, seen| now.duration_since(*seen).as_secs() < 20);
+
+                    for alert in state.dynamic_rule_alerts {
+                        let key = format!(
+                            "{}:{}:{}:{}",
+                            alert.rule_id, alert.pid, alert.dst_ip, alert.dst_port
+                        );
+                        if dedupe.contains_key(&key) {
+                            continue;
+                        }
+                        dedupe.insert(key, now);
+                        let _ = app_for_alerts.emit("security-alert", alert);
+                    }
+                }
+            });
 
             // --- System Tray Menu ---
             let show = MenuItem::with_id(app, "show", "Open Dashboard", true, None::<&str>)?;
@@ -441,6 +521,8 @@ pub fn run() {
             kill_processes,
             save_ai_config,
             check_api_key,
+            apply_ai_rules,
+            get_ai_rules_schema,
             validate_api_key,
             analyze_processes,
             analyze_context,

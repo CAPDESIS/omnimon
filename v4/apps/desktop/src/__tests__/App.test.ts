@@ -123,39 +123,62 @@ vi.mock("../stores/preferences", () => {
   };
 });
 
+vi.mock("../stores/metricsHistory", () => ({
+  metricsHistory: writable([]),
+  pushMetrics: vi.fn(),
+  cpuSeries: writable([]),
+  ramSeries: writable([]),
+  netRxSeries: writable([]),
+  netTxSeries: writable([]),
+  swapSeries: writable([]),
+  _resetMetricsHistory: vi.fn(),
+}));
+
+vi.mock("../stores/alerts", () => ({
+  alertRules: writable([]),
+  firedAlerts: writable([]),
+  dynamicAlerts: writable([]),
+  evaluateAlerts: vi.fn(),
+  addAlertRule: vi.fn(),
+  removeAlertRule: vi.fn(),
+  clearFiredAlerts: vi.fn(),
+  clearDynamicAlerts: vi.fn(),
+  initSecurityAlertListener: vi.fn().mockResolvedValue(() => {}),
+  _resetAlerts: vi.fn(),
+}));
+
+vi.mock("../stores/toasts", () => ({
+  toasts: writable([]),
+  addToast: vi.fn(() => "toast-1"),
+  dismissToast: vi.fn(),
+  toast: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warning: vi.fn(),
+    error: vi.fn(),
+  },
+  _resetToasts: vi.fn(),
+}));
+
 const mockAnalyzeContext = vi.mocked(ipcAnalyzeContext);
 
-describe("App AI Chat", () => {
+describe("App AI Command Bar", () => {
   beforeEach(() => {
     mockAnalyzeContext.mockReset();
   });
 
-  it("submits chat input on Enter and sends request", async () => {
-    mockAnalyzeContext.mockResolvedValueOnce("AI response");
+  it("renders the AI command bar with input", async () => {
     render(App);
-
-    const input = screen.getByPlaceholderText("Ask AI about your system... (e.g., \"What's using the most memory?\")");
-    await fireEvent.input(input, { target: { value: "What is using memory?" } });
-    await fireEvent.keyDown(input, { key: "Enter" });
-
-    await waitFor(() => {
-      expect(mockAnalyzeContext).toHaveBeenCalledTimes(1);
-    });
-    expect(mockAnalyzeContext.mock.calls[0][0]).toContain("User question: What is using memory?");
-    expect(screen.getByText("AI response")).toBeInTheDocument();
+    // The AiCommandBar uses a different placeholder
+    const input = screen.getByPlaceholderText(/Alert me if Chrome/i);
+    expect(input).toBeInTheDocument();
   });
 
-  it("clears chat input with X button", async () => {
+  it("renders the toolbar with search and controls", async () => {
     render(App);
-
-    const input = screen.getByPlaceholderText("Ask AI about your system... (e.g., \"What's using the most memory?\")") as HTMLInputElement;
-    await fireEvent.input(input, { target: { value: "temporary prompt" } });
-    expect(input.value).toBe("temporary prompt");
-
-    const clearButtons = screen.getAllByRole("button", { name: /clear search/i });
-    const chatClear = clearButtons[clearButtons.length - 1];
-    await fireEvent.click(chatClear);
-
-    expect(input.value).toBe("");
+    const searchInput = screen.getByPlaceholderText(/Filter by name/i);
+    expect(searchInput).toBeInTheDocument();
+    expect(screen.getByText("AI Analyze")).toBeInTheDocument();
+    expect(screen.getByText("Close")).toBeInTheDocument();
   });
 });

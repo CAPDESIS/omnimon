@@ -75,6 +75,46 @@ jobs:
       run: cargo run -p cli -- --help
       working-directory: ./v4
 
+  security:
+    name: Security Audit
+    needs: [test]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: "v4"
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+        cache-dependency-path: 'v4/apps/desktop/package-lock.json'
+
+    - name: Install Linux Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+    - name: Cargo Audit
+      run: |
+        cargo install cargo-audit
+        cargo audit
+      working-directory: ./v4
+
+    - name: npm Audit
+      run: |
+        npm ci
+        npm audit --audit-level=high
+      working-directory: ./v4/apps/desktop
+
   release:
     name: Release Builder (${{ matrix.platform }})
     needs: [test]
@@ -136,7 +176,13 @@ jobs:
         projectPath: ./v4/apps/desktop
         tagName: ${{ github.ref_name }}
         releaseName: "OmniMon ${{ github.ref_name }}"
-        releaseBody: "Automated multiplatform release for OmniMon ${{ github.ref_name }}"
+        releaseBody: |
+          Automated multiplatform release for OmniMon ${{ github.ref_name }}
+
+          **macOS note:** If macOS shows "app is damaged", run:
+          ```
+          xattr -cr /Applications/OmniMon.app
+          ```
         releaseDraft: false
         prerelease: false
         args: ${{ matrix.args }}

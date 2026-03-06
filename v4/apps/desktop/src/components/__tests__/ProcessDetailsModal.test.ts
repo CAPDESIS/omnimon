@@ -548,7 +548,7 @@ describe("AI analysis", () => {
       const call = mockInvoke.mock.calls.find((c) => c[0] === "analyze_context");
       expect(call?.[1]).toEqual(
         expect.objectContaining({
-          context: expect.stringContaining("Open tabs (1):"),
+          context: expect.stringContaining('"tab_count":1'),
         }),
       );
       expect((call?.[1] as { context: string }).context).toContain("(Untitled)");
