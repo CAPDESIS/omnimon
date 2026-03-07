@@ -2,6 +2,9 @@
 
 [![CI/CD](https://github.com/chochy2001/omnimon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/omnimon/actions) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_+_Svelte-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#)
 
+<img width="1540" height="961" alt="image" src="https://github.com/user-attachments/assets/686dcab2-46c3-4c8d-9d03-ab9b2dd8005e" />
+
+
 *Scroll down for Spanish / Desplázate hacia abajo para Español.*
 
 OmniMon is a next-generation system monitor rewritten from scratch in a modern monorepo. It replaces the legacy AppKit/Bash architecture with a hyper-optimized native core and a reactive UI with zero memory leaks.
