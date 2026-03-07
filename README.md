@@ -1,6 +1,6 @@
 # OmniMon v4
 
-[![CI/CD](https://github.com/chochy2001/omnimon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/omnimon/actions) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_+_Svelte-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#)
+[![CI/CD](https://github.com/chochy2001/omnimon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/omnimon/actions) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_+_Svelte-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#) [![Sponsor](https://img.shields.io/badge/Sponsor-💖-ff69b4)](https://github.com/sponsors/chochy2001)
 
 <img width="1540" height="961" alt="image" src="https://github.com/user-attachments/assets/686dcab2-46c3-4c8d-9d03-ab9b2dd8005e" />
 
@@ -43,7 +43,7 @@ Download the `.msi` installer from the [latest release](https://github.com/choch
 
 ```bash
 # Debian/Ubuntu — one-liner
-curl -fsSL https://raw.githubusercontent.com/chochy2001/omnimon/main/install-web.sh | bash
+curl -fsSL https://raw.githubusercontent.com/chochy2001/omnimon/main/scripts/install-web.sh | bash
 
 # Or download the .deb / .AppImage from the latest release
 ```
@@ -118,7 +118,7 @@ Descarga el instalador `.msi` desde el [último lanzamiento](https://github.com/
 
 ```bash
 # Debian/Ubuntu — instalación en una línea
-curl -fsSL https://raw.githubusercontent.com/chochy2001/omnimon/main/install-web.sh | bash
+curl -fsSL https://raw.githubusercontent.com/chochy2001/omnimon/main/scripts/install-web.sh | bash
 
 # O descarga el .deb / .AppImage desde el último lanzamiento
 ```

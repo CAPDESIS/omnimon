@@ -9,6 +9,53 @@
 
 ## Reporting a Vulnerability
 
+Please **DO NOT** open a public Issue to report security vulnerabilities.
+Send an email directly to the maintainers or use GitHub's private "Security Advisories" feature. We will respond within a maximum of 48 hours.
+
+## OmniMon Security Measures
+
+### 1. Immutable & Secure Blocklists
+OmniMon includes strict, OS-specific blocklists (`#[cfg(target_os)]`) embedded directly into the native Rust core (`v4/crates/core/src/killer.rs`).
+*   **macOS:** Protects `kernel_task`, `launchd`, `WindowServer`, `coreaudiod`, etc.
+*   **Windows:** Protects `smss.exe`, `csrss.exe`, `svchost.exe`, `lsass.exe`, etc.
+*   **Linux:** Protects `systemd`, `init`, `dbus-daemon`, `xorg`, etc.
+
+Even if the user or AI attempts to terminate these processes, the command will be natively denied, preventing kernel panics or OS crashes (Blue Screens).
+
+### 2. Credential Storage (Native Keychain)
+API keys for AI providers (OpenAI, Anthropic, OpenRouter) and CrabNebula are **never** stored in plain text on disk.
+We use the cross-platform `keyring` crate to abstract and delegate secure storage to the OS's cryptographic credential manager:
+*   macOS: **Keychain Access**
+*   Windows: **Credential Manager**
+*   Linux: **Secret Service API (GNOME Keyring/KWallet)**
+
+### 3. Commitment to MITRE ATT&CK
+We continuously model our threats based on the MITRE ATT&CK framework to defend the system:
+*   **T1059 (Command and Scripting Interpreter):** v4 removed the general dependency on Bash and injected AppleScript (present in v3). All introspection and process termination are done natively at the FFI/OS API level with Rust, mitigating command injection attacks.
+*   **T1552 (Unsecured Credentials):** Mitigated through our mandatory implementation of native Keychain/Credential Manager.
+*   **T1548.002 (Bypass User Access Control):** OmniMon runs in user-space and does not request privilege escalation (`sudo`/`root`) for regular operations. Its ability to terminate processes is strictly limited to the current user session (UID match).
+
+### 4. Automated CVE Scanning
+Our CI/CD lifecycle includes static analysis tools like `cargo-audit`, `Grype`, and the Dependabot ecosystem for continuous detection of Common Vulnerabilities and Exposures (CVEs). Every pull request is scanned before being merged, blocking compromised transitive dependencies.
+
+### 5. Input Sanitization for System Calls (Frontend -> Backend IPC)
+All interactions between the frontend and native backend pass through a secure IPC bridge. This prevents malicious data injected from the frontend from compromising the system:
+*   **AppleScript:** User-provided identifiers are never directly concatenated into AppleScript strings. They are passed as positional arguments, eliminating Remote Code Execution (RCE) vectors.
+*   **WebSockets (CDP):** Debugging session IDs are rigorously validated to prevent Path Traversal. Characters like `/`, `\`, `?`, and `#` are rejected.
+
+---
+
+# Política de Seguridad (Español)
+
+## Versiones Soportadas
+
+| Versión | Soportada          |
+| ------- | ------------------ |
+| v4.0.x  | :white_check_mark: |
+| v3.x.x  | :x:                |
+
+## Reportar una Vulnerabilidad
+
 Por favor, **NO** abras un Issue público para reportar vulnerabilidades de seguridad.
 Envía un correo electrónico directamente a los mantenedores o utiliza la función "Security Advisories" privada de GitHub. Responderemos en un plazo máximo de 48 horas.
 
@@ -23,7 +70,7 @@ OmniMon incluye listas de bloqueo estrictas y divididas por plataforma (`#[cfg(t
 Incluso si el usuario o la IA intenta terminar estos procesos, el comando será denegado nativamente, previniendo "kernel panics" o cuelgues del SO (Blue Screens).
 
 ### 2. Almacenamiento de Credenciales (Keychain Nativo)
-Las claves de API de los proveedores de IA (OpenAI, Anthropic, OpenRouter) **nunca** se almacenan en texto plano en el disco.
+Las claves de API de los proveedores de IA (OpenAI, Anthropic, OpenRouter) y CrabNebula **nunca** se almacenan en texto plano en el disco.
 Utilizamos el crate multiplataforma `keyring` para abstraer y delegar el almacenamiento seguro al manejador de credenciales criptográficas del Sistema Operativo:
 *   macOS: **Keychain Access**
 *   Windows: **Credential Manager**
@@ -36,12 +83,9 @@ Modelamos constantemente nuestras amenazas basándonos en el framework MITRE ATT
 *   **T1548.002 (Bypass User Access Control):** OmniMon se ejecuta en modo usuario (User-space) y no solicita escalada de privilegios (`sudo`/`root`) para operaciones regulares. Su capacidad de terminar procesos se limita estrictamente a la sesión de usuario actual (UID match).
 
 ### 4. Escaneos de CVEs Automatizados
-Nuestro ciclo de CI/CD incluye herramientas de análisis estático como `cargo-audit` y el ecosistema de Dependabot para la detección continua de Vulnerabilidades y Exposiciones Comunes (CVE). Cada pull request es escaneado antes de ser fusionado, bloqueando dependencias transitivas comprometidas.
+Nuestro ciclo de CI/CD incluye herramientas de análisis estático como `cargo-audit`, `Grype` y el ecosistema de Dependabot para la detección continua de Vulnerabilidades y Exposiciones Comunes (CVE). Cada pull request es escaneado antes de ser fusionado, bloqueando dependencias transitivas comprometidas.
 
-### 5. Micro-benchmarking y Latencia (Core)
-Entendemos que las validaciones de seguridad no deben afectar el rendimiento. Garantizamos < 10ms de latencia para las llamadas FFI del Sistema Operativo encargadas de verificar los permisos y los "safelists" antes de ejecutar una operación crítica, manteniendo el impacto de CPU por debajo del 0.1% en reposo.
-
-### 6. Input Sanitization for System Calls (Frontend -> Backend IPC)
+### 5. Sanitización de Entradas para Llamadas al Sistema (Frontend -> Backend IPC)
 Todas las interacciones entre el frontend y el backend nativo pasan a través de un puente de IPC Seguro. Esto previene que datos maliciosos inyectados desde el frontend comprometan el sistema:
 *   **AppleScript:** Los identificadores proporcionados por el usuario (como IDs de pestañas o URLs) nunca se concatenan directamente en cadenas de AppleScript. En su lugar, se pasan como argumentos posicionales (vía `osascript -e` y `on run argv`), eliminando vectores de Remote Code Execution (RCE).
 *   **WebSockets (CDP):** Los IDs de sesión de depuración están rigurosamente validados para evitar el *Path Traversal*. Se rechazan los caracteres como `/`, `\`, `?` y `#`, lo que garantiza que las conexiones solo puedan abrirse contra los *endpoints* permitidos del Chrome Debugging Protocol.
