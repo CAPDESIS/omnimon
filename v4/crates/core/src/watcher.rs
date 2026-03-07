@@ -149,49 +149,64 @@ pub fn start_watcher() {
             let mut interval = tokio::time::interval(Duration::from_secs(2));
             loop {
                 interval.tick().await;
-                let sample = network_engine.sample();
-                let policy = crate::security::NetworkPolicy::default();
-                let network_observations =
-                    crate::security::evaluate_network_events(&sample.recent_connections, &policy);
-                let mitre_labels =
-                    crate::security::label_process_observations(&network_observations);
 
-                // collect_state refreshes processes, so we build runtime from
-                // the same System instance — no redundant System::new_all().
-                let mut snapshot = collect_state(&mut system);
+                // Wrap tick body in catch_unwind so a transient panic
+                // (e.g. in network sampling or rules evaluation) doesn't
+                // kill the watcher thread and freeze all metrics forever.
+                let tick_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let sample = network_engine.sample();
+                    let policy = crate::security::NetworkPolicy::default();
+                    let network_observations = crate::security::evaluate_network_events(
+                        &sample.recent_connections,
+                        &policy,
+                    );
+                    let mitre_labels =
+                        crate::security::label_process_observations(&network_observations);
 
-                let runtime: Vec<crate::rules_engine::ProcessRuntime> = snapshot
-                    .cached_process_info
-                    .iter()
-                    .map(|p| crate::rules_engine::ProcessRuntime {
-                        pid: p.pid,
-                        process_name: p.name.clone(),
-                        memory_bytes: p.memory_bytes,
-                    })
-                    .collect();
-                let dynamic_alerts =
-                    crate::rules_engine::evaluate_events(&sample.recent_connections, &runtime);
-                let heartbeat = crate::audit::build_security_heartbeat(
-                    sample.process_throughput.len(),
-                    0,
-                    sample.deep_packet_inspection_active,
-                    network_observations.len() + dynamic_alerts.len(),
-                    mitre_labels.len() + dynamic_alerts.len(),
-                    true,
-                    "monitoring",
-                );
+                    let mut snapshot = collect_state(&mut system);
 
-                snapshot.net_rx_bytes_per_sec = sample.net_rx_bytes_per_sec;
-                snapshot.net_tx_bytes_per_sec = sample.net_tx_bytes_per_sec;
-                snapshot.net_capture_backend = sample.backend_label;
-                snapshot.net_dpi_active = sample.deep_packet_inspection_active;
-                snapshot.top_network_processes = sample.process_throughput;
-                snapshot.recent_network_connections = sample.recent_connections;
-                snapshot.mitre_network_alerts = mitre_labels;
-                snapshot.dynamic_rule_alerts = dynamic_alerts;
-                snapshot.security_heartbeat = Some(heartbeat);
-                if let Ok(mut guard) = cache.write() {
-                    *guard = snapshot;
+                    let runtime: Vec<crate::rules_engine::ProcessRuntime> = snapshot
+                        .cached_process_info
+                        .iter()
+                        .map(|p| crate::rules_engine::ProcessRuntime {
+                            pid: p.pid,
+                            process_name: p.name.clone(),
+                            memory_bytes: p.memory_bytes,
+                        })
+                        .collect();
+                    let dynamic_alerts =
+                        crate::rules_engine::evaluate_events(&sample.recent_connections, &runtime);
+                    let heartbeat = crate::audit::build_security_heartbeat(
+                        sample.process_throughput.len(),
+                        0,
+                        sample.deep_packet_inspection_active,
+                        network_observations.len() + dynamic_alerts.len(),
+                        mitre_labels.len() + dynamic_alerts.len(),
+                        true,
+                        "monitoring",
+                    );
+
+                    snapshot.net_rx_bytes_per_sec = sample.net_rx_bytes_per_sec;
+                    snapshot.net_tx_bytes_per_sec = sample.net_tx_bytes_per_sec;
+                    snapshot.net_capture_backend = sample.backend_label;
+                    snapshot.net_dpi_active = sample.deep_packet_inspection_active;
+                    snapshot.top_network_processes = sample.process_throughput;
+                    snapshot.recent_network_connections = sample.recent_connections;
+                    snapshot.mitre_network_alerts = mitre_labels;
+                    snapshot.dynamic_rule_alerts = dynamic_alerts;
+                    snapshot.security_heartbeat = Some(heartbeat);
+                    snapshot
+                }));
+
+                match tick_result {
+                    Ok(snapshot) => {
+                        if let Ok(mut guard) = cache.write() {
+                            *guard = snapshot;
+                        }
+                    }
+                    Err(_) => {
+                        eprintln!("[watcher] panic in monitoring tick — skipping this cycle");
+                    }
                 }
             }
         });

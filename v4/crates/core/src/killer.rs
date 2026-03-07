@@ -258,15 +258,26 @@ pub fn kill_process_safe(pid: i32, extra_blocklist: &[String]) -> Result<KillRes
     let killed = if graceful {
         std::thread::sleep(Duration::from_millis(120));
         if !process_is_alive(&mut system, pid_u32) {
+            // Process exited after SIGTERM — success.
             true
-        } else if !identity_matches(&mut system, pid_u32, &process_name, process_exe.as_deref())
-            || crate::os_native::kill_process_force(pid_u32, &process_name, process_exe.as_deref())
-                .is_err()
+        } else if !identity_matches(&mut system, pid_u32, &process_name, process_exe.as_deref()) {
+            // PID exists but identity changed (PID reuse) — the original
+            // process is dead, so this is a success.
+            true
+        } else if crate::os_native::kill_process_force(
+            pid_u32,
+            &process_name,
+            process_exe.as_deref(),
+        )
+        .is_err()
         {
+            // Force kill failed.
             false
         } else {
             std::thread::sleep(Duration::from_millis(120));
+            // After force kill, if identity changed the original is dead.
             !process_is_alive(&mut system, pid_u32)
+                || !identity_matches(&mut system, pid_u32, &process_name, process_exe.as_deref())
         }
     } else {
         false

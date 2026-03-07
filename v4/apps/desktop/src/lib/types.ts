@@ -54,7 +54,8 @@ export type BehaviorIndicator =
   | "RemoteThreadInjection"
   | "ProcessHollowing"
   | "SuspiciousMemoryRead"
-  | "UnsignedModuleLoad";
+  | "UnsignedModuleLoad"
+  | "SuspiciousNetworkConnection";
 
 export interface MitreTechnique {
   technique_id: string;   // e.g. "T1055.001"
@@ -68,6 +69,7 @@ export interface ProcessThreatLabel {
   indicator: BehaviorIndicator;
   mitre_techniques: MitreTechnique[];
   confidence: number;     // 0.0 - 1.0
+  context?: string | null;
 }
 
 export interface CveMatch {
@@ -158,6 +160,11 @@ export interface DynamicAlert {
 
 export type AiRuleKind = "process_country" | "process_ip" | "process_cidr" | "process_port" | "process_memory";
 
+export interface TemporalCorrelation {
+  rule_id: string;
+  within_seconds: number;
+}
+
 export interface AiRuleV1 {
   id: string;
   name: string;
@@ -171,6 +178,7 @@ export interface AiRuleV1 {
   protocol: "any" | "tcp" | "udp";
   process_memory_mb_gt: number | null;
   mitre_technique_id: string | null;
+  temporal_correlation: TemporalCorrelation | null;
 }
 
 export interface AiRulesPayload {

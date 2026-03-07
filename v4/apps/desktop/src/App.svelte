@@ -171,6 +171,22 @@
   }
 
   onMount(() => {
+    let disposed = false;
+    const unlistenFns: Array<() => void> = [];
+    const registerUnlistener = (promise: Promise<() => void>) => {
+      promise
+        .then((fn) => {
+          if (disposed) {
+            fn();
+            return;
+          }
+          unlistenFns.push(fn);
+        })
+        .catch(() => {
+          // Listener registration failed (non-Tauri context/tests). Ignore.
+        });
+    };
+
     platform = detectPlatform();
     document.documentElement.setAttribute("data-platform", platform);
 
@@ -183,30 +199,35 @@
       locale.set(val);
     });
 
-    let unlistenVisibility: (() => void) | null = null;
-    let unlistenSettings: (() => void) | null = null;
-    let unlistenSecurityAlerts: (() => void) | null = null;
-    initSecurityAlertListener().then((fn) => { unlistenSecurityAlerts = fn; });
-    listen<boolean>("window-visibility", (event) => {
-      if (event.payload) {
-        startPolling(2000);
-      } else {
-        stopPolling();
-      }
-    }).then((fn) => { unlistenVisibility = fn; });
+    registerUnlistener(initSecurityAlertListener());
+    registerUnlistener(
+      listen<boolean>("window-visibility", (event) => {
+        if (event.payload) {
+          startPolling(2000);
+        } else {
+          stopPolling();
+        }
+      }),
+    );
 
-    listen("open-settings", () => {
-      showSettings = true;
-    }).then((fn) => { unlistenSettings = fn; });
+    registerUnlistener(
+      listen("open-settings", () => {
+        showSettings = true;
+      }),
+    );
 
     return () => {
+      disposed = true;
       stopPolling();
       clearTimeout(debounceTimer);
+      window.removeEventListener("mousemove", onDividerMousemove);
+      window.removeEventListener("mouseup", onDividerMouseup);
       unsubPrefs();
       unsubLocale();
-      unlistenVisibility?.();
-      unlistenSettings?.();
-      unlistenSecurityAlerts?.();
+      for (const unlisten of unlistenFns) {
+        unlisten();
+      }
+      unlistenFns.length = 0;
     };
   });
 

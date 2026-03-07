@@ -182,6 +182,29 @@ export function validateAiRule(raw: unknown): AiRuleV1 {
     throw new Error(`AI rule 'protocol' must be one of: ${VALID_PROTOCOLS.join(", ")}`);
   }
 
+  const tcRaw = r.temporal_correlation;
+  let temporal_correlation: AiRuleV1["temporal_correlation"] = null;
+  if (tcRaw !== undefined && tcRaw !== null) {
+    if (typeof tcRaw !== "object" || Array.isArray(tcRaw)) {
+      throw new Error("AI rule 'temporal_correlation' must be an object or null");
+    }
+    const tc = tcRaw as Record<string, unknown>;
+    if (typeof tc.rule_id !== "string" || tc.rule_id.length === 0) {
+      throw new Error("AI rule temporal_correlation.rule_id must be a non-empty string");
+    }
+    if (
+      typeof tc.within_seconds !== "number"
+      || !Number.isInteger(tc.within_seconds)
+      || tc.within_seconds <= 0
+    ) {
+      throw new Error("AI rule temporal_correlation.within_seconds must be a positive integer");
+    }
+    temporal_correlation = {
+      rule_id: tc.rule_id,
+      within_seconds: tc.within_seconds,
+    };
+  }
+
   return {
     id: r.id as string,
     name: r.name as string,
@@ -195,6 +218,7 @@ export function validateAiRule(raw: unknown): AiRuleV1 {
     protocol: protocol as "any" | "tcp" | "udp",
     process_memory_mb_gt: typeof r.process_memory_mb_gt === "number" ? r.process_memory_mb_gt : null,
     mitre_technique_id: typeof r.mitre_technique_id === "string" ? r.mitre_technique_id : null,
+    temporal_correlation,
   };
 }
 
@@ -245,10 +269,10 @@ You can also create alert rules with this structure:
 { "alerts": [{ "metric": "cpu"|"ram"|"net_rx"|"net_tx"|"swap", "operator": ">"|"<"|">="|"<=", "threshold": number, "processName": "optional", "action": "toast"|"sound"|"highlight" }] }
 
 You can also create SECURITY RULES for the rules engine (schema v1). These block or alert on network activity:
-{ "ai_rules": [{ "id": "unique-id", "name": "Rule name", "enabled": true, "kind": "process_country"|"process_ip"|"process_cidr"|"process_port"|"process_memory", "process_contains": "process name substring or null", "country_code": "CN|RU|... or null", "destination_ip": "1.2.3.4 or null", "destination_cidr": "10.0.0.0/8 or null", "destination_port": 8080 or null, "protocol": "any"|"tcp"|"udp", "process_memory_mb_gt": 1024 or null, "mitre_technique_id": "T1071 or null" }] }
+{ "ai_rules": [{ "id": "unique-id", "name": "Rule name", "enabled": true, "kind": "process_country"|"process_ip"|"process_cidr"|"process_port"|"process_memory", "process_contains": "process name substring or null", "country_code": "CN|RU|... or null", "destination_ip": "1.2.3.4 or null", "destination_cidr": "10.0.0.0/8 or null", "destination_port": 8080 or null, "protocol": "any"|"tcp"|"udp", "process_memory_mb_gt": 1024 or null, "mitre_technique_id": "T1071 or null", "temporal_correlation": { "rule_id": "prior-rule-id", "within_seconds": 30 } | null }] }
 Examples:
-- Block connections to China: {"ai_rules":[{"id":"block-cn-001","name":"Block China traffic","enabled":true,"kind":"process_country","process_contains":null,"country_code":"CN","destination_ip":null,"destination_cidr":null,"destination_port":null,"protocol":"any","process_memory_mb_gt":null,"mitre_technique_id":"T1071"}]}
-- Alert if node uses more than 1GB: {"ai_rules":[{"id":"node-mem-001","name":"Node memory alert","enabled":true,"kind":"process_memory","process_contains":"node","country_code":null,"destination_ip":null,"destination_cidr":null,"destination_port":null,"protocol":"any","process_memory_mb_gt":1024,"mitre_technique_id":"T1499"}]}
+- Block connections to China: {"ai_rules":[{"id":"block-cn-001","name":"Block China traffic","enabled":true,"kind":"process_country","process_contains":null,"country_code":"CN","destination_ip":null,"destination_cidr":null,"destination_port":null,"protocol":"any","process_memory_mb_gt":null,"mitre_technique_id":"T1071","temporal_correlation":null}]}
+- Alert if node uses more than 1GB: {"ai_rules":[{"id":"node-mem-001","name":"Node memory alert","enabled":true,"kind":"process_memory","process_contains":"node","country_code":null,"destination_ip":null,"destination_cidr":null,"destination_port":null,"protocol":"any","process_memory_mb_gt":1024,"mitre_technique_id":"T1499","temporal_correlation":null}]}
 
 User instruction: "${userInstruction}"
 

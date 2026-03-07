@@ -4,21 +4,46 @@
 
   let key = $state('');
   let status = $state('');
+  let loadingKey = $state(false);
+  let savingKey = $state(false);
 
-  onMount(async () => {
-    try {
-      key = await invoke('get_cloud_key');
-    } catch (e) {
-      console.error('Failed to get cloud key', e);
-    }
+  onMount(() => {
+    let mounted = true;
+
+    const loadKey = async () => {
+      loadingKey = true;
+      try {
+        const stored = await invoke<string>('get_cloud_key');
+        if (!mounted) return;
+        key = stored;
+      } catch (e) {
+        if (!mounted) return;
+        console.error('Failed to get cloud key', e);
+      } finally {
+        if (mounted) {
+          loadingKey = false;
+        }
+      }
+    };
+
+    void loadKey();
+
+    return () => {
+      mounted = false;
+    };
   });
 
   async function saveKey() {
+    if (savingKey || loadingKey) return;
+    savingKey = true;
+    status = '';
     try {
-      await invoke('save_cloud_key', { key });
+      await invoke<void>('save_cloud_key', { key });
       status = 'Key saved successfully!';
     } catch (e) {
       status = `Error: ${e}`;
+    } finally {
+      savingKey = false;
     }
   }
 
@@ -31,11 +56,19 @@
   <h3>CrabNebula Cloud Settings</h3>
   <div class="input-group">
     <label for="cloud-key">API Key:</label>
-    <input type="password" id="cloud-key" bind:value={key} placeholder="Enter your CrabNebula API Key" />
+    <input
+      type="password"
+      id="cloud-key"
+      bind:value={key}
+      placeholder="Enter your CrabNebula API Key"
+      disabled={loadingKey || savingKey}
+    />
   </div>
   <div class="actions">
-    <button class="btn btn-accent" onclick={saveKey}>Save Key</button>
-    <button class="btn" onclick={syncNow}>Sync Now</button>
+    <button class="btn btn-accent" onclick={saveKey} disabled={loadingKey || savingKey || !key.trim()}>
+      {savingKey ? 'Saving...' : 'Save Key'}
+    </button>
+    <button class="btn" onclick={syncNow} disabled={loadingKey || savingKey}>Sync Now</button>
   </div>
   {#if status}
     <p class="status">{status}</p>

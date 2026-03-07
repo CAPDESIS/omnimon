@@ -177,18 +177,33 @@ fn refresh_tab_cache_if_stale() -> Vec<BrowserTab> {
     }
 
     // Expensive AppleScript/CDP work happens outside the Mutex.
-    let provider = NativeTabProvider;
-    let mut tabs = Vec::new();
-    for browser in BrowserKind::all() {
-        match provider.list_tabs(*browser) {
-            Ok(t) => tabs.extend(t),
-            Err(e) => eprintln!(
-                "[tab-cache] {} tab listing failed: {}",
-                browser.display_name(),
-                e
-            ),
+    // Wrapped in catch_unwind so a panic here resets the flag instead of
+    // permanently blocking all future tab refreshes.
+    let result = std::panic::catch_unwind(|| {
+        let provider = NativeTabProvider;
+        let mut tabs = Vec::new();
+        for browser in BrowserKind::all() {
+            match provider.list_tabs(*browser) {
+                Ok(t) => tabs.extend(t),
+                Err(e) => eprintln!(
+                    "[tab-cache] {} tab listing failed: {}",
+                    browser.display_name(),
+                    e
+                ),
+            }
         }
-    }
+        tabs
+    });
+
+    let tabs = match result {
+        Ok(t) => t,
+        Err(_) => {
+            eprintln!("[tab-cache] panic during tab refresh — returning stale cache");
+            TAB_REFRESH_IN_PROGRESS.store(false, Ordering::SeqCst);
+            let cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
+            return cache.0.clone();
+        }
+    };
 
     // Re-acquire lock to update cache.
     {
@@ -560,5 +575,8 @@ pub fn run() {
             get_cloud_key,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|e| {
+            eprintln!("[omnimon] fatal: tauri application failed to start: {e}");
+            std::process::exit(1);
+        });
 }

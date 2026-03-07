@@ -27,6 +27,17 @@ jobs:
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
 
+      - name: Run Cargo Clippy
+        working-directory: ./v4
+        run: cargo clippy --workspace -- -D warnings
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run Cargo Audit
+        working-directory: ./v4
+        run: cargo audit
+
       - name: Run Tests and Generate Coverage (Gate)
         working-directory: ./v4
         run: |
