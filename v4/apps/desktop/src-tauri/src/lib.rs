@@ -462,28 +462,28 @@ pub fn run() {
             if ALERT_THREAD_STARTED.swap(true, Ordering::SeqCst) {
                 // Already running — skip duplicate spawn.
             } else {
-            let app_for_alerts = app.handle().clone();
-            std::thread::spawn(move || {
-                let mut dedupe = HashMap::<String, Instant>::new();
-                loop {
-                    std::thread::sleep(std::time::Duration::from_millis(900));
-                    let state = macmon_core::watcher::get_cached_state();
-                    let now = Instant::now();
-                    dedupe.retain(|_, seen| now.duration_since(*seen).as_secs() < 20);
+                let app_for_alerts = app.handle().clone();
+                std::thread::spawn(move || {
+                    let mut dedupe = HashMap::<String, Instant>::new();
+                    loop {
+                        std::thread::sleep(std::time::Duration::from_millis(900));
+                        let state = macmon_core::watcher::get_cached_state();
+                        let now = Instant::now();
+                        dedupe.retain(|_, seen| now.duration_since(*seen).as_secs() < 20);
 
-                    for alert in state.dynamic_rule_alerts {
-                        let key = format!(
-                            "{}:{}:{}:{}",
-                            alert.rule_id, alert.pid, alert.dst_ip, alert.dst_port
-                        );
-                        if dedupe.contains_key(&key) {
-                            continue;
+                        for alert in state.dynamic_rule_alerts {
+                            let key = format!(
+                                "{}:{}:{}:{}",
+                                alert.rule_id, alert.pid, alert.dst_ip, alert.dst_port
+                            );
+                            if dedupe.contains_key(&key) {
+                                continue;
+                            }
+                            dedupe.insert(key, now);
+                            let _ = app_for_alerts.emit("security-alert", alert);
                         }
-                        dedupe.insert(key, now);
-                        let _ = app_for_alerts.emit("security-alert", alert);
                     }
-                }
-            });
+                });
             } // end ALERT_THREAD_STARTED guard
 
             // --- System Tray Menu ---

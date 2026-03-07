@@ -151,10 +151,16 @@ export async function killSelected(): Promise<number[]> {
   if (pids.length === 0) return [];
   if (!confirmAction(t("processes.confirmKillSelected", { count: pids.length }))) return [];
   try {
-    const killed = await ipcKillProcesses(pids);
+    const result = await ipcKillProcesses(pids);
+    const killed = result.killed;
     // Immediately remove killed processes from UI
     processes.update(($procs) => $procs.filter((p) => !killed.includes(p.pid)));
     selectedPids.set(new Set());
+    // Report any failures
+    if (result.failed.length > 0) {
+      const failMsgs = result.failed.map(([pid, reason]) => `PID ${pid}: ${reason}`).join(", ");
+      toast.warning("Some processes could not be killed", failMsgs);
+    }
     return killed;
   } catch (e) {
     console.error("Kill failed:", e);

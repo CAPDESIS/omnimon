@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 use std::sync::{OnceLock, RwLock};
+use std::time::Instant;
 
 pub const AI_RULES_SCHEMA_VERSION: u32 = 1;
 
@@ -27,6 +28,12 @@ pub enum RuleProtocol {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemporalCorrelation {
+    pub rule_id: String,
+    pub within_seconds: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlertRule {
     pub id: String,
     pub name: String,
@@ -40,6 +47,7 @@ pub struct AlertRule {
     pub protocol: Option<RuleProtocol>,
     pub process_memory_mb_gt: Option<u64>,
     pub mitre_technique_id: Option<String>,
+    pub temporal_correlation: Option<TemporalCorrelation>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -135,6 +143,7 @@ impl ParsedGeoCidr {
 struct RulesState {
     rules: Vec<AlertRule>,
     geo_db: Vec<ParsedGeoCidr>,
+    last_matched: HashMap<String, Instant>,
 }
 
 static RULES_STATE: OnceLock<RwLock<RulesState>> = OnceLock::new();
@@ -144,6 +153,7 @@ fn state() -> &'static RwLock<RulesState> {
         RwLock::new(RulesState {
             rules: Vec::new(),
             geo_db: default_geo_db(),
+            last_matched: HashMap::new(),
         })
     })
 }

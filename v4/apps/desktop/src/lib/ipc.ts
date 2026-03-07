@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ProcessEntry, SystemStats, Metrics, BrowserTab, BrowserName, ProcessSuggestion } from "./types";
+import type { ProcessEntry, SystemStats, Metrics, BrowserTab, BrowserName, ProcessSuggestion, KillProcessesResult } from "./types";
 
 const VALID_BROWSERS = new Set<string>(["Chrome", "Safari", "Brave", "Edge", "Arc", "Firefox"]);
 
@@ -113,19 +113,38 @@ export async function ipcKillProcess(pid: number): Promise<boolean> {
   return result;
 }
 
-/** Kills multiple processes by PID in batch. Returns the array of PIDs that were successfully killed. */
-export async function ipcKillProcesses(pids: number[]): Promise<number[]> {
+/** Kills multiple processes by PID in batch. Returns an object with killed PIDs and failed PIDs with error messages. */
+export async function ipcKillProcesses(pids: number[]): Promise<KillProcessesResult> {
   const result: unknown = await invoke("kill_processes", { pids });
 
-  if (!Array.isArray(result)) {
-    throw new IPCValidationError("kill_processes result", result, "Expected array from kill_processes");
+  if (result == null || typeof result !== "object" || Array.isArray(result)) {
+    throw new IPCValidationError("kill_processes result", result, "Expected object with killed/failed from kill_processes");
   }
 
-  for (let i = 0; i < result.length; i++) {
-    assertFiniteNumber(`kill_processes result[${i}]`, result[i]);
+  const r = result as Record<string, unknown>;
+
+  if (!Array.isArray(r.killed)) {
+    throw new IPCValidationError("kill_processes result.killed", r.killed, "Expected array for killed");
   }
 
-  return result as number[];
+  for (let i = 0; i < r.killed.length; i++) {
+    assertFiniteNumber(`kill_processes result.killed[${i}]`, r.killed[i]);
+  }
+
+  if (!Array.isArray(r.failed)) {
+    throw new IPCValidationError("kill_processes result.failed", r.failed, "Expected array for failed");
+  }
+
+  for (let i = 0; i < r.failed.length; i++) {
+    const entry = r.failed[i];
+    if (!Array.isArray(entry) || entry.length !== 2) {
+      throw new IPCValidationError(`kill_processes result.failed[${i}]`, entry, "Expected [number, string] tuple");
+    }
+    assertFiniteNumber(`kill_processes result.failed[${i}][0]`, entry[0]);
+    assertString(`kill_processes result.failed[${i}][1]`, entry[1]);
+  }
+
+  return { killed: r.killed as number[], failed: r.failed as Array<[number, string]> };
 }
 
 function validateBrowserTab(raw: unknown, index: number): BrowserTab {

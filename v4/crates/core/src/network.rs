@@ -1025,8 +1025,14 @@ mod tests {
         prev_udp.retain(|pid, _| seen_udp.contains(pid));
 
         // Dead PIDs must be gone
-        assert!(!prev_tcp.contains_key(&300), "dead TCP PID 300 should be evicted");
-        assert!(!prev_udp.contains_key(&400), "dead UDP PID 400 should be evicted");
+        assert!(
+            !prev_tcp.contains_key(&300),
+            "dead TCP PID 300 should be evicted"
+        );
+        assert!(
+            !prev_udp.contains_key(&400),
+            "dead UDP PID 400 should be evicted"
+        );
 
         // Live PIDs must remain with their values intact
         assert_eq!(prev_tcp.len(), 2);

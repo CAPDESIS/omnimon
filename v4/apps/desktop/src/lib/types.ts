@@ -40,6 +40,11 @@ export interface ProcessSuggestion {
   reason: string;
 }
 
+export interface KillProcessesResult {
+  killed: number[];
+  failed: Array<[number, string]>;
+}
+
 // --- Security & Telemetry Types ---
 // Mirror Rust structs from crates/core/src/security.rs and audit.rs
 // Ready to consume once IPC commands are exposed.

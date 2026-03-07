@@ -238,7 +238,7 @@ describe("killSelected", () => {
   it("returns killed PIDs and removes them from store", async () => {
     processes.set([makeProc({ pid: 1 }), makeProc({ pid: 2 })]);
     selectedPids.set(new Set([1, 2]));
-    mockInvoke.mockResolvedValue([1, 2]);
+    mockInvoke.mockResolvedValue({ killed: [1, 2], failed: [] });
 
     const killed = await killSelected();
     expect(killed).toEqual([1, 2]);
@@ -249,7 +249,18 @@ describe("killSelected", () => {
   it("handles partial kill", async () => {
     processes.set([makeProc({ pid: 1 }), makeProc({ pid: 2 })]);
     selectedPids.set(new Set([1, 2]));
-    mockInvoke.mockResolvedValue([1]);
+    mockInvoke.mockResolvedValue({ killed: [1], failed: [] });
+
+    const killed = await killSelected();
+    expect(killed).toEqual([1]);
+    expect(get(processes)).toHaveLength(1);
+    expect(get(processes)[0].pid).toBe(2);
+  });
+
+  it("reports partial failures via toast", async () => {
+    processes.set([makeProc({ pid: 1 }), makeProc({ pid: 2 })]);
+    selectedPids.set(new Set([1, 2]));
+    mockInvoke.mockResolvedValue({ killed: [1], failed: [[2, "blocked"]] });
 
     const killed = await killSelected();
     expect(killed).toEqual([1]);
@@ -276,7 +287,7 @@ describe("killSelected", () => {
     (window.confirm as ReturnType<typeof vi.fn>).mockReturnValue(false);
     processes.set([makeProc({ pid: 1 })]);
     selectedPids.set(new Set([1]));
-    mockInvoke.mockResolvedValue([1]);
+    mockInvoke.mockResolvedValue({ killed: [1], failed: [] });
 
     const killed = await killSelected();
     expect(killed).toEqual([]);
