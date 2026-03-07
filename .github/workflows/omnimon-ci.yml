@@ -6,6 +6,12 @@ on:
     tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build release for (e.g. v4.6.0)'
+        required: true
+        type: string
 
 env:
   CARGO_TERM_COLOR: always
@@ -57,17 +63,17 @@ jobs:
 
     - name: Run Backend Tests with Coverage (Linux)
       if: matrix.os == 'ubuntu-latest'
-      run: cargo llvm-cov --all-features --workspace --fail-under-lines 80 --ignore-filename-regex "(ai\.rs|src-tauri|cli.src.main\.rs|os_native\.rs|network\.rs)"
+      run: cargo llvm-cov --all-features --workspace --fail-under-lines 80 --ignore-filename-regex "(ai\.rs|src-tauri|cli.src.main\.rs|os_native\.rs|network\.rs)" -- --test-threads=1
       working-directory: ./v4
 
     - name: Run Backend Tests (macOS)
       if: matrix.os == 'macos-latest'
-      run: cargo test --workspace
+      run: cargo test --workspace -- --test-threads=1
       working-directory: ./v4
 
     - name: Run Backend Tests (Windows)
       if: matrix.os == 'windows-latest'
-      run: cargo test --workspace
+      run: cargo test --workspace -- --test-threads=1
       working-directory: ./v4
 
     - name: Install Frontend Dependencies
@@ -138,7 +144,7 @@ jobs:
   release:
     name: Release Builder (${{ matrix.platform }})
     needs: [test]
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -158,6 +164,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.tag || github.ref }}
 
     - name: Set up Node.js
       uses: actions/setup-node@v4
@@ -194,10 +202,10 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         projectPath: ./v4/apps/desktop
-        tagName: ${{ github.ref_name }}
-        releaseName: "OmniMon ${{ github.ref_name }}"
+        tagName: ${{ inputs.tag || github.ref_name }}
+        releaseName: "OmniMon ${{ inputs.tag || github.ref_name }}"
         releaseBody: |
-          Automated multiplatform release for OmniMon ${{ github.ref_name }}
+          Automated multiplatform release for OmniMon ${{ inputs.tag || github.ref_name }}
 
           **macOS note:** If macOS shows "app is damaged", run:
           ```
@@ -210,7 +218,7 @@ jobs:
   rename-assets:
     name: Rename Release Assets
     needs: [release]
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -218,7 +226,7 @@ jobs:
     - name: Rename assets to user-friendly names
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        TAG: ${{ github.ref_name }}
+        TAG: ${{ inputs.tag || github.ref_name }}
       run: |
         REPO="${{ github.repository }}"
         # Wait for all assets to finish uploading

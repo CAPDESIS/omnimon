@@ -22,6 +22,7 @@ vi.mock("../../lib/ipc", async (importOriginal) => {
 });
 
 vi.mock("../../stores/processes", () => {
+  const { writable } = require("svelte/store");
   return {
     aiProfile: writable("general"),
     filtered: writable([]),
@@ -30,6 +31,7 @@ vi.mock("../../stores/processes", () => {
 });
 
 vi.mock("../../stores/preferences", () => {
+  const { writable } = require("svelte/store");
   return {
     idleThreshold: writable(1),
     fontSize: writable(12),

@@ -4,6 +4,7 @@ import { writable } from "svelte/store";
 import type { NetworkConnection } from "../../lib/types";
 
 const { mockNetworkConnections } = vi.hoisted(() => {
+  const { writable } = require("svelte/store");
   return {
     mockNetworkConnections: writable<NetworkConnection[]>([]),
   };

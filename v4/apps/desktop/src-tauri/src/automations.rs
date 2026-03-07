@@ -93,7 +93,7 @@ pub fn start_engine(app: AppHandle) {
                                             .notification()
                                             .builder()
                                             .title("Automations Engine")
-                                            .body(&format!(
+                                            .body(format!(
                                                 "Killed {} (PID {}) for exceeding {} {}",
                                                 proc.name, proc.pid, rule.threshold, rule.metric
                                             ))
@@ -104,7 +104,7 @@ pub fn start_engine(app: AppHandle) {
                                         .notification()
                                         .builder()
                                         .title("Automations Engine Alert")
-                                        .body(&format!(
+                                        .body(format!(
                                             "Process {} (PID {}) exceeded {} {}",
                                             proc.name, proc.pid, rule.threshold, rule.metric
                                         ))

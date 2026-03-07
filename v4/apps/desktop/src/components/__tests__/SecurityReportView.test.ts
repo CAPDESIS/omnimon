@@ -4,6 +4,7 @@ import { writable, derived } from "svelte/store";
 import type { ProcessEntry, ProcessSecurityInfo } from "../../lib/types";
 
 const { mockSecurityMap, mockProcesses, mockTotalFindings, mockFlaggedPids } = vi.hoisted(() => {
+  const { writable, derived } = require("svelte/store");
   const map = writable(new Map<number, ProcessSecurityInfo>());
   return {
     mockSecurityMap: map,

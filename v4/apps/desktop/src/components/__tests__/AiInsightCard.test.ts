@@ -4,6 +4,7 @@ import { writable } from "svelte/store";
 import type { BehaviorIndicator, ProcessSecurityInfo } from "../../lib/types";
 
 const { mockSecurityMap } = vi.hoisted(() => {
+  const { writable } = require("svelte/store");
   return {
     mockSecurityMap: writable(new Map<number, ProcessSecurityInfo>()),
   };
@@ -18,13 +19,15 @@ vi.mock("../../stores/security", () => ({
   },
 }));
 
-vi.mock("../../stores/processes", () => ({
-  processes: (() => {
-    return writable([]);
-  })(),
-}));
+vi.mock("../../stores/processes", () => {
+  const { writable } = require("svelte/store");
+  return {
+    processes: writable([]),
+  };
+});
 
 const { mockDynamicAlerts } = vi.hoisted(() => {
+  const { writable } = require("svelte/store");
   return {
     mockDynamicAlerts: writable([]),
   };

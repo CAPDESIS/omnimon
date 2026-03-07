@@ -755,10 +755,7 @@ mod tests {
             AiProvider::from_str("anthropic").unwrap(),
             AiProvider::Anthropic
         );
-        assert_eq!(
-            AiProvider::from_str("ollama").unwrap(),
-            AiProvider::Ollama
-        );
+        assert_eq!(AiProvider::from_str("ollama").unwrap(), AiProvider::Ollama);
         assert!(AiProvider::from_str("unknown").is_err());
     }
 
@@ -819,7 +816,8 @@ mod tests {
 
     #[test]
     fn parse_tool_call_extracts_kill_by_name() {
-        let text = r#"{"tool": "kill_by_name", "args": {"name": "Chrome"}, "reason": "closing browser"}"#;
+        let text =
+            r#"{"tool": "kill_by_name", "args": {"name": "Chrome"}, "reason": "closing browser"}"#;
         let call = parse_tool_call(text).expect("should parse");
         assert_eq!(call.tool, "kill_by_name");
         assert_eq!(call.args["name"], "Chrome");

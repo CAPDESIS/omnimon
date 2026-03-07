@@ -5,6 +5,7 @@ import type { MetricsSnapshot } from "../../stores/metricsHistory";
 import type { ProcessEntry, SystemStats } from "../../lib/types";
 
 const { mockStats, mockProcesses, mockHistory } = vi.hoisted(() => {
+  const { writable } = require("svelte/store");
   return {
     mockStats: writable<SystemStats | null>(null),
     mockProcesses: writable<ProcessEntry[]>([]),

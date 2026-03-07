@@ -489,20 +489,14 @@ async fn ai_chat(
     let system_prompt = macmon_core::ai::build_chat_system_prompt(&sys_state);
 
     // Send to LLM
-    let (ai_text, tool_call) = macmon_core::ai::chat_with_tools(
-        ai_provider,
-        &model,
-        &api_key,
-        &message,
-        &system_prompt,
-    )
-    .await
-    .map_err(|e| e.to_string())?;
+    let (ai_text, tool_call) =
+        macmon_core::ai::chat_with_tools(ai_provider, &model, &api_key, &message, &system_prompt)
+            .await
+            .map_err(|e| e.to_string())?;
 
     // If AI requested a tool call, execute it
-    let tool_result = tool_call.map(|call| {
-        macmon_core::ai::execute_tool_call(&call.tool, &call.args, &sys_state)
-    });
+    let tool_result = tool_call
+        .map(|call| macmon_core::ai::execute_tool_call(&call.tool, &call.args, &sys_state));
 
     // Build reply text: include tool result feedback
     let reply = if let Some(ref result) = tool_result {
@@ -612,20 +606,18 @@ pub fn run() {
                     }
                     _ => {}
                 })
-                .on_tray_icon_event(|tray, event| {
-                    match event {
-                        TrayIconEvent::Click {
-                            button: MouseButton::Left,
-                            button_state: MouseButtonState::Up,
-                            ..
-                        } => {
-                            toggle_main_window(tray.app_handle());
-                        }
-                        TrayIconEvent::DoubleClick { .. } => {
-                            show_main_window(tray.app_handle());
-                        }
-                        _ => {}
+                .on_tray_icon_event(|tray, event| match event {
+                    TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } => {
+                        toggle_main_window(tray.app_handle());
                     }
+                    TrayIconEvent::DoubleClick { .. } => {
+                        show_main_window(tray.app_handle());
+                    }
+                    _ => {}
                 })
                 .build(app)?;
 
