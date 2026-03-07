@@ -13,20 +13,30 @@ pub struct NativeMemorySnapshot {
 }
 
 #[cfg(target_os = "macos")]
+fn cached_total_memory() -> Option<u64> {
+    use std::process::Command;
+    use std::sync::OnceLock;
+    static HW_MEMSIZE: OnceLock<Option<u64>> = OnceLock::new();
+    *HW_MEMSIZE.get_or_init(|| {
+        Command::new("sysctl")
+            .args(["-n", "hw.memsize"])
+            .output()
+            .ok()
+            .and_then(|out| {
+                if !out.status.success() {
+                    return None;
+                }
+                String::from_utf8(out.stdout).ok()
+            })
+            .and_then(|s| s.trim().parse::<u64>().ok())
+    })
+}
+
+#[cfg(target_os = "macos")]
 pub fn collect_native_memory_snapshot() -> Option<NativeMemorySnapshot> {
     use std::process::Command;
 
-    let total_memory_bytes = Command::new("sysctl")
-        .args(["-n", "hw.memsize"])
-        .output()
-        .ok()
-        .and_then(|out| {
-            if !out.status.success() {
-                return None;
-            }
-            String::from_utf8(out.stdout).ok()
-        })
-        .and_then(|s| s.trim().parse::<u64>().ok())?;
+    let total_memory_bytes = cached_total_memory()?;
 
     let vm_stat_output = Command::new("vm_stat").output().ok().and_then(|out| {
         if out.status.success() {

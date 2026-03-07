@@ -40,3 +40,11 @@ config/macmon.yaml
 *.tmp
 *.swp
 *~
+
+# Archivos de Secretos y Claves
+.env
+.env.local
+*.pem
+*.p12
+*.key
+secrets.json

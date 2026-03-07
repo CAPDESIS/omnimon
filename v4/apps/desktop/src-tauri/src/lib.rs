@@ -5,7 +5,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -65,17 +65,18 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
     // All data from the background watcher cache (RwLock read, O(1) — no syscalls)
     let sys_state = macmon_core::watcher::get_cached_state();
 
-    // Sort cached processes by memory descending, take top 100
-    let mut top_procs = sys_state.cached_process_info.clone();
-    top_procs.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
-    top_procs.truncate(100);
+    // Sort references by memory descending, take top 100 — avoids cloning the full Vec
+    let mut refs: Vec<&macmon_core::watcher::CachedProcessInfo> =
+        sys_state.cached_process_info.iter().collect();
+    refs.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
+    refs.truncate(100);
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
 
-    let processes: Vec<ProcessEntry> = top_procs
+    let processes: Vec<ProcessEntry> = refs
         .iter()
         .map(|entry| {
             let cpu_pct = entry.cpu_pct as f64;
@@ -143,15 +144,16 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
 }
 
 /// Cached browser tabs — refreshed in background, served instantly.
-static TAB_CACHE: OnceLock<Mutex<(Vec<BrowserTab>, Instant)>> = OnceLock::new();
+/// Wrapped in Arc so concurrent reads clone the Arc (O(1)) instead of the Vec.
+static TAB_CACHE: OnceLock<Mutex<(Arc<Vec<BrowserTab>>, Instant)>> = OnceLock::new();
 
 /// How often to actually run AppleScript/CDP (seconds).
 const TAB_CACHE_TTL_SECS: u64 = 5;
 
-fn tab_cache() -> &'static Mutex<(Vec<BrowserTab>, Instant)> {
+fn tab_cache() -> &'static Mutex<(Arc<Vec<BrowserTab>>, Instant)> {
     TAB_CACHE.get_or_init(|| {
         Mutex::new((
-            Vec::new(),
+            Arc::new(Vec::new()),
             Instant::now() - std::time::Duration::from_secs(TAB_CACHE_TTL_SECS + 1),
         ))
     })
@@ -160,12 +162,12 @@ fn tab_cache() -> &'static Mutex<(Vec<BrowserTab>, Instant)> {
 /// Prevents multiple concurrent tab refreshes.
 static TAB_REFRESH_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
-fn refresh_tab_cache_if_stale() -> Vec<BrowserTab> {
+fn refresh_tab_cache_if_stale() -> Arc<Vec<BrowserTab>> {
     // Check staleness under lock, then drop lock before expensive work.
     {
         let cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
         if cache.1.elapsed().as_secs() < TAB_CACHE_TTL_SECS {
-            return cache.0.clone();
+            return Arc::clone(&cache.0);
         }
     }
 
@@ -173,7 +175,7 @@ fn refresh_tab_cache_if_stale() -> Vec<BrowserTab> {
     // refreshing, return the (stale) cached data instead of blocking.
     if TAB_REFRESH_IN_PROGRESS.swap(true, Ordering::SeqCst) {
         let cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
-        return cache.0.clone();
+        return Arc::clone(&cache.0);
     }
 
     // Expensive AppleScript/CDP work happens outside the Mutex.
@@ -201,27 +203,29 @@ fn refresh_tab_cache_if_stale() -> Vec<BrowserTab> {
             eprintln!("[tab-cache] panic during tab refresh — returning stale cache");
             TAB_REFRESH_IN_PROGRESS.store(false, Ordering::SeqCst);
             let cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
-            return cache.0.clone();
+            return Arc::clone(&cache.0);
         }
     };
+
+    let arc_tabs = Arc::new(tabs);
 
     // Re-acquire lock to update cache.
     {
         let mut cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
-        cache.0 = tabs.clone();
+        cache.0 = Arc::clone(&arc_tabs);
         cache.1 = Instant::now();
     }
 
     TAB_REFRESH_IN_PROGRESS.store(false, Ordering::SeqCst);
-    tabs
+    arc_tabs
 }
 
 /// IPC: List open browser tabs — returns from cache, refreshes in background if stale.
 #[tauri::command]
 fn get_browser_tabs() -> Result<Vec<BrowserTab>, String> {
-    // Return cached data instantly
+    // Return cached data instantly — Arc clone is O(1)
     let cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
-    let tabs = cache.0.clone();
+    let tabs = Arc::clone(&cache.0);
     let stale = cache.1.elapsed().as_secs() >= TAB_CACHE_TTL_SECS;
     drop(cache);
 
@@ -232,7 +236,8 @@ fn get_browser_tabs() -> Result<Vec<BrowserTab>, String> {
         });
     }
 
-    Ok(tabs)
+    // Unwrap Arc: if we're the sole owner, avoid clone; otherwise clone the Vec
+    Ok(Arc::try_unwrap(tabs).unwrap_or_else(|arc| (*arc).clone()))
 }
 
 /// IPC: Gracefully close a browser tab via AppleScript/CDP (not process kill).

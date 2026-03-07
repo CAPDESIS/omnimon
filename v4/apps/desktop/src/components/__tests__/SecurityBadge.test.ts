@@ -1,9 +1,9 @@
 import { render, screen } from "@testing-library/svelte";
 import SecurityBadge from "../SecurityBadge.svelte";
+import { writable } from "svelte/store";
 import type { ProcessSecurityInfo } from "../../lib/types";
 
 const { mockSecurityMap } = vi.hoisted(() => {
-  const { writable } = require("svelte/store");
   return {
     mockSecurityMap: writable(new Map<number, ProcessSecurityInfo>()),
   };

@@ -67,16 +67,42 @@
   let wrapEl: HTMLDivElement | undefined = $state();
   let rafId = 0;
 
-  let sorted = $derived(
-    [...processes].sort((a, b) => {
+  let processByPid = $derived.by((): Map<number, ProcessEntry> => {
+    const map = new Map<number, ProcessEntry>();
+    for (const proc of processes) map.set(proc.pid, proc);
+    return map;
+  });
+
+  let _sortedSnapshot = "";
+  let _sortedKey: SortKey = "ram_mb";
+  let _sortedAsc = false;
+  let _sortedPidsCache: number[] = [];
+
+  let sortedPids = $derived.by((): number[] => {
+    let snapshot = `${sortKey}:${sortAsc ? 1 : 0}:${processes.length}|`;
+    for (const proc of processes) {
+      snapshot += `${proc.pid}:${String(proc[sortKey])}|`;
+    }
+
+    if (snapshot === _sortedSnapshot && sortKey === _sortedKey && sortAsc === _sortedAsc) {
+      return _sortedPidsCache;
+    }
+
+    const sorted = [...processes].sort((a, b) => {
       const va = a[sortKey];
       const vb = b[sortKey];
       if (typeof va === "string" && typeof vb === "string") {
         return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
       }
       return sortAsc ? Number(va) - Number(vb) : Number(vb) - Number(va);
-    }),
-  );
+    });
+
+    _sortedSnapshot = snapshot;
+    _sortedKey = sortKey;
+    _sortedAsc = sortAsc;
+    _sortedPidsCache = sorted.map((proc) => proc.pid);
+    return _sortedPidsCache;
+  });
 
   // --- Rank change tracking for micro-animations ---
   // Use plain variables (not $state) to avoid effect cycles
@@ -84,10 +110,10 @@
   let movedUpPids = $state(new Set<number>());
 
   $effect(() => {
-    const items = sorted; // subscribe to sorted changes
+    const items = sortedPids; // subscribe to sorted rank changes
     const newRanks = new Map<number, number>();
     for (let i = 0; i < items.length; i++) {
-      newRanks.set(items[i].pid, i);
+      newRanks.set(items[i], i);
     }
 
     const moved = new Set<number>();
@@ -117,7 +143,9 @@
   let groups = $derived.by((): ProcessGroup[] => {
     if (!grouping) return [];
     const map = new Map<string, ProcessEntry[]>();
-    for (const p of sorted) {
+    for (const pid of sortedPids) {
+      const p = processByPid.get(pid);
+      if (!p) continue;
       const browser = detectBrowser(p);
       const groupKey = browser ?? p.name;
       const arr = map.get(groupKey);
@@ -137,22 +165,22 @@
 
   // --- Flat row model for virtual scroll ---
   type FlatRow =
-    | { kind: "process"; proc: ProcessEntry }
+    | { kind: "process"; pid: number }
     | { kind: "group-header"; group: ProcessGroup };
 
   let flatRows = $derived.by((): FlatRow[] => {
     if (!grouping) {
-      return sorted.map((proc) => ({ kind: "process" as const, proc }));
+      return sortedPids.map((pid) => ({ kind: "process" as const, pid }));
     }
     const rows: FlatRow[] = [];
     for (const group of groups) {
       if (group.count === 1) {
-        rows.push({ kind: "process", proc: group.procs[0] });
+        rows.push({ kind: "process", pid: group.procs[0].pid });
       } else {
         rows.push({ kind: "group-header", group });
         if (!collapsedGroups.has(group.name)) {
           for (const proc of group.procs) {
-            rows.push({ kind: "process", proc });
+            rows.push({ kind: "process", pid: proc.pid });
           }
         }
       }
@@ -249,12 +277,14 @@
       <SecurityBadge pid={proc.pid} />
     </td>
   {:else if key === "detail"}
-    <td class="col-detail" title={getDetail(proc)}>
-      <span class="detail-text">{getDetail(proc)}</span>
+    {@const detail = getDetail(proc)}
+    <td class="col-detail" title={detail}>
+      <span class="detail-text">{detail}</span>
     </td>
   {:else if key === "group"}
-    <td class="col-group" title={getGroup(proc)}>
-      <span class="group-text">{getGroup(proc)}</span>
+    {@const group = getGroup(proc)}
+    <td class="col-group" title={group}>
+      <span class="group-text">{group}</span>
     </td>
   {:else if key === "ram"}
     <td class="col-ram mono" style="color: {ramColor(proc.ram_mb)}">{proc.ram_mb.toFixed(1)}</td>
@@ -358,9 +388,12 @@
       {#if topSpacerHeight > 0}
         <tr class="spacer" aria-hidden="true"><td style="height:{topSpacerHeight}px" colspan={visibleColCount + 1}></td></tr>
       {/if}
-      {#each visibleRows as row, i (row.kind === "process" ? `p-${row.proc.pid}` : `g-${row.group.name}`)}
+      {#each visibleRows as row (row.kind === "process" ? `p-${row.pid}` : `g-${row.group.name}`)}
         {#if row.kind === "process"}
-          {@render processRow(row.proc)}
+          {@const proc = processByPid.get(row.pid)}
+          {#if proc}
+            {@render processRow(proc)}
+          {/if}
         {:else}
           {@render groupHeaderRow(row.group)}
         {/if}

@@ -3,7 +3,6 @@ import { writable } from "svelte/store";
 import ToastContainer from "../ToastContainer.svelte";
 
 const { mockToasts, mockDismiss } = vi.hoisted(() => {
-  const { writable } = require("svelte/store");
   return {
     mockToasts: writable<Array<{ id: string; level: string; title: string; message?: string }>>([]),
     mockDismiss: vi.fn(),

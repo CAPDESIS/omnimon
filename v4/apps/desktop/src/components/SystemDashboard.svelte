@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { stats, processes } from "../stores/processes";
-  import { metricsHistory, type MetricsSnapshot } from "../stores/metricsHistory";
+  import { metricsHistory } from "../stores/metricsHistory";
   import { t } from "../lib/i18n";
 
   interface Props {
@@ -32,27 +31,28 @@
   ): void {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const context = ctx;
 
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     canvas.width = w * dpr;
     canvas.height = h * dpr;
-    ctx.scale(dpr, dpr);
+    context.scale(dpr, dpr);
 
     // Clear
-    ctx.clearRect(0, 0, w, h);
+    context.clearRect(0, 0, w, h);
 
     // Grid lines
     const gridColor = getColor("--chart-grid") || "rgba(255,255,255,0.04)";
-    ctx.strokeStyle = gridColor;
-    ctx.lineWidth = 1;
+    context.strokeStyle = gridColor;
+    context.lineWidth = 1;
     for (let i = 1; i <= 3; i++) {
       const y = (h / 4) * i;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
+      context.beginPath();
+      context.moveTo(0, y);
+      context.lineTo(w, y);
+      context.stroke();
     }
 
     function drawLine(values: number[], color: string, max: number) {
@@ -62,31 +62,31 @@
       const slice = values.slice(startIdx);
 
       // Area fill
-      ctx.beginPath();
-      ctx.moveTo(0, h);
+      context.beginPath();
+      context.moveTo(0, h);
       for (let i = 0; i < slice.length; i++) {
         const x = i * step;
         const y = h - (slice[i] / max) * (h - 2);
-        if (i === 0) ctx.lineTo(x, y);
-        else ctx.lineTo(x, y);
+        if (i === 0) context.lineTo(x, y);
+        else context.lineTo(x, y);
       }
-      ctx.lineTo((slice.length - 1) * step, h);
-      ctx.closePath();
-      ctx.fillStyle = color.replace(")", ",0.1)").replace("rgb", "rgba");
-      ctx.fill();
+      context.lineTo((slice.length - 1) * step, h);
+      context.closePath();
+      context.fillStyle = color.replace(")", ",0.1)").replace("rgb", "rgba");
+      context.fill();
 
       // Line
-      ctx.beginPath();
+      context.beginPath();
       for (let i = 0; i < slice.length; i++) {
         const x = i * step;
         const y = h - (slice[i] / max) * (h - 2);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        if (i === 0) context.moveTo(x, y);
+        else context.lineTo(x, y);
       }
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5;
-      ctx.lineJoin = "round";
-      ctx.stroke();
+      context.strokeStyle = color;
+      context.lineWidth = 1.5;
+      context.lineJoin = "round";
+      context.stroke();
     }
 
     const max = maxVal ?? Math.max(...data, 1);

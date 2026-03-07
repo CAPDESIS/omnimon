@@ -52,7 +52,27 @@ pub struct SystemMemory {
 }
 
 /// Returns the top `limit` processes sorted by memory usage in descending order.
+///
+/// Reads from the watcher cache when available, falling back to a fresh
+/// `System` scan only if the watcher has not been started yet.
 pub fn top_processes_by_memory(limit: usize) -> Vec<ProcessMemoryEntry> {
+    let state = crate::watcher::get_cached_state();
+    if !state.cached_process_info.is_empty() {
+        let mut refs: Vec<&crate::watcher::CachedProcessInfo> =
+            state.cached_process_info.iter().collect();
+        refs.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
+        return refs
+            .into_iter()
+            .take(limit)
+            .map(|p| ProcessMemoryEntry {
+                pid: p.pid,
+                name: p.name.clone(),
+                memory_bytes: p.memory_bytes,
+            })
+            .collect();
+    }
+
+    // Fallback: watcher not started (CLI cold-start, tests)
     let mut system = System::new_all();
     system.refresh_all();
 
@@ -229,8 +249,21 @@ pub async fn aggregate_super_processes_from_watcher_async(
         .unwrap_or_default()
 }
 
-/// Collects a snapshot of system memory, preferring native OS APIs over sysinfo fallback.
+/// Collects a snapshot of system memory.
+///
+/// Reads from the watcher cache when available, falling back to native OS
+/// APIs or sysinfo only if the watcher has not been started yet.
 pub fn free_system_memory() -> SystemMemory {
+    let state = crate::watcher::get_cached_state();
+    if state.total_memory_bytes > 0 {
+        return SystemMemory {
+            total_memory_bytes: state.total_memory_bytes,
+            free_memory_bytes: state.free_memory_bytes,
+            used_memory_bytes: state.used_memory_bytes,
+        };
+    }
+
+    // Fallback: watcher not started
     if let Some(native) = crate::os_native::collect_native_memory_snapshot() {
         return SystemMemory {
             total_memory_bytes: native.total_memory_bytes,
