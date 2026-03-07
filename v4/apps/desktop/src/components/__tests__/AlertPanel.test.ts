@@ -1,8 +1,8 @@
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/svelte";
 import AlertPanel from "../AlertPanel.svelte";
+import { writable } from "svelte/store";
 
 const { mockAlertRules, mockFiredAlerts, mockClearFired, mockRemoveRule } = vi.hoisted(() => {
-  const { writable } = require("svelte/store");
   return {
     mockAlertRules: writable<Array<{
       metric: string; operator: string; threshold: number;

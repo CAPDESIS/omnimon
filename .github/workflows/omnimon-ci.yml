@@ -127,6 +127,14 @@ jobs:
         npm audit --audit-level=high
       working-directory: ./v4/apps/desktop
 
+    - name: Escaneo de Secretos (TruffleHog)
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: ${{ github.event.repository.default_branch }}
+        head: HEAD
+        extra_args: --only-verified
+
   release:
     name: Release Builder (${{ matrix.platform }})
     needs: [test]

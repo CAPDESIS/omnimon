@@ -1,12 +1,14 @@
 import { render, screen } from "@testing-library/svelte";
 import SystemDashboard from "../SystemDashboard.svelte";
+import { writable } from "svelte/store";
+import type { MetricsSnapshot } from "../../stores/metricsHistory";
+import type { ProcessEntry, SystemStats } from "../../lib/types";
 
 const { mockStats, mockProcesses, mockHistory } = vi.hoisted(() => {
-  const { writable } = require("svelte/store");
   return {
-    mockStats: writable(null),
-    mockProcesses: writable([]),
-    mockHistory: writable([]),
+    mockStats: writable<SystemStats | null>(null),
+    mockProcesses: writable<ProcessEntry[]>([]),
+    mockHistory: writable<MetricsSnapshot[]>([]),
   };
 });
 

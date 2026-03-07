@@ -1,13 +1,13 @@
 import { render, screen, fireEvent } from "@testing-library/svelte";
 import SecurityReportView from "../SecurityReportView.svelte";
-import type { ProcessSecurityInfo } from "../../lib/types";
+import { writable, derived } from "svelte/store";
+import type { ProcessEntry, ProcessSecurityInfo } from "../../lib/types";
 
 const { mockSecurityMap, mockProcesses, mockTotalFindings, mockFlaggedPids } = vi.hoisted(() => {
-  const { writable, derived } = require("svelte/store");
   const map = writable(new Map<number, ProcessSecurityInfo>());
   return {
     mockSecurityMap: map,
-    mockProcesses: writable([]),
+    mockProcesses: writable<ProcessEntry[]>([]),
     mockTotalFindings: derived(map, ($m: Map<number, ProcessSecurityInfo>) => {
       let c = 0;
       for (const info of $m.values()) c += info.threats.length + info.cves.length;

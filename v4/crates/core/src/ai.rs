@@ -210,7 +210,7 @@ async fn send_with_retry(
         tokio::time::sleep(Duration::from_millis(backoff)).await;
         backoff *= 2;
     }
-    unreachable!()
+    Err("Unexpected exit from retry loop".into())
 }
 
 /// Sends the running process list to the AI provider and returns kill suggestions.

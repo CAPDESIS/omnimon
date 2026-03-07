@@ -9,6 +9,7 @@ import {
   getCurrentThemeTokens,
   type ThemeId,
   type CustomThemeOverrides,
+  type ThemeTokens,
 } from "../theme";
 
 describe("themes", () => {
@@ -19,7 +20,7 @@ describe("themes", () => {
   });
 
   it("each theme has all required CSS variables", () => {
-    const requiredVars = [
+    const requiredVars: Array<keyof ThemeTokens> = [
       "--bg", "--bg-alt", "--bg-hover", "--bg-selected", "--bg-surface",
       "--fg", "--fg-dim", "--border", "--border-subtle",
       "--accent", "--accent-hover", "--accent-dim",
@@ -34,7 +35,7 @@ describe("themes", () => {
     for (const [name, tokens] of Object.entries(themes)) {
       for (const v of requiredVars) {
         expect(tokens).toHaveProperty(v);
-        expect((tokens as Record<string, string>)[v]).toBeTruthy();
+        expect(tokens[v]).toBeTruthy();
       }
     }
   });

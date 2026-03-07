@@ -90,7 +90,7 @@ async function getStore() {
   if (storeInstance) return storeInstance;
   try {
     const { load } = await import("@tauri-apps/plugin-store");
-    storeInstance = await load("preferences.json", { autoSave: false });
+    storeInstance = await load("preferences.json", { autoSave: false, defaults: {} });
     return storeInstance;
   } catch {
     return null;

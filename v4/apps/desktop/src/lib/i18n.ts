@@ -1,8 +1,19 @@
 import { writable, derived, get } from "svelte/store";
-import en from "../locales/en.json";
-import es from "../locales/es.json";
+import * as enModule from "../locales/en.json";
+import * as esModule from "../locales/es.json";
 
 export type LocaleCode = "en" | "es" | "auto";
+
+function normalizeLocaleModule(mod: Record<string, unknown>): Record<string, unknown> {
+  const fromDefault = mod.default;
+  if (fromDefault && typeof fromDefault === "object") {
+    return fromDefault as Record<string, unknown>;
+  }
+  return mod;
+}
+
+const en = normalizeLocaleModule(enModule as unknown as Record<string, unknown>);
+const es = normalizeLocaleModule(esModule as unknown as Record<string, unknown>);
 
 const translations: Record<string, Record<string, unknown>> = { en, es };
 

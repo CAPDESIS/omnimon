@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { networkConnections } from "../stores/security";
   import { metricsHistory } from "../stores/metricsHistory";
   import { theme } from "../stores/preferences";
   import { slide } from "svelte/transition";
-  import type { NetworkConnection } from "../lib/types";
+  import type { MetricsSnapshot } from "../stores/metricsHistory";
+  import type { Time } from "lightweight-charts";
 
   let collapsed = $state(true);
   let activeTab = $state<"map" | "table" | "traffic">("map");
@@ -157,12 +157,51 @@
 
   // --- Traffic area chart using lightweight-charts ---
   let trafficChartEl: HTMLDivElement | undefined = $state();
-  let chartInstance: unknown = $state(undefined);
+  type TrafficPoint = { time: Time; value: number };
+  type TrafficSeriesApi = {
+    setData: (data: TrafficPoint[]) => void;
+    update: (point: TrafficPoint) => void;
+  };
+  type TrafficChartApi = {
+    addSeries: (seriesType: unknown, options: Record<string, unknown>) => TrafficSeriesApi;
+    timeScale: () => { fitContent: () => void };
+    applyOptions: (options: { width: number }) => void;
+    remove: () => void;
+  };
+
+  let chartInstance: TrafficChartApi | undefined = $state(undefined);
+  let rxSeriesInstance: TrafficSeriesApi | undefined = $state(undefined);
+  let txSeriesInstance: TrafficSeriesApi | undefined = $state(undefined);
+  let trafficResizeObserver: ResizeObserver | undefined = $state(undefined);
+  let lastTrafficPointTime = $state<number | null>(null);
+  let lastTrafficHistoryIndex = $state(-1);
 
   $effect(() => {
     if (!trafficChartEl || collapsed || activeTab !== "traffic") return;
     initTrafficChart(trafficChartEl);
   });
+
+  function toTrafficPoint(snapshot: MetricsSnapshot, direction: "rx" | "tx"): TrafficPoint {
+    return {
+      time: snapshot.time as Time,
+      value: (direction === "rx" ? snapshot.netRx : snapshot.netTx) / 1024,
+    };
+  }
+
+  function resetTrafficSeries(history: MetricsSnapshot[]) {
+    if (!rxSeriesInstance || !txSeriesInstance) return;
+    const rxData = history.map((entry) => toTrafficPoint(entry, "rx"));
+    const txData = history.map((entry) => toTrafficPoint(entry, "tx"));
+    rxSeriesInstance.setData(rxData);
+    txSeriesInstance.setData(txData);
+    if (history.length > 0) {
+      lastTrafficHistoryIndex = history.length - 1;
+      lastTrafficPointTime = history[history.length - 1].time;
+    } else {
+      lastTrafficHistoryIndex = -1;
+      lastTrafficPointTime = null;
+    }
+  }
 
   async function initTrafficChart(container: HTMLDivElement) {
     try {
@@ -209,29 +248,18 @@
         title: "TX",
       });
 
-      // Populate with history
-      const history = $metricsHistory;
-      if (history.length > 0) {
-        const now = Math.floor(Date.now() / 1000);
-        const rxData = history.map((h, i) => ({
-          time: (now - (history.length - 1 - i) * 2) as any,
-          value: h.netRx / 1024,
-        }));
-        const txData = history.map((h, i) => ({
-          time: (now - (history.length - 1 - i) * 2) as any,
-          value: h.netTx / 1024,
-        }));
-        rxSeries.setData(rxData);
-        txSeries.setData(txData);
-      }
+      rxSeriesInstance = rxSeries;
+      txSeriesInstance = txSeries;
+      resetTrafficSeries($metricsHistory);
 
       chart.timeScale().fitContent();
-      chartInstance = chart;
+      chartInstance = chart as TrafficChartApi;
 
       const ro = new ResizeObserver(() => {
         chart.applyOptions({ width: container.clientWidth });
       });
       ro.observe(container);
+      trafficResizeObserver = ro;
     } catch {
       // lightweight-charts not available, show fallback
     }
@@ -240,8 +268,16 @@
   // Cleanup chart on collapse
   $effect(() => {
     if (collapsed && chartInstance) {
-      try { (chartInstance as any).remove(); } catch {}
+      try { chartInstance.remove(); } catch {}
+      if (trafficResizeObserver) {
+        trafficResizeObserver.disconnect();
+        trafficResizeObserver = undefined;
+      }
       chartInstance = undefined;
+      rxSeriesInstance = undefined;
+      txSeriesInstance = undefined;
+      lastTrafficPointTime = null;
+      lastTrafficHistoryIndex = -1;
     }
   });
 
@@ -250,8 +286,16 @@
     const _ = $theme; // subscribe to theme changes
     if (!trafficChartEl || collapsed || activeTab !== "traffic") return;
     if (chartInstance) {
-      try { (chartInstance as any).remove(); } catch {}
+      try { chartInstance.remove(); } catch {}
+      if (trafficResizeObserver) {
+        trafficResizeObserver.disconnect();
+        trafficResizeObserver = undefined;
+      }
       chartInstance = undefined;
+      rxSeriesInstance = undefined;
+      txSeriesInstance = undefined;
+      lastTrafficPointTime = null;
+      lastTrafficHistoryIndex = -1;
     }
     // defer to allow CSS vars to update
     requestAnimationFrame(() => {
@@ -259,6 +303,45 @@
         initTrafficChart(trafficChartEl);
       }
     });
+  });
+
+  // Push traffic updates in real time using snapshot.time (handles sleep/wake gaps)
+  $effect(() => {
+    const history = $metricsHistory;
+    if (!rxSeriesInstance || !txSeriesInstance || !chartInstance) return;
+    if (collapsed || activeTab !== "traffic") return;
+    if (history.length === 0) {
+      resetTrafficSeries(history);
+      return;
+    }
+
+    const last = history[history.length - 1];
+
+    const needsReset =
+      lastTrafficHistoryIndex < 0 ||
+      lastTrafficHistoryIndex >= history.length ||
+      (lastTrafficHistoryIndex >= 0 &&
+        history[lastTrafficHistoryIndex]?.time !== lastTrafficPointTime);
+
+    if (needsReset) {
+      resetTrafficSeries(history);
+      chartInstance.timeScale().fitContent();
+      return;
+    }
+
+    if (last.time === lastTrafficPointTime) {
+      rxSeriesInstance.update(toTrafficPoint(last, "rx"));
+      txSeriesInstance.update(toTrafficPoint(last, "tx"));
+      return;
+    }
+
+    for (let i = lastTrafficHistoryIndex + 1; i < history.length; i++) {
+      const point = history[i];
+      rxSeriesInstance.update(toTrafficPoint(point, "rx"));
+      txSeriesInstance.update(toTrafficPoint(point, "tx"));
+      lastTrafficHistoryIndex = i;
+      lastTrafficPointTime = point.time;
+    }
   });
 
   // --- Connections table sort ---
