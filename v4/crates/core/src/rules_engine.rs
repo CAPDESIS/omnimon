@@ -182,7 +182,15 @@ pub fn ai_rules_schema_json() -> String {
                         "destination_port": {"type": ["integer", "null"], "minimum": 1, "maximum": 65535},
                         "protocol": {"enum": ["any", "tcp", "udp", null]},
                         "process_memory_mb_gt": {"type": ["integer", "null"]},
-                        "mitre_technique_id": {"type": ["string", "null"]}
+                        "mitre_technique_id": {"type": ["string", "null"]},
+                        "temporal_correlation": {
+                            "type": ["object", "null"],
+                            "properties": {
+                                "rule_id": {"type": "string"},
+                                "within_seconds": {"type": "integer"}
+                            },
+                            "required": ["rule_id", "within_seconds"]
+                        }
                     }
                 }
             }
