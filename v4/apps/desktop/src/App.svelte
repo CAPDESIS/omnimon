@@ -628,8 +628,9 @@
               { key: "--yellow", label: "Warning" },
             ] as colorOpt (colorOpt.key)}
               <div class="settings-row color-row">
-                <label class="settings-label">{colorOpt.label}</label>
+                <label class="settings-label" for={`color-${colorOpt.key}`}>{colorOpt.label}</label>
                 <input
+                  id={`color-${colorOpt.key}`}
                   type="color"
                   class="color-picker"
                   value={($customTheme?.overrides as any)?.[colorOpt.key] ?? ""}

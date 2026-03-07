@@ -1,4 +1,24 @@
-# OmniMon v4.1.0 Roadmap
+# OmniMon v4.6.0 Roadmap
+
+## Status Update (v4.6.0)
+
+The sections below started as a v4.1 roadmap and include historical entries.
+Current implementation status for core security/network stack:
+
+- [x] Native network telemetry backends: libpcap (macOS), WinDivert (Windows), eBPF/aya (Linux)
+- [x] Per-process network throughput and recent connection events (IP/port/protocol)
+- [x] SuperProcess aggregation enriched with network throughput
+- [x] MITRE ATT&CK mapping for suspicious memory/network behavior
+- [x] NIST 800-53 Security Heartbeat generation + encrypted persistence (AES-256-GCM)
+- [x] Dynamic AI Rules Engine with versioned JSON schema (`schema_version: 1`)
+- [x] Tauri IPC bridge: `apply_ai_rules`, `get_ai_rules_schema`, and `security-alert` event emission
+
+Reference files:
+
+- `v4/crates/core/AI_RULES_SCHEMA.v1.json`
+- `v4/crates/core/src/rules_engine.rs`
+- `v4/crates/core/src/network.rs`
+- `v4/crates/core/src/watcher.rs`
 
 ## Implemented Features (v4.1.0)
 

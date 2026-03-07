@@ -178,10 +178,20 @@ list and the selection set.
 | `kill_process` | `{ pid: u32 }` | `bool` | Single PID |
 | `kill_processes` | `{ pids: u32[] }` | `u32[]` | Batch; returns killed PIDs |
 | `save_ai_config` | `{ provider, model, key }` | `()` | Keychain storage |
+| `apply_ai_rules` | `{ payload: string }` | `number` | Loads versioned AI rules JSON |
+| `get_ai_rules_schema` | none | `string` | Returns schema contract JSON |
 | `analyze_processes` | `{ profile: string }` | `ProcessSuggestion[]` | AI analysis |
 
-All IPC is **one-shot** (`invoke()` returns a Promise). There are no persistent
-event listeners (`listen()`), so there are zero subscription leaks to manage.
+Most IPC is **one-shot** (`invoke()` returns a Promise). The app also consumes
+real-time backend events for security alerts.
+
+### Runtime Event Channel
+
+| Event | Payload | Source |
+|-------|---------|--------|
+| `security-alert` | `DynamicAlert` | Tauri backend thread (`src-tauri/src/lib.rs`) |
+
+The backend deduplicates frequent alerts before emitting, reducing UI churn.
 
 ---
 

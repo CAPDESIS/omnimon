@@ -1,4 +1,5 @@
 import { writable, get } from "svelte/store";
+import { listen } from "@tauri-apps/api/event";
 import type { AlertRule } from "../lib/aiConfigBridge";
 import type { ProcessEntry, SystemStats, DynamicAlert } from "../lib/types";
 import { toast } from "./toasts";
@@ -146,7 +147,6 @@ const MAX_DYNAMIC = 50;
  */
 export async function initSecurityAlertListener(): Promise<() => void> {
   try {
-    const { listen } = await import("@tauri-apps/api/event");
     const unlisten = await listen<DynamicAlert>("security-alert", (event) => {
       const alert = event.payload;
       dynamicAlerts.update((list) => {

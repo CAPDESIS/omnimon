@@ -114,7 +114,7 @@
 <div class="report-backdrop" onclick={onclose} onkeydown={(e) => { if (e.key === "Escape") onclose(); }} role="presentation">
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <div class="report-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="report-title">
+  <div class="report-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="report-title">
     <div class="report-header">
       <div class="report-title-row">
         <h2 id="report-title" class="report-title">Security Report</h2>
