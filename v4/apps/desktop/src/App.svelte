@@ -120,6 +120,9 @@
   let settingsSaving = $state(false);
   let settingsError = $state<string | null>(null);
   let settingsSaved = $state(false);
+  let autostartEnabled = $state(false);
+  let autostartLoading = $state(true);
+  let autostartError = $state<string | null>(null);
 
   async function handleSaveSettings() {
     settingsSaving = true;
@@ -171,6 +174,34 @@
     }, 150);
   }
 
+  async function loadAutostartState() {
+    autostartLoading = true;
+    autostartError = null;
+    try {
+      const autostart = await import("@tauri-apps/plugin-autostart");
+      autostartEnabled = await autostart.isEnabled();
+    } catch {
+      autostartError = "Auto-start is unavailable in this runtime.";
+    } finally {
+      autostartLoading = false;
+    }
+  }
+
+  async function handleAutostartToggle(e: Event) {
+    const next = (e.target as HTMLInputElement).checked;
+    autostartError = null;
+    const prev = autostartEnabled;
+    autostartEnabled = next;
+    try {
+      const autostart = await import("@tauri-apps/plugin-autostart");
+      if (next) await autostart.enable();
+      else await autostart.disable();
+    } catch {
+      autostartEnabled = prev;
+      autostartError = "Failed to update auto-start setting.";
+    }
+  }
+
   onMount(() => {
     let disposed = false;
     const unlistenFns: Array<() => void> = [];
@@ -195,6 +226,7 @@
       initI18n($localePreference);
       startPolling(2000);
     });
+    loadAutostartState();
     const unsubPrefs = initPreferenceSubscriptions();
     const unsubLocale = localePreference.subscribe((val) => {
       locale.set(val);
@@ -720,6 +752,22 @@
           />
           <span class="settings-hint">{t("settings.idleHint")}</span>
         </div>
+        <div class="settings-row">
+          <label class="settings-label" for="autostart-toggle">Auto-start</label>
+          <label class="settings-toggle" for="autostart-toggle">
+            <input
+              id="autostart-toggle"
+              type="checkbox"
+              checked={autostartEnabled}
+              disabled={autostartLoading}
+              onchange={handleAutostartToggle}
+            />
+            <span>Launch OmniMon at login</span>
+          </label>
+        </div>
+        {#if autostartError}
+          <div class="settings-error">{autostartError}</div>
+        {/if}
         <CloudSync />
       </div>
       <div class="settings-footer">
@@ -1369,6 +1417,22 @@
     font-size: calc(var(--base-font-size) * 0.75);
     color: var(--fg-dim);
     white-space: nowrap;
+  }
+
+  .settings-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--fg);
+    font-size: calc(var(--base-font-size) * 0.833);
+    cursor: pointer;
+  }
+
+  .settings-toggle input[type="checkbox"] {
+    margin: 0;
+    width: 14px;
+    height: 14px;
+    accent-color: var(--accent);
   }
 
   .custom-theme-editor {

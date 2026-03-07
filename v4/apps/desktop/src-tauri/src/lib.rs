@@ -9,9 +9,10 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::TrayIconBuilder,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager,
 };
+use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_store::StoreExt;
 
 #[derive(Debug, Clone, Serialize)]
@@ -535,9 +536,23 @@ fn hide_main_window(app: &tauri::AppHandle) {
     }
 }
 
+fn toggle_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        if window.is_visible().unwrap_or(false) {
+            hide_main_window(app);
+        } else {
+            show_main_window(app);
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None::<Vec<&str>>,
+        ))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
@@ -575,10 +590,10 @@ pub fn run() {
             } // end ALERT_THREAD_STARTED guard
 
             // --- System Tray Menu ---
-            let show = MenuItem::with_id(app, "show", "Open Dashboard", true, None::<&str>)?;
-            let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+            let show = MenuItem::with_id(app, "show", "Dashboard", true, None::<&str>)?;
+            let settings = MenuItem::with_id(app, "settings", "Configuración", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit OmniMon", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
 
             let menu = Menu::with_items(app, &[&show, &settings, &sep, &quit])?;
 
@@ -595,8 +610,18 @@ pub fn run() {
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if let tauri::tray::TrayIconEvent::DoubleClick { .. } = event {
-                        show_main_window(tray.app_handle());
+                    match event {
+                        TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        } => {
+                            toggle_main_window(tray.app_handle());
+                        }
+                        TrayIconEvent::DoubleClick { .. } => {
+                            show_main_window(tray.app_handle());
+                        }
+                        _ => {}
                     }
                 })
                 .build(app)?;
