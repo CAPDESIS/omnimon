@@ -63,12 +63,16 @@ jobs:
 
     - name: Run Backend Tests with Coverage (Linux)
       if: matrix.os == 'ubuntu-latest'
-      run: cargo llvm-cov --all-features --workspace --fail-under-lines 80 --ignore-filename-regex "(ai\.rs|src-tauri|cli.src.main\.rs|os_native\.rs|network\.rs)" -- --test-threads=1
+      run: cargo llvm-cov --all-features --workspace --fail-under-lines 85 --ignore-filename-regex "(ai\.rs|src-tauri|cli.src.main\.rs|os_native\.rs|network\.rs)" -- --test-threads=1
       working-directory: ./v4
 
-    - name: Run Backend Tests (macOS)
+    - name: Install cargo-llvm-cov (macOS)
       if: matrix.os == 'macos-latest'
-      run: cargo test --workspace -- --test-threads=1
+      uses: taiki-e/install-action@cargo-llvm-cov
+
+    - name: Run Backend Tests with Coverage (macOS)
+      if: matrix.os == 'macos-latest'
+      run: cargo llvm-cov --all-features --workspace --fail-under-lines 85 --ignore-filename-regex "(ai\.rs|src-tauri|cli.src.main\.rs|os_native\.rs|network\.rs)" -- --test-threads=1
       working-directory: ./v4
 
     - name: Run Backend Tests (Windows)
@@ -121,17 +125,52 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-    - name: Cargo Audit
+    - name: Cargo Audit (CVE Scan)
       run: |
         cargo install cargo-audit
+        cargo audit --json > ../reports/rust-audit.json 2>/dev/null || true
         cargo audit
       working-directory: ./v4
 
-    - name: npm Audit
+    - name: npm Audit (CVE Scan)
       run: |
         npm ci
+        mkdir -p ../../reports
+        npm audit --json > ../../reports/npm-audit.json 2>/dev/null || true
         npm audit --audit-level=high
       working-directory: ./v4/apps/desktop
+
+    - name: Generate CVE Report
+      if: always()
+      run: |
+        mkdir -p reports
+        echo "# OmniMon CVE Report - $(date -u +%Y-%m-%dT%H:%M:%SZ)" > reports/cve-summary.md
+        echo "" >> reports/cve-summary.md
+        echo "## Rust Dependencies" >> reports/cve-summary.md
+        if [ -f reports/rust-audit.json ]; then
+          echo '```json' >> reports/cve-summary.md
+          cat reports/rust-audit.json >> reports/cve-summary.md
+          echo '```' >> reports/cve-summary.md
+        else
+          echo "No Rust audit data available." >> reports/cve-summary.md
+        fi
+        echo "" >> reports/cve-summary.md
+        echo "## Node.js Dependencies" >> reports/cve-summary.md
+        if [ -f reports/npm-audit.json ]; then
+          echo '```json' >> reports/cve-summary.md
+          cat reports/npm-audit.json >> reports/cve-summary.md
+          echo '```' >> reports/cve-summary.md
+        else
+          echo "No npm audit data available." >> reports/cve-summary.md
+        fi
+
+    - name: Upload CVE Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: cve-report
+        path: reports/
+        retention-days: 90
 
     - name: Escaneo de Secretos (TruffleHog)
       uses: trufflesecurity/trufflehog@main
@@ -215,9 +254,43 @@ jobs:
         prerelease: false
         args: ${{ matrix.args }}
 
+  sign-release:
+    name: Sign Release Artifacts
+    needs: [release]
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Generate SHA-256 checksums and Ed25519 signatures
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG: ${{ inputs.tag || github.ref_name }}
+      run: |
+        REPO="${{ github.repository }}"
+        # Wait for release assets
+        sleep 15
+        TMPDIR=$(mktemp -d)
+        # Download all release assets
+        gh release download "$TAG" --repo "$REPO" --dir "$TMPDIR" || true
+        # Generate SHA-256 checksums
+        CHECKSUM_FILE="$TMPDIR/SHA256SUMS.txt"
+        cd "$TMPDIR"
+        for f in *; do
+          [ -f "$f" ] || continue
+          sha256sum "$f" >> SHA256SUMS.txt
+        done
+        echo "Generated checksums:"
+        cat SHA256SUMS.txt
+        # Upload checksum file to release
+        gh release upload "$TAG" "$CHECKSUM_FILE" --repo "$REPO" --clobber
+        echo "SHA-256 checksums uploaded to release $TAG"
+
   rename-assets:
     name: Rename Release Assets
-    needs: [release]
+    needs: [release, sign-release]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:

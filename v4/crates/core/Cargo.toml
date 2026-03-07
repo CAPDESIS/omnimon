@@ -14,6 +14,9 @@ aes-gcm = "0.10"
 base64 = "0.22"
 rand = "0.8"
 semver = "1"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+sha2 = "0.10"
+hex = "0.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3", default-features = false, features = ["apple-native"] }
