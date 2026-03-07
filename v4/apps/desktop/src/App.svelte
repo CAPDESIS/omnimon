@@ -13,6 +13,7 @@
   import SecurityReportView from "./components/SecurityReportView.svelte";
   import AiInsightCard from "./components/AiInsightCard.svelte";
   import CloudSync from "./components/CloudSync.svelte";
+  import Automations from "./components/Automations.svelte";
   import { totalFindings } from "./stores/security";
   import { initSecurityAlertListener } from "./stores/alerts";
   import type { ProcessEntry } from "./lib/types";
@@ -74,6 +75,7 @@
   // Dashboard collapse state
   let dashboardCollapsed = $state(false);
   let showSecurityReport = $state(false);
+  let showAutomations = $state(false);
 
   // Resizable tab panel (backed by store for persistence)
   let tabPanelHeight = $state($tabPanelHeightStore);
@@ -402,6 +404,16 @@
           {:else}
             <path d="M1 1h6v6H1zM9 1h6v6H9zM1 9h6v6H1zM9 9h6v6H9z" fill="none" stroke="currentColor" stroke-width="1.2"/>
           {/if}
+        </svg>
+      </button>
+
+      <button
+        class="btn btn-icon"
+        onclick={() => showAutomations = true}
+        title="Automations"
+      >
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+          <path d="M8 0a8 8 0 100 16A8 8 0 008 0zm1 11H7V7h2v4zm0-5H7V4h2v2z"/>
         </svg>
       </button>
 

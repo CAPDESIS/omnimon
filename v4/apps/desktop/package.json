@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-store": "^2",
     "lightweight-charts": "^5.1.0"
   },

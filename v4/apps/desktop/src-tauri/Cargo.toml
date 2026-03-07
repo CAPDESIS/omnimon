@@ -18,3 +18,4 @@ serde_json = "1"
 macmon_core = { package = "core", path = "../../../crates/core" }
 tauri-plugin-store = "2"
 keyring = "3"
+tauri-plugin-notification = "2.0.0"
