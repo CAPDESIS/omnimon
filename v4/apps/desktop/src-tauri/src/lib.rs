@@ -431,6 +431,22 @@ fn get_window_visible(app: tauri::AppHandle) -> bool {
         .unwrap_or(false)
 }
 
+#[tauri::command]
+#[allow(dead_code)]
+fn save_cloud_key(key: String) -> Result<(), String> {
+    let entry =
+        keyring::Entry::new("omnimon", "crabnebula_api_key").map_err(|e| e.to_string())?;
+    entry.set_password(&key).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[allow(dead_code)]
+fn get_cloud_key() -> Result<String, String> {
+    let entry =
+        keyring::Entry::new("omnimon", "crabnebula_api_key").map_err(|e| e.to_string())?;
+    entry.get_password().map_err(|e| e.to_string())
+}
+
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -542,6 +558,8 @@ pub fn run() {
             close_browser_tab,
             focus_browser_tab,
             get_window_visible,
+            save_cloud_key,
+            get_cloud_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -12,11 +12,12 @@
   import NetworkMap from "./components/NetworkMap.svelte";
   import SecurityReportView from "./components/SecurityReportView.svelte";
   import AiInsightCard from "./components/AiInsightCard.svelte";
+  import CloudSync from "./components/CloudSync.svelte";
   import { totalFindings } from "./stores/security";
   import { initSecurityAlertListener } from "./stores/alerts";
   import type { ProcessEntry } from "./lib/types";
   import { AI_PROVIDERS, type AiProviderKind } from "./lib/types";
-  import { applyThemeTokens, detectPlatform, type ThemeId } from "./lib/theme";
+  import { applyThemeTokens, detectPlatform, type ThemeId, type ThemeTokens } from "./lib/theme";
   import {
     processes,
     filtered,
@@ -620,12 +621,12 @@
               </select>
             </div>
             {#each [
-              { key: "--accent", label: "Accent" },
-              { key: "--bg", label: "Background" },
-              { key: "--fg", label: "Text" },
-              { key: "--danger", label: "Danger" },
-              { key: "--green", label: "Success" },
-              { key: "--yellow", label: "Warning" },
+              { key: "--accent" as keyof ThemeTokens, label: "Accent" },
+              { key: "--bg" as keyof ThemeTokens, label: "Background" },
+              { key: "--fg" as keyof ThemeTokens, label: "Text" },
+              { key: "--danger" as keyof ThemeTokens, label: "Danger" },
+              { key: "--green" as keyof ThemeTokens, label: "Success" },
+              { key: "--yellow" as keyof ThemeTokens, label: "Warning" },
             ] as colorOpt (colorOpt.key)}
               <div class="settings-row color-row">
                 <label class="settings-label" for={`color-${colorOpt.key}`}>{colorOpt.label}</label>
@@ -633,7 +634,7 @@
                   id={`color-${colorOpt.key}`}
                   type="color"
                   class="color-picker"
-                  value={($customTheme?.overrides as any)?.[colorOpt.key] ?? ""}
+                  value={$customTheme?.overrides?.[colorOpt.key] ?? ""}
                   oninput={(e) => {
                     const val = (e.target as HTMLInputElement).value;
                     customTheme.update((ct) => ({
@@ -643,13 +644,13 @@
                     }));
                   }}
                 />
-                {#if ($customTheme?.overrides as any)?.[colorOpt.key]}
+                {#if $customTheme?.overrides?.[colorOpt.key]}
                   <button
                     class="btn btn-sm"
                     onclick={() => {
                       customTheme.update((ct) => {
                         if (!ct) return ct;
-                        const { [colorOpt.key]: _, ...rest } = ct.overrides as any;
+                        const { [colorOpt.key]: _, ...rest } = ct.overrides;
                         return { ...ct, overrides: rest };
                       });
                     }}
@@ -694,6 +695,7 @@
           />
           <span class="settings-hint">{t("settings.idleHint")}</span>
         </div>
+        <CloudSync />
       </div>
       <div class="settings-footer">
         <button

@@ -65,9 +65,9 @@ jobs:
       run: cargo test --workspace
       working-directory: ./v4
 
-    - name: Verify Backend Build (Windows)
+    - name: Run Backend Tests (Windows)
       if: matrix.os == 'windows-latest'
-      run: cargo check --workspace
+      run: cargo test --workspace
       working-directory: ./v4
 
     - name: Install Frontend Dependencies
@@ -212,7 +212,7 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         TAG: ${{ github.ref_name }}
       run: |
-        REPO="chochy2001/omnimon"
+        REPO="${{ github.repository }}"
         # Wait for all assets to finish uploading
         sleep 30
         # Fetch asset list
