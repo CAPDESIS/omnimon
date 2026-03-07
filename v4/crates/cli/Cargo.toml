@@ -1,6 +1,6 @@
 [package]
 name = "cli"
-version = "4.6.0"
+version = "4.1.0"
 edition = "2021"
 description = "OmniMon CLI application"
 
