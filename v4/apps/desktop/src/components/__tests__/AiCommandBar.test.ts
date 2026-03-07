@@ -39,7 +39,7 @@ vi.mock("../../stores/preferences", () => {
     localePreference: writable("en"),
     aiProviderConfig: writable({ provider: "openrouter", model: "test-model" }),
     columns: writable({ name: true, ram: true }),
-    columnOrder: writable(["name", "ram"]),
+    columnOrder: writable(["name", "ram", "energy", "network"]),
   };
 });
 

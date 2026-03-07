@@ -5,7 +5,7 @@ import type { MetricsSnapshot } from "../../stores/metricsHistory";
 import type { ProcessEntry, SystemStats } from "../../lib/types";
 
 const { mockStats, mockProcesses, mockHistory } = vi.hoisted(() => {
-  const { writable } = require("svelte/store");
+  const { writable } = require("svelte/store") as typeof import("svelte/store");
   return {
     mockStats: writable<SystemStats | null>(null),
     mockProcesses: writable<ProcessEntry[]>([]),
@@ -25,7 +25,13 @@ vi.mock("../../stores/metricsHistory", () => ({
 function makeProc(overrides?: Record<string, unknown>) {
   return {
     pid: 1, name: "A", cpu_pct: 10, idle: false,
+    exe_path: "/usr/bin/a", bundle_id: null, icon_data_url: null,
     ram_mb: 100, exec_name: "a", uptime: "1h", group: "Other",
+    disk_read_mb: 0, disk_write_mb: 0,
+    net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0,
+    energy_impact_score: 0,
+    group_key: "other:a", group_identity_type: "normalized_name",
+    grouped_name: "A", process_count: 1,
     is_system: false, state: "R",
     ...overrides,
   };

@@ -2,17 +2,27 @@ import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/sv
 import AlertPanel from "../AlertPanel.svelte";
 import { writable } from "svelte/store";
 
+type AlertRuleMock = {
+  metric: string;
+  operator: string;
+  threshold: number;
+  action: string;
+  processName?: string;
+};
+
+type FiredAlertMock = {
+  id: string;
+  timestamp: number;
+  processName?: string;
+  value: number;
+  rule: { metric: string; operator: string; threshold: number };
+};
+
 const { mockAlertRules, mockFiredAlerts, mockClearFired, mockRemoveRule } = vi.hoisted(() => {
-  const { writable } = require("svelte/store");
+  const { writable } = require("svelte/store") as typeof import("svelte/store");
   return {
-    mockAlertRules: writable<Array<{
-      metric: string; operator: string; threshold: number;
-      action: string; processName?: string;
-    }>>([]),
-    mockFiredAlerts: writable<Array<{
-      id: string; timestamp: number; processName?: string;
-      value: number; rule: { metric: string; operator: string; threshold: number };
-    }>>([]),
+    mockAlertRules: writable<AlertRuleMock[]>([]),
+    mockFiredAlerts: writable<FiredAlertMock[]>([]),
     mockClearFired: vi.fn(),
     mockRemoveRule: vi.fn(),
   };

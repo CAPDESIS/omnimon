@@ -4,7 +4,7 @@ import { writable, derived } from "svelte/store";
 import type { ProcessEntry, ProcessSecurityInfo } from "../../lib/types";
 
 const { mockSecurityMap, mockProcesses, mockTotalFindings, mockFlaggedPids } = vi.hoisted(() => {
-  const { writable, derived } = require("svelte/store");
+  const { writable, derived } = require("svelte/store") as typeof import("svelte/store");
   const map = writable(new Map<number, ProcessSecurityInfo>());
   return {
     mockSecurityMap: map,
@@ -48,13 +48,36 @@ vi.mock("../../stores/processes", () => ({
 
 describe("SecurityReportView", () => {
   const onclose = vi.fn();
+  const makeProc = (overrides: Partial<ProcessEntry> = {}): ProcessEntry => ({
+    pid: 1,
+    name: "Chrome",
+    exec_name: "chrome",
+    exe_path: "/Applications/Google Chrome.app",
+    bundle_id: null,
+    icon_data_url: null,
+    ram_mb: 100,
+    cpu_pct: 5,
+    disk_read_mb: 0,
+    disk_write_mb: 0,
+    net_rx_bytes_per_sec: 0,
+    net_tx_bytes_per_sec: 0,
+    energy_impact_score: 0,
+    uptime: "1h",
+    group: "Browser",
+    group_key: "browser:chrome",
+    group_identity_type: "browser_family",
+    grouped_name: "Chrome",
+    process_count: 1,
+    is_system: false,
+    idle: false,
+    state: "R",
+    ...overrides,
+  });
 
   beforeEach(() => {
     onclose.mockClear();
     mockSecurityMap.set(new Map());
-    mockProcesses.set([
-      { pid: 1, name: "Chrome", cpu_pct: 5, idle: false, ram_mb: 100, exec_name: "chrome", uptime: "1h", group: "Browser", is_system: false, state: "R" },
-    ]);
+    mockProcesses.set([makeProc()]);
   });
 
   it("renders Security Report title", () => {

@@ -9,6 +9,8 @@ export interface ColumnConfig {
   group: boolean;
   ram: boolean;
   cpu: boolean;
+  energy: boolean;
+  network: boolean;
   uptime: boolean;
   pid: boolean;
   state: boolean;
@@ -16,7 +18,7 @@ export interface ColumnConfig {
 
 export type ColumnKey = keyof ColumnConfig;
 
-export const COLUMN_KEYS: ColumnKey[] = ["name", "detail", "group", "ram", "cpu", "uptime", "pid", "state"];
+export const COLUMN_KEYS: ColumnKey[] = ["name", "detail", "group", "ram", "cpu", "energy", "network", "uptime", "pid", "state"];
 
 export interface AiProviderConfig {
   provider: string;
@@ -35,6 +37,8 @@ const DEFAULT_COLUMNS: ColumnConfig = {
   group: true,
   ram: true,
   cpu: true,
+  energy: true,
+  network: true,
   uptime: true,
   pid: true,
   state: true,

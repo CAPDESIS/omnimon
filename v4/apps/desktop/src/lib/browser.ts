@@ -9,6 +9,12 @@ import type { ProcessEntry, BrowserName } from "./types";
  */
 export function detectBrowser(proc: ProcessEntry): BrowserName | null {
   if (proc.group !== "Browser") return null;
+  if (proc.grouped_name === "Chrome") return "Chrome";
+  if (proc.grouped_name === "Safari") return "Safari";
+  if (proc.grouped_name === "Brave") return "Brave";
+  if (proc.grouped_name === "Edge") return "Edge";
+  if (proc.grouped_name === "Arc") return "Arc";
+  if (proc.grouped_name === "Firefox") return "Firefox";
   if (proc.exec_name.includes("Google Chrome") || proc.name.includes("Chrome")) return "Chrome";
   if (proc.name === "com.apple.WebKit.WebContent" || proc.exec_name.includes("Safari") || proc.name.includes("Safari")) return "Safari";
   if (proc.exec_name.includes("Brave Browser") || proc.name.includes("Brave")) return "Brave";

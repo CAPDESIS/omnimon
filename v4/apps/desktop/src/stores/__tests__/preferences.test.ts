@@ -48,7 +48,7 @@ beforeEach(() => {
   fontSize.set(12);
   columns.set({ ...DEFAULT_COLUMNS });
   aiProviderConfig.set({ ...DEFAULT_AI_CONFIG });
-  columnOrder.set(["name", "detail", "group", "ram", "cpu", "uptime", "pid", "state"]);
+  columnOrder.set(["name", "detail", "group", "ram", "cpu", "energy", "network", "uptime", "pid", "state"]);
   idleThreshold.set(DEFAULT_IDLE_THRESHOLD);
   theme.set("auto");
   tabPanelHeight.set(160);
@@ -270,7 +270,7 @@ describe("font size helpers", () => {
 
 describe("column ordering helpers", () => {
   it("moveColumnUp reorders a non-first column", () => {
-    columnOrder.set(["name", "detail", "group", "ram", "cpu", "uptime", "pid", "state"]);
+    columnOrder.set(["name", "detail", "group", "ram", "cpu", "energy", "network", "uptime", "pid", "state"]);
     moveColumnUp("group");
     expect(get(columnOrder).slice(0, 4)).toEqual(["name", "group", "detail", "ram"]);
   });
@@ -282,7 +282,7 @@ describe("column ordering helpers", () => {
   });
 
   it("moveColumnDown reorders a non-last column", () => {
-    columnOrder.set(["name", "detail", "group", "ram", "cpu", "uptime", "pid", "state"]);
+    columnOrder.set(["name", "detail", "group", "ram", "cpu", "energy", "network", "uptime", "pid", "state"]);
     moveColumnDown("detail");
     expect(get(columnOrder).slice(0, 4)).toEqual(["name", "group", "detail", "ram"]);
   });

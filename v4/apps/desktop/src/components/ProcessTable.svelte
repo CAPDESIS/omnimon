@@ -8,7 +8,7 @@
   import { t } from "../lib/i18n";
   import { detectBrowser } from "../lib/browser";
   import SecurityBadge from "./SecurityBadge.svelte";
-  import { iconForProcess } from "../lib/processIcons";
+  import { iconForProcess, isNativeIconDataUrl } from "../lib/processIcons";
 
   interface Props {
     processes: ProcessEntry[];
@@ -20,18 +20,33 @@
 
   let { processes, grouping = false, columns, columnOrder, oninspect }: Props = $props();
 
-  let cols = $derived(columns ?? { name: true, detail: true, group: true, ram: true, cpu: true, uptime: true, pid: true, state: true });
+  let cols = $derived(columns ?? { name: true, detail: true, group: true, ram: true, cpu: true, energy: true, network: true, uptime: true, pid: true, state: true });
   let orderedVisibleCols = $derived(
-    (columnOrder ?? COLUMN_KEYS).filter((k) => cols[k]),
+    (columnOrder ?? COLUMN_KEYS).filter((k): k is ColumnKey => cols[k]),
   );
   let visibleColCount = $derived(orderedVisibleCols.length);
 
   let ROW_HEIGHT = $derived(Math.round($fontSize * 1.667));
   const BUFFER = 10;
 
-  type SortKey = "name" | "pid" | "ram_mb" | "cpu_pct" | "group" | "uptime" | "state";
+  type SortKey = "name" | "pid" | "ram_mb" | "cpu_pct" | "energy_metric" | "network_metric" | "group" | "uptime" | "state";
   let sortKey: SortKey = $state("ram_mb");
   let sortAsc = $state(false);
+
+  function energyMetric(proc: ProcessEntry): number {
+    return proc.energy_impact_score ?? 0;
+  }
+
+  function networkMetric(proc: ProcessEntry): number {
+    return proc.net_rx_bytes_per_sec + proc.net_tx_bytes_per_sec;
+  }
+
+  function sortValue(proc: ProcessEntry, key: SortKey): string | number {
+    if (key === "energy_metric") return energyMetric(proc);
+    if (key === "network_metric") return networkMetric(proc);
+    if (key === "group") return getGroup(proc);
+    return proc[key];
+  }
 
   // Count tabs per browser for the "Detail" column
   let tabCountByBrowser = $derived.by((): Map<string, number> => {
@@ -56,7 +71,7 @@
   function getGroup(proc: ProcessEntry): string {
     const browser = detectBrowser(proc);
     if (browser) return browser;
-    return proc.group || "";
+    return proc.group || proc.grouped_name || "";
   }
 
   let collapsedGroups = $state(new Set<string>());
@@ -81,7 +96,7 @@
   let sortedPids = $derived.by((): number[] => {
     let snapshot = `${sortKey}:${sortAsc ? 1 : 0}:${processes.length}|`;
     for (const proc of processes) {
-      snapshot += `${proc.pid}:${String(proc[sortKey])}|`;
+      snapshot += `${proc.pid}:${String(sortValue(proc, sortKey))}|`;
     }
 
     if (snapshot === _sortedSnapshot && sortKey === _sortedKey && sortAsc === _sortedAsc) {
@@ -89,8 +104,8 @@
     }
 
     const sorted = [...processes].sort((a, b) => {
-      const va = a[sortKey];
-      const vb = b[sortKey];
+      const va = sortValue(a, sortKey);
+      const vb = sortValue(b, sortKey);
       if (typeof va === "string" && typeof vb === "string") {
         return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
       }
@@ -147,14 +162,14 @@
       const p = processByPid.get(pid);
       if (!p) continue;
       const browser = detectBrowser(p);
-      const groupKey = browser ?? p.name;
+      const groupKey = p.group_key || browser || p.grouped_name || p.name;
       const arr = map.get(groupKey);
       if (arr) arr.push(p);
       else map.set(groupKey, [p]);
     }
     return [...map.entries()]
       .map(([name, procs]) => ({
-        name,
+        name: procs[0]?.grouped_name || name,
         procs,
         totalRam: procs.reduce((s, p) => s + p.ram_mb, 0),
         totalCpu: procs.reduce((s, p) => s + p.cpu_pct, 0),
@@ -249,6 +264,29 @@
     return "var(--fg)";
   }
 
+  function energyColor(score: number | null): string {
+    const value = score ?? 0;
+    if (value >= 60) return "var(--danger)";
+    if (value >= 20) return "var(--yellow)";
+    return "var(--fg)";
+  }
+
+  function formatNetworkRate(bytesPerSec: number): string {
+    if (bytesPerSec >= 1_048_576) return `${(bytesPerSec / 1_048_576).toFixed(1)} MB/s`;
+    if (bytesPerSec >= 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
+    return `${bytesPerSec} B/s`;
+  }
+
+  function groupRowNetworkRate(group: ProcessGroup): string {
+    const total = group.procs.reduce((sum, proc) => sum + networkMetric(proc), 0);
+    return formatNetworkRate(total);
+  }
+
+  function groupRowEnergy(group: ProcessGroup): string {
+    const total = group.procs.reduce((sum, proc) => sum + energyMetric(proc), 0);
+    return total.toFixed(1);
+  }
+
   function handleRowClick(proc: ProcessEntry) {
     toggleSelect(proc.pid);
     $focusedPid = proc.pid;
@@ -269,10 +307,15 @@
 {#snippet colCell(key: ColumnKey, proc: ProcessEntry)}
   {#if key === "name"}
     <td class="col-name" title={proc.exec_name}>
-      <svg class="proc-icon" viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
-        <path d={iconForProcess(proc.name, proc.group)} />
-      </svg>
+      {#if isNativeIconDataUrl(proc.icon_data_url)}
+        <img class="proc-icon native" src={proc.icon_data_url} alt="" aria-hidden="true" />
+      {:else}
+        <svg class="proc-icon" viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
+          <path d={iconForProcess(proc.name, proc.group)} />
+        </svg>
+      {/if}
       <span class="name-text">{proc.name}</span>
+      {#if proc.process_count > 1}<span class="badge grouped">x{proc.process_count}</span>{/if}
       {#if proc.idle}<span class="badge idle">{t("table.idle")}</span>{/if}
       <SecurityBadge pid={proc.pid} />
     </td>
@@ -290,6 +333,10 @@
     <td class="col-ram mono" style="color: {ramColor(proc.ram_mb)}">{proc.ram_mb.toFixed(1)}</td>
   {:else if key === "cpu"}
     <td class="col-cpu mono" style="color: {cpuColor(proc.cpu_pct)}">{proc.cpu_pct.toFixed(1)}</td>
+  {:else if key === "energy"}
+    <td class="col-energy mono" style="color: {energyColor(proc.energy_impact_score)}">{(proc.energy_impact_score ?? 0).toFixed(1)}</td>
+  {:else if key === "network"}
+    <td class="col-network mono" title={formatNetworkRate(networkMetric(proc))}>{formatNetworkRate(networkMetric(proc))}</td>
   {:else if key === "uptime"}
     <td class="col-uptime mono">{proc.uptime || "\u2014"}</td>
   {:else if key === "pid"}
@@ -338,7 +385,7 @@
       <span class="chevron" class:open={!collapsedGroups.has(group.name)} aria-hidden="true">&#9654;</span>
       <span class="group-name">{group.name}</span>
       <span class="group-meta">
-        {group.count} &middot; {group.totalRam.toFixed(0)} MB &middot; {group.totalCpu.toFixed(1)}%
+        {group.count} &middot; {group.totalRam.toFixed(0)} MB &middot; {group.totalCpu.toFixed(1)}% &middot; {groupRowEnergy(group)} E &middot; {groupRowNetworkRate(group)}
       </span>
     </td>
   </tr>
@@ -371,6 +418,14 @@
           {:else if key === "uptime"}
             <th class="col-uptime sortable" scope="col" aria-sort={sortKey === "uptime" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("uptime")}>
               {t("table.time")}<span aria-hidden="true">{arrow("uptime")}</span>
+            </th>
+          {:else if key === "energy"}
+            <th class="col-energy sortable" scope="col" aria-sort={sortKey === "energy_metric" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByEnergy")} onclick={() => setSort("energy_metric")}>
+              {t("table.energy")}<span aria-hidden="true">{arrow("energy_metric")}</span>
+            </th>
+          {:else if key === "network"}
+            <th class="col-network sortable" scope="col" aria-sort={sortKey === "network_metric" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByNetwork")} onclick={() => setSort("network_metric")}>
+              {t("table.network")}<span aria-hidden="true">{arrow("network_metric")}</span>
             </th>
           {:else if key === "pid"}
             <th class="col-pid sortable" scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByPid")} onclick={() => setSort("pid")}>
@@ -592,6 +647,13 @@
     margin-right: 3px;
   }
 
+  .proc-icon.native {
+    width: 12px;
+    height: 12px;
+    object-fit: contain;
+    border-radius: 2px;
+  }
+
   .name-text {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -620,6 +682,11 @@
   .badge.idle {
     background: rgba(255, 193, 7, 0.15);
     color: var(--yellow);
+  }
+
+  .badge.grouped {
+    background: rgba(59, 130, 246, 0.14);
+    color: var(--accent);
   }
 
   .sr-only {

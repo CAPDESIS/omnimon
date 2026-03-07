@@ -3,7 +3,7 @@ import { writable } from "svelte/store";
 import ToastContainer from "../ToastContainer.svelte";
 
 const { mockToasts, mockDismiss } = vi.hoisted(() => {
-  const { writable: w } = require("svelte/store");
+  const { writable: w } = require("svelte/store") as typeof import("svelte/store");
   return {
     mockToasts: w<Array<{ id: string; level: string; title: string; message?: string }>>([]),
     mockDismiss: vi.fn(),

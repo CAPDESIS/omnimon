@@ -21,10 +21,22 @@ pub struct ProcessEntry {
     pub pid: u32,
     pub name: String,
     pub exec_name: String,
+    pub exe_path: Option<String>,
+    pub bundle_id: Option<String>,
+    pub icon_data_url: Option<String>,
     pub ram_mb: f64,
     pub cpu_pct: f64,
+    pub disk_read_mb: f64,
+    pub disk_write_mb: f64,
+    pub net_rx_bytes_per_sec: u64,
+    pub net_tx_bytes_per_sec: u64,
+    pub energy_impact_score: Option<f64>,
     pub uptime: String,
     pub group: String,
+    pub group_key: String,
+    pub group_identity_type: String,
+    pub grouped_name: String,
+    pub process_count: u32,
     pub is_system: bool,
     pub idle: bool,
     pub state: String,
@@ -64,61 +76,48 @@ fn format_uptime(secs: u64) -> String {
 /// calls or mutex contention happen on the main/IPC thread.
 #[tauri::command]
 fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
-    // All data from the background watcher cache (RwLock read, O(1) — no syscalls)
-    let sys_state = macmon_core::watcher::get_cached_state();
-
-    // Sort references by memory descending, take top 100 — avoids cloning the full Vec
-    let mut refs: Vec<&macmon_core::watcher::CachedProcessInfo> =
-        sys_state.cached_process_info.iter().collect();
-    refs.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
-    refs.truncate(100);
+    let snapshot = macmon_core::telemetry::telemetry_snapshot(Some(100));
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
 
-    let processes: Vec<ProcessEntry> = refs
+    let processes: Vec<ProcessEntry> = snapshot
+        .processes
         .iter()
         .map(|entry| {
-            let cpu_pct = entry.cpu_pct as f64;
+            let cpu_pct = entry.cpu_usage_percent as f64;
             let exec_name = entry.exec_name.clone();
             let uptime = format_uptime(now.saturating_sub(entry.start_time));
 
             let ram_mb = entry.memory_bytes as f64 / 1_048_576.0;
-            let is_system = macmon_core::killer::is_immutable_blocked_process_name(&entry.name);
+            let disk_read_mb = entry.disk_read_bytes as f64 / 1_048_576.0;
+            let disk_write_mb = entry.disk_write_bytes as f64 / 1_048_576.0;
+            let is_system = entry.is_system;
             let threshold = idle_threshold.unwrap_or(1.0);
             let idle = cpu_pct < threshold && !is_system;
-
-            // Tag Browser group by process name pattern — no AppleScript, instant
-            let name = &entry.name;
-            let group = if exec_name.contains("Google Chrome Helper")
-                || exec_name.contains("Google Chrome")
-                || name == "com.apple.WebKit.WebContent"
-                || exec_name.contains("Safari")
-                || name.contains("Safari")
-                || exec_name.contains("Brave Browser Helper")
-                || exec_name.contains("Brave Browser")
-                || exec_name.contains("Microsoft Edge Helper")
-                || exec_name.contains("Microsoft Edge")
-                || exec_name.contains("Arc Helper")
-                || exec_name == "Arc"
-                || exec_name.contains("firefox")
-                || name.contains("firefox")
-            {
-                "Browser".to_string()
-            } else {
-                String::new()
-            };
 
             ProcessEntry {
                 pid: entry.pid,
                 name: entry.name.clone(),
                 exec_name,
+                exe_path: entry.exe_path.clone(),
+                bundle_id: entry.bundle_id.clone(),
+                icon_data_url: entry.icon_data_url.clone(),
                 ram_mb: (ram_mb * 10.0).round() / 10.0,
                 cpu_pct: (cpu_pct * 10.0).round() / 10.0,
+                disk_read_mb: (disk_read_mb * 10.0).round() / 10.0,
+                disk_write_mb: (disk_write_mb * 10.0).round() / 10.0,
+                net_rx_bytes_per_sec: entry.net_rx_bytes_per_sec,
+                net_tx_bytes_per_sec: entry.net_tx_bytes_per_sec,
+                energy_impact_score: entry.energy_impact_score.map(|value| (value as f64 * 10.0).round() / 10.0),
                 uptime,
-                group,
+                group: entry.group.clone(),
+                group_key: entry.group_key.clone(),
+                group_identity_type: entry.group_identity_type.clone(),
+                grouped_name: entry.grouped_display_name.clone(),
+                process_count: entry.process_count as u32,
                 is_system,
                 idle,
                 state: if idle { "S".into() } else { "R".into() },
@@ -129,17 +128,17 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
     let total_procs = processes.len() as u32;
 
     let stats = SystemStats {
-        ram_total_gb: (sys_state.total_memory_bytes as f64 / 1_073_741_824.0 * 10.0).round() / 10.0,
-        ram_used_pct: if sys_state.total_memory_bytes > 0 {
-            ((sys_state.used_memory_bytes as f64 / sys_state.total_memory_bytes as f64) * 100.0)
+        ram_total_gb: (snapshot.total_memory_bytes as f64 / 1_073_741_824.0 * 10.0).round() / 10.0,
+        ram_used_pct: if snapshot.total_memory_bytes > 0 {
+            ((snapshot.used_memory_bytes as f64 / snapshot.total_memory_bytes as f64) * 100.0)
                 as u32
         } else {
             0
         },
-        swap_used_mb: sys_state.swap_used_mb,
+        swap_used_mb: snapshot.swap_used_mb,
         total_processes: total_procs,
-        net_rx_bytes_per_sec: sys_state.net_rx_bytes_per_sec,
-        net_tx_bytes_per_sec: sys_state.net_tx_bytes_per_sec,
+        net_rx_bytes_per_sec: snapshot.net_rx_bytes_per_sec,
+        net_tx_bytes_per_sec: snapshot.net_tx_bytes_per_sec,
     };
 
     Ok(Metrics { processes, stats })

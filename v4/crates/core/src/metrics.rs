@@ -16,12 +16,17 @@ pub struct ProcessMemoryEntry {
 pub struct ProcessTelemetry {
     pub pid: u32,
     pub name: String,
+    pub exec_name: String,
+    pub group: String,
     pub bundle_id: Option<String>,
     pub exe_path: Option<String>,
     pub memory_bytes: u64,
     pub virtual_memory_bytes: u64,
     pub disk_read_bytes: u64,
     pub disk_write_bytes: u64,
+    pub net_rx_bytes_per_sec: u64,
+    pub net_tx_bytes_per_sec: u64,
+    pub energy_impact_score: Option<f32>,
     pub cpu_usage_percent: f32,
 }
 
@@ -30,6 +35,7 @@ pub struct SuperProcess {
     pub binary_key: String,
     pub identity_type: String,
     pub display_name: String,
+    pub group: String,
     pub bundle_id: Option<String>,
     pub executable_path: Option<String>,
     pub process_count: usize,
@@ -41,6 +47,7 @@ pub struct SuperProcess {
     pub total_cpu_usage_percent: f32,
     pub total_net_rx_bytes_per_sec: u64,
     pub total_net_tx_bytes_per_sec: u64,
+    pub energy_impact_score: Option<f32>,
 }
 
 /// Snapshot of system-wide memory: total, free, and used bytes.
@@ -105,16 +112,43 @@ pub fn snapshot_process_telemetry() -> Vec<ProcessTelemetry> {
         .processes()
         .iter()
         .map(|(pid, process)| {
+            let process_name = process.name().to_string();
             let disk = process.disk_usage();
+            let exe_path = process.exe().map(|p| p.display().to_string());
+            let exec_name = process
+                .exe()
+                .and_then(|e| e.file_name())
+                .map(|f| f.to_string_lossy().into_owned())
+                .unwrap_or_else(|| process_name.clone());
+            let bundle_id = crate::process_identity::detect_bundle_id(process.exe());
+            let group = crate::process_identity::classify_group(
+                &process_name,
+                &exec_name,
+                exe_path.as_deref(),
+                crate::killer::is_immutable_blocked_process_name(&process_name),
+            );
+            let energy_impact_score = estimate_energy_impact(
+                process.cpu_usage(),
+                process.memory(),
+                disk.total_read_bytes,
+                disk.total_written_bytes,
+                0,
+                0,
+            );
             ProcessTelemetry {
                 pid: pid.as_u32(),
-                name: process.name().to_string(),
-                bundle_id: detect_bundle_id(process.exe()),
-                exe_path: process.exe().map(|p| p.display().to_string()),
+                name: process_name,
+                exec_name,
+                group,
+                bundle_id,
+                exe_path,
                 memory_bytes: process.memory(),
                 virtual_memory_bytes: process.virtual_memory(),
                 disk_read_bytes: disk.total_read_bytes,
                 disk_write_bytes: disk.total_written_bytes,
+                net_rx_bytes_per_sec: 0,
+                net_tx_bytes_per_sec: 0,
+                energy_impact_score,
                 cpu_usage_percent: process.cpu_usage(),
             }
         })
@@ -144,7 +178,8 @@ pub fn aggregate_super_processes_with_network(
             .or_insert_with(|| SuperProcess {
                 binary_key: group_key,
                 identity_type: group_identity.identity_type,
-                display_name: process.name.clone(),
+                display_name: group_identity.display_name,
+                group: group_identity.group,
                 bundle_id: process.bundle_id.clone(),
                 executable_path: process.exe_path.clone(),
                 process_count: 0,
@@ -156,6 +191,7 @@ pub fn aggregate_super_processes_with_network(
                 total_cpu_usage_percent: 0.0,
                 total_net_rx_bytes_per_sec: 0,
                 total_net_tx_bytes_per_sec: 0,
+                energy_impact_score: None,
             });
 
         entry.process_count = entry.process_count.saturating_add(1);
@@ -173,9 +209,16 @@ pub fn aggregate_super_processes_with_network(
             .total_disk_write_bytes
             .saturating_add(process.disk_write_bytes);
         entry.total_cpu_usage_percent += process.cpu_usage_percent;
-        let (rx, tx) = pid_to_network.get(&process.pid).copied().unwrap_or((0, 0));
+        let (rx, tx) = pid_to_network
+            .get(&process.pid)
+            .copied()
+            .unwrap_or((process.net_rx_bytes_per_sec, process.net_tx_bytes_per_sec));
         entry.total_net_rx_bytes_per_sec = entry.total_net_rx_bytes_per_sec.saturating_add(rx);
         entry.total_net_tx_bytes_per_sec = entry.total_net_tx_bytes_per_sec.saturating_add(tx);
+        entry.energy_impact_score = Some(
+            entry.energy_impact_score.unwrap_or(0.0)
+                + process.energy_impact_score.unwrap_or_default(),
+        );
     }
 
     let mut super_processes: Vec<SuperProcess> = grouped.into_values().collect();
@@ -188,49 +231,35 @@ pub fn aggregate_super_processes_with_network(
     super_processes
 }
 
-struct SuperProcessIdentity {
-    key: String,
-    identity_type: String,
-}
-
 fn build_super_process_identity(process: &ProcessTelemetry) -> SuperProcessIdentity {
-    if let Some(bundle) = process.bundle_id.as_ref() {
-        return SuperProcessIdentity {
-            key: format!("bundle:{bundle}"),
-            identity_type: "bundle_id".to_string(),
-        };
-    }
-
-    if let Some(path) = process.exe_path.as_ref() {
-        return SuperProcessIdentity {
-            key: format!("path:{}", path.to_ascii_lowercase()),
-            identity_type: "path".to_string(),
-        };
-    }
-
-    SuperProcessIdentity {
-        key: format!(
-            "name:{}:pid:{}",
-            process.name.to_ascii_lowercase(),
-            process.pid
-        ),
-        identity_type: "name_pid_fallback".to_string(),
-    }
+    crate::process_identity::resolve_group_identity(
+        &process.name,
+        &process.exec_name,
+        process.exe_path.as_deref(),
+        process.bundle_id.as_deref(),
+        process.group == "System",
+    )
 }
 
-#[cfg(target_os = "macos")]
-fn detect_bundle_id(exe: Option<&std::path::Path>) -> Option<String> {
-    let exe = exe?;
-    let path = exe.to_string_lossy();
-    let marker = ".app/";
-    let pos = path.find(marker)?;
-    let bundle_root = &path[..pos + 4];
-    Some(bundle_root.to_ascii_lowercase())
-}
+type SuperProcessIdentity = crate::process_identity::ProcessGroupIdentity;
 
-#[cfg(not(target_os = "macos"))]
-fn detect_bundle_id(_exe: Option<&std::path::Path>) -> Option<String> {
-    None
+pub fn estimate_energy_impact(
+    cpu_usage_percent: f32,
+    memory_bytes: u64,
+    disk_read_bytes: u64,
+    disk_write_bytes: u64,
+    net_rx_bytes_per_sec: u64,
+    net_tx_bytes_per_sec: u64,
+) -> Option<f32> {
+    let memory_mb = memory_bytes as f64 / 1_048_576.0;
+    let disk_mb = (disk_read_bytes.saturating_add(disk_write_bytes)) as f64 / 1_048_576.0;
+    let net_mb = (net_rx_bytes_per_sec.saturating_add(net_tx_bytes_per_sec)) as f64 / 1_048_576.0;
+    let score = (cpu_usage_percent as f64 * 0.65) + (memory_mb * 0.015) + (disk_mb * 0.1) + (net_mb * 0.2);
+    if score > 0.0 {
+        Some(score.min(1000.0) as f32)
+    } else {
+        None
+    }
 }
 
 pub async fn aggregate_super_processes_async(limit: Option<usize>) -> Vec<SuperProcess> {
@@ -366,17 +395,30 @@ mod tests {
         let process = ProcessTelemetry {
             pid: 900,
             name: "svchost.exe".to_string(),
+            exec_name: "svchost.exe".to_string(),
+            group: String::new(),
             bundle_id: None,
             exe_path: Some("C:/Users/bad/svchost.exe".to_string()),
             memory_bytes: 1,
             virtual_memory_bytes: 1,
             disk_read_bytes: 0,
             disk_write_bytes: 0,
+            net_rx_bytes_per_sec: 0,
+            net_tx_bytes_per_sec: 0,
+            energy_impact_score: None,
             cpu_usage_percent: 0.0,
         };
 
         let identity = build_super_process_identity(&process);
-        assert_eq!(identity.identity_type, "path");
-        assert!(identity.key.starts_with("path:"));
+        assert_eq!(identity.identity_type, "exec_name");
+        assert!(identity.key.starts_with("exec:"));
+    }
+
+    #[test]
+    fn energy_impact_score_increases_with_activity() {
+        let low = estimate_energy_impact(1.0, 1024, 0, 0, 0, 0).unwrap_or_default();
+        let high = estimate_energy_impact(80.0, 512 * 1_048_576, 10_000_000, 5_000_000, 2_000_000, 1_000_000)
+            .unwrap_or_default();
+        assert!(high > low);
     }
 }
