@@ -39,7 +39,11 @@ export function pushMetrics(stats: SystemStats, cpuAvg: number): void {
   });
 }
 
-/** Derived series for each metric, ready for chart consumption. */
+/**
+ * Derived series for each metric, ready for chart consumption.
+ * Each .map() creates a new array on every update, but this is acceptable:
+ * the buffer is bounded by MAX_HISTORY (300 points), so allocation is O(300).
+ */
 export const cpuSeries = derived(metricsHistory, ($h) =>
   $h.map((s) => ({ time: s.time, value: s.cpuAvg })),
 );

@@ -91,6 +91,13 @@ export function evaluateAlerts(
     if (evaluate(rule.operator, value, rule.threshold)) {
       lastFired.set(key, now);
 
+      // Prune stale cooldown entries to prevent unbounded Map growth
+      if (lastFired.size > rules.length * 2) {
+        for (const [k, ts] of lastFired) {
+          if (now - ts >= COOLDOWN_MS) lastFired.delete(k);
+        }
+      }
+
       const fired: FiredAlert = {
         id: `alert-${++alertId}`,
         rule,

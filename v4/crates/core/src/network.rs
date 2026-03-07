@@ -1,3 +1,5 @@
+//! Cross-platform network traffic capture. Utilizes native drivers (libpcap on macOS, WinDivert on Windows, eBPF on Linux) to monitor connections and correlate them with PIDs.
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -517,7 +519,7 @@ mod linux_ebpf {
     use aya::maps::HashMap as BpfHashMap;
     use aya::programs::KProbe;
     use aya::Ebpf;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::net::Ipv4Addr;
     use std::time::Duration;
 
@@ -581,6 +583,8 @@ mod linux_ebpf {
 
             let mut process_traffic = HashMap::new();
             let mut recent_connections = Vec::new();
+            let mut seen_tcp_pids = HashSet::new();
+            let mut seen_udp_pids = HashSet::new();
 
             // Collect TCP traffic data first, then do destination lookups
             // (avoids double mutable borrow of bpf)
@@ -588,6 +592,7 @@ mod linux_ebpf {
             if let Some(map) = bpf.map_mut("PROCESS_NET_TCP_BYTES") {
                 if let Ok(tcp_map) = BpfHashMap::<_, u32, u64>::try_from(map) {
                     for pid in tcp_map.keys().flatten() {
+                        seen_tcp_pids.insert(pid);
                         if let Ok(current) = tcp_map.get(&pid, 0) {
                             let prev = self.prev_tcp.insert(pid, current).unwrap_or(0);
                             let delta = current.saturating_sub(prev);
@@ -621,6 +626,7 @@ mod linux_ebpf {
             if let Some(map) = bpf.map_mut("PROCESS_NET_UDP_BYTES") {
                 if let Ok(udp_map) = BpfHashMap::<_, u32, u64>::try_from(map) {
                     for pid in udp_map.keys().flatten() {
+                        seen_udp_pids.insert(pid);
                         if let Ok(current) = udp_map.get(&pid, 0) {
                             let prev = self.prev_udp.insert(pid, current).unwrap_or(0);
                             let delta = current.saturating_sub(prev);
@@ -648,6 +654,11 @@ mod linux_ebpf {
                     });
                 }
             }
+
+            // Evict stale PIDs from prev_tcp/prev_udp so dead processes
+            // don't leak memory indefinitely.
+            self.prev_tcp.retain(|pid, _| seen_tcp_pids.contains(pid));
+            self.prev_udp.retain(|pid, _| seen_udp_pids.contains(pid));
 
             CollectorWindow {
                 process_traffic,
@@ -986,5 +997,42 @@ mod tests {
         let sample = engine.sample();
         assert!(sample.observed_interval_ms >= 1);
         assert!(!sample.backend_label.is_empty());
+    }
+
+    /// Validates that the dead-PID eviction logic correctly removes stale
+    /// entries from prev_tcp / prev_udp HashMaps.  This mirrors the retain
+    /// calls inside LinuxEbpfCollector::capture_window without requiring
+    /// real eBPF infrastructure.
+    #[test]
+    fn dead_pid_cleanup_retains_only_seen_pids() {
+        use std::collections::{HashMap, HashSet};
+
+        let mut prev_tcp: HashMap<u32, u64> = HashMap::new();
+        let mut prev_udp: HashMap<u32, u64> = HashMap::new();
+
+        // Simulate accumulated state from several sample cycles
+        prev_tcp.insert(100, 5000);
+        prev_tcp.insert(200, 3000);
+        prev_tcp.insert(300, 1000); // PID 300 will be "dead"
+        prev_udp.insert(100, 2000);
+        prev_udp.insert(400, 800); // PID 400 will be "dead"
+
+        // Current cycle only sees PIDs 100 and 200 in TCP, and 100 in UDP
+        let seen_tcp: HashSet<u32> = [100, 200].into_iter().collect();
+        let seen_udp: HashSet<u32> = [100].into_iter().collect();
+
+        prev_tcp.retain(|pid, _| seen_tcp.contains(pid));
+        prev_udp.retain(|pid, _| seen_udp.contains(pid));
+
+        // Dead PIDs must be gone
+        assert!(!prev_tcp.contains_key(&300), "dead TCP PID 300 should be evicted");
+        assert!(!prev_udp.contains_key(&400), "dead UDP PID 400 should be evicted");
+
+        // Live PIDs must remain with their values intact
+        assert_eq!(prev_tcp.len(), 2);
+        assert_eq!(prev_tcp[&100], 5000);
+        assert_eq!(prev_tcp[&200], 3000);
+        assert_eq!(prev_udp.len(), 1);
+        assert_eq!(prev_udp[&100], 2000);
     }
 }

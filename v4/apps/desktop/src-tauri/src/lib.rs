@@ -1,7 +1,10 @@
-use macmon_core::browser::{BrowserKind, BrowserTab, NativeTabProvider, TabProvider};
+use macmon_core::browser::{
+    sanitize_tab_id, sanitize_tab_url, BrowserKind, BrowserTab, NativeTabProvider, TabProvider,
+};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tauri::{
@@ -29,7 +32,7 @@ pub struct ProcessEntry {
 pub struct SystemStats {
     pub ram_total_gb: f64,
     pub ram_used_pct: u32,
-    pub swap_used_mb: u32,
+    pub swap_used_mb: u64,
     pub total_processes: u32,
     pub net_rx_bytes_per_sec: u64,
     pub net_tx_bytes_per_sec: u64,
@@ -130,7 +133,7 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
         } else {
             0
         },
-        swap_used_mb: sys_state.swap_used_mb as u32,
+        swap_used_mb: sys_state.swap_used_mb,
         total_processes: total_procs,
         net_rx_bytes_per_sec: sys_state.net_rx_bytes_per_sec,
         net_tx_bytes_per_sec: sys_state.net_tx_bytes_per_sec,
@@ -154,12 +157,26 @@ fn tab_cache() -> &'static Mutex<(Vec<BrowserTab>, Instant)> {
     })
 }
 
+/// Prevents multiple concurrent tab refreshes.
+static TAB_REFRESH_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+
 fn refresh_tab_cache_if_stale() -> Vec<BrowserTab> {
-    let mut cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
-    if cache.1.elapsed().as_secs() < TAB_CACHE_TTL_SECS {
+    // Check staleness under lock, then drop lock before expensive work.
+    {
+        let cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
+        if cache.1.elapsed().as_secs() < TAB_CACHE_TTL_SECS {
+            return cache.0.clone();
+        }
+    }
+
+    // Prevent multiple concurrent refreshes — if another thread is already
+    // refreshing, return the (stale) cached data instead of blocking.
+    if TAB_REFRESH_IN_PROGRESS.swap(true, Ordering::SeqCst) {
+        let cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
         return cache.0.clone();
     }
-    // Stale — refresh now
+
+    // Expensive AppleScript/CDP work happens outside the Mutex.
     let provider = NativeTabProvider;
     let mut tabs = Vec::new();
     for browser in BrowserKind::all() {
@@ -172,8 +189,15 @@ fn refresh_tab_cache_if_stale() -> Vec<BrowserTab> {
             ),
         }
     }
-    cache.0 = tabs.clone();
-    cache.1 = Instant::now();
+
+    // Re-acquire lock to update cache.
+    {
+        let mut cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
+        cache.0 = tabs.clone();
+        cache.1 = Instant::now();
+    }
+
+    TAB_REFRESH_IN_PROGRESS.store(false, Ordering::SeqCst);
     tabs
 }
 
@@ -199,12 +223,8 @@ fn get_browser_tabs() -> Result<Vec<BrowserTab>, String> {
 /// IPC: Gracefully close a browser tab via AppleScript/CDP (not process kill).
 #[tauri::command]
 fn close_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result<bool, String> {
-    if tab_id.len() > 512 {
-        return Err("tab_id exceeds maximum length of 512".to_string());
-    }
-    if tab_url.len() > 4096 {
-        return Err("tab_url exceeds maximum length of 4096".to_string());
-    }
+    sanitize_tab_id(&tab_id)?;
+    sanitize_tab_url(&tab_url)?;
     let kind = BrowserKind::from_str(&browser)?;
     let provider = NativeTabProvider;
     let tab = BrowserTab {
@@ -219,12 +239,8 @@ fn close_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result
 /// IPC: Focus (navigate to) a browser tab via AppleScript/CDP.
 #[tauri::command]
 fn focus_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result<bool, String> {
-    if tab_id.len() > 512 {
-        return Err("tab_id exceeds maximum length of 512".to_string());
-    }
-    if tab_url.len() > 4096 {
-        return Err("tab_url exceeds maximum length of 4096".to_string());
-    }
+    sanitize_tab_id(&tab_id)?;
+    sanitize_tab_url(&tab_url)?;
     let kind = BrowserKind::from_str(&browser)?;
     let provider = NativeTabProvider;
     let tab = BrowserTab {
@@ -246,17 +262,25 @@ fn kill_process(pid: u32) -> Result<bool, String> {
     }
 }
 
-/// IPC: Kill multiple processes by PIDs. Returns list of actually killed PIDs.
+/// Result of a bulk kill operation, reporting both successes and failures.
+#[derive(Debug, Clone, Serialize)]
+pub struct KillProcessesResult {
+    pub killed: Vec<u32>,
+    pub failed: Vec<(u32, String)>,
+}
+
+/// IPC: Kill multiple processes by PIDs. Returns killed and failed PIDs with error messages.
 #[tauri::command]
-fn kill_processes(pids: Vec<u32>) -> Result<Vec<u32>, String> {
+fn kill_processes(pids: Vec<u32>) -> Result<KillProcessesResult, String> {
     let mut killed = Vec::new();
+    let mut failed = Vec::new();
     for pid in pids {
         match macmon_core::killer::kill_process_safe(pid as i32, &[]) {
             Ok(_) => killed.push(pid),
-            Err(e) => eprintln!("[kill_processes] PID {pid}: {e}"),
+            Err(e) => failed.push((pid, e.to_string())),
         }
     }
-    Ok(killed)
+    Ok(KillProcessesResult { killed, failed })
 }
 
 /// Store key name for the fallback API key file.
@@ -433,6 +457,11 @@ pub fn run() {
             macmon_core::watcher::start_watcher();
 
             // Emit dynamic security alerts to frontend in real time.
+            // Guard: only spawn the alert thread once, even if setup() is called multiple times.
+            static ALERT_THREAD_STARTED: AtomicBool = AtomicBool::new(false);
+            if ALERT_THREAD_STARTED.swap(true, Ordering::SeqCst) {
+                // Already running — skip duplicate spawn.
+            } else {
             let app_for_alerts = app.handle().clone();
             std::thread::spawn(move || {
                 let mut dedupe = HashMap::<String, Instant>::new();
@@ -455,6 +484,7 @@ pub fn run() {
                     }
                 }
             });
+            } // end ALERT_THREAD_STARTED guard
 
             // --- System Tray Menu ---
             let show = MenuItem::with_id(app, "show", "Open Dashboard", true, None::<&str>)?;

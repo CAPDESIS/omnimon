@@ -7,6 +7,7 @@ import { idleThreshold } from "./preferences";
 import { pushMetrics } from "./metricsHistory";
 import { evaluateAlerts } from "./alerts";
 import { refreshSecurityAnalysis, refreshNetworkConnections } from "./security";
+import { toast } from "./toasts";
 
 // --- Core stores ---
 
@@ -99,9 +100,16 @@ export function applyDiff(current: ProcessEntry[], incoming: ProcessEntry[]): Pr
 export async function fetchMetrics(): Promise<void> {
   try {
     const data = await ipcGetMetrics(get(idleThreshold));
+    consecutiveErrors = 0; // Reset on success
     const current = get(processes);
     const updated = applyDiff(current, data.processes);
-    processes.set(updated);
+    // Only trigger subscribers if the list actually changed (different length or different entries)
+    if (
+      updated.length !== current.length ||
+      updated.some((p, i) => p !== current[i])
+    ) {
+      processes.set(updated);
+    }
     stats.set(data.stats);
 
     // Feed time-series history & alert evaluation
@@ -126,7 +134,12 @@ export async function fetchMetrics(): Promise<void> {
       return changed ? next : $pids;
     });
   } catch (e) {
+    consecutiveErrors++;
     console.error("Failed to fetch metrics:", e);
+    if (consecutiveErrors === ERROR_TOAST_THRESHOLD) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error("Metrics fetch failed", `Repeated errors (${consecutiveErrors}×): ${msg}`);
+    }
   } finally {
     loading.set(false);
   }
@@ -259,6 +272,10 @@ async function fetchBrowserTabs(): Promise<void> {
   }
 }
 
+// --- Fetch error tracking ---
+let consecutiveErrors = 0;
+const ERROR_TOAST_THRESHOLD = 3;
+
 // --- Polling lifecycle ---
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let tabIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -299,4 +316,5 @@ export function _resetForTest(): void {
   aiLoading.set(false);
   aiError.set(null);
   aiProfile.set("general");
+  consecutiveErrors = 0;
 }
