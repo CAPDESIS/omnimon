@@ -1,3 +1,5 @@
+//! Core security abstractions. Manages secure credential storage using native OS keyrings (Keychain, Credential Manager, Secret Service).
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

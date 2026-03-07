@@ -1,3 +1,5 @@
+//! Security auditing and NIST compliance module. Compares active processes against CVE databases and generates encrypted security heartbeats.
+
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 use std::fs;

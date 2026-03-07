@@ -1,3 +1,5 @@
+//! System telemetry and metrics collection. Gathers real-time data on CPU, memory, swap, and identifies the top resource-consuming processes.
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use sysinfo::System;

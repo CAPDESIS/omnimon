@@ -1,3 +1,5 @@
+//! Low-level Operating System FFI bindings. Handles direct interactions with Windows API, macOS frameworks, and Linux syscalls.
+
 use crate::killer::{is_immutable_blocked_process, KillError};
 use std::path::Path;
 

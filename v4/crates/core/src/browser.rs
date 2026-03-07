@@ -1,3 +1,5 @@
+//! Browser integration. Uses the Chrome DevTools Protocol (CDP) to track, focus, and manage individual browser tabs across Chrome, Safari, Brave, Edge, and Arc.
+
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 

@@ -1,3 +1,5 @@
+//! Process management and termination. Implements safe process killing with strict, immutable OS-specific blocklists to prevent accidental termination of critical system services.
+
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::Path;

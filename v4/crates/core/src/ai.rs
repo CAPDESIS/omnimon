@@ -1,3 +1,5 @@
+//! Artificial Intelligence integration module. Handles communication with various LLM providers (OpenAI, Anthropic, Gemini, OpenRouter) for predictive system optimization and context analysis.
+
 use keyring::Entry;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};

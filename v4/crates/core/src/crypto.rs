@@ -1,3 +1,5 @@
+//! Cryptographic utilities. Provides AES-256-GCM encryption and secure payload handling for sensitive security reports and audit logs.
+
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::engine::general_purpose::STANDARD;

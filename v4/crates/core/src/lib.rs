@@ -1,3 +1,5 @@
+//! OmniMon Core Library. This crate contains all the high-performance native logic, including system telemetry, network capture, and AI processing, completely decoupled from the UI.
+
 pub mod ai;
 pub mod audit;
 pub mod audit_trail;

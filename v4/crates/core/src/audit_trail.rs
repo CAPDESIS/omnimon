@@ -1,3 +1,5 @@
+//! Audit trail logging. Maintains a secure, tamper-evident record of all critical actions taken by the system or the user.
+
 use crate::crypto;
 use crate::security::ProcessThreatLabel;
 use serde::{Deserialize, Serialize};
