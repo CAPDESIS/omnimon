@@ -465,6 +465,60 @@ fn get_cloud_key() -> Result<String, String> {
     entry.get_password().map_err(|e| e.to_string())
 }
 
+/// IPC: Interactive AI chat with live system state injection and tool calling.
+#[tauri::command]
+async fn ai_chat(
+    app: AppHandle,
+    message: String,
+    provider: String,
+    model: String,
+) -> Result<macmon_core::ai::ChatResponse, String> {
+    let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
+
+    // Ollama doesn't need an API key
+    let api_key = if ai_provider.requires_api_key() {
+        get_api_key_with_fallback(&app, &provider)?
+    } else {
+        String::new()
+    };
+
+    // Build system prompt with live OS state
+    let sys_state = macmon_core::watcher::get_cached_state();
+    let system_prompt = macmon_core::ai::build_chat_system_prompt(&sys_state);
+
+    // Send to LLM
+    let (ai_text, tool_call) = macmon_core::ai::chat_with_tools(
+        ai_provider,
+        &model,
+        &api_key,
+        &message,
+        &system_prompt,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // If AI requested a tool call, execute it
+    let tool_result = tool_call.map(|call| {
+        macmon_core::ai::execute_tool_call(&call.tool, &call.args, &sys_state)
+    });
+
+    // Build reply text: include tool result feedback
+    let reply = if let Some(ref result) = tool_result {
+        if result.success {
+            format!("{}\n\n[Action executed] {}", ai_text, result.details)
+        } else {
+            format!("{}\n\n[Action failed] {}", ai_text, result.details)
+        }
+    } else {
+        ai_text
+    };
+
+    Ok(macmon_core::ai::ChatResponse {
+        reply,
+        tool_call: tool_result,
+    })
+}
+
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -572,6 +626,7 @@ pub fn run() {
             validate_api_key,
             analyze_processes,
             analyze_context,
+            ai_chat,
             get_browser_tabs,
             close_browser_tab,
             focus_browser_tab,

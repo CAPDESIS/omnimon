@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ProcessEntry, SystemStats, Metrics, BrowserTab, BrowserName, ProcessSuggestion, KillProcessesResult } from "./types";
+import type { ProcessEntry, SystemStats, Metrics, BrowserTab, BrowserName, ProcessSuggestion, KillProcessesResult, ChatResponse } from "./types";
 
 const VALID_BROWSERS = new Set<string>(["Chrome", "Safari", "Brave", "Edge", "Arc", "Firefox"]);
 
@@ -261,6 +261,22 @@ export async function ipcApplyAiRules(payload: string): Promise<number> {
   const result: unknown = await invoke("apply_ai_rules", { payload });
   assertFiniteNumber("apply_ai_rules result", result);
   return result;
+}
+
+/** Sends a chat message to the AI backend with tool calling support. */
+export async function ipcAiChat(message: string, provider: string, model: string): Promise<ChatResponse> {
+  const result: unknown = await invoke("ai_chat", { message, provider, model });
+
+  if (result == null || typeof result !== "object") {
+    throw new IPCValidationError("ai_chat result", result, "Expected object from ai_chat");
+  }
+  const r = result as Record<string, unknown>;
+  assertString("ai_chat result.reply", r.reply);
+
+  return {
+    reply: r.reply as string,
+    tool_call: r.tool_call as ChatResponse["tool_call"],
+  };
 }
 
 /** Retrieves the JSON schema contract for AI rules from the Rust backend. */
