@@ -5,11 +5,13 @@ import { writable } from "svelte/store";
 const { mockAlertRules, mockFiredAlerts, mockClearFired, mockRemoveRule } = vi.hoisted(() => {
   const { writable } = require("svelte/store");
   return {
-    mockAlertRules: writable<Array<{
+    mockAlertRules: // @ts-ignore
+    writable<Array<{
       metric: string; operator: string; threshold: number;
       action: string; processName?: string;
     }>>([]),
-    mockFiredAlerts: writable<Array<{
+    mockFiredAlerts: // @ts-ignore
+    writable<Array<{
       id: string; timestamp: number; processName?: string;
       value: number; rule: { metric: string; operator: string; threshold: number };
     }>>([]),
