@@ -2,10 +2,20 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use sysinfo::System;
+use sysinfo::{ProcessRefreshKind, System};
 
 static CACHED_STATE: OnceLock<Arc<RwLock<SystemState>>> = OnceLock::new();
 static WATCHER_STARTED: AtomicBool = AtomicBool::new(false);
+
+/// Per-process info cached by the watcher thread (CPU%, executable name, start time).
+/// Avoids the need for IPC handlers to lock a `System` instance on the main thread.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CachedProcessInfo {
+    pub pid: u32,
+    pub cpu_pct: f32,
+    pub exec_name: String,
+    pub start_time: u64,
+}
 
 /// Periodically refreshed snapshot of system health: memory, CPU, swap, and network I/O.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -25,6 +35,7 @@ pub struct SystemState {
     pub mitre_network_alerts: Vec<crate::security::ProcessThreatLabel>,
     pub dynamic_rule_alerts: Vec<crate::rules_engine::DynamicAlert>,
     pub security_heartbeat: Option<crate::audit::SecurityHeartbeat>,
+    pub cached_process_info: Vec<CachedProcessInfo>,
     pub updated_at_unix_ms: u128,
 }
 
@@ -35,6 +46,7 @@ fn state_handle() -> Arc<RwLock<SystemState>> {
 fn collect_state(system: &mut System) -> SystemState {
     system.refresh_memory();
     system.refresh_cpu();
+    system.refresh_processes_specifics(ProcessRefreshKind::everything());
 
     let fallback_total = system.total_memory();
     let fallback_free = system.available_memory();
@@ -60,6 +72,24 @@ fn collect_state(system: &mut System) -> SystemState {
         .map(|d| d.as_millis())
         .unwrap_or(0);
 
+    let cached_process_info: Vec<CachedProcessInfo> = system
+        .processes()
+        .iter()
+        .map(|(pid, process)| {
+            let exec_name = process
+                .exe()
+                .and_then(|e| e.file_name())
+                .map(|f| f.to_string_lossy().into_owned())
+                .unwrap_or_else(|| process.name().to_string());
+            CachedProcessInfo {
+                pid: pid.as_u32(),
+                cpu_pct: process.cpu_usage(),
+                exec_name,
+                start_time: process.start_time(),
+            }
+        })
+        .collect();
+
     SystemState {
         total_memory_bytes,
         free_memory_bytes,
@@ -76,6 +106,7 @@ fn collect_state(system: &mut System) -> SystemState {
         mitre_network_alerts: Vec::new(),
         dynamic_rule_alerts: Vec::new(),
         security_heartbeat: None,
+        cached_process_info,
         updated_at_unix_ms,
     }
 }

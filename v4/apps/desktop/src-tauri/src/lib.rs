@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
-use sysinfo::{Pid, ProcessRefreshKind, System};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
@@ -42,14 +41,6 @@ pub struct Metrics {
     pub stats: SystemStats,
 }
 
-/// Persistent sysinfo instance for per-process CPU tracking.
-/// CPU usage requires consecutive refreshes to produce meaningful values.
-static PROCESS_SYSTEM: OnceLock<Mutex<System>> = OnceLock::new();
-
-fn process_system() -> &'static Mutex<System> {
-    PROCESS_SYSTEM.get_or_init(|| Mutex::new(System::new_all()))
-}
-
 fn format_uptime(secs: u64) -> String {
     if secs < 60 {
         format!("{}s", secs)
@@ -63,19 +54,23 @@ fn format_uptime(secs: u64) -> String {
 }
 
 /// IPC: Return real processes + system stats in a single call.
+///
+/// All data is read from caches populated by background threads — no heavy OS
+/// calls or mutex contention happen on the main/IPC thread.
 #[tauri::command]
 fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
-    // System-level stats from the cached watcher (O(1))
+    // System-level stats + per-process CPU cache from the background watcher (RwLock read, O(1))
     let sys_state = macmon_core::watcher::get_cached_state();
+
+    // Build a PID → CachedProcessInfo lookup for O(1) joins
+    let cpu_cache: HashMap<u32, &macmon_core::watcher::CachedProcessInfo> = sys_state
+        .cached_process_info
+        .iter()
+        .map(|p| (p.pid, p))
+        .collect();
 
     // Top processes sorted by memory from core
     let top_procs = macmon_core::metrics::top_processes_by_memory(100);
-
-    // Refresh persistent System — only processes (skip disks, networks, components)
-    let mut system = process_system()
-        .lock()
-        .map_err(|e| format!("system lock poisoned: {e}"))?;
-    system.refresh_processes_specifics(ProcessRefreshKind::everything());
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -85,21 +80,15 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
     let processes: Vec<ProcessEntry> = top_procs
         .iter()
         .map(|entry| {
-            let proc_info = system.process(Pid::from_u32(entry.pid));
+            let cached = cpu_cache.get(&entry.pid);
 
-            let cpu_pct = proc_info.map(|p| p.cpu_usage() as f64).unwrap_or(0.0);
+            let cpu_pct = cached.map(|p| p.cpu_pct as f64).unwrap_or(0.0);
 
-            let exec_name = proc_info
-                .and_then(|p| {
-                    p.exe().map(|e| {
-                        e.file_name()
-                            .map(|f| f.to_string_lossy().into_owned())
-                            .unwrap_or_else(|| entry.name.clone())
-                    })
-                })
+            let exec_name = cached
+                .map(|p| p.exec_name.clone())
                 .unwrap_or_else(|| entry.name.clone());
 
-            let start_time = proc_info.map(|p| p.start_time()).unwrap_or(now);
+            let start_time = cached.map(|p| p.start_time).unwrap_or(now);
             let uptime = format_uptime(now.saturating_sub(start_time));
 
             let ram_mb = entry.memory_bytes as f64 / 1_048_576.0;
