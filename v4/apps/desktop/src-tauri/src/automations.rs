@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Duration, Instant};
+use std::collections::HashMap;
+use tauri::AppHandle;
+use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_store::StoreExt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationRule {
@@ -13,6 +17,7 @@ pub struct AutomationRule {
 }
 
 static RULES: OnceLock<Arc<RwLock<Vec<AutomationRule>>>> = OnceLock::new();
+static RULES_INITIALIZED: OnceLock<Arc<RwLock<bool>>> = OnceLock::new();
 
 pub fn get_rules() -> Arc<RwLock<Vec<AutomationRule>>> {
     RULES
@@ -20,38 +25,62 @@ pub fn get_rules() -> Arc<RwLock<Vec<AutomationRule>>> {
         .clone()
 }
 
-pub fn add_rule(rule: AutomationRule) {
-    let arc = get_rules();
-    let mut rules = arc.write().unwrap();
-    rules.push(rule);
+fn save_rules(app: &AppHandle, rules: &[AutomationRule]) {
+    if let Ok(store) = app.store("automations.json") {
+        store.set("rules", serde_json::to_value(rules).unwrap());
+        let _ = store.save();
+    }
 }
 
-pub fn remove_rule(id: &str) {
+pub fn add_rule(app: &AppHandle, rule: AutomationRule) {
+    let arc = get_rules();
+    let mut rules = arc.write().unwrap();
+    rules.push(rule.clone());
+    save_rules(app, &rules);
+}
+
+pub fn remove_rule(app: &AppHandle, id: &str) {
     let arc = get_rules();
     let mut rules = arc.write().unwrap();
     rules.retain(|r| r.id != id);
+    save_rules(app, &rules);
 }
 
-use std::collections::HashMap;
-use tauri::AppHandle;
-use tauri_plugin_notification::NotificationExt;
-
 #[tauri::command]
-pub fn get_automation_rules() -> Vec<AutomationRule> {
+pub fn get_automation_rules(app: AppHandle) -> Vec<AutomationRule> {
+    let init_flag = RULES_INITIALIZED.get_or_init(|| Arc::new(RwLock::new(false)));
+    let mut is_init = init_flag.write().unwrap();
+    if !*is_init {
+        if let Ok(store) = app.store("automations.json") {
+            if let Some(val) = store.get("rules") {
+                if let Ok(stored_rules) = serde_json::from_value::<Vec<AutomationRule>>(val) {
+                    let arc = get_rules();
+                    let mut rules = arc.write().unwrap();
+                    *rules = stored_rules;
+                }
+            }
+        }
+        *is_init = true;
+    }
+    
     get_rules().read().unwrap().clone()
 }
 
 #[tauri::command]
-pub fn add_automation_rule(rule: AutomationRule) {
-    add_rule(rule);
+pub fn add_automation_rule(app: AppHandle, rule: AutomationRule) {
+    let _ = get_automation_rules(app.clone()); // Ensure init
+    add_rule(&app, rule);
 }
 
 #[tauri::command]
-pub fn remove_automation_rule(id: String) {
-    remove_rule(&id);
+pub fn remove_automation_rule(app: AppHandle, id: String) {
+    let _ = get_automation_rules(app.clone()); // Ensure init
+    remove_rule(&app, &id);
 }
 
 pub fn start_engine(app: AppHandle) {
+    let _ = get_automation_rules(app.clone()); // Pre-load rules
+    
     std::thread::spawn(move || {
         let mut violations: HashMap<(String, u32), Instant> = HashMap::new();
         loop {

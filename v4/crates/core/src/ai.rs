@@ -497,6 +497,8 @@ Tools:
 - kill_process: Kill a process. Args: {{"pid": <number>}}
 - kill_by_name: Kill all processes matching a name. Args: {{"name": "<string>"}}
 - close_tabs: Close browser tabs matching a URL pattern. Args: {{"pattern": "<string>"}}
+- add_automation_rule: Automatically kill/alert when a process uses too much CPU/RAM. Args: {{"id": "<unique_string>", "process_pattern": "<string>", "metric": "<cpu|ram>", "threshold": <number>, "duration_secs": <number>, "action": "<kill|alert>"}}
+- remove_automation_rule: Remove an existing automation rule. Args: {{"id": "<string>"}}
 
 ## Rules
 - If no action is needed, respond with plain text analysis.
@@ -543,7 +545,7 @@ fn parse_tool_call(text: &str) -> Option<RawToolCall> {
     let call: RawToolCall = serde_json::from_str(json_str).ok()?;
     // Only accept known tools
     match call.tool.as_str() {
-        "kill_process" | "kill_by_name" | "close_tabs" => Some(call),
+        "kill_process" | "kill_by_name" | "close_tabs" | "add_automation_rule" | "remove_automation_rule" => Some(call),
         _ => None,
     }
 }
