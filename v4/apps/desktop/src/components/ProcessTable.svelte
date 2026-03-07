@@ -8,7 +8,7 @@
   import { t } from "../lib/i18n";
   import { detectBrowser } from "../lib/browser";
   import SecurityBadge from "./SecurityBadge.svelte";
-  import { iconForProcess } from "../lib/processIcons";
+  import { iconForProcess, isNativeIconDataUrl } from "../lib/processIcons";
 
   interface Props {
     processes: ProcessEntry[];
@@ -56,7 +56,7 @@
   function getGroup(proc: ProcessEntry): string {
     const browser = detectBrowser(proc);
     if (browser) return browser;
-    return proc.group || "";
+    return proc.group || proc.grouped_name || "";
   }
 
   let collapsedGroups = $state(new Set<string>());
@@ -147,14 +147,14 @@
       const p = processByPid.get(pid);
       if (!p) continue;
       const browser = detectBrowser(p);
-      const groupKey = browser ?? p.name;
+      const groupKey = p.group_key || browser ?? p.grouped_name || p.name;
       const arr = map.get(groupKey);
       if (arr) arr.push(p);
       else map.set(groupKey, [p]);
     }
     return [...map.entries()]
       .map(([name, procs]) => ({
-        name,
+        name: procs[0]?.grouped_name || name,
         procs,
         totalRam: procs.reduce((s, p) => s + p.ram_mb, 0),
         totalCpu: procs.reduce((s, p) => s + p.cpu_pct, 0),
@@ -269,10 +269,15 @@
 {#snippet colCell(key: ColumnKey, proc: ProcessEntry)}
   {#if key === "name"}
     <td class="col-name" title={proc.exec_name}>
-      <svg class="proc-icon" viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
-        <path d={iconForProcess(proc.name, proc.group)} />
-      </svg>
+      {#if isNativeIconDataUrl(proc.icon_data_url)}
+        <img class="proc-icon native" src={proc.icon_data_url} alt="" aria-hidden="true" />
+      {:else}
+        <svg class="proc-icon" viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
+          <path d={iconForProcess(proc.name, proc.group)} />
+        </svg>
+      {/if}
       <span class="name-text">{proc.name}</span>
+      {#if proc.process_count > 1}<span class="badge grouped">x{proc.process_count}</span>{/if}
       {#if proc.idle}<span class="badge idle">{t("table.idle")}</span>{/if}
       <SecurityBadge pid={proc.pid} />
     </td>
@@ -592,6 +597,13 @@
     margin-right: 3px;
   }
 
+  .proc-icon.native {
+    width: 12px;
+    height: 12px;
+    object-fit: contain;
+    border-radius: 2px;
+  }
+
   .name-text {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -620,6 +632,11 @@
   .badge.idle {
     background: rgba(255, 193, 7, 0.15);
     color: var(--yellow);
+  }
+
+  .badge.grouped {
+    background: rgba(59, 130, 246, 0.14);
+    color: var(--accent);
   }
 
   .sr-only {

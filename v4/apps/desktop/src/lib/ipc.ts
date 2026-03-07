@@ -42,10 +42,22 @@ function validateProcessEntry(raw: unknown, index: number): ProcessEntry {
   assertFiniteNumber(`processes[${index}].pid`, r.pid);
   assertString(`processes[${index}].name`, r.name);
   assertString(`processes[${index}].exec_name`, r.exec_name);
+  if (r.exe_path !== null && r.exe_path !== undefined) assertString(`processes[${index}].exe_path`, r.exe_path);
+  if (r.bundle_id !== null && r.bundle_id !== undefined) assertString(`processes[${index}].bundle_id`, r.bundle_id);
+  if (r.icon_data_url !== null && r.icon_data_url !== undefined) assertString(`processes[${index}].icon_data_url`, r.icon_data_url);
   assertFiniteNumber(`processes[${index}].ram_mb`, r.ram_mb);
   assertFiniteNumber(`processes[${index}].cpu_pct`, r.cpu_pct);
+  assertFiniteNumber(`processes[${index}].disk_read_mb`, r.disk_read_mb);
+  assertFiniteNumber(`processes[${index}].disk_write_mb`, r.disk_write_mb);
+  assertFiniteNumber(`processes[${index}].net_rx_bytes_per_sec`, r.net_rx_bytes_per_sec);
+  assertFiniteNumber(`processes[${index}].net_tx_bytes_per_sec`, r.net_tx_bytes_per_sec);
+  if (r.energy_impact_score !== null && r.energy_impact_score !== undefined) assertFiniteNumber(`processes[${index}].energy_impact_score`, r.energy_impact_score);
   assertString(`processes[${index}].uptime`, r.uptime);
   assertString(`processes[${index}].group`, r.group);
+  assertString(`processes[${index}].group_key`, r.group_key);
+  assertString(`processes[${index}].group_identity_type`, r.group_identity_type);
+  assertString(`processes[${index}].grouped_name`, r.grouped_name);
+  assertFiniteNumber(`processes[${index}].process_count`, r.process_count);
   assertBoolean(`processes[${index}].is_system`, r.is_system);
   assertBoolean(`processes[${index}].idle`, r.idle);
   assertString(`processes[${index}].state`, r.state);
@@ -54,10 +66,22 @@ function validateProcessEntry(raw: unknown, index: number): ProcessEntry {
     pid: r.pid as number,
     name: r.name as string,
     exec_name: r.exec_name as string,
+    exe_path: (r.exe_path as string | null | undefined) ?? null,
+    bundle_id: (r.bundle_id as string | null | undefined) ?? null,
+    icon_data_url: (r.icon_data_url as string | null | undefined) ?? null,
     ram_mb: r.ram_mb as number,
     cpu_pct: r.cpu_pct as number,
+    disk_read_mb: r.disk_read_mb as number,
+    disk_write_mb: r.disk_write_mb as number,
+    net_rx_bytes_per_sec: r.net_rx_bytes_per_sec as number,
+    net_tx_bytes_per_sec: r.net_tx_bytes_per_sec as number,
+    energy_impact_score: (r.energy_impact_score as number | null | undefined) ?? null,
     uptime: r.uptime as string,
     group: r.group as string,
+    group_key: r.group_key as string,
+    group_identity_type: r.group_identity_type as string,
+    grouped_name: r.grouped_name as string,
+    process_count: r.process_count as number,
     is_system: r.is_system as boolean,
     idle: r.idle as boolean,
     state: r.state as string,

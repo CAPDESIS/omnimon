@@ -228,33 +228,68 @@ fn main() {
             watcher::start_watcher();
             std::thread::sleep(std::time::Duration::from_millis(2500));
 
-            let state = watcher::get_cached_state();
-            let top_procs = metrics::top_processes_by_memory(10);
+            let snapshot = core::telemetry::telemetry_snapshot(Some(10));
 
             match format {
                 Format::Json => {
-                    let procs_json: Vec<serde_json::Value> = top_procs
+                    let procs_json: Vec<serde_json::Value> = snapshot
+                        .processes
                         .iter()
                         .map(|p| {
                             serde_json::json!({
                                 "pid": p.pid,
                                 "name": p.name,
-                                "memory_bytes": p.memory_bytes
+                                "group": p.group,
+                                "group_key": p.group_key,
+                                "grouped_name": p.grouped_display_name,
+                                "process_count": p.process_count,
+                                "memory_bytes": p.memory_bytes,
+                                "cpu_usage_percent": p.cpu_usage_percent,
+                                "disk_read_bytes": p.disk_read_bytes,
+                                "disk_write_bytes": p.disk_write_bytes,
+                                "net_rx_bytes_per_sec": p.net_rx_bytes_per_sec,
+                                "net_tx_bytes_per_sec": p.net_tx_bytes_per_sec,
+                                "energy_impact_score": p.energy_impact_score,
+                                "bundle_id": p.bundle_id,
+                                "exe_path": p.exe_path
+                            })
+                        })
+                        .collect();
+
+                    let grouped_json: Vec<serde_json::Value> = snapshot
+                        .super_processes
+                        .iter()
+                        .map(|group| {
+                            serde_json::json!({
+                                "key": group.binary_key,
+                                "display_name": group.display_name,
+                                "group": group.group,
+                                "identity_type": group.identity_type,
+                                "process_count": group.process_count,
+                                "memory_bytes": group.total_memory_bytes,
+                                "cpu_usage_percent": group.total_cpu_usage_percent,
+                                "disk_read_bytes": group.total_disk_read_bytes,
+                                "disk_write_bytes": group.total_disk_write_bytes,
+                                "net_rx_bytes_per_sec": group.total_net_rx_bytes_per_sec,
+                                "net_tx_bytes_per_sec": group.total_net_tx_bytes_per_sec,
+                                "energy_impact_score": group.energy_impact_score,
+                                "pids": group.pids
                             })
                         })
                         .collect();
 
                     let output = serde_json::json!({
                         "status": "running",
-                        "total_memory_bytes": state.total_memory_bytes,
-                        "used_memory_bytes": state.used_memory_bytes,
-                        "free_memory_bytes": state.free_memory_bytes,
-                        "free_percent": state.free_percent,
-                        "swap_used_mb": state.swap_used_mb,
-                        "cpu_usage_percent": state.cpu_usage_percent,
-                        "net_rx_bytes_per_sec": state.net_rx_bytes_per_sec,
-                        "net_tx_bytes_per_sec": state.net_tx_bytes_per_sec,
-                        "top_processes": procs_json
+                        "total_memory_bytes": snapshot.total_memory_bytes,
+                        "used_memory_bytes": snapshot.used_memory_bytes,
+                        "free_memory_bytes": snapshot.free_memory_bytes,
+                        "free_percent": snapshot.free_percent,
+                        "swap_used_mb": snapshot.swap_used_mb,
+                        "cpu_usage_percent": snapshot.cpu_usage_percent,
+                        "net_rx_bytes_per_sec": snapshot.net_rx_bytes_per_sec,
+                        "net_tx_bytes_per_sec": snapshot.net_tx_bytes_per_sec,
+                        "top_processes": procs_json,
+                        "grouped_processes": grouped_json
                     });
                     println!("{}", serde_json::to_string_pretty(&output).unwrap());
                 }
@@ -263,31 +298,63 @@ fn main() {
                     println!();
                     println!(
                         "  Memory: {} / {} ({:.1}% used)",
-                        format_memory(state.used_memory_bytes),
-                        format_memory(state.total_memory_bytes),
-                        100.0 - state.free_percent as f64
+                        format_memory(snapshot.used_memory_bytes),
+                        format_memory(snapshot.total_memory_bytes),
+                        100.0 - snapshot.free_percent as f64
                     );
-                    println!("  Swap:   {} MB used", state.swap_used_mb);
-                    println!("  CPU:    {:.1}%", state.cpu_usage_percent);
+                    println!("  Swap:   {} MB used", snapshot.swap_used_mb);
+                    println!("  CPU:    {:.1}%", snapshot.cpu_usage_percent);
                     println!(
                         "  Net:    rx {} /s  tx {} /s",
-                        format_memory(state.net_rx_bytes_per_sec),
-                        format_memory(state.net_tx_bytes_per_sec)
+                        format_memory(snapshot.net_rx_bytes_per_sec),
+                        format_memory(snapshot.net_tx_bytes_per_sec)
                     );
                     println!();
-                    println!("  Top processes by memory:");
-                    println!("  {:>6}  {:<30}  {:>12}", "PID", "NAME", "MEMORY");
-                    println!("  {}", "-".repeat(52));
-                    for p in &top_procs {
+                    println!("  Top grouped processes:");
+                    println!(
+                        "  {:<18}  {:>5}  {:>10}  {:>8}  {:>8}",
+                        "NAME", "COUNT", "MEMORY", "NET", "ENERGY"
+                    );
+                    println!("  {}", "-".repeat(66));
+                    for p in &snapshot.super_processes {
+                        let net_total = p
+                            .total_net_rx_bytes_per_sec
+                            .saturating_add(p.total_net_tx_bytes_per_sec);
                         println!(
-                            "  {:>6}  {:<30}  {:>12}",
+                            "  {:<18}  {:>5}  {:>10}  {:>8}  {:>8}",
+                            if p.display_name.len() > 18 {
+                                &p.display_name[..18]
+                            } else {
+                                &p.display_name
+                            },
+                            p.process_count,
+                            format_memory(p.total_memory_bytes),
+                            format_memory(net_total),
+                            format!("{:.1}", p.energy_impact_score.unwrap_or_default())
+                        );
+                    }
+                    println!();
+                    println!("  Top processes by memory:");
+                    println!(
+                        "  {:>6}  {:<26}  {:>10}  {:>8}  {:>8}",
+                        "PID", "NAME", "MEMORY", "NET", "ENERGY"
+                    );
+                    println!("  {}", "-".repeat(68));
+                    for p in &snapshot.processes {
+                        let net_total = p
+                            .net_rx_bytes_per_sec
+                            .saturating_add(p.net_tx_bytes_per_sec);
+                        println!(
+                            "  {:>6}  {:<26}  {:>10}  {:>8}  {:>8}",
                             p.pid,
-                            if p.name.len() > 30 {
-                                &p.name[..30]
+                            if p.name.len() > 26 {
+                                &p.name[..26]
                             } else {
                                 &p.name
                             },
-                            format_memory(p.memory_bytes)
+                            format_memory(p.memory_bytes),
+                            format_memory(net_total),
+                            format!("{:.1}", p.energy_impact_score.unwrap_or_default())
                         );
                     }
                 }

@@ -15,9 +15,18 @@ static WATCHER_STARTED: AtomicBool = AtomicBool::new(false);
 pub struct CachedProcessInfo {
     pub pid: u32,
     pub name: String,
+    pub group_name: String,
     pub memory_bytes: u64,
+    pub virtual_memory_bytes: u64,
     pub cpu_pct: f32,
     pub exec_name: String,
+    pub exe_path: Option<String>,
+    pub bundle_id: Option<String>,
+    pub disk_read_bytes: u64,
+    pub disk_write_bytes: u64,
+    pub net_rx_bytes_per_sec: u64,
+    pub net_tx_bytes_per_sec: u64,
+    pub energy_impact_score: Option<f32>,
     pub start_time: u64,
 }
 
@@ -81,17 +90,36 @@ fn collect_state(system: &mut System) -> SystemState {
         .iter()
         .map(|(pid, process)| {
             let name = process.name().to_string();
+            let exe_path = process.exe().map(|e| e.display().to_string());
             let exec_name = process
                 .exe()
                 .and_then(|e| e.file_name())
                 .map(|f| f.to_string_lossy().into_owned())
                 .unwrap_or_else(|| name.clone());
+            let bundle_id = crate::process_identity::detect_bundle_id(process.exe());
+            let disk = process.disk_usage();
+            let is_system = crate::killer::is_immutable_blocked_process_name(&name);
+            let group_name = crate::process_identity::classify_group(
+                &name,
+                &exec_name,
+                exe_path.as_deref(),
+                is_system,
+            );
             CachedProcessInfo {
                 pid: pid.as_u32(),
                 name,
+                group_name,
                 memory_bytes: process.memory(),
+                virtual_memory_bytes: process.virtual_memory(),
                 cpu_pct: process.cpu_usage(),
                 exec_name,
+                exe_path,
+                bundle_id,
+                disk_read_bytes: disk.total_read_bytes,
+                disk_write_bytes: disk.total_written_bytes,
+                net_rx_bytes_per_sec: 0,
+                net_tx_bytes_per_sec: 0,
+                energy_impact_score: None,
                 start_time: process.start_time(),
             }
         })
@@ -190,7 +218,25 @@ pub fn start_watcher() {
                     snapshot.net_tx_bytes_per_sec = sample.net_tx_bytes_per_sec;
                     snapshot.net_capture_backend = sample.backend_label;
                     snapshot.net_dpi_active = sample.deep_packet_inspection_active;
-                    snapshot.top_network_processes = sample.process_throughput;
+                    let process_throughput = sample.process_throughput;
+                    let mut throughput_by_pid = std::collections::HashMap::new();
+                    for item in &process_throughput {
+                        throughput_by_pid.insert(item.pid, (item.rx_bytes_per_sec, item.tx_bytes_per_sec));
+                    }
+                    for process in &mut snapshot.cached_process_info {
+                        let (rx, tx) = throughput_by_pid.get(&process.pid).copied().unwrap_or((0, 0));
+                        process.net_rx_bytes_per_sec = rx;
+                        process.net_tx_bytes_per_sec = tx;
+                        process.energy_impact_score = crate::metrics::estimate_energy_impact(
+                            process.cpu_pct,
+                            process.memory_bytes,
+                            process.disk_read_bytes,
+                            process.disk_write_bytes,
+                            rx,
+                            tx,
+                        );
+                    }
+                    snapshot.top_network_processes = process_throughput;
                     snapshot.recent_network_connections = sample.recent_connections;
                     snapshot.mitre_network_alerts = mitre_labels;
                     snapshot.dynamic_rule_alerts = dynamic_alerts;

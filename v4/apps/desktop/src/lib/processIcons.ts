@@ -83,6 +83,10 @@ export function iconForProcess(name: string, group?: string): string {
   return getProcessIconPath(getProcessCategory(name, group));
 }
 
+export function isNativeIconDataUrl(value?: string | null): value is string {
+  return typeof value === "string" && value.startsWith("data:image/");
+}
+
 /** Get a human-readable category label. */
 export function categoryLabel(category: ProcessCategory): string {
   switch (category) {
