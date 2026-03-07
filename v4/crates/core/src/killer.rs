@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::Path;
 use std::time::Duration;
-use sysinfo::{Pid, Signal, System};
+use sysinfo::{Pid, ProcessRefreshKind, Signal, System};
 
 const DEFAULT_PROTECTED_PROCESSES: &[&str] = &[
     "launchd",
@@ -228,8 +228,9 @@ pub fn kill_process_safe(pid: i32, extra_blocklist: &[String]) -> Result<KillRes
     }
 
     let pid_u32 = pid as u32;
-    let mut system = System::new_all();
-    system.refresh_all();
+    // Only load process data — skip disks, networks, components, memory, CPU
+    let mut system = System::new();
+    system.refresh_processes_specifics(ProcessRefreshKind::everything());
 
     let process_pid = Pid::from_u32(pid_u32);
 
@@ -281,7 +282,7 @@ pub fn kill_process_safe(pid: i32, extra_blocklist: &[String]) -> Result<KillRes
 }
 
 fn process_is_alive(system: &mut System, pid: u32) -> bool {
-    system.refresh_all();
+    system.refresh_processes_specifics(ProcessRefreshKind::new());
     system.process(Pid::from_u32(pid)).is_some()
 }
 
@@ -291,7 +292,7 @@ fn identity_matches(
     expected_name: &str,
     expected_exe: Option<&Path>,
 ) -> bool {
-    system.refresh_all();
+    system.refresh_processes_specifics(ProcessRefreshKind::everything());
     let Some(current) = system.process(Pid::from_u32(pid)) else {
         return false;
     };
@@ -347,8 +348,8 @@ mod tests {
 
     #[test]
     fn non_existent_pid_returns_process_not_found() {
-        let mut system = System::new_all();
-        system.refresh_all();
+        let mut system = System::new();
+        system.refresh_processes_specifics(ProcessRefreshKind::new());
 
         let mut candidate: u32 = 500_000;
         while system.process(Pid::from_u32(candidate)).is_some() {

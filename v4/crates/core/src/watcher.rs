@@ -7,11 +7,13 @@ use sysinfo::{ProcessRefreshKind, System};
 static CACHED_STATE: OnceLock<Arc<RwLock<SystemState>>> = OnceLock::new();
 static WATCHER_STARTED: AtomicBool = AtomicBool::new(false);
 
-/// Per-process info cached by the watcher thread (CPU%, executable name, start time).
-/// Avoids the need for IPC handlers to lock a `System` instance on the main thread.
+/// Per-process info cached by the watcher thread (memory, CPU%, executable name, start time).
+/// Avoids the need for IPC handlers to create `System` instances on the main thread.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CachedProcessInfo {
     pub pid: u32,
+    pub name: String,
+    pub memory_bytes: u64,
     pub cpu_pct: f32,
     pub exec_name: String,
     pub start_time: u64,
@@ -76,13 +78,16 @@ fn collect_state(system: &mut System) -> SystemState {
         .processes()
         .iter()
         .map(|(pid, process)| {
+            let name = process.name().to_string();
             let exec_name = process
                 .exe()
                 .and_then(|e| e.file_name())
                 .map(|f| f.to_string_lossy().into_owned())
-                .unwrap_or_else(|| process.name().to_string());
+                .unwrap_or_else(|| name.clone());
             CachedProcessInfo {
                 pid: pid.as_u32(),
+                name,
+                memory_bytes: process.memory(),
                 cpu_pct: process.cpu_usage(),
                 exec_name,
                 start_time: process.start_time(),
@@ -148,14 +153,20 @@ pub fn start_watcher() {
                     crate::security::evaluate_network_events(&sample.recent_connections, &policy);
                 let mitre_labels =
                     crate::security::label_process_observations(&network_observations);
-                let runtime = crate::metrics::snapshot_process_telemetry()
-                    .into_iter()
+
+                // collect_state refreshes processes, so we build runtime from
+                // the same System instance — no redundant System::new_all().
+                let mut snapshot = collect_state(&mut system);
+
+                let runtime: Vec<crate::rules_engine::ProcessRuntime> = snapshot
+                    .cached_process_info
+                    .iter()
                     .map(|p| crate::rules_engine::ProcessRuntime {
                         pid: p.pid,
-                        process_name: p.name,
+                        process_name: p.name.clone(),
                         memory_bytes: p.memory_bytes,
                     })
-                    .collect::<Vec<_>>();
+                    .collect();
                 let dynamic_alerts =
                     crate::rules_engine::evaluate_events(&sample.recent_connections, &runtime);
                 let heartbeat = crate::audit::build_security_heartbeat(
@@ -168,7 +179,6 @@ pub fn start_watcher() {
                     "monitoring",
                 );
 
-                let mut snapshot = collect_state(&mut system);
                 snapshot.net_rx_bytes_per_sec = sample.net_rx_bytes_per_sec;
                 snapshot.net_tx_bytes_per_sec = sample.net_tx_bytes_per_sec;
                 snapshot.net_capture_backend = sample.backend_label;

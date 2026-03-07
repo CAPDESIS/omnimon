@@ -59,18 +59,13 @@ fn format_uptime(secs: u64) -> String {
 /// calls or mutex contention happen on the main/IPC thread.
 #[tauri::command]
 fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
-    // System-level stats + per-process CPU cache from the background watcher (RwLock read, O(1))
+    // All data from the background watcher cache (RwLock read, O(1) — no syscalls)
     let sys_state = macmon_core::watcher::get_cached_state();
 
-    // Build a PID → CachedProcessInfo lookup for O(1) joins
-    let cpu_cache: HashMap<u32, &macmon_core::watcher::CachedProcessInfo> = sys_state
-        .cached_process_info
-        .iter()
-        .map(|p| (p.pid, p))
-        .collect();
-
-    // Top processes sorted by memory from core
-    let top_procs = macmon_core::metrics::top_processes_by_memory(100);
+    // Sort cached processes by memory descending, take top 100
+    let mut top_procs = sys_state.cached_process_info.clone();
+    top_procs.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
+    top_procs.truncate(100);
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -80,16 +75,9 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
     let processes: Vec<ProcessEntry> = top_procs
         .iter()
         .map(|entry| {
-            let cached = cpu_cache.get(&entry.pid);
-
-            let cpu_pct = cached.map(|p| p.cpu_pct as f64).unwrap_or(0.0);
-
-            let exec_name = cached
-                .map(|p| p.exec_name.clone())
-                .unwrap_or_else(|| entry.name.clone());
-
-            let start_time = cached.map(|p| p.start_time).unwrap_or(now);
-            let uptime = format_uptime(now.saturating_sub(start_time));
+            let cpu_pct = entry.cpu_pct as f64;
+            let exec_name = entry.exec_name.clone();
+            let uptime = format_uptime(now.saturating_sub(entry.start_time));
 
             let ram_mb = entry.memory_bytes as f64 / 1_048_576.0;
             let is_system = macmon_core::killer::is_immutable_blocked_process_name(&entry.name);
@@ -97,11 +85,12 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
             let idle = cpu_pct < threshold && !is_system;
 
             // Tag Browser group by process name pattern — no AppleScript, instant
+            let name = &entry.name;
             let group = if exec_name.contains("Google Chrome Helper")
                 || exec_name.contains("Google Chrome")
-                || entry.name == "com.apple.WebKit.WebContent"
+                || name == "com.apple.WebKit.WebContent"
                 || exec_name.contains("Safari")
-                || entry.name.contains("Safari")
+                || name.contains("Safari")
                 || exec_name.contains("Brave Browser Helper")
                 || exec_name.contains("Brave Browser")
                 || exec_name.contains("Microsoft Edge Helper")
@@ -109,7 +98,7 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
                 || exec_name.contains("Arc Helper")
                 || exec_name == "Arc"
                 || exec_name.contains("firefox")
-                || entry.name.contains("firefox")
+                || name.contains("firefox")
             {
                 "Browser".to_string()
             } else {
@@ -361,10 +350,14 @@ async fn analyze_processes(
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
     let api_key = get_api_key_with_fallback(&app, &provider)?;
 
-    let top_procs = macmon_core::metrics::top_processes_by_memory(30);
+    let sys_state = macmon_core::watcher::get_cached_state();
+    let mut top_procs = sys_state.cached_process_info;
+    top_procs.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
+    top_procs.truncate(30);
+
     let mut procs_to_send = Vec::new();
 
-    for p in top_procs {
+    for p in &top_procs {
         if !macmon_core::killer::is_immutable_blocked_process_name(&p.name) {
             procs_to_send.push(serde_json::json!({
                 "pid": p.pid,
