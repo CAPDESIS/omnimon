@@ -2631,6 +2631,7 @@ name = "omnimon-desktop"
 version = "4.6.0"
 dependencies = [
  "core",
+ "keyring",
  "serde",
  "serde_json",
  "tauri",
