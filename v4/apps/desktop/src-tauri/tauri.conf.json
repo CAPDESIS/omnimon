@@ -15,6 +15,7 @@
         "title": "OmniMon - System Monitor",
         "width": 1100,
         "height": 700,
+        "visible": false,
         "minWidth": 800,
         "minHeight": 400,
         "resizable": true,

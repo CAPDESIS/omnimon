@@ -5,6 +5,7 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "autostart:default",
     {
       "identifier": "shell:allow-open",
       "allow": [{ "url": "https://github.com/chochy2001/macmon/*" }]
