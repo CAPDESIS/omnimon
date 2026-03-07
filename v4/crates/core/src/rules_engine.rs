@@ -233,9 +233,15 @@ pub fn evaluate_events(
     events: &[crate::network::ProcessConnectionEvent],
     runtime: &[ProcessRuntime],
 ) -> Vec<DynamicAlert> {
-    let Ok(guard) = state().read() else {
+    let Ok(mut guard) = state().write() else {
         return Vec::new();
     };
+
+    let RulesState {
+        rules,
+        geo_db,
+        last_matched,
+    } = &mut *guard;
 
     let runtime_by_pid = runtime
         .iter()
@@ -252,9 +258,9 @@ pub fn evaluate_events(
             .map(|r| r.memory_bytes / 1_048_576)
             .unwrap_or_default();
 
-        let country = country_for_ip(&guard.geo_db, &event.dst_ip);
+        let country = country_for_ip(geo_db, &event.dst_ip);
 
-        for rule in guard.rules.iter().filter(|r| r.enabled) {
+        for rule in rules.iter().filter(|r| r.enabled) {
             if !matches_process(rule, &process_name) {
                 continue;
             }
@@ -290,6 +296,18 @@ pub fn evaluate_events(
             if !matched {
                 continue;
             }
+
+            if let Some(tc) = &rule.temporal_correlation {
+                if let Some(last) = last_matched.get(&tc.rule_id) {
+                    if last.elapsed().as_secs() > tc.within_seconds {
+                        continue;
+                    }
+                } else {
+                    continue;
+                }
+            }
+
+            last_matched.insert(rule.id.clone(), Instant::now());
 
             alerts.push(DynamicAlert {
                 rule_id: rule.id.clone(),
