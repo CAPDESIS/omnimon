@@ -237,6 +237,15 @@ pub fn active_rules() -> Vec<AlertRule> {
     state().read().map(|g| g.rules.clone()).unwrap_or_default()
 }
 
+pub fn remove_rule_by_id(id: &str) -> Result<bool, String> {
+    let mut guard = state()
+        .write()
+        .map_err(|_| "rules lock poisoned".to_string())?;
+    let before = guard.rules.len();
+    guard.rules.retain(|r| r.id != id);
+    Ok(guard.rules.len() < before)
+}
+
 pub fn evaluate_events(
     events: &[crate::network::ProcessConnectionEvent],
     runtime: &[ProcessRuntime],

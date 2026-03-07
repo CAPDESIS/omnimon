@@ -497,6 +497,8 @@ Tools:
 - kill_process: Kill a process. Args: {{"pid": <number>}}
 - kill_by_name: Kill all processes matching a name. Args: {{"name": "<string>"}}
 - close_tabs: Close browser tabs matching a URL pattern. Args: {{"pattern": "<string>"}}
+- add_automation_rule: Automatically kill/alert when a process uses too much CPU/RAM. Args: {{"id": "<unique_string>", "process_pattern": "<string>", "metric": "<cpu|ram>", "threshold": <number>, "duration_secs": <number>, "action": "<kill|alert>"}}
+- remove_automation_rule: Remove an existing automation rule. Args: {{"id": "<string>"}}
 
 ## Rules
 - If no action is needed, respond with plain text analysis.
@@ -543,7 +545,7 @@ fn parse_tool_call(text: &str) -> Option<RawToolCall> {
     let call: RawToolCall = serde_json::from_str(json_str).ok()?;
     // Only accept known tools
     match call.tool.as_str() {
-        "kill_process" | "kill_by_name" | "close_tabs" => Some(call),
+        "kill_process" | "kill_by_name" | "close_tabs" | "add_automation_rule" | "remove_automation_rule" => Some(call),
         _ => None,
     }
 }
@@ -643,6 +645,70 @@ pub fn execute_tool_call(
                 tool: "close_tabs".into(),
                 success: true,
                 details: format!("close_tabs:{}", pattern),
+            }
+        }
+        "add_automation_rule" => {
+            let id = args["id"].as_str().unwrap_or("").to_string();
+            let process_pattern = args["process_pattern"].as_str().unwrap_or("").to_string();
+            let metric = args["metric"].as_str().unwrap_or("cpu").to_string();
+            let threshold = args["threshold"].as_f64().unwrap_or(0.0);
+            let duration_secs = args["duration_secs"].as_u64().unwrap_or(30);
+            let action = args["action"].as_str().unwrap_or("alert").to_string();
+
+            if id.is_empty() || process_pattern.is_empty() {
+                return ToolResult {
+                    tool: "add_automation_rule".into(),
+                    success: false,
+                    details: "Missing required fields: id and process_pattern".into(),
+                };
+            }
+
+            let rule_json = serde_json::json!([{
+                "id": id,
+                "process_pattern": process_pattern,
+                "metric": metric,
+                "threshold": threshold,
+                "duration_secs": duration_secs,
+                "action": action,
+            }]);
+
+            match crate::rules_engine::upsert_rules_from_ai_json(&rule_json.to_string()) {
+                Ok(count) => ToolResult {
+                    tool: "add_automation_rule".into(),
+                    success: true,
+                    details: format!("Added {} automation rule(s): {} on {} {} > {}", count, id, process_pattern, metric, threshold),
+                },
+                Err(e) => ToolResult {
+                    tool: "add_automation_rule".into(),
+                    success: false,
+                    details: format!("Failed to add rule: {}", e),
+                },
+            }
+        }
+        "remove_automation_rule" => {
+            let id = args["id"].as_str().unwrap_or("");
+            if id.is_empty() {
+                return ToolResult {
+                    tool: "remove_automation_rule".into(),
+                    success: false,
+                    details: "Missing required field: id".into(),
+                };
+            }
+            match crate::rules_engine::remove_rule_by_id(id) {
+                Ok(removed) => ToolResult {
+                    tool: "remove_automation_rule".into(),
+                    success: removed,
+                    details: if removed {
+                        format!("Removed automation rule '{}'", id)
+                    } else {
+                        format!("Rule '{}' not found", id)
+                    },
+                },
+                Err(e) => ToolResult {
+                    tool: "remove_automation_rule".into(),
+                    success: false,
+                    details: format!("Failed to remove rule: {}", e),
+                },
             }
         }
         _ => ToolResult {

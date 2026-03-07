@@ -8,13 +8,16 @@ const { mockSecurityMap, mockProcesses, mockTotalFindings, mockFlaggedPids } = v
   const map = writable(new Map<number, ProcessSecurityInfo>());
   return {
     mockSecurityMap: map,
-    mockProcesses: writable<ProcessEntry[]>([]),
-    mockTotalFindings: derived(map, ($m: Map<number, ProcessSecurityInfo>) => {
+    mockProcesses: // @ts-ignore
+    writable<ProcessEntry[]>([]),
+    mockTotalFindings: // @ts-ignore
+    derived(map, ($m: Map<number, ProcessSecurityInfo>) => {
       let c = 0;
       for (const info of $m.values()) c += info.threats.length + info.cves.length;
       return c;
     }),
-    mockFlaggedPids: derived(map, ($m: Map<number, ProcessSecurityInfo>) => {
+    mockFlaggedPids: // @ts-ignore
+    derived(map, ($m: Map<number, ProcessSecurityInfo>) => {
       const s = new Set<number>();
       for (const [pid, info] of $m) {
         if (info.threats.length > 0 || info.cves.length > 0) s.add(pid);

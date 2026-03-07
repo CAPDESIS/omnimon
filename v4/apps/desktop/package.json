@@ -1,7 +1,7 @@
 {
   "name": "omnimon-desktop",
   "private": true,
-  "version": "4.1.0",
+  "version": "5.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -28,6 +28,7 @@
     "@tauri-apps/cli": "^2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.3.1",
+    "@types/node": "^25.3.5",
     "@typescript-eslint/types": "^8.56.1",
     "@vitest/coverage-v8": "^4.0.18",
     "@wdio/cli": "^9.24.0",

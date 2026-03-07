@@ -7,9 +7,12 @@ import type { ProcessEntry, SystemStats } from "../../lib/types";
 const { mockStats, mockProcesses, mockHistory } = vi.hoisted(() => {
   const { writable } = require("svelte/store") as typeof import("svelte/store");
   return {
-    mockStats: writable<SystemStats | null>(null),
-    mockProcesses: writable<ProcessEntry[]>([]),
-    mockHistory: writable<MetricsSnapshot[]>([]),
+    mockStats: // @ts-ignore
+    writable<SystemStats | null>(null),
+    mockProcesses: // @ts-ignore
+    writable<ProcessEntry[]>([]),
+    mockHistory: // @ts-ignore
+    writable<MetricsSnapshot[]>([]),
   };
 });
 

@@ -130,18 +130,29 @@
 
   // --- Dynamic Alerts from Rust Rules Engine ---
   let ruleAlerts = $derived.by((): InsightItem[] => {
-    return $dynamicAlerts.map((a) => ({
-      kind: "rule" as const,
-      pid: a.pid,
-      processName: a.process_name,
-      severity: "high" as const,
-      headline: a.message || `"${a.process_name}" triggered rule "${a.rule_name}"`,
-      explanation: `Security rule "${a.rule_name}" fired. Connection to ${a.dst_ip}:${a.dst_port}${a.country_code ? ` (${a.country_code})` : ""}.`,
-      action: `Review network activity for PID ${a.pid}. Consider blocking this connection or disabling the process.`,
-      techniqueId: a.mitre_technique_id ?? undefined,
-      ruleId: a.rule_id,
-      confidence: 0.95,
-    }));
+    return $dynamicAlerts.map((a) => {
+      let naturalExplanation = `Security rule "${a.rule_name}" fired. Connection to ${a.dst_ip}:${a.dst_port}${a.country_code ? ` (${a.country_code})` : ""}.`;
+      if (a.rule_name.toLowerCase().includes("download") || a.dst_port === 443 || a.dst_port === 80) {
+        naturalExplanation = `Este proceso lleva mucho tiempo activo descargando datos o comunicándose por la red, parece estar actualizando o sincronizando archivos.`;
+      } else if (a.rule_name.toLowerCase().includes("memory")) {
+        naturalExplanation = `Este proceso está consumiendo más memoria de lo normal, lo que puede volver lento el sistema.`;
+      } else if (a.country_code) {
+        naturalExplanation = `Este proceso intentó conectarse a un servidor en ${a.country_code}. Si no reconoces esta aplicación, podría ser sospechoso.`;
+      }
+
+      return {
+        kind: "rule" as const,
+        pid: a.pid,
+        processName: a.process_name,
+        severity: "high" as const,
+        headline: a.message || `"${a.process_name}" triggered rule "${a.rule_name}"`,
+        explanation: naturalExplanation,
+        action: `Review network activity for PID ${a.pid}. Consider blocking this connection or disabling the process.`,
+        techniqueId: a.mitre_technique_id ?? undefined,
+        ruleId: a.rule_id,
+        confidence: 0.95,
+      };
+    });
   });
 
   let allInsights = $derived([...insights, ...ruleAlerts]);
