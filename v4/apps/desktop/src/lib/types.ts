@@ -186,7 +186,20 @@ export interface AiRulesPayload {
   rules: AiRuleV1[];
 }
 
-export type AiProviderKind = "openrouter" | "openai" | "gemini" | "anthropic";
+// --- AI Chat Types ---
+
+export interface ToolResult {
+  tool: string;
+  success: boolean;
+  details: string;
+}
+
+export interface ChatResponse {
+  reply: string;
+  tool_call: ToolResult | null;
+}
+
+export type AiProviderKind = "openrouter" | "openai" | "gemini" | "anthropic" | "ollama";
 
 export interface AiProviderDef {
   id: AiProviderKind;
@@ -195,6 +208,11 @@ export interface AiProviderDef {
 }
 
 export const AI_PROVIDERS: AiProviderDef[] = [
+  {
+    id: "ollama",
+    label: "Ollama (Local)",
+    models: ["llama3.2", "llama3.1", "mistral", "gemma2", "qwen2.5"],
+  },
   {
     id: "openrouter",
     label: "OpenRouter",

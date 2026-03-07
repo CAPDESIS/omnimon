@@ -9,6 +9,7 @@
   import ToastContainer from "./components/ToastContainer.svelte";
   import AlertPanel from "./components/AlertPanel.svelte";
   import AiCommandBar from "./components/AiCommandBar.svelte";
+  import AIChat from "./components/AIChat.svelte";
   import NetworkMap from "./components/NetworkMap.svelte";
   import SecurityReportView from "./components/SecurityReportView.svelte";
   import AiInsightCard from "./components/AiInsightCard.svelte";
@@ -496,6 +497,9 @@
 
   <!-- Network Connection Map -->
   <NetworkMap />
+
+  <!-- AI Interactive Chat (Tool Calling) -->
+  <AIChat />
 
   <!-- AI Command Bar (Natural Language Config) -->
   <AiCommandBar />

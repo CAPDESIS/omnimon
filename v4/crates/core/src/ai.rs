@@ -18,6 +18,7 @@ pub enum AiProvider {
     OpenAI,
     Gemini,
     Anthropic,
+    Ollama,
 }
 
 impl AiProvider {
@@ -27,6 +28,7 @@ impl AiProvider {
             AiProvider::OpenAI => "omnimon_openai",
             AiProvider::Gemini => "omnimon_gemini",
             AiProvider::Anthropic => "omnimon_anthropic",
+            AiProvider::Ollama => "omnimon_ollama",
         }
     }
 
@@ -38,6 +40,7 @@ impl AiProvider {
                 "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
             }
             AiProvider::Anthropic => "https://api.anthropic.com/v1/messages",
+            AiProvider::Ollama => "http://localhost:11434/v1/chat/completions",
         }
     }
 
@@ -47,7 +50,13 @@ impl AiProvider {
             AiProvider::OpenAI => "OpenAI",
             AiProvider::Gemini => "Gemini",
             AiProvider::Anthropic => "Anthropic",
+            AiProvider::Ollama => "Ollama (Local)",
         }
+    }
+
+    /// Returns true if this provider requires an API key.
+    pub fn requires_api_key(&self) -> bool {
+        !matches!(self, AiProvider::Ollama)
     }
 }
 
@@ -59,6 +68,7 @@ impl std::str::FromStr for AiProvider {
             "openai" => Ok(AiProvider::OpenAI),
             "gemini" => Ok(AiProvider::Gemini),
             "anthropic" => Ok(AiProvider::Anthropic),
+            "ollama" => Ok(AiProvider::Ollama),
             _ => Err(format!("Unknown AI provider: {s}")),
         }
     }
@@ -123,6 +133,21 @@ pub async fn validate_api_key(
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let client = build_client()?;
     let url = provider.api_url();
+
+    // Ollama: just check that the server is reachable (no API key needed)
+    if provider == AiProvider::Ollama {
+        let resp = client
+            .get("http://localhost:11434/api/tags")
+            .send()
+            .await
+            .map_err(|_| -> Box<dyn Error + Send + Sync> {
+                "Ollama is not running — start it with `ollama serve`".into()
+            })?;
+        if !resp.status().is_success() {
+            return Err("Ollama server returned an error".into());
+        }
+        return Ok(());
+    }
 
     let resp = match provider {
         AiProvider::Anthropic => {
@@ -406,6 +431,298 @@ pub async fn analyze_context_key(
         .ok_or_else(|| "Invalid response format".into())
 }
 
+// ---------------------------------------------------------------------------
+// Interactive Chat with Tool Calling
+// ---------------------------------------------------------------------------
+
+/// Result of a tool call executed by the backend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolResult {
+    pub tool: String,
+    pub success: bool,
+    pub details: String,
+}
+
+/// Full response from the AI chat endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatResponse {
+    pub reply: String,
+    pub tool_call: Option<ToolResult>,
+}
+
+/// Builds a system prompt injected with live OS state for tool-calling.
+pub fn build_chat_system_prompt(state: &crate::watcher::SystemState) -> String {
+    let ram_total_gb = state.total_memory_bytes as f64 / 1_073_741_824.0;
+    let ram_used_gb = state.used_memory_bytes as f64 / 1_073_741_824.0;
+    let ram_pct = if state.total_memory_bytes > 0 {
+        (state.used_memory_bytes as f64 / state.total_memory_bytes as f64 * 100.0) as u32
+    } else {
+        0
+    };
+
+    let mut top_procs = state.cached_process_info.clone();
+    top_procs.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
+    top_procs.truncate(15);
+
+    let procs_list: Vec<String> = top_procs
+        .iter()
+        .map(|p| {
+            format!(
+                "  - PID {} | {} | {:.0}MB RAM | {:.1}% CPU",
+                p.pid,
+                p.name,
+                p.memory_bytes as f64 / 1_048_576.0,
+                p.cpu_pct
+            )
+        })
+        .collect();
+
+    format!(
+        r#"You are OmniMon, an intelligent macOS system monitor assistant.
+You can analyze system state AND execute actions via tool calls.
+
+## Current System State
+- RAM: {ram_used_gb:.1}GB / {ram_total_gb:.1}GB ({ram_pct}% used)
+- CPU: {cpu:.1}%
+- Swap: {swap}MB used
+- Network: RX {rx} bytes/s, TX {tx} bytes/s
+- Top processes:
+{procs}
+
+## Available Tools
+When the user asks you to perform an action, respond with ONLY a JSON object:
+{{"tool": "<name>", "args": {{...}}, "reason": "why this action"}}
+
+Tools:
+- kill_process: Kill a process. Args: {{"pid": <number>}}
+- kill_by_name: Kill all processes matching a name. Args: {{"name": "<string>"}}
+- close_tabs: Close browser tabs matching a URL pattern. Args: {{"pattern": "<string>"}}
+
+## Rules
+- If no action is needed, respond with plain text analysis.
+- NEVER kill system-critical processes (kernel_task, launchd, WindowServer).
+- Always explain your reasoning.
+- For kill actions, prefer targeting by name when the user uses a name."#,
+        cpu = state.cpu_usage_percent,
+        swap = state.swap_used_mb,
+        rx = state.net_rx_bytes_per_sec,
+        tx = state.net_tx_bytes_per_sec,
+        procs = procs_list.join("\n"),
+    )
+}
+
+/// Parsed tool call from AI response.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RawToolCall {
+    pub tool: String,
+    pub args: serde_json::Value,
+    #[serde(default)]
+    pub reason: String,
+}
+
+/// Tries to extract a JSON tool call from the AI response text.
+fn parse_tool_call(text: &str) -> Option<RawToolCall> {
+    // Find the first JSON object in the response
+    let start = text.find('{')?;
+    let mut depth = 0;
+    let mut end = start;
+    for (i, ch) in text[start..].char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = start + i + 1;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let json_str = &text[start..end];
+    let call: RawToolCall = serde_json::from_str(json_str).ok()?;
+    // Only accept known tools
+    match call.tool.as_str() {
+        "kill_process" | "kill_by_name" | "close_tabs" => Some(call),
+        _ => None,
+    }
+}
+
+/// Executes a validated tool call against the real OS.
+pub fn execute_tool_call(
+    call_tool: &str,
+    args: &serde_json::Value,
+    state: &crate::watcher::SystemState,
+) -> ToolResult {
+    match call_tool {
+        "kill_process" => {
+            let pid = args["pid"].as_u64().unwrap_or(0) as u32;
+            if pid == 0 {
+                return ToolResult {
+                    tool: "kill_process".into(),
+                    success: false,
+                    details: "Invalid PID".into(),
+                };
+            }
+            // Verify PID exists in current state
+            let proc_info = state.cached_process_info.iter().find(|p| p.pid == pid);
+            let proc_name = proc_info.map(|p| p.name.as_str()).unwrap_or("unknown");
+            match crate::killer::kill_process_safe(pid as i32, &[]) {
+                Ok(_) => ToolResult {
+                    tool: "kill_process".into(),
+                    success: true,
+                    details: format!("Killed process {} (PID {})", proc_name, pid),
+                },
+                Err(e) => ToolResult {
+                    tool: "kill_process".into(),
+                    success: false,
+                    details: format!("Failed to kill PID {}: {}", pid, e),
+                },
+            }
+        }
+        "kill_by_name" => {
+            let name = args["name"].as_str().unwrap_or("");
+            if name.is_empty() {
+                return ToolResult {
+                    tool: "kill_by_name".into(),
+                    success: false,
+                    details: "No process name provided".into(),
+                };
+            }
+            let name_lower = name.to_lowercase();
+            let matching_pids: Vec<u32> = state
+                .cached_process_info
+                .iter()
+                .filter(|p| p.name.to_lowercase().contains(&name_lower))
+                .map(|p| p.pid)
+                .collect();
+
+            if matching_pids.is_empty() {
+                return ToolResult {
+                    tool: "kill_by_name".into(),
+                    success: false,
+                    details: format!("No processes found matching '{}'", name),
+                };
+            }
+
+            let mut killed = 0u32;
+            let mut failed = 0u32;
+            for pid in &matching_pids {
+                match crate::killer::kill_process_safe(*pid as i32, &[]) {
+                    Ok(_) => killed += 1,
+                    Err(_) => failed += 1,
+                }
+            }
+            ToolResult {
+                tool: "kill_by_name".into(),
+                success: killed > 0,
+                details: format!(
+                    "Killed {}/{} processes matching '{}'{}",
+                    killed,
+                    matching_pids.len(),
+                    name,
+                    if failed > 0 {
+                        format!(" ({} failed — likely protected)", failed)
+                    } else {
+                        String::new()
+                    }
+                ),
+            }
+        }
+        "close_tabs" => {
+            let pattern = args["pattern"].as_str().unwrap_or("");
+            if pattern.is_empty() {
+                return ToolResult {
+                    tool: "close_tabs".into(),
+                    success: false,
+                    details: "No URL pattern provided".into(),
+                };
+            }
+            // Tab closing is handled by the frontend; return instruction
+            ToolResult {
+                tool: "close_tabs".into(),
+                success: true,
+                details: format!("close_tabs:{}", pattern),
+            }
+        }
+        _ => ToolResult {
+            tool: call_tool.into(),
+            success: false,
+            details: format!("Unknown tool: {}", call_tool),
+        },
+    }
+}
+
+/// Send a chat message to the AI and optionally execute tool calls.
+pub async fn chat_with_tools(
+    provider: AiProvider,
+    model: &str,
+    api_key: &str,
+    user_message: &str,
+    system_prompt: &str,
+) -> Result<(String, Option<RawToolCall>), Box<dyn Error + Send + Sync>> {
+    let client = build_client()?;
+
+    let ai_text = if provider == AiProvider::Anthropic {
+        let body = serde_json::json!({
+            "model": model,
+            "max_tokens": 2048,
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": user_message}]
+        });
+        let resp = send_with_retry(|| {
+            client
+                .post(AiProvider::Anthropic.api_url())
+                .header("x-api-key", api_key)
+                .header("anthropic-version", "2023-06-01")
+                .header("content-type", "application/json")
+                .json(&body)
+        })
+        .await?;
+        if resp.status().is_client_error() {
+            return Err(format!("AI request failed (status {})", resp.status().as_u16()).into());
+        }
+        let resp_json: serde_json::Value = resp.json().await?;
+        resp_json["content"][0]["text"]
+            .as_str()
+            .unwrap_or("")
+            .to_string()
+    } else {
+        // OpenAI-compatible (OpenAI, OpenRouter, Gemini, Ollama)
+        let body = serde_json::json!({
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ]
+        });
+        let resp = send_with_retry(|| {
+            let mut req = client.post(provider.api_url());
+            if provider != AiProvider::Ollama {
+                req = req.header("Authorization", format!("Bearer {}", api_key));
+            }
+            if provider == AiProvider::OpenRouter {
+                req = req
+                    .header("HTTP-Referer", "https://github.com/chochy2001/omnimon")
+                    .header("X-Title", "OmniMon");
+            }
+            req.json(&body)
+        })
+        .await?;
+        if resp.status().is_client_error() {
+            return Err(format!("AI request failed (status {})", resp.status().as_u16()).into());
+        }
+        let resp_json: serde_json::Value = resp.json().await?;
+        resp_json["choices"][0]["message"]["content"]
+            .as_str()
+            .unwrap_or("")
+            .to_string()
+    };
+
+    let tool_call = parse_tool_call(&ai_text);
+    Ok((ai_text, tool_call))
+}
+
 fn parse_suggestions(
     content: &str,
 ) -> Result<Vec<ProcessSuggestion>, Box<dyn Error + Send + Sync>> {
@@ -438,6 +755,10 @@ mod tests {
             AiProvider::from_str("anthropic").unwrap(),
             AiProvider::Anthropic
         );
+        assert_eq!(
+            AiProvider::from_str("ollama").unwrap(),
+            AiProvider::Ollama
+        );
         assert!(AiProvider::from_str("unknown").is_err());
     }
 
@@ -448,6 +769,7 @@ mod tests {
             AiProvider::OpenAI,
             AiProvider::Gemini,
             AiProvider::Anthropic,
+            AiProvider::Ollama,
         ]
         .iter()
         .map(|p| p.keyring_service())
@@ -463,7 +785,7 @@ mod tests {
     }
 
     #[test]
-    fn ai_provider_api_urls_are_https() {
+    fn ai_provider_api_urls_are_https_or_localhost() {
         for provider in &[
             AiProvider::OpenRouter,
             AiProvider::OpenAI,
@@ -476,6 +798,57 @@ mod tests {
                 provider
             );
         }
+        // Ollama runs locally — http is expected
+        assert!(AiProvider::Ollama.api_url().starts_with("http://localhost"));
+    }
+
+    #[test]
+    fn ollama_does_not_require_api_key() {
+        assert!(!AiProvider::Ollama.requires_api_key());
+        assert!(AiProvider::OpenAI.requires_api_key());
+        assert!(AiProvider::Anthropic.requires_api_key());
+    }
+
+    #[test]
+    fn parse_tool_call_extracts_kill_process() {
+        let text = r#"I'll kill that process for you. {"tool": "kill_process", "args": {"pid": 1234}, "reason": "user requested"}"#;
+        let call = parse_tool_call(text).expect("should parse tool call");
+        assert_eq!(call.tool, "kill_process");
+        assert_eq!(call.args["pid"], 1234);
+    }
+
+    #[test]
+    fn parse_tool_call_extracts_kill_by_name() {
+        let text = r#"{"tool": "kill_by_name", "args": {"name": "Chrome"}, "reason": "closing browser"}"#;
+        let call = parse_tool_call(text).expect("should parse");
+        assert_eq!(call.tool, "kill_by_name");
+        assert_eq!(call.args["name"], "Chrome");
+    }
+
+    #[test]
+    fn parse_tool_call_rejects_unknown_tools() {
+        let text = r#"{"tool": "format_disk", "args": {}, "reason": "evil"}"#;
+        assert!(parse_tool_call(text).is_none());
+    }
+
+    #[test]
+    fn parse_tool_call_returns_none_for_plain_text() {
+        assert!(parse_tool_call("Your system looks healthy. No action needed.").is_none());
+    }
+
+    #[test]
+    fn build_chat_system_prompt_contains_state() {
+        let state = crate::watcher::SystemState {
+            total_memory_bytes: 16 * 1024 * 1024 * 1024,
+            used_memory_bytes: 8 * 1024 * 1024 * 1024,
+            cpu_usage_percent: 45.0,
+            ..Default::default()
+        };
+        let prompt = build_chat_system_prompt(&state);
+        assert!(prompt.contains("RAM:"));
+        assert!(prompt.contains("kill_process"));
+        assert!(prompt.contains("kill_by_name"));
+        assert!(prompt.contains("close_tabs"));
     }
 
     #[test]
