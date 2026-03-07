@@ -434,16 +434,14 @@ fn get_window_visible(app: tauri::AppHandle) -> bool {
 #[tauri::command]
 #[allow(dead_code)]
 fn save_cloud_key(key: String) -> Result<(), String> {
-    let entry =
-        keyring::Entry::new("omnimon", "crabnebula_api_key").map_err(|e| e.to_string())?;
+    let entry = keyring::Entry::new("omnimon", "crabnebula_api_key").map_err(|e| e.to_string())?;
     entry.set_password(&key).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[allow(dead_code)]
 fn get_cloud_key() -> Result<String, String> {
-    let entry =
-        keyring::Entry::new("omnimon", "crabnebula_api_key").map_err(|e| e.to_string())?;
+    let entry = keyring::Entry::new("omnimon", "crabnebula_api_key").map_err(|e| e.to_string())?;
     entry.get_password().map_err(|e| e.to_string())
 }
 

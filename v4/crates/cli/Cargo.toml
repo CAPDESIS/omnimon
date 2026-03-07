@@ -10,8 +10,8 @@ core = { path = "../core" }
 tokio = { version = "1", features = ["rt", "macros"] }
 serde_json = "1"
 dirs = "6.0.0"
-serde = { version = "1.0.228", features = ["derive"] }
-keyring = "3"
+serde = { version = "1", features = ["derive"] }
+keyring = { version = "3", default-features = false }
 
 [dev-dependencies]
 assert_cmd = "2.0"

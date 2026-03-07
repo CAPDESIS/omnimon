@@ -443,4 +443,129 @@ mod tests {
         let alerts = evaluate_events(&events, &runtime);
         assert_eq!(alerts.len(), 1);
     }
+
+    #[test]
+    fn temporal_correlation_requires_prior_rule_match() {
+        // Rule A: simple port match (no correlation)
+        // Rule B: port match WITH temporal correlation to rule A
+        let payload = r#"{"schema_version":1,"rules":[
+            {"id":"rA","name":"port 8080","enabled":true,"kind":"process_port","process_contains":null,"country_code":null,"destination_ip":null,"destination_cidr":null,"destination_port":8080,"protocol":"any","process_memory_mb_gt":null,"mitre_technique_id":"T1571","temporal_correlation":null},
+            {"id":"rB","name":"port 9090 after 8080","enabled":true,"kind":"process_port","process_contains":null,"country_code":null,"destination_ip":null,"destination_cidr":null,"destination_port":9090,"protocol":"any","process_memory_mb_gt":null,"mitre_technique_id":"T1571","temporal_correlation":{"rule_id":"rA","within_seconds":10}}
+        ]}"#;
+        let count = upsert_rules_from_ai_json(payload).expect("load correlated rules");
+        assert_eq!(count, 2);
+
+        let runtime = vec![ProcessRuntime {
+            pid: 50,
+            process_name: "test-app".to_string(),
+            memory_bytes: 100 * 1_048_576,
+        }];
+
+        // Event on port 9090 BEFORE rule A ever matched -> rule B should NOT fire
+        let events_9090 = vec![crate::network::ProcessConnectionEvent {
+            pid: 50,
+            protocol: crate::network::TransportProtocol::Tcp,
+            direction: crate::network::TrafficDirection::Outbound,
+            src_ip: "10.0.0.1".to_string(),
+            dst_ip: "1.2.3.4".to_string(),
+            src_port: 40000,
+            dst_port: 9090,
+            bytes: 50,
+        }];
+        let alerts = evaluate_events(&events_9090, &runtime);
+        // Only rule A doesn't match port 9090, rule B requires prior A match
+        assert!(
+            alerts.iter().all(|a| a.rule_id != "rB"),
+            "rule B should not fire without prior rule A match"
+        );
+
+        // Now fire an event on port 8080 -> rule A matches, recording last_matched
+        let events_8080 = vec![crate::network::ProcessConnectionEvent {
+            pid: 50,
+            protocol: crate::network::TransportProtocol::Tcp,
+            direction: crate::network::TrafficDirection::Outbound,
+            src_ip: "10.0.0.1".to_string(),
+            dst_ip: "1.2.3.4".to_string(),
+            src_port: 40001,
+            dst_port: 8080,
+            bytes: 50,
+        }];
+        let alerts = evaluate_events(&events_8080, &runtime);
+        assert!(
+            alerts.iter().any(|a| a.rule_id == "rA"),
+            "rule A should fire on port 8080"
+        );
+
+        // Now fire port 9090 again -> rule B should fire (rule A matched within 10s)
+        let alerts = evaluate_events(&events_9090, &runtime);
+        assert!(
+            alerts.iter().any(|a| a.rule_id == "rB"),
+            "rule B should fire after rule A was recently matched"
+        );
+    }
+
+    #[test]
+    fn cidr_rule_matches_ip_in_range() {
+        let payload = r#"{"schema_version":1,"rules":[{"id":"r-cidr","name":"10.0.0.0/8 block","enabled":true,"kind":"process_cidr","process_contains":null,"country_code":null,"destination_ip":null,"destination_cidr":"10.0.0.0/8","destination_port":null,"protocol":"any","process_memory_mb_gt":null,"mitre_technique_id":"T1048","temporal_correlation":null}]}"#;
+        upsert_rules_from_ai_json(payload).expect("load cidr rule");
+
+        let runtime = vec![ProcessRuntime {
+            pid: 60,
+            process_name: "scanner".to_string(),
+            memory_bytes: 50 * 1_048_576,
+        }];
+
+        // IP inside CIDR
+        let events_in = vec![crate::network::ProcessConnectionEvent {
+            pid: 60,
+            protocol: crate::network::TransportProtocol::Tcp,
+            direction: crate::network::TrafficDirection::Outbound,
+            src_ip: "192.168.1.1".to_string(),
+            dst_ip: "10.5.3.1".to_string(),
+            src_port: 50000,
+            dst_port: 443,
+            bytes: 100,
+        }];
+        let alerts = evaluate_events(&events_in, &runtime);
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0].rule_id, "r-cidr");
+
+        // IP outside CIDR
+        let events_out = vec![crate::network::ProcessConnectionEvent {
+            pid: 60,
+            protocol: crate::network::TransportProtocol::Tcp,
+            direction: crate::network::TrafficDirection::Outbound,
+            src_ip: "192.168.1.1".to_string(),
+            dst_ip: "172.16.0.1".to_string(),
+            src_port: 50001,
+            dst_port: 443,
+            bytes: 100,
+        }];
+        let alerts = evaluate_events(&events_out, &runtime);
+        assert!(alerts.is_empty());
+    }
+
+    #[test]
+    fn disabled_rule_does_not_fire() {
+        let payload = r#"{"schema_version":1,"rules":[{"id":"r-off","name":"disabled rule","enabled":false,"kind":"process_port","process_contains":null,"country_code":null,"destination_ip":null,"destination_cidr":null,"destination_port":443,"protocol":"any","process_memory_mb_gt":null,"mitre_technique_id":"T1571","temporal_correlation":null}]}"#;
+        upsert_rules_from_ai_json(payload).expect("load disabled rule");
+
+        let events = vec![crate::network::ProcessConnectionEvent {
+            pid: 70,
+            protocol: crate::network::TransportProtocol::Tcp,
+            direction: crate::network::TrafficDirection::Outbound,
+            src_ip: "10.0.0.1".to_string(),
+            dst_ip: "1.1.1.1".to_string(),
+            src_port: 50000,
+            dst_port: 443,
+            bytes: 50,
+        }];
+        let runtime = vec![ProcessRuntime {
+            pid: 70,
+            process_name: "curl".to_string(),
+            memory_bytes: 10 * 1_048_576,
+        }];
+        let alerts = evaluate_events(&events, &runtime);
+        assert!(alerts.is_empty(), "disabled rule should not fire");
+    }
 }
