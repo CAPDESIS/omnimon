@@ -9,10 +9,22 @@ function makeProc(overrides: Partial<ProcessEntry> = {}): ProcessEntry {
     pid: 1,
     name: "TestApp",
     exec_name: "/usr/bin/testapp",
+    exe_path: "/usr/bin/testapp",
+    bundle_id: null,
+    icon_data_url: null,
     ram_mb: 50.3,
     cpu_pct: 5.1,
+    disk_read_mb: 0,
+    disk_write_mb: 0,
+    net_rx_bytes_per_sec: 0,
+    net_tx_bytes_per_sec: 0,
+    energy_impact_score: 0,
     uptime: "2m",
     group: "Utilities",
+    group_key: "utilities:testapp",
+    group_identity_type: "normalized_name",
+    grouped_name: "TestApp",
+    process_count: 1,
     is_system: false,
     idle: false,
     state: "R",
@@ -42,6 +54,8 @@ describe("rendering", () => {
     expect(screen.getByText("PID")).toBeInTheDocument();
     expect(screen.getByText("RAM")).toBeInTheDocument();
     expect(screen.getByText("CPU")).toBeInTheDocument();
+    expect(screen.getByText("Energy")).toBeInTheDocument();
+    expect(screen.getByText("Network")).toBeInTheDocument();
     expect(screen.getByText("Time")).toBeInTheDocument();
     expect(screen.getByText("ST")).toBeInTheDocument();
   });
@@ -50,6 +64,23 @@ describe("rendering", () => {
     render(ProcessTable, { props: { processes: [makeProc({ pid: 1, ram_mb: 123.456, cpu_pct: 7.89 })] } });
     expect(screen.getByText("123.5")).toBeInTheDocument();
     expect(screen.getByText("7.9")).toBeInTheDocument();
+  });
+
+  it("renders energy and network metrics", () => {
+    render(ProcessTable, {
+      props: { processes: [makeProc({ pid: 1, energy_impact_score: 22.34, net_rx_bytes_per_sec: 2048, net_tx_bytes_per_sec: 1024 })] },
+    });
+    expect(screen.getByText("22.3")).toBeInTheDocument();
+    expect(screen.getByText("3.0 KB/s")).toBeInTheDocument();
+  });
+
+  it("renders native icon image when icon_data_url is present", () => {
+    render(ProcessTable, {
+      props: { processes: [makeProc({ pid: 99, icon_data_url: "data:image/png;base64,AAAA" })] },
+    });
+    const img = document.querySelector("img.proc-icon.native") as HTMLImageElement | null;
+    expect(img).not.toBeNull();
+    expect(img?.src).toContain("data:image/png;base64,AAAA");
   });
 
   it("shows idle badge when process is idle", () => {
@@ -264,6 +295,8 @@ describe("sorting", () => {
     const nameHeader = screen.getByText("Name");
     const groupHeader = screen.getByText("Group");
     const cpuHeader = screen.getByText("CPU");
+    const energyHeader = screen.getByText("Energy");
+    const networkHeader = screen.getByText("Network");
     const timeHeader = screen.getByText("Time");
     const pidHeader = screen.getByText("PID");
     const stateHeader = screen.getByText("ST");
@@ -279,6 +312,14 @@ describe("sorting", () => {
     await fireEvent.click(cpuHeader);
     await fireEvent.click(cpuHeader);
     expect(cpuHeader.closest("th")?.getAttribute("aria-sort")).toBe("ascending");
+
+    await fireEvent.click(energyHeader);
+    await fireEvent.click(energyHeader);
+    expect(energyHeader.closest("th")?.getAttribute("aria-sort")).toBe("ascending");
+
+    await fireEvent.click(networkHeader);
+    await fireEvent.click(networkHeader);
+    expect(networkHeader.closest("th")?.getAttribute("aria-sort")).toBe("ascending");
 
     await fireEvent.click(timeHeader);
     await fireEvent.click(timeHeader);
