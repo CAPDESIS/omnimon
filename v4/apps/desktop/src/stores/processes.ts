@@ -89,7 +89,8 @@ export function applyDiff(current: ProcessEntry[], incoming: ProcessEntry[]): Pr
         existing.group !== p.group ||
         existing.group_key !== p.group_key ||
         existing.grouped_name !== p.grouped_name ||
-        existing.process_count !== p.process_count
+        existing.process_count !== p.process_count ||
+        existing.group_identity_type !== p.group_identity_type
       ) {
         result.push(p);
       } else {

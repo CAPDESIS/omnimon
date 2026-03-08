@@ -7,6 +7,7 @@
   import type { ProcessEntry } from "../lib/types";
 
   type MetricKind = "cpu" | "ram" | "network" | "swap" | "processes";
+  type SortKey = "name" | "pid" | "cpu" | "ram" | "net" | "state" | "uptime";
 
   interface Props {
     metric: MetricKind;
@@ -14,6 +15,21 @@
   }
 
   let { metric, onclose }: Props = $props();
+  function defaultSortKey(kind: MetricKind): SortKey {
+    if (kind === "cpu") return "cpu";
+    if (kind === "ram" || kind === "swap") return "ram";
+    if (kind === "network") return "net";
+    return "ram";
+  }
+  let sortKey = $state<SortKey>("ram");
+  let sortAsc = $state(false);
+  let processLimit = $state(30);
+
+  $effect(() => {
+    sortKey = defaultSortKey(metric);
+    sortAsc = false;
+    processLimit = 30;
+  });
 
   function closeOnEscape(event: KeyboardEvent) {
     if (event.key === "Escape") onclose();
@@ -30,7 +46,7 @@
   }
 
   function formatSeries(series: MetricPoint[], suffix = ""): string {
-    if (series.length === 0) return "No recent samples";
+    if (series.length === 0) return "—";
     const last = series[series.length - 1]?.value ?? 0;
     const max = Math.max(...series.map((point) => point.value), 0);
     const avg = series.reduce((sum, point) => sum + point.value, 0) / Math.max(series.length, 1);
@@ -43,21 +59,63 @@
     return `${bytesPerSec.toFixed(0)} B/s`;
   }
 
-  function sortProcesses(kind: MetricKind): ProcessEntry[] {
-    const list = [...$filtered];
-    switch (kind) {
-      case "cpu":
-        return list.sort((a, b) => b.cpu_pct - a.cpu_pct).slice(0, 20);
-      case "ram":
-        return list.sort((a, b) => b.ram_mb - a.ram_mb).slice(0, 20);
-      case "network":
-        return list.sort((a, b) => (b.net_rx_bytes_per_sec + b.net_tx_bytes_per_sec) - (a.net_rx_bytes_per_sec + a.net_tx_bytes_per_sec)).slice(0, 20);
-      default:
-        return list.sort((a, b) => b.ram_mb - a.ram_mb).slice(0, 20);
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      sortAsc = !sortAsc;
+    } else {
+      sortKey = key;
+      sortAsc = false;
     }
   }
 
-  const topProcesses = $derived(sortProcesses(metric));
+  function sortIndicator(key: SortKey): string {
+    if (sortKey !== key) return "";
+    return sortAsc ? " ▲" : " ▼";
+  }
+
+  function getSortValue(proc: ProcessEntry, key: SortKey): number | string {
+    switch (key) {
+      case "name": return proc.name.toLowerCase();
+      case "pid": return proc.pid;
+      case "cpu": return proc.cpu_pct;
+      case "ram": return proc.ram_mb;
+      case "net": return proc.net_rx_bytes_per_sec + proc.net_tx_bytes_per_sec;
+      case "state": return proc.state ?? "";
+      case "uptime": return proc.uptime ?? "";
+    }
+  }
+
+  const topProcesses = $derived.by(() => {
+    const list = [...$filtered];
+    list.sort((a, b) => {
+      const va = getSortValue(a, sortKey);
+      const vb = getSortValue(b, sortKey);
+      const cmp = typeof va === "string" ? va.localeCompare(vb as string) : (va as number) - (vb as number);
+      return sortAsc ? cmp : -cmp;
+    });
+    return list.slice(0, processLimit);
+  });
+
+  /** Build a mini sparkline SVG path from a series of points */
+  function sparklinePath(series: MetricPoint[], width = 200, height = 32): string {
+    if (series.length < 2) return "";
+    const max = Math.max(...series.map((p) => p.value), 1);
+    const step = width / (series.length - 1);
+    return series.map((p, i) => {
+      const x = i * step;
+      const y = height - (p.value / max) * height;
+      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+  }
+
+  const activeSeries = $derived.by(() => {
+    switch (metric) {
+      case "cpu": return $cpuSeries;
+      case "ram": return $ramSeries;
+      case "swap": return $swapSeries;
+      default: return [];
+    }
+  });
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -77,39 +135,71 @@
       {#if metric === "network"}
         <div class="section">
           <div class="summary-row">
-            <div class="summary-card">RX {formatRate($stats?.net_rx_bytes_per_sec ?? 0)}</div>
-            <div class="summary-card">TX {formatRate($stats?.net_tx_bytes_per_sec ?? 0)}</div>
-            <div class="summary-card">Samples {$metricsHistory.length}</div>
+            <div class="summary-card"><span class="card-label">RX</span><span class="card-value">{formatRate($stats?.net_rx_bytes_per_sec ?? 0)}</span></div>
+            <div class="summary-card"><span class="card-label">TX</span><span class="card-value">{formatRate($stats?.net_tx_bytes_per_sec ?? 0)}</span></div>
+            <div class="summary-card"><span class="card-label">Samples</span><span class="card-value">{$metricsHistory.length}</span></div>
+            <div class="summary-card"><span class="card-label">Processes</span><span class="card-value">{$stats?.total_processes ?? 0}</span></div>
           </div>
-          <div class="chart-summary">RX {$netRxSeries.length} pts · TX {$netTxSeries.length} pts</div>
           <NetworkMap />
         </div>
       {:else}
+        <!-- Summary cards -->
         <div class="summary-row">
-          <div class="summary-card">{metric === "cpu" ? formatSeries($cpuSeries, "%") : metric === "ram" ? formatSeries($ramSeries, "%") : metric === "swap" ? formatSeries($swapSeries, " MB") : `${$stats?.total_processes ?? 0} visible`}</div>
-          <div class="summary-card">History {$metricsHistory.length}</div>
-          <div class="summary-card">Top rows {topProcesses.length}</div>
+          <div class="summary-card wide">
+            <span class="card-label">{metricTitle(metric)}</span>
+            <span class="card-value">
+              {metric === "cpu" ? formatSeries($cpuSeries, "%") : metric === "ram" ? formatSeries($ramSeries, "%") : metric === "swap" ? formatSeries($swapSeries, " MB") : `${$stats?.total_processes ?? 0} visible`}
+            </span>
+          </div>
+          <div class="summary-card"><span class="card-label">History</span><span class="card-value">{$metricsHistory.length} samples</span></div>
+          <div class="summary-card"><span class="card-label">Showing</span><span class="card-value">{topProcesses.length} / {$filtered.length}</span></div>
         </div>
 
-        <div class="section">
-          <div class="section-title">Top processes</div>
-          <div class="process-grid">
-            {#each topProcesses as proc}
-              <div class="process-row">
-                <div class="proc-name">{proc.name}</div>
-                <div class="proc-meta">PID {proc.pid}</div>
-                {#if metric === "cpu"}
-                  <div class="proc-value">{proc.cpu_pct.toFixed(1)}%</div>
-                {:else if metric === "ram"}
-                  <div class="proc-value">{proc.ram_mb.toFixed(1)} MB</div>
-                {:else if metric === "swap"}
-                  <div class="proc-value">{proc.ram_mb.toFixed(1)} MB</div>
-                {:else}
-                  <div class="proc-value">{formatRate(proc.net_rx_bytes_per_sec + proc.net_tx_bytes_per_sec)}</div>
-                {/if}
-              </div>
-            {/each}
+        <!-- Sparkline chart -->
+        {#if activeSeries.length > 1}
+          <div class="sparkline-container">
+            <svg viewBox="0 0 200 32" preserveAspectRatio="none" class="sparkline-svg">
+              <path d={sparklinePath(activeSeries)} fill="none" stroke="var(--accent)" stroke-width="1.5" />
+            </svg>
           </div>
+        {/if}
+
+        <!-- Interactive process table -->
+        <div class="section">
+          <div class="section-title">Top processes · Click headers to sort</div>
+          <div class="process-table-wrapper">
+            <table class="process-table">
+              <thead>
+                <tr>
+                  <th class="th-name" onclick={() => toggleSort("name")}>Name{sortIndicator("name")}</th>
+                  <th class="th-pid" onclick={() => toggleSort("pid")}>PID{sortIndicator("pid")}</th>
+                  <th class="th-num" onclick={() => toggleSort("cpu")}>CPU%{sortIndicator("cpu")}</th>
+                  <th class="th-num" onclick={() => toggleSort("ram")}>RAM MB{sortIndicator("ram")}</th>
+                  <th class="th-num" onclick={() => toggleSort("net")}>Net{sortIndicator("net")}</th>
+                  <th class="th-state" onclick={() => toggleSort("state")}>State{sortIndicator("state")}</th>
+                  <th class="th-uptime" onclick={() => toggleSort("uptime")}>Uptime{sortIndicator("uptime")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each topProcesses as proc (proc.pid)}
+                  <tr>
+                    <td class="td-name" title={proc.exec_name}>{proc.name}</td>
+                    <td class="td-mono">{proc.pid}</td>
+                    <td class="td-mono">{proc.cpu_pct.toFixed(1)}</td>
+                    <td class="td-mono">{proc.ram_mb.toFixed(1)}</td>
+                    <td class="td-mono">{formatRate(proc.net_rx_bytes_per_sec + proc.net_tx_bytes_per_sec)}</td>
+                    <td class="td-state">{proc.state ?? "—"}</td>
+                    <td class="td-mono">{proc.uptime ?? "—"}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+          {#if $filtered.length > processLimit}
+            <button class="show-more-btn" onclick={() => processLimit += 20}>
+              Show more ({$filtered.length - processLimit} remaining)
+            </button>
+          {/if}
         </div>
       {/if}
     </div>
@@ -174,7 +264,7 @@
 
   .summary-row {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 10px;
   }
 
@@ -183,7 +273,39 @@
     border-radius: 10px;
     padding: 10px 12px;
     background: rgba(255,255,255,0.02);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .summary-card.wide {
+    grid-column: span 2;
+  }
+
+  .card-label {
+    font-size: calc(var(--base-font-size, 12px) * 0.667);
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+
+  .card-value {
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: calc(var(--base-font-size, 12px) * 0.917);
+  }
+
+  .sparkline-container {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.02);
+    height: 48px;
+  }
+
+  .sparkline-svg {
+    width: 100%;
+    height: 100%;
   }
 
   .section {
@@ -192,40 +314,93 @@
     gap: 10px;
   }
 
-  .section-title,
-  .chart-summary {
+  .section-title {
     font-size: calc(var(--base-font-size, 12px) * 0.8);
     color: var(--fg-dim);
   }
 
-  .process-grid {
-    display: grid;
-    gap: 6px;
-  }
-
-  .process-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    gap: 10px;
-    align-items: center;
+  .process-table-wrapper {
+    overflow-x: auto;
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 8px 10px;
-    background: rgba(255,255,255,0.02);
   }
 
-  .proc-name {
+  .process-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: calc(var(--base-font-size, 12px) * 0.917);
+  }
+
+  .process-table thead {
+    position: sticky;
+    top: 0;
+    background: var(--bg-alt);
+    z-index: 1;
+  }
+
+  .process-table th {
+    padding: 8px 10px;
+    text-align: left;
+    font-size: calc(var(--base-font-size, 12px) * 0.75);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: var(--fg-dim);
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .process-table th:hover {
+    color: var(--accent);
+  }
+
+  .th-num, .th-pid { text-align: right; }
+  .th-uptime { text-align: right; }
+
+  .process-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(128,128,128,0.08);
+  }
+
+  .process-table tbody tr:hover {
+    background: var(--bg-hover);
+  }
+
+  .td-name {
     font-weight: 600;
-    min-width: 0;
+    max-width: 240px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .proc-meta,
-  .proc-value {
+  .td-mono {
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    text-align: right;
     color: var(--fg-dim);
+    white-space: nowrap;
+  }
+
+  .td-state {
+    font-size: calc(var(--base-font-size, 12px) * 0.75);
+    color: var(--fg-dim);
+  }
+
+  .show-more-btn {
+    align-self: center;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--accent);
+    padding: 6px 16px;
+    cursor: pointer;
+    font-size: calc(var(--base-font-size, 12px) * 0.833);
+  }
+
+  .show-more-btn:hover {
+    background: var(--bg-hover);
   }
 
   @media (max-width: 800px) {
@@ -233,8 +408,8 @@
       grid-template-columns: 1fr;
     }
 
-    .process-row {
-      grid-template-columns: 1fr;
+    .summary-card.wide {
+      grid-column: span 1;
     }
   }
 </style>

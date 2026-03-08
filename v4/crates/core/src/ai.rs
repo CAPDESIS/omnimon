@@ -261,8 +261,9 @@ pub async fn analyze_with_ai_key(
     let client = build_client()?;
 
     let prompt = format!(
-        "You are macmon, a system optimization assistant. The user's current profile is: {}. \
+        "You are OmniMon, a system optimization assistant. The user's current profile is: {}. \
         Analyze these running processes and suggest which ones should be safely closed to free up resources. \
+        For browser helper/renderer processes, explain which type of activity likely causes the resource usage. \
         Return ONLY a JSON array of objects with 'pid' (number), 'name' (string), and 'reason' (string) keys. No markdown, no explanations.\n\nProcesses:\n{}",
         profile, processes_json
     );
@@ -388,7 +389,7 @@ pub async fn analyze_context_key(
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
     let client = build_client()?;
 
-    let system_msg = "You are macmon, a macOS system monitor assistant. Analyze the given process and browser tab information. Provide concise, actionable insights: what the process does, whether it's safe to close, memory impact, and any recommendations. Use short paragraphs. Be direct.";
+    let system_msg = "You are OmniMon, a cross-platform system monitor assistant. Analyze the given process and browser tab information. If the process is a browser renderer/helper, use the tab context to explain which tab or site it likely belongs to. Provide concise, actionable insights: what the process does, whether it's safe to close, memory impact, and any recommendations. Use short paragraphs. Be direct.";
 
     if provider == AiProvider::Anthropic {
         let body = serde_json::json!({

@@ -474,7 +474,7 @@
       <AlertPanel />
 
       <button
-        class="btn btn-icon"
+        class="btn btn-icon btn-text-icon"
         class:has-findings={$totalFindings > 0}
         onclick={() => showSecurityReport = true}
         title={t("toolbar.securityFindings", { count: String($totalFindings) })}
@@ -482,13 +482,14 @@
         <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
           <path d="M8 0L2 3v5c0 4 2.6 6.5 6 8 3.4-1.5 6-4 6-8V3L8 0zm0 2l4 2v4c0 3-1.9 5-4 6.3C5.9 13 4 11 4 8V4l4-2zm-1 4v3h2V6H7zm0 4v1.5h2V10H7z"/>
         </svg>
+        <span>{t("toolbar.security")}</span>
         {#if $totalFindings > 0}
           <span class="findings-badge">{$totalFindings}</span>
         {/if}
       </button>
 
       <button
-        class="btn btn-icon"
+        class="btn btn-icon btn-text-icon"
         onclick={() => dashboardCollapsed = !dashboardCollapsed}
         title={dashboardCollapsed ? t("toolbar.showDashboard") : t("toolbar.hideDashboard")}
         aria-label={dashboardCollapsed ? t("toolbar.showDashboard") : t("toolbar.hideDashboard")}
@@ -500,6 +501,7 @@
             <path d="M1 1h6v6H1zM9 1h6v6H9zM1 9h6v6H1zM9 9h6v6H9z" fill="none" stroke="currentColor" stroke-width="1.2"/>
           {/if}
         </svg>
+        <span>{t("toolbar.dashboard")}</span>
       </button>
 
       <button

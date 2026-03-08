@@ -111,9 +111,27 @@
     expandedIds = next;
   }
 
+  let quickScanResults = $state<{ suspicious: number; networkIssues: number; highMem: number; highCpu: number }>({ suspicious: 0, networkIssues: 0, highMem: 0, highCpu: 0 });
+
   async function runQuickScan() {
     quickScanning = true;
-    await new Promise((resolve) => setTimeout(resolve, 700));
+    // Actually analyze processes for issues
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const procs = $processes;
+    let suspicious = 0;
+    let networkIssues = 0;
+    let highMem = 0;
+    let highCpu = 0;
+
+    const suspiciousPatterns = /nc|netcat|mimikatz|powershell|cmd\.exe|nmap|metasploit|hydra|john|hashcat/i;
+    for (const proc of procs) {
+      if (suspiciousPatterns.test(proc.name) || suspiciousPatterns.test(proc.exec_name)) suspicious++;
+      if (proc.net_rx_bytes_per_sec + proc.net_tx_bytes_per_sec > 10 * 1024 * 1024) networkIssues++;
+      if (proc.ram_mb > 2048) highMem++;
+      if (proc.cpu_pct > 80) highCpu++;
+    }
+
+    quickScanResults = { suspicious, networkIssues, highMem, highCpu };
     quickScanAt = new Date().toLocaleTimeString();
     quickScanning = false;
   }
@@ -141,6 +159,27 @@
           <span class="quick-scan-meta">Last quick scan: {quickScanAt}</span>
         {/if}
       </div>
+
+      {#if quickScanAt}
+        <div class="quick-scan-results">
+          <div class="scan-stat" style="color: {quickScanResults.suspicious > 0 ? 'var(--danger)' : 'var(--green)'}">
+            <span class="scan-stat-value">{quickScanResults.suspicious}</span>
+            <span class="scan-stat-label">Suspicious processes</span>
+          </div>
+          <div class="scan-stat" style="color: {quickScanResults.networkIssues > 0 ? 'var(--yellow)' : 'var(--green)'}">
+            <span class="scan-stat-value">{quickScanResults.networkIssues}</span>
+            <span class="scan-stat-label">High bandwidth (&gt;10 MB/s)</span>
+          </div>
+          <div class="scan-stat" style="color: {quickScanResults.highMem > 0 ? 'var(--yellow)' : 'var(--green)'}">
+            <span class="scan-stat-value">{quickScanResults.highMem}</span>
+            <span class="scan-stat-label">High memory (&gt;2 GB)</span>
+          </div>
+          <div class="scan-stat" style="color: {quickScanResults.highCpu > 0 ? 'var(--yellow)' : 'var(--green)'}">
+            <span class="scan-stat-value">{quickScanResults.highCpu}</span>
+            <span class="scan-stat-label">High CPU (&gt;80%)</span>
+          </div>
+        </div>
+      {/if}
 
       <!-- Risk Score Overview -->
       <div class="risk-overview">
@@ -322,6 +361,37 @@
 
   .quick-scan-meta {
     font-size: calc(var(--base-font-size, 12px) * 0.8);
+    color: var(--fg-dim);
+  }
+
+  .quick-scan-results {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md, 8px);
+    background: var(--bg);
+  }
+
+  .scan-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .scan-stat-value {
+    font-size: calc(var(--base-font-size, 12px) * 1.5);
+    font-weight: 700;
+    font-family: "SF Mono", "Menlo", monospace;
+  }
+
+  .scan-stat-label {
+    font-size: calc(var(--base-font-size, 12px) * 0.667);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    text-align: center;
     color: var(--fg-dim);
   }
 

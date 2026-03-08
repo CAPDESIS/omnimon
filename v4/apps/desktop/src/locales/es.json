@@ -47,7 +47,9 @@
     "showDashboard": "Mostrar Panel",
     "hideDashboard": "Ocultar Panel",
     "automations": "Automatizaciones",
-    "helpCenter": "Centro de ayuda"
+    "helpCenter": "Centro de ayuda",
+    "security": "Seguridad",
+    "dashboard": "Panel"
   },
   "ai": {
     "suggestions": "Sugerencias IA",

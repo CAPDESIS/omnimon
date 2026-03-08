@@ -37,7 +37,19 @@
   let loading = $state(false);
   let messages = $state<ChatMessage[]>([]);
   let chatContainer: HTMLDivElement | undefined = $state();
+  let inputRef: HTMLTextAreaElement | undefined = $state();
   let requestToken = 0;
+
+  function resizeInput() {
+    if (!inputRef) return;
+    inputRef.style.height = "auto";
+    inputRef.style.height = `${Math.min(inputRef.scrollHeight, 180)}px`;
+  }
+
+  $effect(() => {
+    void input;
+    resizeInput();
+  });
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -155,15 +167,17 @@
   {/if}
 
   <div class="context-chat-input-row">
-    <input
+    <textarea
       class="context-chat-input"
-      type="text"
+      rows="1"
       bind:value={input}
+      bind:this={inputRef}
       placeholder={placeholder}
       aria-label={inputAriaLabel}
       disabled={loading}
-      onkeydown={(e) => { if (e.key === "Enter") handleSubmit(); }}
-    />
+      onkeydown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
+      style="resize: none;"
+    ></textarea>
     <button class="context-chat-send" onclick={handleSubmit} disabled={loading || !input.trim()}>
       {loading ? "..." : sendLabel}
     </button>
