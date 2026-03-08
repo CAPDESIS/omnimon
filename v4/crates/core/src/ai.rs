@@ -227,6 +227,7 @@ async fn send_with_retry(
                 }
             }
             Err(e) => {
+                eprintln!("[ai-retry] attempt {attempt}/{MAX_RETRIES} network error: {e}");
                 if attempt == MAX_RETRIES {
                     return Err(Box::new(e));
                 }
@@ -778,6 +779,11 @@ pub async fn chat_with_tools(
         })
         .collect();
 
+    // Log payload size for debugging
+    let system_len = system_prompt.len();
+    let history_len: usize = messages.iter().map(|(r, c)| r.len() + c.len()).sum();
+    eprintln!("[ai-chat] provider={provider:?} model={model} system_prompt_len={system_len} history_msgs={} history_bytes={history_len}", messages.len());
+
     let ai_text = if provider == AiProvider::Anthropic {
         let body = serde_json::json!({
             "model": model,
@@ -795,11 +801,14 @@ pub async fn chat_with_tools(
         })
         .await?;
         let status = resp.status();
+        eprintln!("[ai-chat] anthropic response status={}", status.as_u16());
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
+            eprintln!("[ai-chat] ERROR body: {}", &body_text[..body_text.len().min(500)]);
             return Err(format!("AI request failed (status {}): {}", status.as_u16(), body_text.chars().take(200).collect::<String>()).into());
         }
         let resp_text = resp.text().await?;
+        eprintln!("[ai-chat] response_len={}", resp_text.len());
         let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
             .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
         resp_json["content"][0]["text"]
@@ -828,11 +837,14 @@ pub async fn chat_with_tools(
         })
         .await?;
         let status = resp.status();
+        eprintln!("[ai-chat] openai-compat response status={}", status.as_u16());
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
+            eprintln!("[ai-chat] ERROR body: {}", &body_text[..body_text.len().min(500)]);
             return Err(format!("AI request failed (status {}): {}", status.as_u16(), body_text.chars().take(200).collect::<String>()).into());
         }
         let resp_text = resp.text().await?;
+        eprintln!("[ai-chat] response_len={}", resp_text.len());
         let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
             .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
         resp_json["choices"][0]["message"]["content"]
