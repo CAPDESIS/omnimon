@@ -3,6 +3,10 @@ name = "core"
 version = "5.0.0"
 edition = "2021"
 
+[features]
+default = []
+network-capture = ["pcap", "aya"]
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -20,11 +24,11 @@ hex = "0.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3", default-features = false, features = ["apple-native"] }
-pcap = "1"
+pcap = { version = "1", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { version = "3", default-features = false, features = ["linux-native"] }
-aya = "0.13"
+aya = { version = "0.13", optional = true }
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
 libc = "0.2"

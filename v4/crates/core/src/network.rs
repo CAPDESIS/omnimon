@@ -285,7 +285,7 @@ struct CollectorChoice {
     collector: Box<dyn NativeCollector>,
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", feature = "network-capture"))]
 fn make_collector() -> CollectorChoice {
     match macos::MacPcapCollector::new() {
         Ok(c) => CollectorChoice {
@@ -301,7 +301,7 @@ fn make_collector() -> CollectorChoice {
     }
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", feature = "network-capture"))]
 fn make_collector() -> CollectorChoice {
     match windows_collector::WinDivertCollector::new() {
         Ok(c) => CollectorChoice {
@@ -317,7 +317,7 @@ fn make_collector() -> CollectorChoice {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", feature = "network-capture"))]
 fn make_collector() -> CollectorChoice {
     match linux_ebpf::LinuxEbpfCollector::new() {
         Ok(c) => CollectorChoice {
@@ -333,7 +333,10 @@ fn make_collector() -> CollectorChoice {
     }
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+#[cfg(not(all(
+    any(target_os = "linux", target_os = "macos", target_os = "windows"),
+    feature = "network-capture"
+)))]
 fn make_collector() -> CollectorChoice {
     CollectorChoice {
         backend: NetworkCaptureBackend::Unsupported,
@@ -342,7 +345,7 @@ fn make_collector() -> CollectorChoice {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", feature = "network-capture"))]
 mod macos {
     use super::{
         CollectorWindow, NativeCollector, ProcessConnectionEvent, ProcessTrafficAcc,
@@ -510,7 +513,7 @@ mod macos {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", feature = "network-capture"))]
 mod linux_ebpf {
     use super::{
         CollectorWindow, NativeCollector, ProcessConnectionEvent, ProcessTrafficAcc,
@@ -706,7 +709,7 @@ mod linux_ebpf {
     }
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", feature = "network-capture"))]
 mod windows_collector {
     use super::{
         CollectorWindow, NativeCollector, ProcessConnectionEvent, ProcessTrafficAcc,
@@ -899,7 +902,7 @@ fn parse_ipv4_transport(frame: &[u8]) -> Option<ParsedTransport> {
     parse_ipv4_transport_inner(frame, 14)
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", feature = "network-capture"))]
 fn parse_ipv4_transport_no_eth(frame: &[u8]) -> Option<ParsedTransport> {
     parse_ipv4_transport_inner(frame, 0)
 }
