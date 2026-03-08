@@ -201,6 +201,12 @@ export async function killSelected(): Promise<number[]> {
     }
     return killed;
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("Rate limited")) {
+      toast.warning(t("common.rateLimited") || "Rate limited", msg);
+    } else {
+      toast.error(t("processes.killErrorTitle") || "Kill failed", msg);
+    }
     console.error("Kill failed:", e);
     return [];
   }
@@ -224,6 +230,12 @@ export async function killSingle(pid: number, name?: string): Promise<boolean> {
     }
     return ok;
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("Rate limited")) {
+      toast.warning(t("common.rateLimited") || "Rate limited", msg);
+    } else {
+      toast.error(t("processes.killErrorTitle") || "Kill failed", msg);
+    }
     console.error("Kill single failed:", e);
     return false;
   }

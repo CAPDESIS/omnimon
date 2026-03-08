@@ -5,6 +5,7 @@
   import { confirmAction } from "../lib/confirm";
   import { t } from "../lib/i18n";
   import { detectBrowser } from "../lib/browser";
+  import { toast } from "../stores/toasts";
 
   interface Props {
     filter?: string;
@@ -126,6 +127,12 @@
       await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
       removeTabFromStore(tab.id);
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("Rate limited")) {
+        toast.warning(t("common.rateLimited") || "Rate limited", msg);
+      } else {
+        toast.error(t("tabs.closeErrorTitle") || "Close failed", msg);
+      }
       console.error("Failed to close tab:", e);
     }
     const after = new Set(closing);
@@ -138,6 +145,7 @@
     const toClose = allTabs.filter((t) => selectedTabIds.has(t.id));
     if (toClose.length === 0) return;
     if (!confirmAction(t("tabs.confirmCloseSelected", { count: toClose.length }))) return;
+    let failCount = 0;
     for (const tab of toClose) {
       const next = new Set(closing);
       next.add(tab.id);
@@ -145,18 +153,26 @@
       try {
         await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
         removeTabFromStore(tab.id);
-      } catch {
-        // continue closing others
+      } catch (e) {
+        failCount++;
+        console.error("Failed to close tab:", tab.title, e);
       }
       const after = new Set(closing);
       after.delete(tab.id);
       closing = after;
+    }
+    if (failCount > 0) {
+      toast.warning(
+        t("tabs.closeErrorTitle") || "Close failed",
+        `${failCount} tab(s) could not be closed`,
+      );
     }
   }
 
   async function closeAllTabs(tabs: BrowserTab[]) {
     if (tabs.length === 0) return;
     if (!confirmAction(t("tabs.confirmCloseAll", { count: tabs.length }))) return;
+    let failCount = 0;
     for (const tab of tabs) {
       const next = new Set(closing);
       next.add(tab.id);
@@ -164,12 +180,19 @@
       try {
         await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
         removeTabFromStore(tab.id);
-      } catch {
-        // continue
+      } catch (e) {
+        failCount++;
+        console.error("Failed to close tab:", tab.title, e);
       }
       const after = new Set(closing);
       after.delete(tab.id);
       closing = after;
+    }
+    if (failCount > 0) {
+      toast.warning(
+        t("tabs.closeErrorTitle") || "Close failed",
+        `${failCount} tab(s) could not be closed`,
+      );
     }
   }
 </script>
