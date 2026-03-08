@@ -7,9 +7,9 @@ use std::error::Error;
 use std::future::Future;
 use std::time::Duration;
 
-const MAX_RETRIES: u32 = 3;
+const MAX_RETRIES: u32 = 1;
 const INITIAL_BACKOFF_MS: u64 = 500;
-const REQUEST_TIMEOUT_SECS: u64 = 30;
+const REQUEST_TIMEOUT_SECS: u64 = 60;
 
 /// Supported AI backend providers for process analysis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

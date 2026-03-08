@@ -68,12 +68,20 @@
 
     try {
       const cfg = get(aiProviderConfig);
-      // Build conversation history from previous user/assistant messages (exclude current user msg just added)
+      // Build conversation history (last 10 messages max to avoid token overflow)
       const history: Array<[string, string]> = messages
-        .slice(0, -1) // exclude the user message we just pushed
+        .slice(0, -1)
         .filter(m => m.role === "user" || m.role === "assistant")
-        .map(m => [m.role, m.text] as [string, string]);
-      const response = await ipcAiChat(trimmed, cfg.provider, cfg.model, history);
+        .slice(-10)
+        .map(m => [m.role, m.text.slice(0, 2000)] as [string, string]);
+      // Race the AI call against a 45-second timeout
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("AI request timed out after 45 seconds. Try a shorter message or check your API key.")), 45000)
+      );
+      const response = await Promise.race([
+        ipcAiChat(trimmed, cfg.provider, cfg.model, history),
+        timeoutPromise,
+      ]);
 
       messages = [...messages, { role: "assistant", text: response.reply }];
 
@@ -209,6 +217,12 @@
     scrollToBottom();
   }
 
+  function cancelRequest() {
+    loading = false;
+    messages = [...messages, { role: "system", text: "Request cancelled." }];
+    scrollToBottom();
+  }
+
   function clearChat() {
     messages = [];
     input = "";
@@ -296,6 +310,7 @@
         <div class="chat-msg chat-assistant">
           <span class="chat-role">AI</span>
           <span class="chat-text typing">{t("aiChat.thinking")}<span class="dots"><span>.</span><span>.</span><span>.</span></span></span>
+          <button class="cancel-btn" onclick={cancelRequest}>Cancel</button>
         </div>
       {/if}
       {#if pendingAction}
@@ -485,6 +500,23 @@
     transition: opacity 0.15s;
   }
   .chat-help:hover { opacity: 1; color: var(--accent); }
+
+  .cancel-btn {
+    margin-left: auto;
+    padding: 2px 10px;
+    border: 1px solid var(--danger, #ef4444);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--danger, #ef4444);
+    font-size: calc(var(--base-font-size, 12px) * 0.75);
+    font-weight: 600;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
+  }
+  .cancel-btn:hover { background: var(--danger, #ef4444); color: white; }
 
   .typing {
     color: var(--fg-dim);
