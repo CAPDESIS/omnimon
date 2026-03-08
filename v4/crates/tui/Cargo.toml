@@ -1,6 +1,6 @@
 [package]
 name = "omnimon-tui"
-version = "6.0.0"
+version = "6.0.1"
 edition = "2021"
 description = "OmniMon real-time terminal interface (ratatui + crossterm)"
 

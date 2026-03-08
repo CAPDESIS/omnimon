@@ -7,9 +7,9 @@ import { _resetForTest, browserTabs, processes } from "../../stores/processes";
 const mockInvoke = vi.mocked(invoke);
 
 // Mock confirmAction to auto-approve (returns Promise<boolean>)
-const mockConfirmAction = vi.fn(() => Promise.resolve(true));
+const mockConfirmAction = vi.fn<(msg: string) => Promise<boolean>>(() => Promise.resolve(true));
 vi.mock("../../lib/confirm", () => ({
-  confirmAction: (...args: unknown[]) => mockConfirmAction(...args),
+  confirmAction: (msg: string) => mockConfirmAction(msg),
   confirmDialogState: { subscribe: vi.fn(() => () => {}) },
   resolveConfirmDialog: vi.fn(),
 }));

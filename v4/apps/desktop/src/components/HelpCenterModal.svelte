@@ -52,7 +52,7 @@
             <p>{t("helpCenter.aboutBody")}</p>
           </div>
           <div class="about-meta">
-            <span class="about-version">OmniMon 6.0.0</span>
+            <span class="about-version">OmniMon 6.0.1</span>
             <span>{t("helpCenter.createdBy")}</span>
           </div>
           <Button

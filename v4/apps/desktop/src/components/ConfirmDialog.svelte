@@ -1,12 +1,13 @@
 <script lang="ts">
   import { confirmDialogState, resolveConfirmDialog } from "../lib/confirm";
   import { t } from "../lib/i18n";
+  import Button from "./Button.svelte";
 
   let dialogEl = $state<HTMLDivElement | undefined>();
 
   $effect(() => {
     if ($confirmDialogState.open && dialogEl) {
-      const btn = dialogEl.querySelector<HTMLButtonElement>(".confirm-primary");
+      const btn = dialogEl.querySelector<HTMLButtonElement>(".ui-button--primary");
       btn?.focus();
     }
   });
@@ -38,12 +39,12 @@
     <div class="confirm-dialog" bind:this={dialogEl}>
       <p class="confirm-message" id="confirm-msg">{$confirmDialogState.message}</p>
       <div class="confirm-actions">
-        <button class="confirm-btn confirm-cancel" onclick={() => resolveConfirmDialog(false)}>
+        <Button variant="secondary" size="sm" onclick={() => resolveConfirmDialog(false)}>
           {t("common.no")}
-        </button>
-        <button class="confirm-btn confirm-primary" onclick={() => resolveConfirmDialog(true)}>
+        </Button>
+        <Button variant="primary" size="sm" onclick={() => resolveConfirmDialog(true)}>
           {t("common.yes")}
-        </button>
+        </Button>
       </div>
     </div>
   </div>
@@ -83,32 +84,5 @@
     display: flex;
     justify-content: flex-end;
     gap: 8px;
-  }
-
-  .confirm-btn {
-    padding: 6px 16px;
-    border-radius: var(--radius-sm, 4px);
-    font-size: calc(var(--base-font-size) * 0.917);
-    font-weight: 600;
-    cursor: pointer;
-    border: 1px solid var(--border);
-    transition: background 0.12s, border-color 0.12s;
-  }
-
-  .confirm-cancel {
-    background: var(--bg);
-    color: var(--fg);
-  }
-  .confirm-cancel:hover {
-    background: var(--bg-hover);
-  }
-
-  .confirm-primary {
-    background: var(--accent);
-    color: white;
-    border-color: var(--accent);
-  }
-  .confirm-primary:hover {
-    background: var(--accent-hover, #2563eb);
   }
 </style>
