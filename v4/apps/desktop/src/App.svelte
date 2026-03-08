@@ -66,6 +66,7 @@
   import { ipcValidateApiKey, ipcCheckApiKey, ipcAnalyzeContext } from "./lib/ipc";
   import { listen } from "@tauri-apps/api/event";
   import { t, locale, initI18n } from "./lib/i18n";
+  import { inspectProcessRequest } from "./stores/uiActions";
   import type { LocaleCode } from "./lib/i18n";
 
   let detailProcess: ProcessEntry | null = $state(null);
@@ -86,6 +87,15 @@
 
   // Platform detection for OS-specific styles
   let platform = $state<"macos" | "windows" | "linux">("macos");
+
+  // Open ProcessDetailsModal when AI chat (or any other component) requests it
+  $effect(() => {
+    const proc = $inspectProcessRequest;
+    if (proc) {
+      detailProcess = proc;
+      inspectProcessRequest.set(null); // Reset after consuming
+    }
+  });
 
   // Sync local to store when resizing
   $effect(() => {
@@ -410,11 +420,12 @@
         value={$aiProfile}
         onchange={(e) => $aiProfile = (e.target as HTMLSelectElement).value}
         aria-label={t("toolbar.aiProfile")}
+        title={t("toolbar.profileHelp")}
       >
-        <option value="general">{t("toolbar.general")}</option>
-        <option value="developer">{t("toolbar.developer")}</option>
-        <option value="gaming">{t("toolbar.gaming")}</option>
-        <option value="battery">{t("toolbar.batterySaver")}</option>
+        <option value="general" title={t("toolbar.generalDesc")}>{t("toolbar.general")}</option>
+        <option value="developer" title={t("toolbar.developerDesc")}>{t("toolbar.developer")}</option>
+        <option value="gaming" title={t("toolbar.gamingDesc")}>{t("toolbar.gaming")}</option>
+        <option value="battery" title={t("toolbar.batteryDesc")}>{t("toolbar.batterySaver")}</option>
       </select>
       <button
         class="btn btn-accent"
@@ -432,7 +443,7 @@
         class="btn btn-icon"
         class:has-findings={$totalFindings > 0}
         onclick={() => showSecurityReport = true}
-        title="Security Report ({$totalFindings} findings)"
+        title={t("toolbar.securityFindings", { count: String($totalFindings) })}
       >
         <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
           <path d="M8 0L2 3v5c0 4 2.6 6.5 6 8 3.4-1.5 6-4 6-8V3L8 0zm0 2l4 2v4c0 3-1.9 5-4 6.3C5.9 13 4 11 4 8V4l4-2zm-1 4v3h2V6H7zm0 4v1.5h2V10H7z"/>
@@ -445,7 +456,7 @@
       <button
         class="btn btn-icon"
         onclick={() => dashboardCollapsed = !dashboardCollapsed}
-        title={dashboardCollapsed ? "Show Dashboard" : "Hide Dashboard"}
+        title={dashboardCollapsed ? t("toolbar.showDashboard") : t("toolbar.hideDashboard")}
       >
         <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
           {#if dashboardCollapsed}
@@ -459,7 +470,7 @@
       <button
         class="btn btn-icon"
         onclick={() => showAutomations = true}
-        title="Automations"
+        title={t("toolbar.automations")}
       >
         <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
           <path d="M8 0a8 8 0 100 16A8 8 0 008 0zm1 11H7V7h2v4zm0-5H7V4h2v2z"/>

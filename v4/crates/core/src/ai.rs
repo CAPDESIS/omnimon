@@ -737,17 +737,25 @@ pub async fn chat_with_tools(
     provider: AiProvider,
     model: &str,
     api_key: &str,
-    user_message: &str,
+    messages: &[(String, String)],
     system_prompt: &str,
 ) -> Result<(String, Option<RawToolCall>), Box<dyn Error + Send + Sync>> {
     let client = build_client()?;
+
+    // Build the messages array from history (role, content) pairs
+    let msg_array: Vec<serde_json::Value> = messages
+        .iter()
+        .map(|(role, content)| {
+            serde_json::json!({"role": role, "content": content})
+        })
+        .collect();
 
     let ai_text = if provider == AiProvider::Anthropic {
         let body = serde_json::json!({
             "model": model,
             "max_tokens": 2048,
             "system": system_prompt,
-            "messages": [{"role": "user", "content": user_message}]
+            "messages": msg_array
         });
         let resp = send_with_retry(|| {
             client
@@ -772,12 +780,11 @@ pub async fn chat_with_tools(
             .to_string()
     } else {
         // OpenAI-compatible (OpenAI, OpenRouter, Gemini, Ollama)
+        let mut openai_msgs = vec![serde_json::json!({"role": "system", "content": system_prompt})];
+        openai_msgs.extend(msg_array.iter().cloned());
         let body = serde_json::json!({
             "model": model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ]
+            "messages": openai_msgs
         });
         let resp = send_with_retry(|| {
             let mut req = client.post(provider.api_url());

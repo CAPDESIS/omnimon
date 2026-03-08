@@ -280,8 +280,8 @@
 
 <div class="command-bar" role="region" aria-label="AI Configuration">
   <div class="bar-header">
-    <span class="bar-label">AI Config</span>
-    <span class="bar-help" title="Configure OmniMon with natural language: create alert rules, change theme, adjust settings. Does NOT execute system actions.">&#9432;</span>
+    <span class="bar-label">{t("aiConfig.title")}</span>
+    <span class="bar-help" title={t("aiConfig.helpTooltip")}>&#9432;</span>
   </div>
   {#if messages.length > 0}
     <div class="chat-messages" bind:this={chatContainer} transition:slide={{ duration: 200 }}>
@@ -394,7 +394,7 @@
       <input
         class="command-input"
         type="text"
-        placeholder='Try: "Alert me if Chrome uses more than 2GB" or "Switch to cyberpunk theme"'
+        placeholder={t("aiConfig.placeholder")}
         bind:value={input}
         onkeydown={(e) => { if (e.key === "Enter") handleSubmit(); }}
         disabled={loading}

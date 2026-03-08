@@ -33,7 +33,17 @@
     "decreaseFont": "Decrease font size (Cmd+-)",
     "decreaseFontLabel": "Decrease font size",
     "increaseFont": "Increase font size (Cmd+=)",
-    "increaseFontLabel": "Increase font size"
+    "increaseFontLabel": "Increase font size",
+    "profileHelp": "AI analysis profile",
+    "generalDesc": "Balanced monitoring for all use cases",
+    "developerDesc": "Focuses on dev tools, compilers, and IDE processes",
+    "gamingDesc": "Prioritizes GPU, game engines, and frame performance",
+    "batteryDesc": "Highlights power-hungry processes to extend battery life",
+    "securityReport": "Security Report",
+    "securityFindings": "Security Report ({count} findings)",
+    "showDashboard": "Show Dashboard",
+    "hideDashboard": "Hide Dashboard",
+    "automations": "Automations"
   },
   "ai": {
     "suggestions": "AI Suggestions",
@@ -176,5 +186,21 @@
     "confirmKillSelected": "Kill {count} selected process(es)?",
     "confirmKillSingle": "Kill process \"{name}\" (PID {pid})?",
     "noApiKey": "No API key configured. Go to Settings to add your API key."
+  },
+  "aiChat": {
+    "title": "AI Actions",
+    "helpTooltip": "Execute system actions: kill processes, close browser tabs, analyze resource usage. Uses AI tool-calling.",
+    "suggestion1": "Close all YouTube tabs",
+    "suggestion2": "What's using the most memory?",
+    "suggestion3": "Kill Chrome",
+    "suggestion4": "Analyze network traffic",
+    "placeholder": "Ask AI to act: 'Kill Chrome', 'Close YouTube tabs', 'What uses most RAM?'",
+    "emptyState": "Ask me anything about your system:",
+    "thinking": "Thinking"
+  },
+  "aiConfig": {
+    "title": "AI Config",
+    "helpTooltip": "Configure OmniMon with natural language: create alert rules, change theme, adjust settings. Does NOT execute system actions.",
+    "placeholder": "Try: \"Alert me if Chrome uses more than 2GB\" or \"Switch to cyberpunk theme\""
   }
 }

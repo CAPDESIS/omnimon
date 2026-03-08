@@ -475,6 +475,7 @@ async fn ai_chat(
     message: String,
     provider: String,
     model: String,
+    history: Vec<(String, String)>,
 ) -> Result<macmon_core::ai::ChatResponse, String> {
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
 
@@ -506,9 +507,13 @@ async fn ai_chat(
         }
     }
 
+    // Build messages array: history + current user message
+    let mut messages = history;
+    messages.push(("user".to_string(), message));
+
     // Send to LLM
     let (ai_text, tool_call) =
-        macmon_core::ai::chat_with_tools(ai_provider, &model, &api_key, &message, &system_prompt)
+        macmon_core::ai::chat_with_tools(ai_provider, &model, &api_key, &messages, &system_prompt)
             .await
             .map_err(|e| e.to_string())?;
 

@@ -33,7 +33,17 @@
     "decreaseFont": "Reducir tamaño de fuente (Cmd+-)",
     "decreaseFontLabel": "Reducir tamaño de fuente",
     "increaseFont": "Aumentar tamaño de fuente (Cmd+=)",
-    "increaseFontLabel": "Aumentar tamaño de fuente"
+    "increaseFontLabel": "Aumentar tamaño de fuente",
+    "profileHelp": "Perfil de análisis AI",
+    "generalDesc": "Monitoreo balanceado para todos los casos de uso",
+    "developerDesc": "Enfocado en herramientas de desarrollo, compiladores e IDEs",
+    "gamingDesc": "Prioriza GPU, motores de juegos y rendimiento de frames",
+    "batteryDesc": "Destaca procesos que consumen batería para extender duración",
+    "securityReport": "Reporte de Seguridad",
+    "securityFindings": "Reporte de Seguridad ({count} hallazgos)",
+    "showDashboard": "Mostrar Panel",
+    "hideDashboard": "Ocultar Panel",
+    "automations": "Automatizaciones"
   },
   "ai": {
     "suggestions": "Sugerencias IA",
@@ -176,5 +186,21 @@
     "confirmKillSelected": "¿Terminar {count} proceso(s) seleccionado(s)?",
     "confirmKillSingle": "¿Terminar proceso \"{name}\" (PID {pid})?",
     "noApiKey": "No hay clave API configurada. Ve a Ajustes para agregar tu clave API."
+  },
+  "aiChat": {
+    "title": "Acciones AI",
+    "helpTooltip": "Ejecuta acciones del sistema: matar procesos, cerrar pestañas, analizar uso de recursos. Usa tool-calling de AI.",
+    "suggestion1": "Cierra todas las pestañas de YouTube",
+    "suggestion2": "¿Qué está usando más memoria?",
+    "suggestion3": "Cierra Chrome",
+    "suggestion4": "Analiza el tráfico de red",
+    "placeholder": "Pide a la AI: 'Cierra Chrome', 'Cierra pestañas de YouTube', '¿Qué usa más RAM?'",
+    "emptyState": "Pregúntame sobre tu sistema:",
+    "thinking": "Pensando"
+  },
+  "aiConfig": {
+    "title": "Configuración AI",
+    "helpTooltip": "Configura OmniMon con lenguaje natural: crea reglas de alerta, cambia tema, ajusta configuración. NO ejecuta acciones del sistema.",
+    "placeholder": "Prueba: \"Alértame si Chrome usa más de 2GB\" o \"Cambia al tema cyberpunk\""
   }
 }

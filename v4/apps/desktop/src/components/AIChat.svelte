@@ -3,8 +3,11 @@
   import { slide } from "svelte/transition";
   import { ipcAiChat, ipcGetBrowserTabs, ipcCloseBrowserTab } from "../lib/ipc";
   import { aiProviderConfig } from "../stores/preferences";
+  import { processes } from "../stores/processes";
+  import { inspectProcessRequest } from "../stores/uiActions";
   import { toast } from "../stores/toasts";
   import { detectPromptInjection } from "../lib/aiConfigBridge";
+  import { t } from "../lib/i18n";
   import type { ToolResult } from "../lib/types";
 
   interface ChatMessage {
@@ -27,6 +30,28 @@
     });
   }
 
+  function showProcessDetail(pid: number) {
+    const proc = get(processes).find(p => p.pid === pid);
+    if (proc) {
+      inspectProcessRequest.set(proc);
+    }
+  }
+
+  function renderWithClickablePids(text: string): string {
+    // Match "PID XXXXX" patterns and make them clickable
+    return text.replace(/PID\s+(\d+)/g, (match, pid) =>
+      `<button class="pid-link" data-pid="${pid}">${match}</button>`
+    );
+  }
+
+  function handleChatClick(e: MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('pid-link')) {
+      const pid = parseInt(target.dataset.pid || '0', 10);
+      if (pid > 0) showProcessDetail(pid);
+    }
+  }
+
   async function handleSubmit() {
     const trimmed = input.trim();
     if (!trimmed || loading) return;
@@ -43,7 +68,12 @@
 
     try {
       const cfg = get(aiProviderConfig);
-      const response = await ipcAiChat(trimmed, cfg.provider, cfg.model);
+      // Build conversation history from previous user/assistant messages (exclude current user msg just added)
+      const history: Array<[string, string]> = messages
+        .slice(0, -1) // exclude the user message we just pushed
+        .filter(m => m.role === "user" || m.role === "assistant")
+        .map(m => [m.role, m.text] as [string, string]);
+      const response = await ipcAiChat(trimmed, cfg.provider, cfg.model, history);
 
       messages = [...messages, { role: "assistant", text: response.reply }];
 
@@ -194,14 +224,17 @@
     html = html.replace(/<ul>([\s\S]*?)<\/ul>/g, (_m, inner) =>
       "<ul>" + inner.replace(/<br>/g, "") + "</ul>");
 
+    // Make PID references clickable
+    html = renderWithClickablePids(html);
+
     return `<p>${html}</p>`;
   }
 </script>
 
 <div class="ai-chat" role="region" aria-label="AI Chat">
   <div class="chat-header">
-    <span class="chat-title">AI Actions</span>
-    <span class="chat-help" title="Execute system actions: kill processes, close browser tabs, analyze resource usage. Uses AI tool-calling to perform real actions on your system.">&#9432;</span>
+    <span class="chat-title">{t("aiChat.title")}</span>
+    <span class="chat-help" title={t("aiChat.helpTooltip")}>&#9432;</span>
     <span class="chat-provider">{get(aiProviderConfig).provider}</span>
     {#if messages.length > 0}
       <button class="clear-btn" onclick={clearChat}>Clear</button>
@@ -209,7 +242,9 @@
   </div>
 
   {#if messages.length > 0}
-    <div class="chat-messages" bind:this={chatContainer} transition:slide={{ duration: 200 }}>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="chat-messages" bind:this={chatContainer} onclick={handleChatClick} transition:slide={{ duration: 200 }}>
       {#each messages as msg}
         <div class="chat-msg chat-{msg.role}">
           <span class="chat-role">
@@ -238,7 +273,7 @@
       {#if loading}
         <div class="chat-msg chat-assistant">
           <span class="chat-role">AI</span>
-          <span class="chat-text typing">Thinking<span class="dots"><span>.</span><span>.</span><span>.</span></span></span>
+          <span class="chat-text typing">{t("aiChat.thinking")}<span class="dots"><span>.</span><span>.</span><span>.</span></span></span>
         </div>
       {/if}
       {#if pendingAction}
@@ -257,19 +292,19 @@
     </div>
   {:else}
     <div class="chat-empty">
-      <p>Ask me anything about your system:</p>
+      <p>{t("aiChat.emptyState")}</p>
       <div class="suggestions">
-        <button onclick={() => { input = "Close all YouTube tabs"; handleSubmit(); }}>
-          Close all YouTube tabs
+        <button onclick={() => { input = t("aiChat.suggestion1"); handleSubmit(); }}>
+          {t("aiChat.suggestion1")}
         </button>
-        <button onclick={() => { input = "What's using the most memory?"; handleSubmit(); }}>
-          What's using the most memory?
+        <button onclick={() => { input = t("aiChat.suggestion2"); handleSubmit(); }}>
+          {t("aiChat.suggestion2")}
         </button>
-        <button onclick={() => { input = "Kill Chrome"; handleSubmit(); }}>
-          Kill Chrome
+        <button onclick={() => { input = t("aiChat.suggestion3"); handleSubmit(); }}>
+          {t("aiChat.suggestion3")}
         </button>
-        <button onclick={() => { input = "Analyze my network traffic"; handleSubmit(); }}>
-          Analyze network traffic
+        <button onclick={() => { input = t("aiChat.suggestion4"); handleSubmit(); }}>
+          {t("aiChat.suggestion4")}
         </button>
       </div>
     </div>
@@ -599,4 +634,21 @@
   }
   .send-btn:hover:not(:disabled) { background: var(--accent-hover, #1d4ed8); }
   .send-btn:disabled { opacity: 0.4; cursor: default; }
+
+  :global(.pid-link) {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-weight: 700;
+    padding: 0;
+    font-size: inherit;
+    font-family: inherit;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+  }
+  :global(.pid-link:hover) {
+    color: var(--accent-hover, #1d4ed8);
+    text-decoration-style: solid;
+  }
 </style>

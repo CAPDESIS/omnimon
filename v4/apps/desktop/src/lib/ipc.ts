@@ -288,8 +288,8 @@ export async function ipcApplyAiRules(payload: string): Promise<number> {
 }
 
 /** Sends a chat message to the AI backend with tool calling support. */
-export async function ipcAiChat(message: string, provider: string, model: string): Promise<ChatResponse> {
-  const result: unknown = await invoke("ai_chat", { message, provider, model });
+export async function ipcAiChat(message: string, provider: string, model: string, history: Array<[string, string]> = []): Promise<ChatResponse> {
+  const result: unknown = await invoke("ai_chat", { message, provider, model, history });
 
   if (result == null || typeof result !== "object") {
     throw new IPCValidationError("ai_chat result", result, "Expected object from ai_chat");
