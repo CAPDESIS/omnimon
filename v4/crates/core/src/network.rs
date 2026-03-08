@@ -274,6 +274,7 @@ impl NetworkTelemetryEngine {
     }
 }
 
+#[inline]
 fn scale_to_per_sec(value: u64, interval_ms: u128) -> u64 {
     let scaled = u128::from(value).saturating_mul(1000) / interval_ms.max(1);
     u64::try_from(scaled).unwrap_or(u64::MAX)

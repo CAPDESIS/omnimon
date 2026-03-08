@@ -5,6 +5,7 @@ pub mod app_icons;
 pub mod audit;
 pub mod audit_trail;
 pub mod browser;
+pub mod cloud;
 pub mod crypto;
 pub mod killer;
 pub mod metrics;

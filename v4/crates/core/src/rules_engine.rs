@@ -265,6 +265,10 @@ pub fn evaluate_events(
         .map(|r| (r.pid, r))
         .collect::<HashMap<u32, &ProcessRuntime>>();
 
+    // Evict stale entries from last_matched to prevent unbounded growth.
+    // Any entry older than 60 seconds is irrelevant for temporal correlation.
+    last_matched.retain(|_, instant| instant.elapsed().as_secs() < 60);
+
     let mut alerts = Vec::new();
     for event in events {
         let process = runtime_by_pid.get(&event.pid).copied();

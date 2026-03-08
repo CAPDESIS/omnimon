@@ -105,47 +105,31 @@ impl std::error::Error for KillError {}
 
 /// Returns `true` if the process name matches a hardcoded OS-critical protected process.
 ///
-/// Checks against a default list and platform-specific lists (macOS, Windows, Linux).
+/// Uses a lazily-initialized `HashSet` for O(1) lookups instead of linear scans,
+/// since this function is called for every process on every watcher tick.
 pub fn is_immutable_blocked_process_name(process_name: &str) -> bool {
+    use std::collections::HashSet;
+    use std::sync::OnceLock;
+
+    static BLOCKED_SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    let blocked = BLOCKED_SET.get_or_init(|| {
+        let mut set: HashSet<&'static str> =
+            DEFAULT_PROTECTED_PROCESSES.iter().copied().collect();
+
+        #[cfg(target_os = "macos")]
+        set.extend(MACOS_PROTECTED_PROCESSES.iter().copied());
+
+        #[cfg(target_os = "windows")]
+        set.extend(WINDOWS_PROTECTED_PROCESSES.iter().copied());
+
+        #[cfg(target_os = "linux")]
+        set.extend(LINUX_PROTECTED_PROCESSES.iter().copied());
+
+        set
+    });
+
     let lowered_name = process_name.to_ascii_lowercase();
-    if DEFAULT_PROTECTED_PROCESSES
-        .iter()
-        .any(|name| *name == lowered_name)
-    {
-        return true;
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        if MACOS_PROTECTED_PROCESSES
-            .iter()
-            .any(|name| *name == lowered_name)
-        {
-            return true;
-        }
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        if WINDOWS_PROTECTED_PROCESSES
-            .iter()
-            .any(|name| *name == lowered_name)
-        {
-            return true;
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        if LINUX_PROTECTED_PROCESSES
-            .iter()
-            .any(|name| *name == lowered_name)
-        {
-            return true;
-        }
-    }
-
-    false
+    blocked.contains(lowered_name.as_str())
 }
 
 fn path_is_trusted_for_blocked_process(exe_path: &Path) -> bool {
