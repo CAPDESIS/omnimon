@@ -1,6 +1,6 @@
 use core::{
-    audit, audit_trail, cloud, crypto, killer, metrics, network, process_identity, rules_engine,
-    security, telemetry, watcher,
+    audit, audit_trail, cloud, crypto, killer, metrics, network, process_identity, rate_limit,
+    rules_engine, security, telemetry, watcher,
 };
 
 // ===========================================================================
@@ -1027,6 +1027,62 @@ fn integration_cloud_stored_key_graceful_fallback() {
     let result = rt.block_on(cloud::validate_stored_cloud_key());
     // No key stored in test env — should fail gracefully
     assert!(!result.valid || result.tier != cloud::CloudTier::Unknown);
+}
+
+// ===========================================================================
+// Rate Limit Module (Token Bucket IPC Protection)
+// ===========================================================================
+
+#[test]
+fn integration_rate_limit_allows_within_capacity() {
+    let config = rate_limit::BucketConfig::new(5, 100.0);
+    for _ in 0..5 {
+        assert!(rate_limit::check_rate_limit("int_cap_test", &config).is_ok());
+    }
+}
+
+#[test]
+fn integration_rate_limit_rejects_over_capacity() {
+    let config = rate_limit::BucketConfig::new(2, 0.0); // no refill
+    assert!(rate_limit::check_rate_limit("int_exhaust", &config).is_ok());
+    assert!(rate_limit::check_rate_limit("int_exhaust", &config).is_ok());
+    let err = rate_limit::check_rate_limit("int_exhaust", &config);
+    assert!(err.is_err());
+    assert!(err.unwrap_err().contains("Rate limited"));
+}
+
+#[test]
+fn integration_rate_limit_separate_buckets_independent() {
+    let config = rate_limit::BucketConfig::new(1, 0.0);
+    assert!(rate_limit::check_rate_limit("int_bucket_x", &config).is_ok());
+    assert!(rate_limit::check_rate_limit("int_bucket_y", &config).is_ok());
+    // x exhausted, y still separate
+    assert!(rate_limit::check_rate_limit("int_bucket_x", &config).is_err());
+}
+
+#[test]
+fn integration_rate_limit_refills_over_time() {
+    let config = rate_limit::BucketConfig::new(1, 1000.0); // fast refill
+    assert!(rate_limit::check_rate_limit("int_refill", &config).is_ok());
+    assert!(rate_limit::check_rate_limit("int_refill", &config).is_err());
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    assert!(rate_limit::check_rate_limit("int_refill", &config).is_ok());
+}
+
+#[test]
+fn integration_rate_limit_profiles_are_usable() {
+    // Verify all predefined profiles can be used without panic
+    assert!(rate_limit::check_rate_limit("int_kill_prof", &rate_limit::profiles::KILL).is_ok());
+    assert!(rate_limit::check_rate_limit("int_ai_prof", &rate_limit::profiles::AI).is_ok());
+    assert!(rate_limit::check_rate_limit("int_browser_prof", &rate_limit::profiles::BROWSER).is_ok());
+    assert!(rate_limit::check_rate_limit("int_config_prof", &rate_limit::profiles::CONFIG).is_ok());
+}
+
+#[test]
+fn integration_rate_limit_error_contains_bucket_name() {
+    let config = rate_limit::BucketConfig::new(0, 0.0);
+    let err = rate_limit::check_rate_limit("int_named_bucket", &config).unwrap_err();
+    assert!(err.contains("int_named_bucket"));
 }
 
 // ===========================================================================
