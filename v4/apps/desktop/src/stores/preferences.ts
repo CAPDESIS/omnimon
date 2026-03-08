@@ -26,6 +26,7 @@ export interface AiProviderConfig {
 }
 
 export type ThemeMode = "auto" | "light" | "dark" | "cyberpunk" | "custom";
+export type UserMode = "basic" | "pro";
 
 const DEFAULT_FONT_SIZE = 12;
 const MIN_FONT_SIZE = 8;
@@ -54,6 +55,7 @@ const MAX_IDLE_THRESHOLD = 10.0;
 const DEFAULT_IDLE_THRESHOLD = 1.0;
 
 const DEFAULT_THEME: ThemeMode = "auto";
+const DEFAULT_USER_MODE: UserMode = "pro";
 
 const DEFAULT_LOCALE: LocaleCode = "auto";
 
@@ -99,6 +101,9 @@ export const localePreference = writable<LocaleCode>(DEFAULT_LOCALE);
 
 /** User-defined custom theme palette. Applied when theme === "custom". */
 export const customTheme = writable<CustomThemeOverrides | null>(null);
+
+/** User-facing workspace density mode. */
+export const userMode = writable<UserMode>(DEFAULT_USER_MODE);
 
 let storeInstance: any = null;
 
@@ -165,6 +170,11 @@ export async function loadPreferences(): Promise<void> {
       theme.set(savedTheme as ThemeMode);
     }
 
+    const savedUserMode = await store.get("userMode");
+    if (savedUserMode === "basic" || savedUserMode === "pro") {
+      userMode.set(savedUserMode);
+    }
+
     const savedCustomTheme = await store.get("customTheme");
     if (savedCustomTheme && typeof savedCustomTheme === "object") {
       const ct = savedCustomTheme as CustomThemeOverrides;
@@ -210,6 +220,7 @@ export async function savePreferences(): Promise<void> {
     await store.set("aiProviderConfig", get(aiProviderConfig));
     await store.set("idleThreshold", get(idleThreshold));
     await store.set("theme", get(theme));
+    await store.set("userMode", get(userMode));
     await store.set("tabPanelHeight", get(tabPanelHeight));
     await store.set("networkPanelHeight", get(networkPanelHeight));
     await store.set("aiChatPanelHeight", get(aiChatPanelHeight));
@@ -239,6 +250,7 @@ export function initPreferenceSubscriptions(): () => void {
     aiProviderConfig.subscribe(() => debouncedSave()),
     idleThreshold.subscribe(() => debouncedSave()),
     theme.subscribe(() => debouncedSave()),
+    userMode.subscribe(() => debouncedSave()),
     tabPanelHeight.subscribe(() => debouncedSave()),
     networkPanelHeight.subscribe(() => debouncedSave()),
     aiChatPanelHeight.subscribe(() => debouncedSave()),
@@ -308,6 +320,7 @@ export {
   MIN_IDLE_THRESHOLD,
   MAX_IDLE_THRESHOLD,
   DEFAULT_IDLE_THRESHOLD,
+  DEFAULT_USER_MODE,
   DEFAULT_LOCALE,
   DEFAULT_NETWORK_PANEL_HEIGHT,
   MIN_NETWORK_PANEL_HEIGHT,

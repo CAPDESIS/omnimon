@@ -111,6 +111,7 @@ vi.mock("../stores/preferences", () => {
     aiProviderConfig: writable({ provider: "openrouter", model: "meta-llama/llama-3.2-3b-instruct:free" }),
     idleThreshold: writable(1),
     theme: writable("auto"),
+    userMode: writable("pro"),
     tabPanelHeight: writable(160),
     aiChatPanelHeight: writable(220),
     networkPanelHeight: writable(280),
@@ -126,6 +127,12 @@ vi.mock("../stores/preferences", () => {
     MAX_IDLE_THRESHOLD: 10,
   };
 });
+
+vi.mock("../components/CloudSync.svelte", () => ({
+  default: () => ({
+    $$render: () => '<div data-testid="cloud-sync">cloud sync</div>',
+  }),
+}));
 
 vi.mock("../stores/metricsHistory", () => ({
   metricsHistory: writable([]),
@@ -194,7 +201,24 @@ describe("App AI Command Bar", () => {
 
   it("opens deep-dive modal from dashboard cards", async () => {
     render(App);
-    await fireEvent.click(screen.getAllByRole("button", { name: /Network/i })[0]);
+    const dashboardButtons = Array.from(document.querySelectorAll(".dashboard .metric-button"));
+    await fireEvent.click(dashboardButtons[2] as HTMLButtonElement);
     expect(screen.getByText("Deep Dive")).toBeInTheDocument();
+  });
+
+  it("shows workspace mode selector in settings", async () => {
+    render(App);
+    const settingsButton = document.querySelector('.toolbar-actions button[title="AI Settings"]') as HTMLButtonElement;
+    await fireEvent.click(settingsButton);
+    await waitFor(() => {
+      expect(screen.getByText("OmniMon Settings")).toBeInTheDocument();
+    });
+  });
+
+  it("renders network basic mode hint when simplified mode is active", async () => {
+    const { userMode } = await import("../stores/preferences");
+    userMode.set("basic");
+    render(App);
+    expect(screen.getAllByText(/unlock Network Map, deep diagnostics/i).length).toBeGreaterThan(0);
   });
 });

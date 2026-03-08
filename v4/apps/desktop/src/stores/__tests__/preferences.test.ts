@@ -6,6 +6,7 @@ import {
   aiProviderConfig,
   idleThreshold,
   theme,
+  userMode,
   tabPanelHeight,
   localePreference,
   loadPreferences,
@@ -18,6 +19,7 @@ import {
   DEFAULT_COLUMNS,
   DEFAULT_AI_CONFIG,
   DEFAULT_IDLE_THRESHOLD,
+  DEFAULT_USER_MODE,
   DEFAULT_LOCALE,
   MIN_IDLE_THRESHOLD,
   MAX_IDLE_THRESHOLD,
@@ -53,6 +55,7 @@ beforeEach(() => {
   theme.set("auto");
   tabPanelHeight.set(160);
   localePreference.set(DEFAULT_LOCALE);
+  userMode.set(DEFAULT_USER_MODE);
 });
 
 describe("loadPreferences", () => {
@@ -146,6 +149,7 @@ describe("loadPreferences", () => {
     mockStore.get.mockImplementation((key: string) => {
       if (key === "idleThreshold") return 2.5;
       if (key === "theme") return "dark";
+      if (key === "userMode") return "basic";
       if (key === "tabPanelHeight") return 240;
       return undefined;
     });
@@ -154,6 +158,7 @@ describe("loadPreferences", () => {
 
     expect(get(idleThreshold)).toBe(2.5);
     expect(get(theme)).toBe("dark");
+    expect(get(userMode)).toBe("basic");
     expect(get(tabPanelHeight)).toBe(240);
   });
 
@@ -191,6 +196,7 @@ describe("savePreferences", () => {
     fontSize.set(14);
     columns.set({ ...DEFAULT_COLUMNS, group: false });
     aiProviderConfig.set({ provider: "anthropic", model: "claude-sonnet-4-20250514" });
+    userMode.set("basic");
 
     await savePreferences();
 
@@ -200,6 +206,7 @@ describe("savePreferences", () => {
       "aiProviderConfig",
       expect.objectContaining({ provider: "anthropic" }),
     );
+    expect(mockStore.set).toHaveBeenCalledWith("userMode", "basic");
     expect(mockStore.save).toHaveBeenCalled();
   });
 

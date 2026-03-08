@@ -122,6 +122,16 @@ describe("SecurityReportView", () => {
     expect(screen.getByText("Findings")).toBeInTheDocument();
   });
 
+  it("runs quick scan and renders scan stats", async () => {
+    mockProcesses.set([
+      makeProc({ name: "powershell", exec_name: "powershell", ram_mb: 3000, cpu_pct: 92, net_rx_bytes_per_sec: 12 * 1024 * 1024 }),
+    ]);
+    render(SecurityReportView, { props: { onclose } });
+    await fireEvent.click(screen.getByText("Quick scan"));
+    expect(await screen.findByText("Suspicious processes")).toBeInTheDocument();
+    expect(screen.getByText("High CPU (>80%)")).toBeInTheDocument();
+  });
+
   it("shows CVE findings", () => {
     const map = new Map<number, ProcessSecurityInfo>();
     map.set(50, {
