@@ -29,6 +29,7 @@
     ontoggledashboard: () => void;
     dashboardCollapsed: boolean;
     ontoggleautomations: () => void;
+    onopenplugins: () => void;
     onopensettings: () => void;
     onopenhelp: () => void;
     ondecreasefont: () => void;
@@ -56,6 +57,7 @@
     ontoggledashboard,
     dashboardCollapsed,
     ontoggleautomations,
+    onopenplugins,
     onopensettings,
     onopenhelp,
     ondecreasefont,
@@ -158,6 +160,7 @@
         <span>{t("toolbar.dashboard")}</span>
       </button>
       <button class="btn btn-icon btn-text-icon" onclick={ontoggleautomations} title={t("toolbar.automations")}><span>●</span><span>{t("toolbar.automations")}</span></button>
+      <button class="btn btn-icon btn-text-icon" onclick={onopenplugins} title={t("toolbar.plugins")}><span>Lua</span><span>{t("toolbar.plugins")}</span></button>
       <button class="btn btn-icon btn-text-icon" onclick={onopensettings} title={t("toolbar.aiSettings")}><span>⚙</span><span>{t("toolbar.aiSettings")}</span></button>
       <button class="btn btn-icon btn-text-icon" onclick={onopenhelp} title={t("toolbar.helpCenter")}><span class="btn-icon-glyph">?</span><span>{t("toolbar.helpCenter")}</span></button>
       <div class="font-controls">

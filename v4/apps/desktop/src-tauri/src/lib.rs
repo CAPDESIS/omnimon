@@ -1,4 +1,5 @@
 pub mod automations;
+pub mod plugins;
 use macmon_core::browser::{
     sanitize_tab_id, sanitize_tab_url, BrowserKind, BrowserTab, NativeTabProvider, TabProvider,
 };
@@ -667,6 +668,7 @@ pub fn run() {
             // Start the background watcher thread for system-level metrics
             macmon_core::watcher::start_watcher();
             automations::start_engine(app.handle().clone());
+            let _ = plugins::start_engine(app.handle().clone());
 
             // Emit dynamic security alerts to frontend in real time.
             // Guard: only spawn the alert thread once, even if setup() is called multiple times.
@@ -769,6 +771,10 @@ pub fn run() {
             automations::get_automation_rules,
             automations::add_automation_rule,
             automations::remove_automation_rule,
+            plugins::list_plugins,
+            plugins::install_plugin,
+            plugins::set_plugin_enabled,
+            plugins::remove_plugin,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| {

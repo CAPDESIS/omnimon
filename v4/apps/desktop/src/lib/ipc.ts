@@ -1,5 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ProcessEntry, SystemStats, Metrics, BrowserTab, BrowserName, ProcessSuggestion, KillProcessesResult, ChatResponse, NetworkData } from "./types";
+import type {
+  ProcessEntry,
+  SystemStats,
+  Metrics,
+  BrowserTab,
+  BrowserName,
+  ProcessSuggestion,
+  KillProcessesResult,
+  ChatResponse,
+  NetworkData,
+  PluginDescriptor,
+  PluginMetric,
+} from "./types";
 
 const VALID_BROWSERS = new Set<string>(["Chrome", "Safari", "Brave", "Edge", "Arc", "Firefox"]);
 
@@ -30,6 +42,12 @@ function assertString(field: string, value: unknown): asserts value is string {
 function assertBoolean(field: string, value: unknown): asserts value is boolean {
   if (typeof value !== "boolean") {
     throw new IPCValidationError(field, value, `Expected boolean for "${field}", got ${typeof value}`);
+  }
+}
+
+function assertObject(field: string, value: unknown): asserts value is Record<string, unknown> {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    throw new IPCValidationError(field, value, `Expected object for "${field}"`);
   }
 }
 
@@ -243,6 +261,64 @@ function validateProcessSuggestion(raw: unknown, index: number): ProcessSuggesti
   };
 }
 
+function validatePluginMetric(raw: unknown, index: number): PluginMetric {
+  assertObject(`plugin.metrics[${index}]`, raw);
+  const r = raw as Record<string, unknown>;
+  assertString(`plugin.metrics[${index}].name`, r.name);
+  assertString(`plugin.metrics[${index}].label`, r.label);
+  assertString(`plugin.metrics[${index}].kind`, r.kind);
+  assertFiniteNumber(`plugin.metrics[${index}].value`, r.value);
+  if (r.unit !== null && r.unit !== undefined) assertString(`plugin.metrics[${index}].unit`, r.unit);
+  assertObject(`plugin.metrics[${index}].tags`, r.tags);
+
+  const tags: Record<string, string> = {};
+  for (const [key, value] of Object.entries(r.tags as Record<string, unknown>)) {
+    assertString(`plugin.metrics[${index}].tags.${key}`, value);
+    tags[key] = value;
+  }
+
+  return {
+    name: r.name as string,
+    label: r.label as string,
+    kind: r.kind as string,
+    value: r.value as number,
+    unit: (r.unit as string | null | undefined) ?? null,
+    tags,
+  };
+}
+
+function validatePluginDescriptor(raw: unknown, index: number): PluginDescriptor {
+  assertObject(`plugins[${index}]`, raw);
+  const r = raw as Record<string, unknown>;
+  assertString(`plugins[${index}].id`, r.id);
+  assertString(`plugins[${index}].name`, r.name);
+  assertString(`plugins[${index}].file_name`, r.file_name);
+  assertBoolean(`plugins[${index}].enabled`, r.enabled);
+  if (r.description !== null && r.description !== undefined) assertString(`plugins[${index}].description`, r.description);
+  if (r.version !== null && r.version !== undefined) assertString(`plugins[${index}].version`, r.version);
+  assertString(`plugins[${index}].status`, r.status);
+  if (r.last_error !== null && r.last_error !== undefined) assertString(`plugins[${index}].last_error`, r.last_error);
+  if (r.last_run_ms !== null && r.last_run_ms !== undefined) assertFiniteNumber(`plugins[${index}].last_run_ms`, r.last_run_ms);
+  if (r.last_duration_ms !== null && r.last_duration_ms !== undefined) assertFiniteNumber(`plugins[${index}].last_duration_ms`, r.last_duration_ms);
+  if (!Array.isArray(r.metrics)) {
+    throw new IPCValidationError(`plugins[${index}].metrics`, r.metrics, "Expected metrics array");
+  }
+
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    file_name: r.file_name as string,
+    enabled: r.enabled as boolean,
+    description: (r.description as string | null | undefined) ?? null,
+    version: (r.version as string | null | undefined) ?? null,
+    status: r.status as string,
+    last_error: (r.last_error as string | null | undefined) ?? null,
+    last_run_ms: (r.last_run_ms as number | null | undefined) ?? null,
+    last_duration_ms: (r.last_duration_ms as number | null | undefined) ?? null,
+    metrics: r.metrics.map((metric, metricIndex) => validatePluginMetric(metric, metricIndex)),
+  };
+}
+
 /** Persists AI provider configuration (provider, model, API key) to secure storage via the backend. */
 export async function ipcSaveAiConfig(provider: string, model: string, key: string): Promise<void> {
   await invoke("save_ai_config", { provider, model, key });
@@ -338,4 +414,26 @@ export async function ipcGetNetworkData(): Promise<NetworkData> {
     capture_backend: d.capture_backend as string,
     dpi_active: d.dpi_active as boolean,
   };
+}
+
+export async function ipcListPlugins(): Promise<PluginDescriptor[]> {
+  const data: unknown = await invoke("list_plugins");
+  if (!Array.isArray(data)) {
+    throw new IPCValidationError("list_plugins", data, "Expected array from list_plugins");
+  }
+  return data.map((raw, index) => validatePluginDescriptor(raw, index));
+}
+
+export async function ipcInstallPlugin(fileName: string, source: string): Promise<PluginDescriptor> {
+  const data: unknown = await invoke("install_plugin", { fileName, source });
+  return validatePluginDescriptor(data, 0);
+}
+
+export async function ipcSetPluginEnabled(pluginId: string, enabled: boolean): Promise<PluginDescriptor> {
+  const data: unknown = await invoke("set_plugin_enabled", { pluginId, enabled });
+  return validatePluginDescriptor(data, 0);
+}
+
+export async function ipcRemovePlugin(pluginId: string): Promise<void> {
+  await invoke("remove_plugin", { pluginId });
 }
