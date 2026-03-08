@@ -37,6 +37,7 @@
     pid: number;
     domains: DomainNode[];
     totalConns: number;
+    bytesRecv: number;
   }
 
   interface DomainNode {
@@ -44,27 +45,32 @@
     port: number;
     protocol: string;
     count: number;
+    bytesRecv: number;
   }
 
   let processNodes = $derived.by((): ProcessNode[] => {
-    const byProc = new Map<string, { pid: number; domains: Map<string, DomainNode> }>();
+    const byProc = new Map<string, { pid: number; bytesRecv: number; domains: Map<string, DomainNode> }>();
 
     for (const conn of $networkConnections) {
       const key = conn.process_name;
       if (!byProc.has(key)) {
-        byProc.set(key, { pid: conn.pid, domains: new Map() });
+        byProc.set(key, { pid: conn.pid, bytesRecv: 0, domains: new Map() });
       }
       const proc = byProc.get(key)!;
+      proc.bytesRecv += conn.bytes_recv;
+      
       const domKey = `${conn.remote_addr}:${conn.remote_port}`;
       const existing = proc.domains.get(domKey);
       if (existing) {
         existing.count++;
+        existing.bytesRecv += conn.bytes_recv;
       } else {
         proc.domains.set(domKey, {
           hostname: conn.remote_addr,
           port: conn.remote_port,
           protocol: conn.protocol,
           count: 1,
+          bytesRecv: conn.bytes_recv,
         });
       }
     }
@@ -73,11 +79,15 @@
       .map(([name, data]) => ({
         name,
         pid: data.pid,
+        bytesRecv: data.bytesRecv,
         domains: [...data.domains.values()].sort((a, b) => b.count - a.count),
         totalConns: [...data.domains.values()].reduce((s, d) => s + d.count, 0),
       }))
       .sort((a, b) => b.totalConns - a.totalConns);
   });
+
+  let heavyDownloaders = $derived(processNodes.filter(p => p.bytesRecv > 1024 * 1024 * 50)); // > 50MB
+  let networkAlertsEnabled = $state(true);
 
   let totalConnections = $derived($networkConnections.length);
   let hasTrafficData = $derived($metricsHistory.length > 0 || $networkTelemetryStatus.totalRxBytesPerSec > 0 || $networkTelemetryStatus.totalTxBytesPerSec > 0);
@@ -482,6 +492,7 @@
   function buildNetworkContext(question: string): string {
     const recentTraffic = $metricsHistory.slice(-20);
     return JSON.stringify({
+      system_instruction: "You are an AI translator for non-technical users. Analyze the provided network processes and explain them using very simple layman terms, like 'apples and oranges' (peras y manzanas). For example, if a process is downloading heavily, explain it simply. Answer in Spanish as requested by system rules.",
       prompt: question,
       active_tab: activeTab,
       summary: {
@@ -492,6 +503,7 @@
         using_fallback: $networkTelemetryStatus.usingFallback,
       },
       connections: summarizeConnections($networkConnections),
+      heavy_downloaders: heavyDownloaders.map(d => ({ process: d.name, bytes_recv: d.bytesRecv })),
       traffic: recentTraffic.map((entry) => ({
         time: entry.time,
         rx_kb_per_sec: Number((entry.netRx / BYTES_PER_KB).toFixed(2)),
@@ -676,6 +688,19 @@
             <div class="capture-chip">{t("network.captureBackend", { backend: $networkTelemetryStatus.captureBackend })}</div>
             <div class="capture-chip">RX {$networkTelemetryStatus.totalRxBytesPerSec > 0 ? formatRate($networkTelemetryStatus.totalRxBytesPerSec) : "0 B/s"}</div>
             <div class="capture-chip">TX {$networkTelemetryStatus.totalTxBytesPerSec > 0 ? formatRate($networkTelemetryStatus.totalTxBytesPerSec) : "0 B/s"}</div>
+            
+            <div class="network-alerts">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--fg-dim);">
+                <input type="checkbox" bind:checked={networkAlertsEnabled} />
+                {t("network.enableAlerts") || "Activar Alertas de Descarga"}
+              </label>
+              {#if networkAlertsEnabled && heavyDownloaders.length > 0}
+                <div class="network-warning" style="margin-top: 6px;">
+                  ⚠️ {heavyDownloaders.length} proceso(s) consumiendo mucho ancho de banda (ej. {heavyDownloaders[0].name}).
+                </div>
+              {/if}
+            </div>
+
             <div class="network-help">{t("network.mapDeepInfo")}</div>
             {#if $networkTelemetryStatus.usingFallback}
               <div class="network-warning">{t("network.fallbackNotice")}</div>

@@ -246,6 +246,7 @@ fn get_browser_tabs() -> Result<Vec<BrowserTab>, String> {
 /// IPC: Gracefully close a browser tab via AppleScript/CDP (not process kill).
 #[tauri::command]
 fn close_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result<bool, String> {
+    macmon_core::rate_limit::check_rate_limit("close_browser_tab", &macmon_core::rate_limit::profiles::BROWSER)?;
     sanitize_tab_id(&tab_id)?;
     sanitize_tab_url(&tab_url)?;
     let kind = BrowserKind::from_str(&browser)?;
@@ -262,6 +263,7 @@ fn close_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result
 /// IPC: Focus (navigate to) a browser tab via AppleScript/CDP.
 #[tauri::command]
 fn focus_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result<bool, String> {
+    macmon_core::rate_limit::check_rate_limit("focus_browser_tab", &macmon_core::rate_limit::profiles::BROWSER)?;
     sanitize_tab_id(&tab_id)?;
     sanitize_tab_url(&tab_url)?;
     let kind = BrowserKind::from_str(&browser)?;
@@ -278,6 +280,7 @@ fn focus_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result
 /// IPC: Kill a single process by PID using the real OS-native killer.
 #[tauri::command]
 fn kill_process(pid: u32) -> Result<bool, String> {
+    macmon_core::rate_limit::check_rate_limit("kill_process", &macmon_core::rate_limit::profiles::KILL)?;
     match macmon_core::killer::kill_process_safe(pid as i32, &[]) {
         Ok(_) => Ok(true),
         Err(macmon_core::killer::KillError::ProcessNotFound(_)) => Ok(false),
@@ -295,6 +298,7 @@ pub struct KillProcessesResult {
 /// IPC: Kill multiple processes by PIDs. Returns killed and failed PIDs with error messages.
 #[tauri::command]
 fn kill_processes(pids: Vec<u32>) -> Result<KillProcessesResult, String> {
+    macmon_core::rate_limit::check_rate_limit("kill_processes", &macmon_core::rate_limit::profiles::KILL)?;
     let mut killed = Vec::new();
     let mut failed = Vec::new();
     for pid in pids {
@@ -334,6 +338,7 @@ fn save_ai_config(
     _model: String,
     key: String,
 ) -> Result<(), String> {
+    macmon_core::rate_limit::check_rate_limit("save_ai_config", &macmon_core::rate_limit::profiles::CONFIG)?;
     let trimmed_key = key.trim().to_string();
     if trimmed_key.is_empty() {
         return Err("API key cannot be empty".to_string());
@@ -375,6 +380,7 @@ fn get_ai_rules_schema() -> String {
 /// IPC: Validate AI API key by making a test request
 #[tauri::command]
 async fn validate_api_key(provider: String, key: String) -> Result<bool, String> {
+    macmon_core::rate_limit::check_rate_limit("validate_api_key", &macmon_core::rate_limit::profiles::AI)?;
     let trimmed_key = key.trim().to_string();
     if trimmed_key.is_empty() {
         return Err("API key cannot be empty".to_string());
@@ -394,6 +400,7 @@ async fn analyze_processes(
     provider: String,
     model: String,
 ) -> Result<Vec<macmon_core::ai::ProcessSuggestion>, String> {
+    macmon_core::rate_limit::check_rate_limit("analyze_processes", &macmon_core::rate_limit::profiles::AI)?;
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
     let api_key = get_api_key_with_fallback(&app, &provider)?;
 
@@ -439,6 +446,7 @@ async fn analyze_context(
     provider: String,
     model: String,
 ) -> Result<String, String> {
+    macmon_core::rate_limit::check_rate_limit("analyze_context", &macmon_core::rate_limit::profiles::AI)?;
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
     let api_key = get_api_key_with_fallback(&app, &provider)?;
     macmon_core::ai::analyze_context_key(ai_provider, &model, &context, &api_key)
@@ -474,6 +482,7 @@ fn get_window_visible(app: tauri::AppHandle) -> bool {
 #[tauri::command]
 #[allow(dead_code)]
 fn save_cloud_key(key: String) -> Result<(), String> {
+    macmon_core::rate_limit::check_rate_limit("save_cloud_key", &macmon_core::rate_limit::profiles::CONFIG)?;
     let entry = keyring::Entry::new("omnimon", "crabnebula_api_key").map_err(|e| e.to_string())?;
     entry.set_password(&key).map_err(|e| e.to_string())
 }
@@ -494,6 +503,7 @@ async fn ai_chat(
     model: String,
     history: Vec<(String, String)>,
 ) -> Result<macmon_core::ai::ChatResponse, String> {
+    macmon_core::rate_limit::check_rate_limit("ai_chat", &macmon_core::rate_limit::profiles::AI)?;
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
 
     // Ollama doesn't need an API key

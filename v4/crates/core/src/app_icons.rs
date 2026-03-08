@@ -32,6 +32,11 @@ pub fn resolve_process_icon_data_url(
     let resolved = resolve_native_icon_data_url(exe_path, bundle_id, process_name, exec_name);
 
     if let Ok(mut cache) = icon_cache().write() {
+        // Cap cache at 2048 entries to prevent unbounded memory growth
+        // in long-running sessions with high process churn.
+        if cache.len() >= 2048 {
+            cache.clear();
+        }
         cache.insert(cache_key, resolved.clone());
     }
 

@@ -3,6 +3,8 @@ import { listen } from "@tauri-apps/api/event";
 import type { AlertRule } from "../lib/aiConfigBridge";
 import type { ProcessEntry, SystemStats, DynamicAlert } from "../lib/types";
 import { toast } from "./toasts";
+import { ipcAnalyzeContext } from "../lib/ipc";
+import { aiProviderConfig } from "./preferences";
 
 export interface FiredAlert {
   id: string;
@@ -12,11 +14,23 @@ export interface FiredAlert {
   processName?: string;
 }
 
+export interface SmartAlert {
+  id: string;
+  problem: string;
+  explanation: string;
+  processPid?: number;
+  processName?: string;
+  timestamp: number;
+}
+
 /** Configured alert rules (user or AI-generated). */
 export const alertRules = writable<AlertRule[]>([]);
 
 /** History of alerts that have fired. */
 export const firedAlerts = writable<FiredAlert[]>([]);
+
+/** Smart AI Alerts */
+export const smartAlerts = writable<SmartAlert[]>([]);
 
 let alertId = 0;
 const MAX_FIRED = 100;
@@ -24,6 +38,10 @@ const MAX_FIRED = 100;
 /** Cooldown: don't re-fire the same rule within this window (ms). */
 const COOLDOWN_MS = 30_000;
 const lastFired = new Map<string, number>();
+
+const SMART_COOLDOWN = 60_000 * 5; // 5 mins
+const smartAnomalyLog = new Map<string, number>();
+let lastSmartCheck = 0;
 
 function ruleKey(rule: AlertRule): string {
   return `${rule.metric}:${rule.operator}:${rule.threshold}:${rule.processName ?? "*"}`;
@@ -45,6 +63,10 @@ export function evaluateAlerts(
 ): void {
   if (!stats) return;
   const rules = get(alertRules);
+  
+  // Smart Health evaluation
+  evaluateSmartHealth(stats, processes);
+
   if (rules.length === 0) return;
 
   const now = Date.now();
@@ -122,6 +144,92 @@ export function evaluateAlerts(
   }
 }
 
+async function evaluateSmartHealth(stats: SystemStats, processes: ProcessEntry[]) {
+  const now = Date.now();
+  if (now - lastSmartCheck < 5000) return; // Only check every 5s max
+  lastSmartCheck = now;
+
+  let problem = "";
+  let targetProc: ProcessEntry | undefined;
+
+  const sortedCpu = [...processes].sort((a,b) => b.cpu_pct - a.cpu_pct);
+  const sortedDisk = [...processes].sort((a,b) => (b.disk_read_mb + b.disk_write_mb) - (a.disk_read_mb + a.disk_write_mb));
+
+  const topCpu = sortedCpu[0];
+  const topDisk = sortedDisk[0];
+
+  if (topCpu && topCpu.cpu_pct > 80) {
+    problem = `Alto uso de CPU (${topCpu.cpu_pct.toFixed(0)}%) por ${topCpu.name}`;
+    targetProc = topCpu;
+  } else if (topDisk && (topDisk.disk_read_mb + topDisk.disk_write_mb) > 500) {
+    problem = `Alta actividad de Disco (Lectura/Escritura) por ${topDisk.name}`;
+    targetProc = topDisk;
+  } else if (stats.ram_used_pct > 90) {
+    const topRam = [...processes].sort((a,b) => b.ram_mb - a.ram_mb)[0];
+    if (topRam) {
+       problem = `Memoria RAM casi llena (90%+). ${topRam.name} es el mayor consumidor`;
+       targetProc = topRam;
+    }
+  }
+
+  if (!problem || !targetProc) return;
+
+  const anomalyKey = targetProc.name;
+  const lastTime = smartAnomalyLog.get(anomalyKey);
+  if (lastTime && (now - lastTime) < SMART_COOLDOWN) return;
+  
+  smartAnomalyLog.set(anomalyKey, now);
+
+  // OPTIMIZACIÓN DE CONTEXTO: Filtrar procesos inactivos (0% CPU y muy poca RAM/Disco)
+  const activeProcesses = processes
+    .filter(p => p.cpu_pct > 0.5 || p.ram_mb > 100 || p.disk_read_mb > 1 || p.disk_write_mb > 1)
+    .slice(0, 15);
+
+  const prompt = `Actúas como un 'Health Report' traductor de telemetría para usuarios no técnicos.
+Se detectó una anomalía de hardware: ${problem}. 
+Genera una explicación muy breve (1-2 oraciones) usando términos coloquiales (ej. peras y manzanas) de por qué esto podría estar pasando y qué significa para la computadora. Responde en español y no uses lenguaje técnico complejo.`;
+  
+  const ctxStr = JSON.stringify({
+    stats: {
+       cpu_user: stats.cpu_user_pct,
+       ram_used: stats.ram_used_pct,
+    },
+    target_process: {
+       name: targetProc.name,
+       cpu: targetProc.cpu_pct,
+       ram: targetProc.ram_mb,
+       disk_r: targetProc.disk_read_mb,
+       disk_w: targetProc.disk_write_mb
+    },
+    active_context_processes: activeProcesses.map(p => ({
+       name: p.name, 
+       cpu: p.cpu_pct, 
+       ram: p.ram_mb
+    }))
+  });
+
+  const cfg = get(aiProviderConfig);
+  try {
+     const reqPayload = `INSTRUCCIÓN DEL SISTEMA:\n${prompt}\n\nDATOS DE TELEMETRÍA:\n${ctxStr}`;
+     const explanation = await ipcAnalyzeContext(reqPayload, cfg.provider, cfg.model);
+     
+     smartAlerts.update(s => [...s, {
+        id: `smart-${Date.now()}`,
+        problem,
+        explanation,
+        processPid: targetProc?.pid,
+        processName: targetProc?.name,
+        timestamp: now
+     }]);
+  } catch (e) {
+     console.error("AI Smart Alert failed", e);
+  }
+}
+
+export function dismissSmartAlert(id: string) {
+  smartAlerts.update(list => list.filter(a => a.id !== id));
+}
+
 export function addAlertRule(rule: AlertRule): void {
   alertRules.update((r) => [...r, rule]);
 }
@@ -173,6 +281,7 @@ export function _resetAlerts(): void {
   alertRules.set([]);
   firedAlerts.set([]);
   dynamicAlerts.set([]);
+  smartAlerts.set([]);
   lastFired.clear();
   alertId = 0;
 }

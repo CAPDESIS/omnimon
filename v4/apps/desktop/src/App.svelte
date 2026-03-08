@@ -18,6 +18,7 @@
   import HelpCenterModal from "./components/HelpCenterModal.svelte";
   import SystemMetricModal from "./components/SystemMetricModal.svelte";
   import InfoPopover from "./components/InfoPopover.svelte";
+  import SmartAlerts from "./components/SmartAlerts.svelte";
   import { totalFindings } from "./stores/security";
   import { initSecurityAlertListener } from "./stores/alerts";
   import type { ProcessEntry } from "./lib/types";
@@ -892,6 +893,7 @@
 {/if}
 
 <ToastContainer />
+<SmartAlerts />
 
 {#if showAutomations}
   <Automations />
