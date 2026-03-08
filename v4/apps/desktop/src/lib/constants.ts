@@ -7,8 +7,8 @@
 // Process Table
 // ---------------------------------------------------------------------------
 
-/** Number of extra rows rendered above/below the visible viewport for smooth scrolling. */
-export const PROCESS_TABLE_ROW_BUFFER = 10;
+/** Number of extra rows rendered above/below the visible viewport. Kept at zero for strict virtualization. */
+export const PROCESS_TABLE_ROW_BUFFER = 0;
 
 /** RAM thresholds (MB) for color coding in the process table. */
 export const RAM_THRESHOLD_DANGER = 1024;

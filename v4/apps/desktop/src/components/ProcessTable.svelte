@@ -100,18 +100,22 @@
     return map;
   });
 
-  let _sortedSnapshot = "";
+  let _sortedSnapshot: Array<{ pid: number; value: string | number }> = [];
   let _sortedKey: SortKey = "ram_mb";
   let _sortedAsc = false;
   let _sortedPidsCache: number[] = [];
 
   let sortedPids = $derived.by((): number[] => {
-    let snapshot = `${sortKey}:${sortAsc ? 1 : 0}:${processes.length}|`;
-    for (const proc of processes) {
-      snapshot += `${proc.pid}:${String(sortValue(proc, sortKey))}|`;
-    }
+    const sameInputs =
+      sortKey === _sortedKey &&
+      sortAsc === _sortedAsc &&
+      processes.length === _sortedSnapshot.length &&
+      processes.every((proc, index) => {
+        const cached = _sortedSnapshot[index];
+        return cached !== undefined && cached.pid === proc.pid && cached.value === sortValue(proc, sortKey);
+      });
 
-    if (snapshot === _sortedSnapshot && sortKey === _sortedKey && sortAsc === _sortedAsc) {
+    if (sameInputs) {
       return _sortedPidsCache;
     }
 
@@ -124,7 +128,7 @@
       return sortAsc ? Number(va) - Number(vb) : Number(vb) - Number(va);
     });
 
-    _sortedSnapshot = snapshot;
+    _sortedSnapshot = processes.map((proc) => ({ pid: proc.pid, value: sortValue(proc, sortKey) }));
     _sortedKey = sortKey;
     _sortedAsc = sortAsc;
     _sortedPidsCache = sorted.map((proc) => proc.pid);
@@ -179,27 +183,33 @@
 
   let groups = $derived.by((): ProcessGroup[] => {
     if (!grouping) return [];
-    const map = new Map<string, { label: string; procs: ProcessEntry[] }>();
+    const map = new Map<string, ProcessGroup>();
     for (const pid of sortedPids) {
       const p = processByPid.get(pid);
       if (!p) continue;
       const identity = getGroupIdentity(p);
       const group = map.get(identity.key);
-      if (group) group.procs.push(p);
-      else map.set(identity.key, { label: identity.label, procs: [p] });
+      if (group) {
+        group.procs.push(p);
+        group.totalRam += p.ram_mb;
+        group.totalCpu += p.cpu_pct;
+        group.count += 1;
+        group.totalNetwork += networkMetric(p);
+        group.totalEnergy += energyMetric(p);
+      } else {
+        map.set(identity.key, {
+          key: identity.key,
+          name: identity.label,
+          procs: [p],
+          totalRam: p.ram_mb,
+          totalCpu: p.cpu_pct,
+          count: 1,
+          totalNetwork: networkMetric(p),
+          totalEnergy: energyMetric(p),
+        });
+      }
     }
-    return [...map.entries()]
-      .map(([key, value]) => ({
-        key,
-        name: value.label,
-        procs: value.procs,
-        totalRam: value.procs.reduce((s, p) => s + p.ram_mb, 0),
-        totalCpu: value.procs.reduce((s, p) => s + p.cpu_pct, 0),
-        count: value.procs.length,
-        totalNetwork: value.procs.reduce((s, p) => s + networkMetric(p), 0),
-        totalEnergy: value.procs.reduce((s, p) => s + energyMetric(p), 0),
-      }))
-      .sort((a, b) => b.totalRam - a.totalRam);
+    return [...map.values()].sort((a, b) => b.totalRam - a.totalRam);
   });
 
   // --- Flat row model for virtual scroll ---
@@ -229,12 +239,13 @@
 
   // --- Virtual window ---
   let totalHeight = $derived(flatRows.length * ROW_HEIGHT);
+  let effectiveContainerHeight = $derived(containerHeight > 0 ? containerHeight : 600);
 
   let visibleStartIdx = $derived(
     Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER),
   );
   let visibleEndIdx = $derived(
-    Math.min(flatRows.length, Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT) + BUFFER),
+    Math.min(flatRows.length, Math.ceil((scrollTop + effectiveContainerHeight) / ROW_HEIGHT) + BUFFER),
   );
   let visibleRows = $derived(flatRows.slice(visibleStartIdx, visibleEndIdx));
   let topSpacerHeight = $derived(visibleStartIdx * ROW_HEIGHT);
@@ -252,11 +263,13 @@
     if (!wrapEl) return;
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        containerHeight = entry.contentRect.height;
+        if (entry.contentRect.height > 0) {
+          containerHeight = entry.contentRect.height;
+        }
       }
     });
     ro.observe(wrapEl);
-    containerHeight = wrapEl.clientHeight;
+    containerHeight = wrapEl.clientHeight > 0 ? wrapEl.clientHeight : containerHeight;
     return () => {
       ro.disconnect();
       if (rafId) cancelAnimationFrame(rafId);

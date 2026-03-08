@@ -32,15 +32,45 @@ export const selectedPids = writable<Set<number>>(new Set());
 // --- Derived stores ---
 
 /** Derived store of processes filtered by the current search query (matches name, PID, or group). */
+let lastFilterQuery = "";
+let lastFilterMeta: Array<{ pid: number; name: string; group: string }> = [];
+let lastFilterMatches: number[] = [];
 export const filtered = derived([processes, search], ([$processes, $search]) => {
   const q = $search.trim().toLowerCase();
-  if (!q) return $processes;
-  return $processes.filter(
-    (p) =>
-      p.name.toLowerCase().includes(q) ||
-      String(p.pid).includes(q) ||
-      p.group.toLowerCase().includes(q),
-  );
+  if (!q) {
+    lastFilterQuery = "";
+    lastFilterMeta = [];
+    lastFilterMatches = [];
+    return $processes;
+  }
+
+  const sameQuery = q === lastFilterQuery;
+  const sameMeta =
+    sameQuery &&
+    $processes.length === lastFilterMeta.length &&
+    $processes.every((proc, index) => {
+      const cached = lastFilterMeta[index];
+      return cached !== undefined && cached.pid === proc.pid && cached.name === proc.name && cached.group === proc.group;
+    });
+
+  if (sameMeta) {
+    return lastFilterMatches.map((index) => $processes[index]).filter((proc): proc is ProcessEntry => proc !== undefined);
+  }
+
+  const matches: number[] = [];
+  const next = $processes.filter((proc, index) => {
+    const included =
+      proc.name.toLowerCase().includes(q) ||
+      String(proc.pid).includes(q) ||
+      proc.group.toLowerCase().includes(q);
+    if (included) matches.push(index);
+    return included;
+  });
+
+  lastFilterQuery = q;
+  lastFilterMeta = $processes.map((proc) => ({ pid: proc.pid, name: proc.name, group: proc.group }));
+  lastFilterMatches = matches;
+  return next;
 });
 
 /** Derived store containing only processes in the "Browser" group. */
