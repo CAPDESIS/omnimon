@@ -9,7 +9,7 @@ mod settings;
 
 #[derive(Parser)]
 #[command(name = "omnimon")]
-#[command(version = "5.0.2", about = "OmniMon: Monitor de sistema y navegador de próxima generación de alto rendimiento.", long_about = None)]
+#[command(version = "5.1.0", about = "OmniMon: Monitor de sistema y navegador de próxima generación de alto rendimiento.", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
