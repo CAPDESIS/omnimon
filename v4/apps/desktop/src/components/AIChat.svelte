@@ -1,7 +1,7 @@
 <script lang="ts">
   import { get } from "svelte/store";
   import { slide } from "svelte/transition";
-  import { ipcAiChat, ipcGetBrowserTabs, ipcCloseBrowserTab } from "../lib/ipc";
+  import { ipcAiChat, ipcGetBrowserTabs, ipcCloseBrowserTab, ipcKillProcess, ipcKillProcesses } from "../lib/ipc";
   import { aiProviderConfig } from "../stores/preferences";
   import { processes } from "../stores/processes";
   import { inspectProcessRequest } from "../stores/uiActions";
@@ -150,6 +150,15 @@
       const patterns = details.replace("close_tabs:", "").split("|").join(", ");
       return t("aiChat.closeTabsMatching", { patterns });
     }
+    if (details.startsWith("kill_process:")) {
+      const parts = details.replace("kill_process:", "").split(":");
+      return `Kill process "${parts[1] ?? "unknown"}" (PID ${parts[0]})`;
+    }
+    if (details.startsWith("kill_by_name:")) {
+      const parts = details.replace("kill_by_name:", "").split(":");
+      const pids = parts[1]?.split(",") ?? [];
+      return `Kill ${pids.length} process(es) matching "${parts[0]}" (PIDs: ${pids.join(", ")})`;
+    }
     return details;
   }
 
@@ -179,9 +188,9 @@
         });
       }
 
-        if (toClose.length === 0) {
-          return { closed: 0, message: t("aiChat.noTabsMatched", { patterns: patterns.join(", ") }) };
-        }
+      if (toClose.length === 0) {
+        return { closed: 0, message: t("aiChat.noTabsMatched", { patterns: patterns.join(", ") }) };
+      }
 
       let closed = 0;
       const failed: string[] = [];
@@ -203,6 +212,46 @@
     }
   }
 
+  async function executeKillProcess(details: string): Promise<{ success: boolean; message: string }> {
+    const parts = details.replace("kill_process:", "").split(":");
+    const pid = parseInt(parts[0], 10);
+    const name = parts[1] ?? "unknown";
+    if (!pid || pid <= 0) {
+      return { success: false, message: `Invalid PID: ${parts[0]}` };
+    }
+    try {
+      const ok = await ipcKillProcess(pid);
+      return ok
+        ? { success: true, message: `Killed process "${name}" (PID ${pid})` }
+        : { success: false, message: `Process PID ${pid} not found (may have already exited)` };
+    } catch (e) {
+      return { success: false, message: `Failed to kill PID ${pid}: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }
+
+  async function executeKillByName(details: string): Promise<{ success: boolean; message: string }> {
+    const parts = details.replace("kill_by_name:", "").split(":");
+    const name = parts[0] ?? "";
+    const pids = (parts[1] ?? "").split(",").map(p => parseInt(p, 10)).filter(p => p > 0);
+    if (pids.length === 0) {
+      return { success: false, message: `No valid PIDs for "${name}"` };
+    }
+    try {
+      const result = await ipcKillProcesses(pids);
+      const killed = result.killed.length;
+      const failed = result.failed.length;
+      if (killed > 0) {
+        return {
+          success: true,
+          message: `Killed ${killed}/${pids.length} processes matching "${name}"${failed > 0 ? ` (${failed} failed)` : ""}`,
+        };
+      }
+      return { success: false, message: `Failed to kill any processes matching "${name}"` };
+    } catch (e) {
+      return { success: false, message: `Failed to kill processes: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }
+
   async function confirmAction() {
     if (!pendingAction) return;
     loading = true;
@@ -212,8 +261,15 @@
       const executed = await executeCloseTabs(result.details);
       result.details = executed.message;
       result.success = executed.closed > 0;
+    } else if (result.tool === "kill_process" && result.success) {
+      const executed = await executeKillProcess(result.details);
+      result.details = executed.message;
+      result.success = executed.success;
+    } else if (result.tool === "kill_by_name" && result.success) {
+      const executed = await executeKillByName(result.details);
+      result.details = executed.message;
+      result.success = executed.success;
     }
-    // kill_process and kill_by_name are already executed by backend
 
     messages = [
       ...messages,

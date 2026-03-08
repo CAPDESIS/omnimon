@@ -30,20 +30,22 @@ pub mod profiles {
     use super::BucketConfig;
 
     /// Destructive actions: kill_process, kill_processes.
-    /// 5 kills/sec burst, refills at 2/sec.
-    pub const KILL: BucketConfig = BucketConfig::new(5, 2.0);
+    /// 10 kills burst, refills at 5/sec — generous enough for AI batch kills
+    /// and user-initiated multi-kills without silently blocking.
+    pub const KILL: BucketConfig = BucketConfig::new(10, 5.0);
 
     /// AI calls: analyze_processes, analyze_context, ai_chat, validate_api_key.
-    /// 3 calls burst, refills at 0.5/sec (1 every 2 seconds).
-    pub const AI: BucketConfig = BucketConfig::new(3, 0.5);
+    /// 10 calls burst, refills at 2/sec — interactive chat needs headroom.
+    pub const AI: BucketConfig = BucketConfig::new(10, 2.0);
 
     /// Browser control: close_browser_tab, focus_browser_tab.
-    /// 10 actions/sec burst, refills at 5/sec.
-    pub const BROWSER: BucketConfig = BucketConfig::new(10, 5.0);
+    /// 30 actions burst, refills at 10/sec — closing all tabs in a browser
+    /// can easily exceed the old limit of 10.
+    pub const BROWSER: BucketConfig = BucketConfig::new(30, 10.0);
 
     /// Cloud/config operations: save_ai_config, save_cloud_key.
-    /// 3 operations burst, refills at 1/sec.
-    pub const CONFIG: BucketConfig = BucketConfig::new(3, 1.0);
+    /// 5 operations burst, refills at 2/sec.
+    pub const CONFIG: BucketConfig = BucketConfig::new(5, 2.0);
 }
 
 #[derive(Debug)]
@@ -107,6 +109,10 @@ pub fn check_rate_limit(bucket_name: &'static str, config: &BucketConfig) -> Res
     if bucket.try_acquire() {
         Ok(())
     } else {
+        eprintln!(
+            "[rate-limit] REJECTED '{}' — tokens exhausted (capacity={}, refill={}/s)",
+            bucket_name, bucket.capacity, bucket.refill_per_sec,
+        );
         Err(format!(
             "Rate limited: too many '{}' requests. Please wait before retrying.",
             bucket_name

@@ -678,6 +678,12 @@ fn parse_tool_call(text: &str) -> Option<RawToolCall> {
 }
 
 /// Executes a validated tool call against the real OS.
+///
+/// **Important**: Destructive actions (`kill_process`, `kill_by_name`) are NOT
+/// executed server-side. Instead, they return a deferred instruction so the
+/// frontend can present a confirmation dialog before dispatching the actual
+/// `kill_process` / `kill_processes` IPC command. This prevents silent kills
+/// that bypass user consent.
 pub fn execute_tool_call(
     call_tool: &str,
     args: &serde_json::Value,
@@ -693,20 +699,25 @@ pub fn execute_tool_call(
                     details: "Invalid PID".into(),
                 };
             }
-            // Verify PID exists in current state
+            // Verify PID exists in current state — but do NOT kill it here.
+            // The frontend must confirm and dispatch the IPC kill command.
             let proc_info = state.cached_process_info.iter().find(|p| p.pid == pid);
-            let proc_name = proc_info.map(|p| p.name.as_str()).unwrap_or("unknown");
-            match crate::killer::kill_process_safe(pid as i32, &[]) {
-                Ok(_) => ToolResult {
-                    tool: "kill_process".into(),
-                    success: true,
-                    details: format!("Killed process {} (PID {})", proc_name, pid),
-                },
-                Err(e) => ToolResult {
+            let proc_name = proc_info
+                .map(|p| p.name.as_str())
+                .unwrap_or("unknown");
+
+            if proc_info.is_none() {
+                return ToolResult {
                     tool: "kill_process".into(),
                     success: false,
-                    details: format!("Failed to kill PID {}: {}", pid, e),
-                },
+                    details: format!("Process with PID {} not found in current state", pid),
+                };
+            }
+
+            ToolResult {
+                tool: "kill_process".into(),
+                success: true,
+                details: format!("kill_process:{}:{}", pid, proc_name),
             }
         }
         "kill_by_name" => {
@@ -734,28 +745,16 @@ pub fn execute_tool_call(
                 };
             }
 
-            let mut killed = 0u32;
-            let mut failed = 0u32;
-            for pid in &matching_pids {
-                match crate::killer::kill_process_safe(*pid as i32, &[]) {
-                    Ok(_) => killed += 1,
-                    Err(_) => failed += 1,
-                }
-            }
+            let pids_csv = matching_pids
+                .iter()
+                .map(|p| p.to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+
             ToolResult {
                 tool: "kill_by_name".into(),
-                success: killed > 0,
-                details: format!(
-                    "Killed {}/{} processes matching '{}'{}",
-                    killed,
-                    matching_pids.len(),
-                    name,
-                    if failed > 0 {
-                        format!(" ({} failed — likely protected)", failed)
-                    } else {
-                        String::new()
-                    }
-                ),
+                success: true,
+                details: format!("kill_by_name:{}:{}", name, pids_csv),
             }
         }
         "close_tabs" => {
