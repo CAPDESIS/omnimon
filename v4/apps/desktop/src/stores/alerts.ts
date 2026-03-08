@@ -39,9 +39,12 @@ export const smartAlerts = writable<SmartAlert[]>([]);
  */
 const BROWSER_HELPER_RE =
   /^(Google Chrome|Chrome|Chromium|Brave( Browser)?|Microsoft Edge|Arc|Opera|Vivaldi|Safari|Firefox)\s*(Helper|Renderer|Web Content|Content Process|Worker)/i;
+const APPLE_INTERNAL_RE =
+  /^com\.apple\.(WebKit\.|Safari\.|Chrome)/i;
 
 function sanitizeProcessName(name: string): string {
   if (BROWSER_HELPER_RE.test(name)) return "browser helper process";
+  if (APPLE_INTERNAL_RE.test(name)) return "web content process";
   return name;
 }
 

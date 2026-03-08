@@ -22,6 +22,7 @@ import { ipcGetNetworkData } from "../lib/ipc";
 import { processes } from "./processes";
 
 const MAX_NETWORK_CONNECTIONS = 200;
+let lastNetworkFingerprint = "";
 
 export interface NetworkTelemetryStatus {
   captureBackend: string;
@@ -192,21 +193,26 @@ function analyzeProcessSecurity(proc: ProcessEntry): ProcessSecurityInfo {
   return { pid: proc.pid, threats, cves };
 }
 
+/** Fingerprint of the last security analysis result to skip redundant store updates. */
+let lastSecurityFingerprint = "";
+
 /** Run security analysis on all processes. Call on each poll cycle. */
 export function refreshSecurityAnalysis(procs: ProcessEntry[]): void {
   const map = new Map<number, ProcessSecurityInfo>();
-  let threatsFound = 0;
-  let cvesFound = 0;
-  
+  const fingerprintParts: string[] = [];
+
   for (const proc of procs) {
     const info = analyzeProcessSecurity(proc);
     if (info.threats.length > 0 || info.cves.length > 0) {
       map.set(proc.pid, info);
-      threatsFound += info.threats.length;
-      cvesFound += info.cves.length;
+      fingerprintParts.push(`${proc.pid}:${info.threats.length}:${info.cves.length}`);
     }
   }
-  
+
+  // Only update the store if results actually changed
+  const fingerprint = fingerprintParts.join(",");
+  if (fingerprint === lastSecurityFingerprint) return;
+  lastSecurityFingerprint = fingerprint;
   securityMap.set(map);
 }
 
@@ -305,15 +311,31 @@ export async function refreshNetworkConnections(
       .slice(0, MAX_NETWORK_CONNECTIONS),
   );
 
-  networkConnections.set(conns);
-  networkTelemetryStatus.set({
-    captureBackend,
-    dpiActive,
-    usingFallback: usedFallback,
-    lastUpdated: Date.now(),
-    totalRxBytesPerSec,
-    totalTxBytesPerSec,
-  });
+  // Only update stores if the connection set actually changed
+  const connFingerprint = conns.map(c => `${c.pid}:${c.remote_addr}:${c.remote_port}:${c.bytes_recv}:${c.bytes_sent}`).join(";");
+  if (connFingerprint !== lastNetworkFingerprint) {
+    lastNetworkFingerprint = connFingerprint;
+    networkConnections.set(conns);
+  }
+
+  // Only update telemetry if values changed meaningfully
+  const prev = get(networkTelemetryStatus);
+  if (
+    prev.captureBackend !== captureBackend ||
+    prev.dpiActive !== dpiActive ||
+    prev.usingFallback !== usedFallback ||
+    Math.abs(prev.totalRxBytesPerSec - totalRxBytesPerSec) > 100 ||
+    Math.abs(prev.totalTxBytesPerSec - totalTxBytesPerSec) > 100
+  ) {
+    networkTelemetryStatus.set({
+      captureBackend,
+      dpiActive,
+      usingFallback: usedFallback,
+      lastUpdated: Date.now(),
+      totalRxBytesPerSec,
+      totalTxBytesPerSec,
+    });
+  }
 }
 
 /** Get security info for a specific PID. */
@@ -344,6 +366,8 @@ export function severityColor(severity: string | null): string {
 }
 
 export function _resetSecurity(): void {
+  lastSecurityFingerprint = "";
+  lastNetworkFingerprint = "";
   securityMap.set(new Map());
   networkConnections.set([]);
   networkTelemetryStatus.set({

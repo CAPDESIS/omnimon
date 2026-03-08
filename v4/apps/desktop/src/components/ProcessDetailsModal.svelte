@@ -318,7 +318,7 @@
               <span class="tab-domain" title={tab.url}>{getDomain(tab.url)}</span>
               <Button
                 class="btn-tab-kill"
-                variant="danger"
+                variant="ghost"
                 size="icon"
                 onclick={() => closeTab(tab)}
                 disabled={closingTabs.has(tab.id)}
@@ -367,42 +367,49 @@
 </div>
 
 <style>
+  /* ── Backdrop ── */
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100;
   }
 
+  /* ── Modal shell ── */
   .modal {
     background: var(--bg-alt);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    width: 480px;
+    border-radius: var(--radius-lg, 14px);
+    width: 500px;
     max-height: 85vh;
     overflow-y: auto;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--shadow-lg, 0 12px 48px rgba(0, 0, 0, 0.5));
   }
 
+  /* ── Header ── */
   .header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
+    gap: 10px;
+    padding: 12px 14px;
     border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg-alt) 90%, var(--accent) 6%);
   }
 
   .title {
     font-weight: 700;
-    font-size: var(--base-font-size);
+    font-size: calc(var(--base-font-size) * 1.08);
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     margin: 0;
+    color: var(--fg);
   }
 
   .pid {
@@ -410,68 +417,77 @@
     font-size: calc(var(--base-font-size) * 0.833);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     flex-shrink: 0;
+    opacity: 0.7;
   }
 
   .close-btn {
-    width: 20px;
-    height: 20px;
-    border: none;
-    border-radius: 3px;
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--border-subtle, var(--border));
+    border-radius: var(--radius-sm, 6px);
     background: transparent;
     color: var(--fg-dim);
-    font-size: calc(var(--base-font-size) * 1.333);
+    font-size: calc(var(--base-font-size) * 1.2);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     line-height: 1;
+    transition: all 0.15s ease;
   }
   .close-btn:hover {
     background: var(--bg-hover);
+    border-color: var(--border);
     color: var(--fg);
   }
 
+  /* ── Body ── */
   .body {
-    padding: 6px 0;
+    padding: 8px 0;
   }
 
   .mode-banner {
-    margin: 4px 10px 8px;
+    margin: 4px 14px 10px;
     padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-    background: color-mix(in srgb, var(--bg) 92%, white 2%);
+    border-radius: var(--radius-md, 10px);
+    border: 1px solid var(--border-subtle, var(--border));
+    background: color-mix(in srgb, var(--bg) 94%, var(--accent) 3%);
     color: var(--fg-dim);
     font-size: calc(var(--base-font-size) * 0.78);
-    line-height: 1.45;
+    line-height: 1.5;
   }
 
+  /* ── Section labels — subtle, not screaming ── */
   .section-label {
-    padding: 4px 10px 2px;
-    font-size: calc(var(--base-font-size) * 0.75);
-    font-weight: 700;
+    padding: 6px 14px 3px;
+    font-size: calc(var(--base-font-size) * 0.7);
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--accent);
+    letter-spacing: 0.8px;
+    color: var(--fg-dim);
   }
 
+  /* ── Data rows ── */
   .row {
     display: flex;
     align-items: baseline;
-    padding: 3px 10px;
+    padding: 4px 14px;
     font-size: calc(var(--base-font-size) * 0.917);
-    gap: 8px;
+    gap: 10px;
+    border-radius: 4px;
+    margin: 0 4px;
+    transition: background 0.12s ease;
   }
   .row:hover {
     background: var(--bg-hover);
   }
 
   .label {
-    width: 72px;
+    width: 76px;
     flex-shrink: 0;
     color: var(--fg-dim);
-    font-size: calc(var(--base-font-size) * 0.833);
+    font-size: calc(var(--base-font-size) * 0.8);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -483,6 +499,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     word-break: break-all;
+    color: var(--fg);
   }
 
   .mono {
@@ -493,16 +510,17 @@
 
   .section-divider {
     height: 1px;
-    background: var(--border);
-    margin: 4px 10px;
+    background: var(--border-subtle, var(--border));
+    margin: 8px 14px;
+    opacity: 0.6;
   }
 
-  /* --- Tab section --- */
+  /* ── Tab section ── */
   .tabs-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-right: 10px;
+    padding-right: 14px;
   }
 
   .tabs-actions {
@@ -511,73 +529,75 @@
   }
 
   :global(.btn-tab-action) {
-    min-height: 30px;
+    min-height: 26px;
+    font-size: calc(var(--base-font-size) * 0.75) !important;
   }
 
   :global(.btn-tab-close-selected) {
-    text-transform: uppercase;
     letter-spacing: 0.3px;
-    min-height: 30px;
+    min-height: 26px;
+    font-size: calc(var(--base-font-size) * 0.75) !important;
   }
 
   .tab-filter-row {
-    padding: 2px 10px;
+    padding: 4px 14px;
   }
 
   .tab-filter {
     width: 100%;
-    padding: 2px 6px;
-    border: 1px solid var(--border);
-    border-radius: 3px;
+    padding: 5px 8px;
+    border: 1px solid var(--border-subtle, var(--border));
+    border-radius: var(--radius-sm, 6px);
     background: var(--bg);
     color: var(--fg);
     font-size: calc(var(--base-font-size) * 0.833);
     outline: none;
-    height: calc(var(--base-font-size) * 1.667);
+    transition: border-color 0.15s ease;
   }
   .tab-filter:focus {
     border-color: var(--accent);
   }
 
   .tab-filter-info {
-    padding: 0 10px;
-    font-size: calc(var(--base-font-size) * 0.75);
+    padding: 2px 14px;
+    font-size: calc(var(--base-font-size) * 0.7);
     color: var(--fg-dim);
   }
 
   .tab-list {
     max-height: 200px;
     overflow-y: auto;
-    margin: 2px 0;
+    margin: 4px 0;
+    padding: 0 6px;
   }
 
   .tab-item {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 10px;
+    gap: 6px;
+    padding: 3px 8px;
     font-size: calc(var(--base-font-size) * 0.833);
-    border-radius: 8px;
-    transition: transform 0.18s ease, background 0.18s ease, opacity 0.18s ease;
+    border-radius: var(--radius-sm, 6px);
+    transition: background 0.12s ease, opacity 0.18s ease;
   }
   .tab-item:hover {
     background: var(--bg-hover);
-    transform: translateX(2px);
   }
   .tab-item.selected {
     background: var(--bg-selected);
   }
   .tab-item.closing {
-    opacity: 0.4;
+    opacity: 0.35;
     pointer-events: none;
   }
 
   .tab-item input[type="checkbox"] {
     margin: 0;
     cursor: pointer;
-    width: 12px;
-    height: 12px;
+    width: 13px;
+    height: 13px;
     flex-shrink: 0;
+    accent-color: var(--accent);
   }
 
   :global(.tab-title-btn) {
@@ -589,11 +609,11 @@
     text-align: left;
     justify-content: flex-start;
     padding: 0 4px;
-    min-height: 28px;
-    border-color: transparent;
+    min-height: 26px;
+    border-color: transparent !important;
   }
   :global(.tab-title-btn:hover) {
-    color: var(--accent);
+    color: var(--accent) !important;
   }
 
   .tab-domain {
@@ -604,24 +624,32 @@
     white-space: nowrap;
     color: var(--fg-dim);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    font-size: calc(var(--base-font-size) * 0.75);
+    font-size: calc(var(--base-font-size) * 0.7);
+    opacity: 0.65;
   }
 
+  /* Tab close — ghost by default, danger on hover */
   :global(.btn-tab-kill) {
-    width: 30px;
-    min-width: 30px;
-    height: 30px;
+    width: 22px !important;
+    min-width: 22px !important;
+    height: 22px !important;
     flex-shrink: 0;
+    opacity: 0.4;
+    transition: opacity 0.15s ease;
+    font-size: calc(var(--base-font-size) * 0.75) !important;
+  }
+  .tab-item:hover :global(.btn-tab-kill) {
+    opacity: 1;
   }
 
   .tab-empty {
-    padding: 4px 10px;
+    padding: 8px 14px;
     font-size: calc(var(--base-font-size) * 0.833);
     color: var(--fg-dim);
     font-style: italic;
   }
 
-  /* --- AI section --- */
+  /* ── AI section ── */
   .ai-section {
     padding: 0 0 4px;
   }
@@ -630,60 +658,64 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-right: 10px;
+    padding-right: 14px;
   }
 
   :global(.btn-ask-ai) {
-    min-height: 34px;
+    min-height: 30px;
+    font-size: calc(var(--base-font-size) * 0.833) !important;
   }
 
   .ai-error {
-    padding: 4px 10px;
+    padding: 6px 14px;
     font-size: calc(var(--base-font-size) * 0.833);
     color: var(--danger);
   }
 
   .ai-response {
-    padding: 6px 10px;
+    padding: 8px 12px;
     font-size: calc(var(--base-font-size) * 0.833);
-    line-height: 1.5;
+    line-height: 1.55;
     color: var(--fg);
     white-space: pre-wrap;
     word-break: break-word;
     max-height: 200px;
     overflow-y: auto;
     background: var(--bg);
-    margin: 4px 10px;
-    border-radius: 4px;
-    border: 1px solid var(--border);
+    margin: 6px 14px;
+    border-radius: var(--radius-md, 10px);
+    border: 1px solid var(--border-subtle, var(--border));
   }
 
   .ai-skeleton {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding: 10px;
-    margin: 4px 10px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: color-mix(in srgb, var(--bg) 92%, white 2%);
+    padding: 12px;
+    margin: 6px 14px;
+    border-radius: var(--radius-md, 10px);
+    border: 1px solid var(--border-subtle, var(--border));
+    background: color-mix(in srgb, var(--bg) 94%, var(--accent) 3%);
   }
 
   .ai-hint {
-    padding: 4px 10px;
+    padding: 4px 14px;
     font-size: calc(var(--base-font-size) * 0.75);
     color: var(--fg-dim);
     font-style: italic;
+    opacity: 0.7;
   }
 
+  /* ── Footer ── */
   .footer {
-    padding: 4px 10px;
-    border-top: 1px solid var(--border);
+    padding: 6px 14px;
+    border-top: 1px solid var(--border-subtle, var(--border));
     text-align: right;
   }
 
   .hint {
-    font-size: calc(var(--base-font-size) * 0.75);
+    font-size: calc(var(--base-font-size) * 0.7);
     color: var(--fg-dim);
+    opacity: 0.6;
   }
 </style>

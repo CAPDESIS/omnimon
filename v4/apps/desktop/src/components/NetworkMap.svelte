@@ -123,14 +123,38 @@
   // --- Canvas-based connection map ---
   let canvas: HTMLCanvasElement | undefined = $state();
 
+  // Debounce canvas redraws to avoid thrashing on rapid store updates
+  let drawRafId = 0;
   $effect(() => {
     if (!canvas || collapsed || processNodes.length === 0 || activeTab !== "map") return;
-    requestAnimationFrame(() => {
+    cancelAnimationFrame(drawRafId);
+    drawRafId = requestAnimationFrame(() => {
       if (canvas && !collapsed && activeTab === "map") {
         drawMap(canvas, processNodes);
       }
     });
   });
+
+  // Cache CSS variables — only refresh when theme changes
+  let cachedCssVars: { fg: string; fgDim: string; accent: string; green: string; border: string } | null = null;
+  $effect(() => {
+    // Re-read CSS vars when theme changes
+    void $theme;
+    cachedCssVars = null;
+  });
+  function getCssVars() {
+    if (cachedCssVars) return cachedCssVars;
+    const getVar = (name: string) =>
+      getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    cachedCssVars = {
+      fg: getVar("--fg") || "#ededef",
+      fgDim: getVar("--fg-dim") || "#71717a",
+      accent: getVar("--accent") || "#3b82f6",
+      green: getVar("--green") || "#22c55e",
+      border: getVar("--border") || "#27272a",
+    };
+    return cachedCssVars;
+  }
 
   function drawMap(cvs: HTMLCanvasElement, nodes: ProcessNode[]) {
     const ctx = cvs.getContext("2d");
@@ -144,14 +168,7 @@
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, w, h);
 
-    const getVar = (name: string) =>
-      getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-
-    const fg = getVar("--fg") || "#ededef";
-    const fgDim = getVar("--fg-dim") || "#71717a";
-    const accent = getVar("--accent") || "#3b82f6";
-    const green = getVar("--green") || "#22c55e";
-    const border = getVar("--border") || "#27272a";
+    const { fg, fgDim, accent, green, border } = getCssVars();
 
     const leftMargin = NETWORK_CANVAS_LEFT_MARGIN;
     const rightMargin = w - NETWORK_CANVAS_RIGHT_INSET;

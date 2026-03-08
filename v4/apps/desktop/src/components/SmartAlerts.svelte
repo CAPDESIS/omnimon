@@ -156,11 +156,11 @@
   }
 
   .action-btn.force-quit {
-    background: var(--red);
+    background: var(--danger);
     color: #fff;
   }
 
   .action-btn.force-quit:hover {
-    filter: brightness(1.1);
+    background: var(--danger-hover);
   }
 </style>
