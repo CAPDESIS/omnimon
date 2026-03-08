@@ -237,7 +237,7 @@ pub fn kill_process_safe(pid: i32, extra_blocklist: &[String]) -> Result<KillRes
     let process_pid = Pid::from_u32(pid_u32);
 
     // Extract process info and attempt graceful kill while the borrow is active.
-    let (process_name, process_exe, graceful) = {
+    let (process_name, process_exe) = {
         let process = system
             .process(process_pid)
             .ok_or(KillError::ProcessNotFound(pid_u32))?;
@@ -250,36 +250,40 @@ pub fn kill_process_safe(pid: i32, extra_blocklist: &[String]) -> Result<KillRes
             return Err(KillError::Blocked(name));
         }
 
-        let graceful = process.kill_with(Signal::Term).unwrap_or(false) || process.kill();
-        (name, exe, graceful)
+        // Attempt graceful SIGTERM; ignore the result since we always
+        // follow up with a force kill if the process is still alive.
+        let _ = process.kill_with(Signal::Term).unwrap_or(false) || process.kill();
+        (name, exe)
     };
     // The immutable borrow on `system` is now dropped.
 
-    let killed = if graceful {
-        std::thread::sleep(Duration::from_millis(120));
-        if !process_is_alive(&mut system, pid_u32) {
-            // Process exited after SIGTERM — success.
-            true
-        } else if !identity_matches(&mut system, pid_u32, &process_name, process_exe.as_deref()) {
-            // PID exists but identity changed (PID reuse) — the original
-            // process is dead, so this is a success.
-            true
-        } else if crate::os_native::kill_process_force(
-            pid_u32,
-            &process_name,
-            process_exe.as_deref(),
-        )
-        .is_err()
+    // Wait for graceful SIGTERM to take effect.
+    std::thread::sleep(Duration::from_millis(300));
+
+    let killed = if !process_is_alive(&mut system, pid_u32) {
+        // Process exited after SIGTERM — success.
+        true
+    } else if !identity_matches(&mut system, pid_u32, &process_name, process_exe.as_deref()) {
+        // PID exists but identity changed (PID reuse) — the original
+        // process is dead, so this is a success.
+        true
+    } else if crate::os_native::kill_process_force(pid_u32, &process_name, process_exe.as_deref())
+        .is_ok()
+    {
+        std::thread::sleep(Duration::from_millis(200));
+        // After force kill, check if the process is gone.
+        if !process_is_alive(&mut system, pid_u32)
+            || !identity_matches(&mut system, pid_u32, &process_name, process_exe.as_deref())
         {
-            // Force kill failed.
-            false
+            true
         } else {
-            std::thread::sleep(Duration::from_millis(120));
-            // After force kill, if identity changed the original is dead.
+            // Retry: wait a bit more and check again.
+            std::thread::sleep(Duration::from_millis(200));
             !process_is_alive(&mut system, pid_u32)
                 || !identity_matches(&mut system, pid_u32, &process_name, process_exe.as_deref())
         }
     } else {
+        // Force kill call itself failed.
         false
     };
 
