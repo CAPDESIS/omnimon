@@ -9,6 +9,7 @@
   import InfoPopover from "./components/InfoPopover.svelte";
   import SmartAlerts from "./components/SmartAlerts.svelte";
   import AppToolbar from "./components/AppToolbar.svelte";
+  import Button from "./components/Button.svelte";
   import ProfilePanel from "./components/ProfilePanel.svelte";
   import SkeletonBlock from "./components/SkeletonBlock.svelte";
   import { totalFindings } from "./stores/security";
@@ -666,7 +667,7 @@
       <div class="ai-header">
         <span class="ai-title">{t("ai.suggestions")}</span>
         <InfoPopover label={t("ai.suggestions")} content={t("toolbar.aiSuggestionsHelp")} />
-        <button class="btn btn-sm" onclick={dismissAiSuggestions}>{t("ai.dismiss")}</button>
+        <Button variant="ghost" size="sm" onclick={dismissAiSuggestions}>{t("ai.dismiss")}</Button>
       </div>
       {#if $aiError}
         <div class="ai-error">{$aiError}</div>
@@ -676,10 +677,11 @@
           <span class="ai-name">{suggestion.name}</span>
           <span class="ai-pid">{t("ai.pid", { pid: suggestion.pid })}</span>
           <span class="ai-reason">{suggestion.reason}</span>
-          <button
-            class="btn btn-kill btn-sm"
+          <Button
+            variant="danger"
+            size="sm"
             onclick={() => killSingle(suggestion.pid)}
-          >{t("ai.close")}</button>
+          >{t("ai.close")}</Button>
         </div>
       {/each}
     </div>
@@ -743,8 +745,8 @@
 
   <!-- Status Footer -->
   <footer class="statusline" aria-live="polite" aria-atomic="true">
-    <span>
-      <span class="version-label" style="color: var(--accent); font-weight: 600;">OmniMon v5.2.0</span> &nbsp;&middot;&nbsp;
+      <span>
+        <span class="version-label">OmniMon v6.0.0</span> &nbsp;&middot;&nbsp;
       {t("footer.processes", { count: $filtered.length })}{#if $filtered.length !== $processes.length}
         &nbsp;{t("footer.filteredFrom", { count: $processes.length })}{/if}
       {#if $selectedCount > 0}
@@ -768,7 +770,7 @@
     <div class="settings-modal" bind:this={settingsModalEl} onkeydown={handleSettingsKeydown} onmousedown={stopMouseEventPropagation} role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
       <div class="settings-header">
         <h2 class="settings-title" id="settings-title">{t("settings.title")}</h2>
-        <button class="close-btn" onclick={closeSettings} aria-label={t("settings.closeSettings")}>&times;</button>
+        <Button variant="ghost" size="icon" class="settings-close-button" onclick={closeSettings} aria-label={t("settings.closeSettings")}>&times;</Button>
       </div>
       <div class="settings-body">
         <div class="settings-row">
@@ -829,20 +831,24 @@
               />
               <span class="col-order-name">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
               <div class="col-order-btns">
-                <button
+                <Button
                   class="col-move-btn"
+                  variant="ghost"
+                  size="sm"
                   disabled={i === 0}
                   onclick={() => moveColumnUp(key)}
                   title={t("settings.moveUp")}
                   aria-label={t("settings.moveColumnUp", { column: key })}
-                >&#9650;</button>
-                <button
+                >&#9650;</Button>
+                <Button
                   class="col-move-btn"
+                  variant="ghost"
+                  size="sm"
                   disabled={i === $columnOrder.length - 1}
                   onclick={() => moveColumnDown(key)}
                   title={t("settings.moveDown")}
                   aria-label={t("settings.moveColumnDown", { column: key })}
-                >&#9660;</button>
+                >&#9660;</Button>
               </div>
             </div>
           {/each}
@@ -996,13 +1002,13 @@
         {/if}
       </div>
       <div class="settings-footer">
-        <button
-          class="btn btn-accent"
+        <Button
+          variant="primary"
           onclick={handleSaveSettings}
           disabled={settingsSaving || !apiKeyInput}
         >
           {settingsSaving ? t("settings.saving") : t("settings.saveApiKey")}
-        </button>
+        </Button>
       </div>
     </div>
   </div>
@@ -1143,45 +1149,8 @@
   /* ==============================
      BUTTONS
      ============================== */
-  .btn {
-    padding: 4px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 4px);
-    background: var(--bg);
-    color: var(--fg);
-    font-size: calc(var(--base-font-size) * 0.833);
-    cursor: pointer;
-    white-space: nowrap;
-    height: calc(var(--base-font-size) * 2);
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    transition: background 0.12s, border-color 0.12s, color 0.12s;
-  }
-  .btn:hover { background: var(--bg-hover); }
-  .btn:disabled { opacity: 0.4; cursor: default; }
-  .btn-sm { padding: 2px 6px; height: auto; }
-
-  .btn-kill {
-    background: var(--danger);
-    color: white;
-    border-color: var(--danger);
-    font-weight: 600;
-  }
-  .btn-kill:hover:not(:disabled) { background: var(--danger-hover, #b71c1c); }
-
-  .btn-accent {
-    background: var(--accent);
-    color: white;
-    border-color: var(--accent);
-    font-weight: 600;
-  }
-  .btn-accent:hover:not(:disabled) { background: var(--accent-hover, #1d4ed8); }
-
   .profiles-shell {
-    padding: 0 12px 12px;
+    padding: 0 16px 16px;
     background: var(--bg-alt);
     border-bottom: 1px solid var(--border);
   }
@@ -1200,7 +1169,7 @@
   .lazy-panel-fallback {
     width: 100%;
     height: 100%;
-    padding: 10px 12px;
+    padding: 14px 16px;
     background: var(--bg-alt);
   }
 
@@ -1223,8 +1192,8 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 14px 12px 18px;
+    gap: 16px;
+    padding: 18px 16px 22px;
     background: linear-gradient(180deg, color-mix(in srgb, var(--bg-alt) 92%, white 2%), var(--bg));
   }
 
@@ -1240,15 +1209,15 @@
   .loading-toolbar-card {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 14px;
+    gap: 12px;
+    padding: 18px;
   }
 
   .loading-table-card {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 14px;
+    gap: 12px;
+    padding: 18px;
     flex: 1;
   }
 
@@ -1263,9 +1232,9 @@
   .mode-hint-card {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    margin: 8px 12px 0;
-    padding: 12px 14px;
+    gap: 6px;
+    margin: 12px 16px 0;
+    padding: 14px 16px;
     color: var(--fg-dim);
     line-height: 1.45;
   }
@@ -1358,15 +1327,20 @@
   .statusline {
     display: flex;
     justify-content: space-between;
-    padding: 3px 10px;
+    padding: 8px 16px;
     font-size: calc(var(--base-font-size) * 0.833);
     color: var(--fg-dim);
     background: var(--bg-alt);
     border-top: 1px solid var(--border);
     flex-shrink: 0;
-    min-height: calc(var(--base-font-size) * 1.667);
+    min-height: calc(var(--base-font-size) * 2.4);
     line-height: calc(var(--base-font-size) * 1.333);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  }
+
+  .version-label {
+    color: var(--accent);
+    font-weight: 700;
   }
 
   .shortcuts { opacity: 0.5; }
@@ -1397,8 +1371,8 @@
   .settings-modal {
     background: var(--bg-surface, var(--bg-alt));
     border: 1px solid var(--border);
-    border-radius: var(--radius-lg, 12px);
-    width: 400px;
+    border-radius: 18px;
+    width: min(460px, calc(100vw - 32px));
     max-height: 80vh;
     overflow-y: auto;
     box-shadow: var(--shadow-lg, 0 8px 32px rgba(0,0,0,0.5));
@@ -1408,7 +1382,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
+    padding: 16px 18px;
     border-bottom: 1px solid var(--border);
   }
 
@@ -1418,37 +1392,21 @@
     margin: 0;
   }
 
-  .close-btn {
-    width: 24px;
-    height: 24px;
-    border: none;
-    border-radius: var(--radius-sm, 4px);
-    background: transparent;
-    color: var(--fg-dim);
-    font-size: calc(var(--base-font-size) * 1.333);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-    transition: background 0.1s;
-  }
-  .close-btn:hover {
-    background: var(--bg-hover);
-    color: var(--fg);
+  :global(.settings-close-button) {
+    flex-shrink: 0;
   }
 
   .settings-body {
-    padding: 12px 16px;
+    padding: 16px 18px 18px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
   }
 
   .settings-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
     font-size: calc(var(--base-font-size) * 0.917);
   }
 
@@ -1536,10 +1494,10 @@
   .col-order-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 3px 4px;
+    gap: 8px;
+    padding: 6px 8px;
     font-size: calc(var(--base-font-size) * 0.917);
-    border-radius: var(--radius-sm, 4px);
+    border-radius: 10px;
     transition: background 0.1s;
   }
   .col-order-row:hover { background: var(--bg-hover); }
@@ -1552,27 +1510,11 @@
     accent-color: var(--accent);
   }
   .col-order-name { flex: 1; }
-  .col-order-btns { display: flex; gap: 2px; }
-  .col-move-btn {
-    width: 20px;
-    height: 18px;
-    padding: 0;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    background: transparent;
-    color: var(--fg-dim);
-    font-size: calc(var(--base-font-size) * 0.667);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.1s;
+  .col-order-btns { display: flex; gap: 6px; }
+  :global(.col-move-btn) {
+    min-width: 30px;
+    padding: 0 8px;
   }
-  .col-move-btn:hover:not(:disabled) {
-    background: var(--bg-hover);
-    color: var(--fg);
-  }
-  .col-move-btn:disabled { opacity: 0.3; cursor: default; }
 
   .settings-hint {
     font-size: calc(var(--base-font-size) * 0.75);
@@ -1624,7 +1566,7 @@
   .color-picker::-webkit-color-swatch { border-radius: 2px; border: none; }
 
   .settings-footer {
-    padding: 8px 16px;
+    padding: 16px 18px 18px;
     border-top: 1px solid var(--border);
     display: flex;
     justify-content: flex-end;

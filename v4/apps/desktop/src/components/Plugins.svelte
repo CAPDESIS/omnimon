@@ -8,6 +8,7 @@
     ipcRemovePlugin,
     ipcSetPluginEnabled,
   } from "../lib/ipc";
+  import Button from "./Button.svelte";
 
   interface Props {
     onclose: () => void;
@@ -143,7 +144,7 @@ end`;
         <h2 id="plugins-title">{t("plugins.title")}</h2>
         <p class="plugins-subtitle">{t("plugins.subtitle")}</p>
       </div>
-      <button class="close-btn" type="button" onclick={onclose} aria-label={t("common.close")}>x</button>
+      <Button class="close-btn" variant="ghost" size="icon" type="button" onclick={onclose} aria-label={t("common.close")}>x</Button>
     </header>
 
     <div class="plugins-toolbar">
@@ -153,9 +154,9 @@ end`;
           <p>{t("plugins.uploadBody")}</p>
         </div>
         <input bind:this={fileInput} class="hidden-input" type="file" accept=".lua" onchange={handleUpload} />
-        <button class="btn btn-accent" type="button" onclick={() => fileInput?.click()} disabled={uploadBusy}>
+        <Button variant="primary" type="button" onclick={() => fileInput?.click()} disabled={uploadBusy}>
           {uploadBusy ? t("plugins.uploading") : t("plugins.uploadButton")}
-        </button>
+        </Button>
       </div>
 
       <div class="summary-card">
@@ -235,10 +236,10 @@ end`;
               </div>
 
               <div class="plugin-actions">
-                <button class="btn" type="button" onclick={() => togglePlugin(plugin)}>
+                <Button variant="secondary" type="button" onclick={() => togglePlugin(plugin)}>
                   {plugin.enabled ? t("plugins.disable") : t("plugins.enable")}
-                </button>
-                <button class="btn" type="button" onclick={() => removePlugin(plugin)}>{t("plugins.remove")}</button>
+                </Button>
+                <Button variant="danger" type="button" onclick={() => removePlugin(plugin)}>{t("plugins.remove")}</Button>
               </div>
             </article>
           {/each}
@@ -319,14 +320,8 @@ end`;
     color: var(--fg-dim);
   }
 
-  .close-btn {
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--fg);
-    width: 34px;
-    height: 34px;
+  :global(.close-btn) {
     border-radius: 999px;
-    cursor: pointer;
   }
 
   .upload-card,

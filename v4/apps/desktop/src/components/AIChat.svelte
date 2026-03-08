@@ -13,6 +13,7 @@
   import type { ChatMessage } from "../lib/chatUtils";
   import type { ToolResult } from "../lib/types";
   import InfoPopover from "./InfoPopover.svelte";
+  import Button from "./Button.svelte";
   import { AI_CHAT_TIMEOUT_MS } from "../lib/constants";
 
   interface ChatMessageWithTool extends ChatMessage {
@@ -289,7 +290,7 @@
     <InfoPopover label={t("aiChat.title")} content={t("aiChat.helpTooltip")} />
     <span class="chat-provider">{get(aiProviderConfig).provider}</span>
     {#if messages.length > 0}
-      <button class="clear-btn" onclick={clearChat}>{t("common.clear")}</button>
+      <Button class="clear-btn" variant="ghost" size="sm" onclick={clearChat}>{t("common.clear")}</Button>
     {/if}
   </div>
 
@@ -321,9 +322,9 @@
             {/if}
             {#if msg.isError && msg.canRetry && msg.retryText}
               <div class="error-actions">
-                <button class="retry-btn" onclick={() => retryMessage(msg.retryText!)}>
+                <Button class="retry-btn" variant="secondary" size="sm" onclick={() => retryMessage(msg.retryText!)}>
                   ↻ {t("common.retry") || "Reintentar"}
-                </button>
+                </Button>
               </div>
             {/if}
           </span>
@@ -333,7 +334,7 @@
         <div class="chat-msg chat-assistant">
           <span class="chat-role">{t("aiChat.assistantLabel")}</span>
           <span class="chat-text typing">{t("aiChat.thinking")}<span class="dots"><span>.</span><span>.</span><span>.</span></span></span>
-          <button class="cancel-btn" onclick={cancelRequest}>{t("aiChat.cancel")}</button>
+          <Button class="cancel-btn" variant="danger" size="sm" onclick={cancelRequest}>{t("aiChat.cancel")}</Button>
         </div>
       {/if}
       {#if pendingAction}
@@ -344,8 +345,8 @@
           </div>
           <div class="action-details">{formatActionDetails(pendingAction.tool, pendingAction.details)}</div>
           <div class="action-buttons">
-            <button class="confirm-btn" onclick={confirmAction}>{t("aiChat.confirm")}</button>
-            <button class="reject-btn" onclick={rejectAction}>{t("aiChat.cancel")}</button>
+            <Button class="confirm-btn" variant="primary" size="sm" onclick={confirmAction}>{t("aiChat.confirm")}</Button>
+            <Button class="reject-btn" variant="ghost" size="sm" onclick={rejectAction}>{t("aiChat.cancel")}</Button>
           </div>
         </div>
       {/if}
@@ -354,18 +355,18 @@
     <div class="chat-empty">
       <p>{t("aiChat.emptyState")}</p>
       <div class="suggestions">
-        <button onclick={() => { input = t("aiChat.suggestion1"); handleSubmit(); }}>
+        <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion1"); handleSubmit(); }}>
           {t("aiChat.suggestion1")}
-        </button>
-        <button onclick={() => { input = t("aiChat.suggestion2"); handleSubmit(); }}>
+        </Button>
+        <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion2"); handleSubmit(); }}>
           {t("aiChat.suggestion2")}
-        </button>
-        <button onclick={() => { input = t("aiChat.suggestion3"); handleSubmit(); }}>
+        </Button>
+        <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion3"); handleSubmit(); }}>
           {t("aiChat.suggestion3")}
-        </button>
-        <button onclick={() => { input = t("aiChat.suggestion4"); handleSubmit(); }}>
+        </Button>
+        <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion4"); handleSubmit(); }}>
           {t("aiChat.suggestion4")}
-        </button>
+        </Button>
       </div>
     </div>
   {/if}
@@ -385,13 +386,14 @@
       }}
       disabled={loading}
     ></textarea>
-    <button
+    <Button
       class="send-btn"
+      variant="primary"
       onclick={handleSubmit}
       disabled={loading || !input.trim()}
     >
       {loading ? t("common.loadingShort") : t("aiChat.send")}
-    </button>
+    </Button>
   </div>
 </div>
 
@@ -432,15 +434,7 @@
 
   .clear-btn {
     margin-left: auto;
-    padding: 2px 8px;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    background: transparent;
-    color: var(--fg-dim);
-    font-size: calc(var(--base-font-size, 12px) * 0.75);
-    cursor: pointer;
   }
-  .clear-btn:hover { color: var(--danger); border-color: var(--danger); }
 
   .chat-messages {
     flex: 1;
@@ -523,20 +517,10 @@
 
   .cancel-btn {
     margin-left: auto;
-    padding: 2px 10px;
-    border: 1px solid var(--danger, #ef4444);
-    border-radius: 3px;
-    background: transparent;
-    color: var(--danger, #ef4444);
-    font-size: calc(var(--base-font-size, 12px) * 0.75);
-    font-weight: 600;
-    cursor: pointer;
     text-transform: uppercase;
     letter-spacing: 0.3px;
-    transition: background 0.15s, color 0.15s;
     flex-shrink: 0;
   }
-  .cancel-btn:hover { background: var(--danger, #ef4444); color: white; }
 
   .typing {
     color: var(--fg-dim);
@@ -612,48 +596,18 @@
   }
 
   .retry-btn {
-    padding: 4px 12px;
-    border: 1px solid var(--accent);
-    border-radius: 4px;
-    background: transparent;
-    color: var(--accent);
-    font-weight: 600;
-    font-size: calc(var(--base-font-size, 12px) * 0.833);
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-  }
-  .retry-btn:hover {
-    background: var(--accent);
-    color: white;
+    min-height: 30px;
   }
 
   .confirm-btn {
-    padding: 4px 16px;
-    border: none;
-    border-radius: 4px;
-    background: var(--green, #22c55e);
-    color: white;
-    font-weight: 700;
-    font-size: calc(var(--base-font-size, 12px) * 0.833);
-    cursor: pointer;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
-  .confirm-btn:hover { opacity: 0.85; }
 
   .reject-btn {
-    padding: 4px 16px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: transparent;
-    color: var(--fg-dim);
-    font-weight: 700;
-    font-size: calc(var(--base-font-size, 12px) * 0.833);
-    cursor: pointer;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
-  .reject-btn:hover { color: var(--danger); border-color: var(--danger); }
 
   .chat-empty {
     padding: 20px 12px;
@@ -671,21 +625,6 @@
     flex-wrap: wrap;
     gap: 6px;
     justify-content: center;
-  }
-
-  .suggestions button {
-    padding: 4px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 4px);
-    background: var(--bg);
-    color: var(--fg);
-    font-size: calc(var(--base-font-size, 12px) * 0.833);
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
-  }
-  .suggestions button:hover {
-    border-color: var(--accent);
-    background: var(--bg-hover, rgba(59, 130, 246, 0.08));
   }
 
   .chat-input-row {
@@ -718,21 +657,10 @@
   .chat-input:disabled { opacity: 0.5; }
 
   .send-btn {
-    padding: 0 14px;
-    border: none;
-    border-radius: var(--radius-sm, 4px);
-    background: var(--accent);
-    color: white;
-    font-weight: 700;
-    font-size: calc(var(--base-font-size, 12px) * 0.833);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    cursor: pointer;
     white-space: nowrap;
-    transition: background 0.15s;
   }
-  .send-btn:hover:not(:disabled) { background: var(--accent-hover, #1d4ed8); }
-  .send-btn:disabled { opacity: 0.4; cursor: default; }
 
   :global(.pid-link) {
     background: none;

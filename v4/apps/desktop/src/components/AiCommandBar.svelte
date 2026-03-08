@@ -31,6 +31,7 @@
   import type { ChatMessage } from "../lib/chatUtils";
   import type { ThemeId } from "../lib/theme";
   import type { LocaleCode } from "../lib/i18n";
+  import Button from "./Button.svelte";
   import InfoPopover from "./InfoPopover.svelte";
 
   let input = $state("");
@@ -360,12 +361,12 @@
       </div>
 
       <div class="preview-actions">
-        <button class="btn-confirm" onclick={confirmPendingChange}>
+        <Button class="btn-confirm" variant="primary" size="sm" onclick={confirmPendingChange}>
           {t("aiConfig.apply")}
-        </button>
-        <button class="btn-reject" onclick={rejectPendingChange}>
+        </Button>
+        <Button class="btn-reject" variant="ghost" size="sm" onclick={rejectPendingChange}>
           {t("aiConfig.reject")}
-        </button>
+        </Button>
       </div>
     </div>
   {/if}
@@ -388,16 +389,17 @@
         disabled={loading}
       ></textarea>
       {#if input || messages.length > 0}
-        <button class="clear-btn" onclick={clearChat} aria-label={t("common.clear")}>×</button>
+        <Button class="clear-btn" variant="ghost" size="icon" onclick={clearChat} aria-label={t("common.clear")}>×</Button>
       {/if}
     </div>
-    <button
+    <Button
       class="send-btn"
+      variant="primary"
       onclick={handleSubmit}
       disabled={loading || !input.trim()}
     >
       {loading ? "..." : t("aiConfig.run")}
-    </button>
+    </Button>
   </div>
   {#if error}
     <div class="command-error">{error}</div>
@@ -621,37 +623,13 @@
   }
 
   .btn-confirm {
-    padding: 4px 14px;
-    border: none;
-    border-radius: var(--radius-sm, 4px);
-    background: var(--green);
-    color: white;
-    font-weight: 700;
-    font-size: calc(var(--base-font-size, 12px) * 0.833);
-    cursor: pointer;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    transition: background 0.15s;
   }
-  .btn-confirm:hover { filter: brightness(1.1); }
 
   .btn-reject {
-    padding: 4px 14px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 4px);
-    background: transparent;
-    color: var(--fg-dim);
-    font-weight: 600;
-    font-size: calc(var(--base-font-size, 12px) * 0.833);
-    cursor: pointer;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    transition: background 0.15s, color 0.15s;
-  }
-  .btn-reject:hover {
-    background: var(--danger);
-    color: white;
-    border-color: var(--danger);
   }
 
   /* --- Input Row --- */
@@ -704,38 +682,16 @@
   .command-input:disabled { opacity: 0.5; }
 
   .clear-btn {
-    width: 16px;
-    height: 16px;
-    border: none;
-    background: transparent;
-    color: var(--fg-dim);
-    font-size: 13px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    border-radius: 2px;
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
   }
-  .clear-btn:hover { color: var(--fg); background: var(--bg-hover); }
 
   .send-btn {
-    padding: 0 12px;
-    height: calc(var(--base-font-size, 12px) * 2);
-    border: none;
-    border-radius: var(--radius-sm, 4px);
-    background: var(--accent);
-    color: white;
-    font-weight: 700;
-    font-size: calc(var(--base-font-size, 12px) * 0.833);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    cursor: pointer;
     white-space: nowrap;
-    transition: background 0.15s;
   }
-  .send-btn:hover:not(:disabled) { background: var(--accent-hover, #1d4ed8); }
-  .send-btn:disabled { opacity: 0.4; cursor: default; }
 
   .command-error {
     padding: 2px 10px 4px;
