@@ -1,4 +1,4 @@
-# OmniMon v4
+# OmniMon v5
 
 [![CI/CD](https://github.com/chochy2001/omnimon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/omnimon/actions) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_+_Svelte-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#) [![Sponsor](https://img.shields.io/badge/Sponsor-💖-ff69b4)](https://github.com/sponsors/chochy2001)
 
@@ -9,13 +9,16 @@
 
 OmniMon is a next-generation system monitor rewritten from scratch in a modern monorepo. It replaces the legacy AppKit/Bash architecture with a hyper-optimized native core and a reactive UI.
 
-## What's New in v4.6
+## What's New in v5.0
 
-* **Native network telemetry (DPI Lite):** platform collectors for **libpcap** (macOS), **WinDivert** (Windows), and **eBPF/aya** (Linux).
-* **Per-process network context:** throughput by PID, recent connections (IP/port/protocol), and backend health telemetry.
-* **MITRE + NIST security pipeline:** behavioral mapping (e.g. T1055/T1043/T1571), plus encrypted NIST 800-53 heartbeat snapshots.
-* **AI Rules Engine:** versioned JSON contract for dynamic alert rules (GeoIP, CIDR, port/protocol, process memory threshold).
-* **Real-time IPC alerts:** backend emits `security-alert` events via Tauri to power reactive UI cards/notifications.
+* **Ed25519 cryptographic signatures:** every release binary is signed with Ed25519 keys and verified with SHA-256 integrity checksums, ensuring tamper-proof distribution.
+* **Deep OS telemetry:** process grouping, native app icons, energy impact scores, and network throughput per-process.
+* **UI overhaul with Svelte 5:** micro-animations, modern design language, and rank-change indicators for processes.
+* **Agentic AI:** local LLM support via Ollama, plus tool calling that lets the AI kill processes and manage automations through natural language.
+* **SRE Automations engine:** user-defined automation rules with native OS notifications for alerts and threshold events.
+* **System Tray:** background mode with autostart support, keeping OmniMon running silently in the tray.
+* **CLI parity:** the terminal interface now exposes the full feature set available in the desktop app.
+* **Mobile roadmap:** Android and iOS builds are planned via Tauri v2's mobile targets.
 
 ## Architecture
 
@@ -120,17 +123,20 @@ Sponsors get access to pre-built premium installers (.exe, .dmg, .deb) and prior
 
 ---
 
-# OmniMon v4 (Español)
+# OmniMon v5 (Español)
 
 OmniMon es un monitor de sistema de próxima generación reescrito desde cero en un monorepositorio moderno. Reemplaza la antigua arquitectura de AppKit/Bash con un núcleo nativo hiperoptimizado y una interfaz reactiva.
 
-## Novedades en v4.6
+## Novedades en v5.0
 
-* **Telemetría de red nativa (DPI Lite):** colectores por plataforma con **libpcap** (macOS), **WinDivert** (Windows) y **eBPF/aya** (Linux).
-* **Contexto de red por proceso:** throughput por PID, conexiones recientes (IP/puerto/protocolo) y salud del backend de captura.
-* **Pipeline de seguridad MITRE + NIST:** mapeo de comportamiento (ej. T1055/T1043/T1571) y snapshots cifrados de heartbeat NIST 800-53.
-* **Motor de reglas IA:** contrato JSON versionado para alertas dinámicas (GeoIP, CIDR, puerto/protocolo, umbral de memoria).
-* **Alertas IPC en tiempo real:** emisión de evento `security-alert` vía Tauri para UI reactiva.
+* **Firmas criptográficas Ed25519:** cada binario de release se firma con claves Ed25519 y se verifica con checksums SHA-256, garantizando distribución a prueba de manipulaciones.
+* **Telemetría profunda del SO:** agrupación de procesos, iconos nativos de aplicaciones, puntuación de impacto energético y throughput de red por proceso.
+* **Rediseño de UI con Svelte 5:** micro-animaciones, lenguaje de diseño moderno e indicadores de cambio de ranking para procesos.
+* **IA Agéntica:** soporte de LLM local vía Ollama, con capacidad de tool calling que permite a la IA terminar procesos y gestionar automatizaciones mediante lenguaje natural.
+* **Motor de Automatizaciones SRE:** reglas de automatización definidas por el usuario con notificaciones nativas del SO para alertas y eventos de umbral.
+* **System Tray:** modo en segundo plano con soporte de autostart, manteniendo OmniMon ejecutándose silenciosamente en la bandeja del sistema.
+* **Paridad del CLI:** la interfaz de terminal ahora expone el conjunto completo de funciones disponibles en la app de escritorio.
+* **Roadmap móvil:** compilaciones para Android e iOS planificadas mediante los targets móviles de Tauri v2.
 
 ## Arquitectura
 

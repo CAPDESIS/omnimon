@@ -27,7 +27,7 @@ Setting up the cross-platform environment (Rust, Tauri, Svelte) is straightforwa
 
 ## Cross-Platform Requirements
 
-OmniMon v4 is designed to run natively on **macOS, Windows, and Linux**. Any new feature or module (e.g. browser tab tracking, native OS interactions) **must** be supported on all three platforms, or degrade gracefully if the OS API doesn't support it.
+OmniMon v5 is designed to run natively on **macOS, Windows, and Linux**. Any new feature or module (e.g. browser tab tracking, native OS interactions) **must** be supported on all three platforms, or degrade gracefully if the OS API doesn't support it.
 
 * Before proposing a new feature, ensure the code compiles and passes tests on all three environments.
 * Use Rust's `#[cfg(target_os = "...")]` typing for OS-specific implementations.
@@ -88,7 +88,7 @@ Configurar el entorno multiplataforma (Rust, Tauri, Svelte) es sencillo con nues
 
 ## Requisitos Multiplataforma
 
-OmniMon v4 está diseñado para ejecutarse de forma nativa en **macOS, Windows y Linux**. Cualquier nueva característica o módulo (ej. seguimiento de pestañas del navegador, interacciones nativas del SO) **debe** ser compatible en las tres plataformas, o degradarse de manera elegante si la API del SO no lo soporta.
+OmniMon v5 está diseñado para ejecutarse de forma nativa en **macOS, Windows y Linux**. Cualquier nueva característica o módulo (ej. seguimiento de pestañas del navegador, interacciones nativas del SO) **debe** ser compatible en las tres plataformas, o degradarse de manera elegante si la API del SO no lo soporta.
 
 * Antes de proponer una nueva característica, asegúrate de que el código compile y pase las pruebas en los tres entornos.
 * Usa la directiva de Rust `#[cfg(target_os = "...")]` para implementaciones específicas por SO.

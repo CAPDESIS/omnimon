@@ -4,7 +4,8 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| v4.0.x  | :white_check_mark: |
+| v5.0.x  | :white_check_mark: |
+| v4.0.x  | :x:                |
 | v3.x.x  | :x:                |
 
 ## Reporting a Vulnerability
@@ -35,10 +36,13 @@ We continuously model our threats based on the MITRE ATT&CK framework to defend 
 *   **T1552 (Unsecured Credentials):** Mitigated through our mandatory implementation of native Keychain/Credential Manager.
 *   **T1548.002 (Bypass User Access Control):** OmniMon runs in user-space and does not request privilege escalation (`sudo`/`root`) for regular operations. Its ability to terminate processes is strictly limited to the current user session (UID match).
 
-### 4. Automated CVE Scanning
-Our CI/CD lifecycle includes static analysis tools like `cargo-audit`, `Grype`, and the Dependabot ecosystem for continuous detection of Common Vulnerabilities and Exposures (CVEs). Every pull request is scanned before being merged, blocking compromised transitive dependencies.
+### 4. Ed25519 Release Signatures and SHA-256 Checksums
+Starting with v5.0, every release binary is signed using Ed25519 cryptographic keys. Each artifact is accompanied by a SHA-256 checksum file. Users and automated systems can verify both the signature authenticity and file integrity before installation, ensuring that distributed binaries have not been tampered with.
 
-### 5. Input Sanitization for System Calls (Frontend -> Backend IPC)
+### 5. Automated CVE Scanning
+Our CI/CD lifecycle includes static analysis tools like `cargo-audit`, `npm audit`, `Grype`, and the Dependabot ecosystem for continuous detection of Common Vulnerabilities and Exposures (CVEs). Both Rust (`cargo audit`) and JavaScript (`npm audit`) dependency trees are scanned on every pull request before merging, blocking compromised transitive dependencies.
+
+### 6. Input Sanitization for System Calls (Frontend -> Backend IPC)
 All interactions between the frontend and native backend pass through a secure IPC bridge. This prevents malicious data injected from the frontend from compromising the system:
 *   **AppleScript:** User-provided identifiers are never directly concatenated into AppleScript strings. They are passed as positional arguments, eliminating Remote Code Execution (RCE) vectors.
 *   **WebSockets (CDP):** Debugging session IDs are rigorously validated to prevent Path Traversal. Characters like `/`, `\`, `?`, and `#` are rejected.
@@ -51,7 +55,8 @@ All interactions between the frontend and native backend pass through a secure I
 
 | Versión | Soportada          |
 | ------- | ------------------ |
-| v4.0.x  | :white_check_mark: |
+| v5.0.x  | :white_check_mark: |
+| v4.0.x  | :x:                |
 | v3.x.x  | :x:                |
 
 ## Reportar una Vulnerabilidad
@@ -82,10 +87,13 @@ Modelamos constantemente nuestras amenazas basándonos en el framework MITRE ATT
 *   **T1552 (Unsecured Credentials):** Mitigado a través de nuestra implementación obligatoria de Keychain/Credential Manager nativo.
 *   **T1548.002 (Bypass User Access Control):** OmniMon se ejecuta en modo usuario (User-space) y no solicita escalada de privilegios (`sudo`/`root`) para operaciones regulares. Su capacidad de terminar procesos se limita estrictamente a la sesión de usuario actual (UID match).
 
-### 4. Escaneos de CVEs Automatizados
-Nuestro ciclo de CI/CD incluye herramientas de análisis estático como `cargo-audit`, `Grype` y el ecosistema de Dependabot para la detección continua de Vulnerabilidades y Exposiciones Comunes (CVE). Cada pull request es escaneado antes de ser fusionado, bloqueando dependencias transitivas comprometidas.
+### 4. Firmas Ed25519 de Release y Checksums SHA-256
+A partir de la v5.0, cada binario de release se firma con claves criptográficas Ed25519. Cada artefacto va acompañado de un archivo de checksum SHA-256. Los usuarios y sistemas automatizados pueden verificar tanto la autenticidad de la firma como la integridad del archivo antes de la instalación, asegurando que los binarios distribuidos no han sido manipulados.
 
-### 5. Sanitización de Entradas para Llamadas al Sistema (Frontend -> Backend IPC)
+### 5. Escaneos de CVEs Automatizados
+Nuestro ciclo de CI/CD incluye herramientas de análisis estático como `cargo-audit`, `npm audit`, `Grype` y el ecosistema de Dependabot para la detección continua de Vulnerabilidades y Exposiciones Comunes (CVE). Tanto el árbol de dependencias de Rust (`cargo audit`) como el de JavaScript (`npm audit`) se escanean en cada pull request antes de ser fusionado, bloqueando dependencias transitivas comprometidas.
+
+### 6. Sanitización de Entradas para Llamadas al Sistema (Frontend -> Backend IPC)
 Todas las interacciones entre el frontend y el backend nativo pasan a través de un puente de IPC Seguro. Esto previene que datos maliciosos inyectados desde el frontend comprometan el sistema:
 *   **AppleScript:** Los identificadores proporcionados por el usuario (como IDs de pestañas o URLs) nunca se concatenan directamente en cadenas de AppleScript. En su lugar, se pasan como argumentos posicionales (vía `osascript -e` y `on run argv`), eliminando vectores de Remote Code Execution (RCE).
 *   **WebSockets (CDP):** Los IDs de sesión de depuración están rigurosamente validados para evitar el *Path Traversal*. Se rechazan los caracteres como `/`, `\`, `?` y `#`, lo que garantiza que las conexiones solo puedan abrirse contra los *endpoints* permitidos del Chrome Debugging Protocol.
