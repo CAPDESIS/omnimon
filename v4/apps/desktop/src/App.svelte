@@ -77,6 +77,7 @@
   let dashboardCollapsed = $state(false);
   let showSecurityReport = $state(false);
   let showAutomations = $state(false);
+  let showPlugins = $state(false);
   let showHelpCenter = $state(false);
   let activeMetricModal = $state<"cpu" | "ram" | "network" | "swap" | "processes" | null>(null);
   let settingsModalEl: HTMLDivElement | undefined = $state();
@@ -94,6 +95,7 @@
   let networkMapPromise = $state<Promise<any> | null>(null);
   let cloudSyncPromise = $state<Promise<any> | null>(null);
   let automationsPromise = $state<Promise<any> | null>(null);
+  let pluginsPromise = $state<Promise<any> | null>(null);
 
   function loadChromeTabManager() {
     chromeTabManagerPromise ??= import("./components/ChromeTabManager.svelte");
@@ -131,6 +133,10 @@
 
   function loadAutomations() {
     automationsPromise ??= import("./components/Automations.svelte");
+  }
+
+  function loadPlugins() {
+    pluginsPromise ??= import("./components/Plugins.svelte");
   }
 
   function closeWhenBackdropMatches(event: MouseEvent, onclose: () => void) {
@@ -519,6 +525,11 @@
     showAutomations = !showAutomations;
   }
 
+  function openPlugins() {
+    loadPlugins();
+    showPlugins = true;
+  }
+
   function openHelpCenter() {
     loadHelpCenterModal();
     showHelpCenter = true;
@@ -575,6 +586,7 @@
     ontoggledashboard={() => dashboardCollapsed = !dashboardCollapsed}
     dashboardCollapsed={dashboardCollapsed}
     ontoggleautomations={toggleAutomations}
+    onopenplugins={openPlugins}
     onopensettings={() => showSettings = true}
     onopenhelp={openHelpCenter}
     ondecreasefont={decreaseFontSize}
@@ -1011,6 +1023,14 @@
   {#if automationsPromise}
     {#await automationsPromise then AutomationsModule}
       <AutomationsModule.default />
+    {/await}
+  {/if}
+{/if}
+
+{#if showPlugins}
+  {#if pluginsPromise}
+    {#await pluginsPromise then PluginsModule}
+      <PluginsModule.default onclose={() => showPlugins = false} />
     {/await}
   {/if}
 {/if}

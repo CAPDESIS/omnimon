@@ -57,6 +57,29 @@ export interface KillProcessesResult {
   failed: Array<[number, string]>;
 }
 
+export interface PluginMetric {
+  name: string;
+  label: string;
+  kind: "gauge" | "counter" | string;
+  value: number;
+  unit: string | null;
+  tags: Record<string, string>;
+}
+
+export interface PluginDescriptor {
+  id: string;
+  name: string;
+  file_name: string;
+  enabled: boolean;
+  description: string | null;
+  version: string | null;
+  status: string;
+  last_error: string | null;
+  last_run_ms: number | null;
+  last_duration_ms: number | null;
+  metrics: PluginMetric[];
+}
+
 // --- Security & Telemetry Types ---
 // Mirror Rust structs from crates/core/src/security.rs and audit.rs
 // Ready to consume once IPC commands are exposed.
