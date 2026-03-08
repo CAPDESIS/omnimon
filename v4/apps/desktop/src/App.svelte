@@ -61,8 +61,10 @@
     moveColumnDown,
     MIN_IDLE_THRESHOLD,
     MAX_IDLE_THRESHOLD,
+    customTheme,
+    type ThemeMode,
   } from "./stores/preferences";
-  import { customTheme, type ThemeMode } from "./stores/preferences";
+  import { aiChatPanelHeight as aiChatPanelHeightStore } from "./stores/preferences";
   import { ipcValidateApiKey, ipcCheckApiKey, ipcAnalyzeContext } from "./lib/ipc";
   import { listen } from "@tauri-apps/api/event";
   import { t, locale, initI18n } from "./lib/i18n";
@@ -84,6 +86,10 @@
   let dragging = $state(false);
   let dragStartY = 0;
   let dragStartHeight = 0;
+  let aiChatPanelHeight = $state(220);
+  let aiChatDragging = $state(false);
+  let aiChatDragStartY = 0;
+  let aiChatDragStartHeight = 0;
 
   // Platform detection for OS-specific styles
   let platform = $state<"macos" | "windows" | "linux">("macos");
@@ -105,7 +111,6 @@
   $effect(() => {
     tabPanelHeight = $tabPanelHeightStore;
   });
-
   function onDividerMousedown(e: MouseEvent) {
     e.preventDefault();
     dragging = true;
@@ -124,6 +129,26 @@
     dragging = false;
     window.removeEventListener("mousemove", onDividerMousemove);
     window.removeEventListener("mouseup", onDividerMouseup);
+  }
+
+  function onAiChatDividerMousedown(e: MouseEvent) {
+    e.preventDefault();
+    aiChatDragging = true;
+    aiChatDragStartY = e.clientY;
+    aiChatDragStartHeight = aiChatPanelHeight;
+    window.addEventListener("mousemove", onAiChatDividerMousemove);
+    window.addEventListener("mouseup", onAiChatDividerMouseup);
+  }
+
+  function onAiChatDividerMousemove(e: MouseEvent) {
+    const delta = e.clientY - aiChatDragStartY;
+    aiChatPanelHeight = Math.max(140, Math.min(aiChatDragStartHeight + delta, 640));
+  }
+
+  function onAiChatDividerMouseup() {
+    aiChatDragging = false;
+    window.removeEventListener("mousemove", onAiChatDividerMousemove);
+    window.removeEventListener("mouseup", onAiChatDividerMouseup);
   }
 
   // AI settings modal state
@@ -267,6 +292,8 @@
       clearTimeout(debounceTimer);
       window.removeEventListener("mousemove", onDividerMousemove);
       window.removeEventListener("mouseup", onDividerMouseup);
+      window.removeEventListener("mousemove", onAiChatDividerMousemove);
+      window.removeEventListener("mouseup", onAiChatDividerMouseup);
       unsubPrefs();
       unsubLocale();
       for (const unlisten of unlistenFns) {
@@ -457,6 +484,7 @@
         class="btn btn-icon"
         onclick={() => dashboardCollapsed = !dashboardCollapsed}
         title={dashboardCollapsed ? t("toolbar.showDashboard") : t("toolbar.hideDashboard")}
+        aria-label={dashboardCollapsed ? t("toolbar.showDashboard") : t("toolbar.hideDashboard")}
       >
         <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
           {#if dashboardCollapsed}
@@ -469,8 +497,9 @@
 
       <button
         class="btn btn-icon"
-        onclick={() => showAutomations = true}
+        onclick={() => showAutomations = !showAutomations}
         title={t("toolbar.automations")}
+        aria-label={t("toolbar.automations")}
       >
         <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
           <path d="M8 0a8 8 0 100 16A8 8 0 008 0zm1 11H7V7h2v4zm0-5H7V4h2v2z"/>
@@ -481,6 +510,7 @@
         class="btn btn-icon"
         onclick={() => showSettings = true}
         title={t("toolbar.aiSettings")}
+        aria-label={t("toolbar.aiSettings")}
       >
         <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
           <path d="M7 1h2v2.1a5 5 0 011.2.5l1.5-1.5 1.4 1.4-1.5 1.5a5 5 0 01.5 1.2H14v2h-2.1a5 5 0 01-.5 1.2l1.5 1.5-1.4 1.4-1.5-1.5a5 5 0 01-1.2.5V14H7v-2.1a5 5 0 01-1.2-.5l-1.5 1.5-1.4-1.4 1.5-1.5a5 5 0 01-.5-1.2H2V7h2.1a5 5 0 01.5-1.2L3.1 4.3l1.4-1.4 1.5 1.5A5 5 0 017 3.9V1zm1 5a2 2 0 100 4 2 2 0 000-4z"/>
@@ -570,7 +600,19 @@
   <NetworkMap />
 
   <!-- AI Interactive Chat (Tool Calling) -->
-  <AIChat />
+  <div class="ai-chat-panel" style="height: {aiChatPanelHeight}px">
+    <AIChat />
+  </div>
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div
+    class="resize-divider"
+    class:active={aiChatDragging}
+    onmousedown={onAiChatDividerMousedown}
+    role="separator"
+    aria-orientation="horizontal"
+    aria-label={t("common.expand")}
+    tabindex="-1"
+  ></div>
 
   <!-- AI Command Bar (Natural Language Config) -->
   <AiCommandBar />
@@ -828,6 +870,10 @@
 {/if}
 
 <ToastContainer />
+
+{#if showAutomations}
+  <Automations />
+{/if}
 
 <style>
   /* ==============================
@@ -1180,6 +1226,12 @@
     background: var(--bg-alt);
     max-height: 180px;
     overflow-y: auto;
+  }
+
+  .ai-chat-panel {
+    flex-shrink: 0;
+    overflow: hidden;
+    min-height: 0;
   }
 
   .ai-header {

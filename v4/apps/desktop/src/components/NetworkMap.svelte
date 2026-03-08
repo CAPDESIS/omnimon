@@ -1,13 +1,21 @@
 <script lang="ts">
+  import ContextAiChat from "./ContextAiChat.svelte";
+  import { onMount } from "svelte";
   import { networkConnections } from "../stores/security";
   import { metricsHistory } from "../stores/metricsHistory";
   import { theme } from "../stores/preferences";
   import { slide } from "svelte/transition";
   import type { MetricsSnapshot } from "../stores/metricsHistory";
+  import type { NetworkConnection } from "../lib/types";
   import type { Time } from "lightweight-charts";
+  import { t } from "../lib/i18n";
 
   let collapsed = $state(true);
   let activeTab = $state<"map" | "table" | "traffic">("map");
+  let panelHeight = $state(280);
+  let dragMode = $state<"content" | null>(null);
+  let dragStartY = 0;
+  let dragStartHeight = 280;
 
   // Group connections by process, then by domain
   interface ProcessNode {
@@ -367,6 +375,8 @@
     return conns;
   });
 
+  let visibleConnections = $derived(sortedConnections.slice(0, 50));
+
   function setTableSort(key: typeof tableSortKey) {
     if (tableSortKey === key) tableSortAsc = !tableSortAsc;
     else { tableSortKey = key; tableSortAsc = true; }
@@ -376,21 +386,91 @@
     if (tableSortKey !== key) return "";
     return tableSortAsc ? " \u25B2" : " \u25BC";
   }
+
+  function clampPanelHeight(value: number): number {
+    return Math.max(180, Math.min(value, 720));
+  }
+
+  function setPanelSize(delta: number) {
+    panelHeight = clampPanelHeight(panelHeight + delta);
+  }
+
+  function startResize(event: MouseEvent) {
+    event.preventDefault();
+    dragMode = "content";
+    dragStartY = event.clientY;
+    dragStartHeight = panelHeight;
+    window.addEventListener("mousemove", onResizeMove);
+    window.addEventListener("mouseup", stopResize);
+  }
+
+  function onResizeMove(event: MouseEvent) {
+    if (!dragMode) return;
+    panelHeight = clampPanelHeight(dragStartHeight + (event.clientY - dragStartY));
+  }
+
+  function stopResize() {
+    dragMode = null;
+    window.removeEventListener("mousemove", onResizeMove);
+    window.removeEventListener("mouseup", stopResize);
+  }
+
+  function summarizeConnections(connections: NetworkConnection[]): Array<Record<string, unknown>> {
+    const counts = new Map<string, { process: string; destination: string; count: number }>();
+    for (const conn of connections) {
+      const key = `${conn.process_name}:${conn.remote_addr}:${conn.remote_port}`;
+      const current = counts.get(key);
+      if (current) current.count += 1;
+      else counts.set(key, {
+        process: conn.process_name,
+        destination: `${conn.remote_addr}:${conn.remote_port}`,
+        count: 1,
+      });
+    }
+    return [...counts.values()].sort((a, b) => Number(b.count) - Number(a.count)).slice(0, 12);
+  }
+
+  function buildNetworkContext(question: string): string {
+    const recentTraffic = $metricsHistory.slice(-20);
+    return JSON.stringify({
+      prompt: question,
+      active_tab: activeTab,
+      summary: {
+        total_connections: totalConnections,
+        visible_processes: processNodes.length,
+        panel_height: panelHeight,
+      },
+      connections: summarizeConnections($networkConnections),
+      traffic: recentTraffic.map((entry) => ({
+        time: entry.time,
+        rx_kb_per_sec: Number((entry.netRx / 1024).toFixed(2)),
+        tx_kb_per_sec: Number((entry.netTx / 1024).toFixed(2)),
+      })),
+    });
+  }
+
 </script>
 
 {#if totalConnections > 0}
-  <div class="netmap-section">
-    <button
-      class="netmap-toggle"
-      onclick={() => collapsed = !collapsed}
-    >
+<div class="netmap-section">
+    <div class="netmap-toggle-wrap">
+      <button
+        class="netmap-toggle"
+        aria-expanded={!collapsed}
+        onclick={() => collapsed = !collapsed}
+      >
       <span class="chevron" class:open={!collapsed}>&#9654;</span>
-      <span class="netmap-title">Network Map</span>
-      <span class="netmap-count">{totalConnections} connections / {processNodes.length} processes</span>
-    </button>
+      <span class="netmap-title">{t("network.title")}</span>
+      <span class="netmap-count">{t("network.summary", { connections: String(totalConnections), processes: String(processNodes.length) })}</span>
+      </button>
+      <span class="netmap-actions">
+        <button class="size-btn" type="button" onclick={() => setPanelSize(-40)} title={t("common.smaller")}>−</button>
+        <button class="size-btn" type="button" onclick={() => setPanelSize(40)} title={t("common.larger")}>+</button>
+      </span>
+    </div>
 
     {#if !collapsed}
-      <div class="netmap-body" transition:slide={{ duration: 200 }}>
+      <div class="netmap-body" style={`height:${panelHeight}px`} transition:slide={{ duration: 200 }}>
         <!-- Tab bar -->
         <div class="tab-bar" role="tablist">
           <button
@@ -399,93 +479,128 @@
             onclick={() => activeTab = "map"}
             role="tab"
             aria-selected={activeTab === "map"}
-          >Map</button>
+          >{t("network.map")}</button>
           <button
             class="tab-btn"
             class:active={activeTab === "table"}
             onclick={() => activeTab = "table"}
             role="tab"
             aria-selected={activeTab === "table"}
-          >Connections</button>
+          >{t("network.connections")}</button>
           <button
             class="tab-btn"
             class:active={activeTab === "traffic"}
             onclick={() => activeTab = "traffic"}
             role="tab"
             aria-selected={activeTab === "traffic"}
-          >Traffic</button>
+          >{t("network.traffic")}</button>
         </div>
 
-        <!-- Map Tab -->
-        {#if activeTab === "map"}
-          <div class="tab-content map-content">
-            <canvas
-              bind:this={canvas}
-              class="netmap-canvas"
-              height={Math.min(processNodes.length * 40 + 20, 300)}
-            ></canvas>
-            <div class="netmap-list">
-              {#each processNodes as node (node.name)}
-                <div class="netmap-proc">
-                  <span class="proc-name">{node.name}</span>
-                  <span class="proc-count">{node.totalConns}</span>
-                  <div class="domain-chips">
-                    {#each node.domains.slice(0, 5) as domain}
-                      <span class="domain-chip" title="{domain.hostname}:{domain.port} ({domain.protocol})">
-                        {domain.hostname}
-                      </span>
-                    {/each}
-                    {#if node.domains.length > 5}
-                      <span class="domain-more">+{node.domains.length - 5}</span>
-                    {/if}
-                  </div>
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
+        <div class="tab-grid">
+          <div class="tab-main">
+            {#if totalConnections === 0 && activeTab !== "traffic"}
+              <div class="empty-state">{t("network.waiting")}</div>
+            {/if}
 
-        <!-- Connections Table Tab -->
-        {#if activeTab === "table"}
-          <div class="tab-content table-content">
-            <table class="conn-table" aria-label="Active connections">
-              <thead>
-                <tr>
-                  <th class="sortable" onclick={() => setTableSort("process")}>Process{sortArrow("process")}</th>
-                  <th class="sortable" onclick={() => setTableSort("addr")}>Destination{sortArrow("addr")}</th>
-                  <th class="sortable" onclick={() => setTableSort("port")}>Port{sortArrow("port")}</th>
-                  <th class="sortable" onclick={() => setTableSort("proto")}>Protocol{sortArrow("proto")}</th>
-                  <th class="sortable" onclick={() => setTableSort("state")}>State{sortArrow("state")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each sortedConnections.slice(0, 50) as conn (conn.pid + conn.remote_addr + conn.remote_port)}
-                  <tr>
-                    <td class="col-process">{conn.process_name}</td>
-                    <td class="col-addr mono">{conn.remote_addr}</td>
-                    <td class="col-port mono">{conn.remote_port}</td>
-                    <td class="col-proto mono">{conn.protocol.toUpperCase()}</td>
-                    <td class="col-state mono">{conn.state}</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-            {#if sortedConnections.length > 50}
-              <div class="table-overflow">Showing 50 of {sortedConnections.length} connections</div>
+            <!-- Map Tab -->
+            {#if activeTab === "map"}
+              <div class="tab-content map-content">
+                <canvas
+                  bind:this={canvas}
+                  class="netmap-canvas"
+                  height={Math.min(processNodes.length * 40 + 20, Math.max(panelHeight - 120, 220))}
+                ></canvas>
+                <div class="netmap-list">
+                  {#each processNodes as node (node.name)}
+                    <div class="netmap-proc">
+                      <span class="proc-name">{node.name}</span>
+                      <span class="proc-count">{node.totalConns}</span>
+                      <div class="domain-chips">
+                        {#each node.domains.slice(0, 5) as domain}
+                          <span class="domain-chip" title="{domain.hostname}:{domain.port} ({domain.protocol})">
+                            {domain.hostname}
+                          </span>
+                        {/each}
+                        {#if node.domains.length > 5}
+                          <span class="domain-more">+{node.domains.length - 5}</span>
+                        {/if}
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+
+            <!-- Connections Table Tab -->
+            {#if activeTab === "table"}
+              <div class="tab-content table-content">
+                <div class="network-help">{t("network.connectionsHelp")}</div>
+                <table class="conn-table" aria-label="Active connections">
+                  <thead>
+                    <tr>
+                      <th class="sortable" onclick={() => setTableSort("process")}>{t("network.process")}{sortArrow("process")}</th>
+                      <th class="sortable" onclick={() => setTableSort("addr")}>{t("network.destination")}{sortArrow("addr")}</th>
+                      <th class="sortable" onclick={() => setTableSort("port")}>{t("network.port")}{sortArrow("port")}</th>
+                      <th class="sortable" onclick={() => setTableSort("proto")}>{t("network.protocol")}{sortArrow("proto")}</th>
+                      <th class="sortable" onclick={() => setTableSort("state")}>{t("network.state")}{sortArrow("state")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {#each visibleConnections as conn (conn.pid + conn.remote_addr + conn.remote_port + conn.direction)}
+                      <tr>
+                        <td class="col-process">{conn.process_name}</td>
+                        <td class="col-addr mono">{conn.remote_addr}</td>
+                        <td class="col-port mono">{conn.remote_port}</td>
+                        <td class="col-proto mono">{conn.protocol.toUpperCase()}</td>
+                        <td class="col-state mono">{conn.state}</td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+                {#if sortedConnections.length > 50}
+                  <div class="table-overflow">{t("network.showingCount", { visible: String(visibleConnections.length), total: String(sortedConnections.length) })}</div>
+                {/if}
+              </div>
+            {/if}
+
+            <!-- Traffic Chart Tab -->
+            {#if activeTab === "traffic"}
+              <div class="tab-content traffic-content">
+                <div class="network-help">{t("network.trafficHelp")}</div>
+                <div class="traffic-legend">
+                  <span class="legend-item rx">&#9660; {t("network.inbound")}</span>
+                  <span class="legend-item tx">&#9650; {t("network.outbound")}</span>
+                </div>
+                <div class="traffic-chart" bind:this={trafficChartEl}></div>
+              </div>
             {/if}
           </div>
-        {/if}
 
-        <!-- Traffic Chart Tab -->
-        {#if activeTab === "traffic"}
-          <div class="tab-content traffic-content">
-            <div class="traffic-legend">
-              <span class="legend-item rx">&#9660; Inbound (KB/s)</span>
-              <span class="legend-item tx">&#9650; Outbound (KB/s)</span>
-            </div>
-            <div class="traffic-chart" bind:this={trafficChartEl}></div>
+          <div class="tab-side">
+            <div class="capture-chip">{t("network.captureBackend", { backend: "watcher" })}</div>
+            <ContextAiChat
+              title={t("network.aiTitle")}
+              placeholder={t("network.aiPlaceholder")}
+              emptyState={t("network.aiEmpty")}
+              helpTooltip={t("network.aiHelp")}
+              sendLabel={t("common.askAi")}
+              inputAriaLabel={t("network.aiTitle")}
+              maxHeight={Math.max(panelHeight - 120, 180)}
+              buildContext={buildNetworkContext}
+            />
           </div>
-        {/if}
+        </div>
+
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+        <div
+          class="netmap-resize-divider"
+          class:active={dragMode === "content"}
+          onmousedown={startResize}
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label={t("common.expand")}
+          tabindex="-1"
+        ></div>
       </div>
     {/if}
   </div>
@@ -502,7 +617,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    width: 100%;
+    flex: 1;
     padding: 6px 10px;
     border: none;
     background: transparent;
@@ -512,6 +627,33 @@
     text-align: left;
   }
   .netmap-toggle:hover { background: var(--bg-hover); }
+
+  .netmap-toggle-wrap {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .netmap-actions {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: 8px;
+  }
+
+  .size-btn {
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--fg);
+    cursor: pointer;
+    font-weight: 700;
+  }
+
+  .size-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 
   .chevron {
     font-size: calc(var(--base-font-size, 12px) * 0.667);
@@ -539,8 +681,53 @@
   .netmap-body {
     display: flex;
     flex-direction: column;
-    max-height: 400px;
     overflow: hidden;
+  }
+
+  .tab-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+    min-height: 0;
+    flex: 1;
+  }
+
+  .tab-main,
+  .tab-side {
+    min-height: 0;
+  }
+
+  .tab-side {
+    border-left: 1px solid var(--border);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.06);
+  }
+
+  .capture-chip {
+    font-size: calc(var(--base-font-size, 12px) * 0.75);
+    color: var(--fg-dim);
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  }
+
+  .network-help,
+  .empty-state {
+    padding: 8px 10px;
+    font-size: calc(var(--base-font-size, 12px) * 0.75);
+    color: var(--fg-dim);
+  }
+
+  .netmap-resize-divider {
+    height: 4px;
+    background: var(--border);
+    cursor: ns-resize;
+    transition: background 0.15s ease;
+  }
+
+  .netmap-resize-divider:hover,
+  .netmap-resize-divider.active {
+    background: var(--accent);
   }
 
   /* Tab bar */
@@ -572,19 +759,20 @@
 
   .tab-content {
     overflow: auto;
+    height: 100%;
   }
 
   /* Map content */
   .map-content {
     display: flex;
     gap: 0;
-    max-height: 340px;
+    height: 100%;
   }
 
   .netmap-canvas {
     flex: 1;
     min-width: 0;
-    max-height: 300px;
+    min-height: 220px;
   }
 
   .netmap-list {
@@ -653,7 +841,7 @@
 
   /* Connections Table */
   .table-content {
-    max-height: 340px;
+    height: 100%;
     overflow-y: auto;
   }
 
@@ -717,7 +905,7 @@
   /* Traffic Chart */
   .traffic-content {
     padding: 8px 10px;
-    max-height: 240px;
+    height: 100%;
   }
 
   .traffic-legend {
@@ -738,8 +926,20 @@
 
   .traffic-chart {
     width: 100%;
-    height: 180px;
+    height: calc(100% - 32px);
+    min-height: 180px;
     border-radius: var(--radius-sm, 4px);
     overflow: hidden;
+  }
+
+  @media (max-width: 960px) {
+    .tab-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .tab-side {
+      border-left: none;
+      border-top: 1px solid var(--border);
+    }
   }
 </style>

@@ -60,6 +60,12 @@ const DEFAULT_LOCALE: LocaleCode = "auto";
 const DEFAULT_TAB_PANEL_HEIGHT = 160;
 const MIN_TAB_PANEL_HEIGHT = 40;
 const MAX_TAB_PANEL_HEIGHT = 800;
+const DEFAULT_NETWORK_PANEL_HEIGHT = 280;
+const MIN_NETWORK_PANEL_HEIGHT = 140;
+const MAX_NETWORK_PANEL_HEIGHT = 720;
+const DEFAULT_AI_CHAT_HEIGHT = 220;
+const MIN_AI_CHAT_HEIGHT = 140;
+const MAX_AI_CHAT_HEIGHT = 640;
 
 /** Current font size (in px) for the process table. */
 export const fontSize = writable(DEFAULT_FONT_SIZE);
@@ -81,6 +87,12 @@ export const theme = writable<ThemeMode>(DEFAULT_THEME);
 
 /** Height (in px) of the browser tabs panel at the bottom of the UI. */
 export const tabPanelHeight = writable(DEFAULT_TAB_PANEL_HEIGHT);
+
+/** Height (in px) of the network panel. */
+export const networkPanelHeight = writable(DEFAULT_NETWORK_PANEL_HEIGHT);
+
+/** Height (in px) of the AI chat panel. */
+export const aiChatPanelHeight = writable(DEFAULT_AI_CHAT_HEIGHT);
 
 /** User's preferred locale ("en", "es", or "auto" for system detection). */
 export const localePreference = writable<LocaleCode>(DEFAULT_LOCALE);
@@ -167,6 +179,16 @@ export async function loadPreferences(): Promise<void> {
       tabPanelHeight.set(savedTabPanelHeight);
     }
 
+    const savedNetworkPanelHeight = await store.get("networkPanelHeight");
+    if (typeof savedNetworkPanelHeight === "number" && savedNetworkPanelHeight >= MIN_NETWORK_PANEL_HEIGHT && savedNetworkPanelHeight <= MAX_NETWORK_PANEL_HEIGHT) {
+      networkPanelHeight.set(savedNetworkPanelHeight);
+    }
+
+    const savedAiChatPanelHeight = await store.get("aiChatPanelHeight");
+    if (typeof savedAiChatPanelHeight === "number" && savedAiChatPanelHeight >= MIN_AI_CHAT_HEIGHT && savedAiChatPanelHeight <= MAX_AI_CHAT_HEIGHT) {
+      aiChatPanelHeight.set(savedAiChatPanelHeight);
+    }
+
     const savedLocale = await store.get("locale");
     if (typeof savedLocale === "string" && (savedLocale === "en" || savedLocale === "es" || savedLocale === "auto")) {
       localePreference.set(savedLocale as LocaleCode);
@@ -189,6 +211,8 @@ export async function savePreferences(): Promise<void> {
     await store.set("idleThreshold", get(idleThreshold));
     await store.set("theme", get(theme));
     await store.set("tabPanelHeight", get(tabPanelHeight));
+    await store.set("networkPanelHeight", get(networkPanelHeight));
+    await store.set("aiChatPanelHeight", get(aiChatPanelHeight));
     await store.set("locale", get(localePreference));
     await store.set("customTheme", get(customTheme));
     await store.save();
@@ -216,6 +240,8 @@ export function initPreferenceSubscriptions(): () => void {
     idleThreshold.subscribe(() => debouncedSave()),
     theme.subscribe(() => debouncedSave()),
     tabPanelHeight.subscribe(() => debouncedSave()),
+    networkPanelHeight.subscribe(() => debouncedSave()),
+    aiChatPanelHeight.subscribe(() => debouncedSave()),
     localePreference.subscribe(() => debouncedSave()),
     customTheme.subscribe((ct) => {
       setCustomThemeOverrides(ct);
@@ -269,4 +295,10 @@ export {
   MAX_IDLE_THRESHOLD,
   DEFAULT_IDLE_THRESHOLD,
   DEFAULT_LOCALE,
+  DEFAULT_NETWORK_PANEL_HEIGHT,
+  MIN_NETWORK_PANEL_HEIGHT,
+  MAX_NETWORK_PANEL_HEIGHT,
+  DEFAULT_AI_CHAT_HEIGHT,
+  MIN_AI_CHAT_HEIGHT,
+  MAX_AI_CHAT_HEIGHT,
 };

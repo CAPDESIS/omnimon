@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { ProcessEntry, BrowserTab } from "../lib/types";
-  import { ipcCloseBrowserTab, ipcFocusBrowserTab, ipcAnalyzeContext } from "../lib/ipc";
+  import { ipcCloseBrowserTab, ipcFocusBrowserTab } from "../lib/ipc";
   import { browserTabs } from "../stores/processes";
-  import { aiProviderConfig } from "../stores/preferences";
   import { t } from "../lib/i18n";
   import { detectBrowser } from "../lib/browser";
+  import { ipcAnalyzeContext } from "../lib/ipc";
+  import { aiProviderConfig } from "../stores/preferences";
 
   interface Props {
     process: ProcessEntry;
@@ -19,8 +20,6 @@
   let selectedTabIds = $state<Set<string>>(new Set());
   let closingTabs = $state<Set<string>>(new Set());
   let tabFilter = $state("");
-
-  // AI analysis state
   let aiResponse = $state("");
   let aiAnalyzing = $state(false);
   let aiError = $state<string | null>(null);
@@ -118,7 +117,7 @@
     }
   }
 
-  function buildAiContext(): string {
+  function buildAiContext(question: string): string {
     const context: Record<string, unknown> = {
       process: {
         name: process.name,
@@ -131,7 +130,7 @@
         state: process.state,
         is_system: process.is_system,
       },
-      prompt: "Analyze this process: What is it doing? Is the memory/CPU usage normal? Are any tabs particularly heavy or suspicious? Any recommendations?",
+      prompt: question,
     };
     if (allBrowserTabs.length > 0) {
       context.browser = {
@@ -152,7 +151,9 @@
     aiError = null;
     aiResponse = "";
     try {
-      const context = buildAiContext();
+      const context = buildAiContext(
+        "Analyze this process: What is it doing? Is the memory/CPU usage normal? Are any tabs particularly heavy or suspicious? Any recommendations?"
+      );
       const config = $aiProviderConfig;
       aiResponse = await ipcAnalyzeContext(context, config.provider, config.model);
     } catch (e) {
@@ -324,11 +325,7 @@
       <div class="ai-section">
         <div class="ai-header-row">
           <div class="section-label">{t("process.aiAnalysis")}</div>
-          <button
-            class="btn-ask-ai"
-            onclick={askAi}
-            disabled={aiAnalyzing}
-          >
+          <button class="btn-ask-ai" onclick={askAi} disabled={aiAnalyzing}>
             {aiAnalyzing ? t("process.analyzing") : t("process.askAi")}
           </button>
         </div>

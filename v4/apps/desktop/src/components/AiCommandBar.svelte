@@ -135,7 +135,7 @@
   }
 
   function rejectPendingChange() {
-    messages = [...messages, { role: "system", text: "Change rejected by user." }];
+    messages = [...messages, { role: "system", text: t("aiConfig.changeRejected") }];
     pendingChange = null;
     scrollToBottom();
   }
@@ -288,7 +288,7 @@
       {#each messages as msg}
         <div class="chat-msg chat-{msg.role}">
           <span class="chat-role">
-            {msg.role === "user" ? "You" : msg.role === "assistant" ? "AI" : "System"}
+            {msg.role === "user" ? t("aiChat.userLabel") : msg.role === "assistant" ? t("aiChat.assistantLabel") : t("aiChat.systemLabel")}
           </span>
           <span class="chat-text">
             {#if msg.role === "assistant"}
@@ -306,9 +306,9 @@
   {#if pendingChange}
     <div class="preview-panel" transition:slide={{ duration: 200 }}>
       <div class="preview-header">
-        <span class="preview-label">Preview</span>
+        <span class="preview-label">{t("aiConfig.preview")}</span>
         <span class="preview-kind">
-          {pendingChange?.kind === "config" ? "Configuration Change" : pendingChange?.kind === "ai_rules" ? "Security Rules" : "Alert Rules"}
+          {pendingChange?.kind === "config" ? t("aiConfig.configurationChange") : pendingChange?.kind === "ai_rules" ? t("aiConfig.securityRules") : t("aiConfig.alertRules")}
         </span>
       </div>
 
@@ -379,10 +379,10 @@
 
       <div class="preview-actions">
         <button class="btn-confirm" onclick={confirmPendingChange}>
-          Apply
+          {t("aiConfig.apply")}
         </button>
         <button class="btn-reject" onclick={rejectPendingChange}>
-          Reject
+          {t("aiConfig.reject")}
         </button>
       </div>
     </div>
@@ -400,7 +400,7 @@
         disabled={loading}
       />
       {#if input || messages.length > 0}
-        <button class="clear-btn" onclick={clearChat} aria-label="Clear">&times;</button>
+        <button class="clear-btn" onclick={clearChat} aria-label={t("common.clear")}>×</button>
       {/if}
     </div>
     <button
@@ -408,7 +408,7 @@
       onclick={handleSubmit}
       disabled={loading || !input.trim()}
     >
-      {loading ? "..." : "Run"}
+      {loading ? "..." : t("aiConfig.run")}
     </button>
   </div>
   {#if error}

@@ -11,12 +11,18 @@
     action: string;
   }
 
-  let rules: AutomationRule[] = [];
-  let process_pattern = '';
-  let metric = 'ram';
-  let threshold = 1024;
-  let duration_secs = 60;
-  let action = 'alert';
+  interface Props {
+    onclose?: () => void;
+  }
+
+  let { onclose = () => {} }: Props = $props();
+
+  let rules = $state<AutomationRule[]>([]);
+  let process_pattern = $state('');
+  let metric = $state('ram');
+  let threshold = $state(1024);
+  let duration_secs = $state(60);
+  let action = $state('alert');
 
   async function loadRules() {
     rules = await invoke<AutomationRule[]>('get_automation_rules');
@@ -46,7 +52,10 @@
 </script>
 
 <div class="automations-container">
-  <h2>Automations Engine</h2>
+  <div class="automations-header">
+    <h2>Automations Engine</h2>
+    <button class="close-btn" onclick={onclose} aria-label="Close automations">×</button>
+  </div>
   
   <div class="builder">
     <input type="text" bind:value={process_pattern} placeholder="Process Name (Regex)" />
@@ -65,14 +74,14 @@
       <option value="kill">Kill Process</option>
     </select>
     
-    <button on:click={addRule}>Add Rule</button>
+    <button onclick={addRule}>Add Rule</button>
   </div>
 
   <div class="rules-list">
     {#each rules as rule}
       <div class="rule-item">
         <span>{rule.process_pattern} > {rule.threshold} {rule.metric} for {rule.duration_secs}s -> {rule.action}</span>
-        <button on:click={() => removeRule(rule.id)}>Delete</button>
+        <button onclick={() => removeRule(rule.id)}>Delete</button>
       </div>
     {/each}
   </div>
@@ -80,6 +89,8 @@
 
 <style>
   .automations-container { padding: 1rem; color: #e2e8f0; }
+  .automations-header { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+  .close-btn { border: 1px solid #475569; background: transparent; color: inherit; border-radius: 0.375rem; width: 2rem; height: 2rem; cursor: pointer; }
   .builder { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
   .rule-item { display: flex; justify-content: space-between; padding: 0.5rem; background: #1e293b; margin-bottom: 0.5rem; }
 </style>

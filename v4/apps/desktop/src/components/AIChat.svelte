@@ -21,6 +21,7 @@
   let messages = $state<ChatMessage[]>([]);
   let chatContainer: HTMLDivElement | undefined = $state();
   let pendingAction = $state<{ tool: string; details: string; result: ToolResult } | null>(null);
+  let requestToken = 0;
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -56,6 +57,8 @@
     const trimmed = input.trim();
     if (!trimmed || loading) return;
 
+    const token = ++requestToken;
+
     if (detectPromptInjection(trimmed)) {
       toast.error("Security", "Prompt injection attempt blocked.");
       return;
@@ -76,12 +79,14 @@
         .map(m => [m.role, m.text.slice(0, 2000)] as [string, string]);
       // Race the AI call against a 45-second timeout
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("AI request timed out after 45 seconds. Try a shorter message or check your API key.")), 45000)
+        setTimeout(() => reject(new Error(t("aiChat.timeoutError"))), 45000)
       );
       const response = await Promise.race([
         ipcAiChat(trimmed, cfg.provider, cfg.model, history),
         timeoutPromise,
       ]);
+
+      if (token !== requestToken) return;
 
       messages = [...messages, { role: "assistant", text: response.reply }];
 
@@ -105,6 +110,7 @@
         }
       }
     } catch (e) {
+      if (token !== requestToken) return;
       const msg = e instanceof Error ? e.message : String(e);
       messages = [...messages, { role: "system", text: msg }];
 
@@ -112,8 +118,10 @@
         toast.error("Config", "Set up an AI provider in Settings first.");
       }
     } finally {
-      loading = false;
-      scrollToBottom();
+      if (token === requestToken) {
+        loading = false;
+        scrollToBottom();
+      }
     }
   }
 
@@ -155,9 +163,9 @@
         });
       }
 
-      if (toClose.length === 0) {
-        return { closed: 0, message: `No tabs matched pattern "${pattern}"` };
-      }
+       if (toClose.length === 0) {
+         return { closed: 0, message: `No tabs matched: ${patterns.join(", ")}` };
+       }
 
       let closed = 0;
       const failed: string[] = [];
@@ -211,15 +219,16 @@
     if (!pendingAction) return;
     messages = [
       ...messages,
-      { role: "system", text: "Action cancelled by user." },
+      { role: "system", text: t("aiChat.cancelled") },
     ];
     pendingAction = null;
     scrollToBottom();
   }
 
   function cancelRequest() {
+    requestToken++;
     loading = false;
-    messages = [...messages, { role: "system", text: "Request cancelled." }];
+    messages = [...messages, { role: "system", text: t("aiChat.requestCancelled") }];
     scrollToBottom();
   }
 
@@ -273,7 +282,7 @@
     <span class="chat-help" title={t("aiChat.helpTooltip")}>&#9432;</span>
     <span class="chat-provider">{get(aiProviderConfig).provider}</span>
     {#if messages.length > 0}
-      <button class="clear-btn" onclick={clearChat}>Clear</button>
+      <button class="clear-btn" onclick={clearChat}>{t("common.clear")}</button>
     {/if}
   </div>
 
@@ -284,13 +293,13 @@
       {#each messages as msg}
         <div class="chat-msg chat-{msg.role}">
           <span class="chat-role">
-            {msg.role === "user"
-              ? "You"
+              {msg.role === "user"
+              ? t("aiChat.userLabel")
               : msg.role === "assistant"
-                ? "AI"
+                ? t("aiChat.assistantLabel")
                 : msg.role === "tool"
-                  ? "Action"
-                  : "System"}
+                  ? t("aiChat.actionLabel")
+                  : t("aiChat.systemLabel")}
           </span>
           <span class="chat-text">
             {#if msg.role === "assistant"}
@@ -308,21 +317,21 @@
       {/each}
       {#if loading}
         <div class="chat-msg chat-assistant">
-          <span class="chat-role">AI</span>
+          <span class="chat-role">{t("aiChat.assistantLabel")}</span>
           <span class="chat-text typing">{t("aiChat.thinking")}<span class="dots"><span>.</span><span>.</span><span>.</span></span></span>
-          <button class="cancel-btn" onclick={cancelRequest}>Cancel</button>
+          <button class="cancel-btn" onclick={cancelRequest}>{t("aiChat.cancel")}</button>
         </div>
       {/if}
       {#if pendingAction}
         <div class="action-preview">
           <div class="action-header">
             <span class="action-icon">⚠</span>
-            <strong>Pending Action: {pendingAction.tool}</strong>
+            <strong>{t("aiChat.pendingAction")}: {pendingAction.tool}</strong>
           </div>
           <div class="action-details">{formatActionDetails(pendingAction.tool, pendingAction.details)}</div>
           <div class="action-buttons">
-            <button class="confirm-btn" onclick={confirmAction}>Confirm</button>
-            <button class="reject-btn" onclick={rejectAction}>Cancel</button>
+            <button class="confirm-btn" onclick={confirmAction}>{t("aiChat.confirm")}</button>
+            <button class="reject-btn" onclick={rejectAction}>{t("aiChat.cancel")}</button>
           </div>
         </div>
       {/if}
@@ -351,7 +360,7 @@
     <input
       class="chat-input"
       type="text"
-      placeholder="Ask AI to act: 'Kill Chrome', 'Close YouTube tabs', 'What uses most RAM?'"
+      placeholder={t("aiChat.placeholder")}
       bind:value={input}
       onkeydown={(e) => { if (e.key === "Enter") handleSubmit(); }}
       disabled={loading}
@@ -361,7 +370,7 @@
       onclick={handleSubmit}
       disabled={loading || !input.trim()}
     >
-      {loading ? "..." : "Send"}
+      {loading ? "..." : t("aiChat.send")}
     </button>
   </div>
 </div>
