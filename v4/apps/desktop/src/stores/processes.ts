@@ -272,7 +272,14 @@ async function fetchBrowserTabs(): Promise<void> {
   try {
     const tabs = await ipcGetBrowserTabs();
     browserTabs.set(tabs);
-    await refreshNetworkConnections(get(processes), tabs);
+  } catch {
+    // Best-effort — don't block anything
+  }
+}
+
+async function fetchNetworkConnections(): Promise<void> {
+  try {
+    await refreshNetworkConnections(get(processes), get(browserTabs));
   } catch {
     // Best-effort — don't block anything
   }
@@ -285,14 +292,17 @@ const ERROR_TOAST_THRESHOLD = 3;
 // --- Polling lifecycle ---
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let tabIntervalId: ReturnType<typeof setInterval> | null = null;
+let networkIntervalId: ReturnType<typeof setInterval> | null = null;
 
 /** Starts periodic polling for metrics (every intervalMs) and browser tabs (every 5s). */
 export function startPolling(intervalMs = 2000): void {
   stopPolling();
   fetchMetrics();
   fetchBrowserTabs();
+   fetchNetworkConnections();
   intervalId = setInterval(fetchMetrics, intervalMs);
   tabIntervalId = setInterval(fetchBrowserTabs, 5000); // tabs every 5s, not 2s
+  networkIntervalId = setInterval(fetchNetworkConnections, intervalMs);
 }
 
 /** Stops all active polling intervals for metrics and browser tabs. */
@@ -304,6 +314,10 @@ export function stopPolling(): void {
   if (tabIntervalId !== null) {
     clearInterval(tabIntervalId);
     tabIntervalId = null;
+  }
+  if (networkIntervalId !== null) {
+    clearInterval(networkIntervalId);
+    networkIntervalId = null;
   }
 }
 

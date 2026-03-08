@@ -21,6 +21,17 @@ import type {
 import { ipcGetNetworkData } from "../lib/ipc";
 import { processes } from "./processes";
 
+const MAX_NETWORK_CONNECTIONS = 200;
+
+export interface NetworkTelemetryStatus {
+  captureBackend: string;
+  dpiActive: boolean;
+  usingFallback: boolean;
+  lastUpdated: number | null;
+  totalRxBytesPerSec: number;
+  totalTxBytesPerSec: number;
+}
+
 // --- Stores ---
 
 /** Map of PID -> security info (threats + CVEs). Updated each poll cycle. */
@@ -28,6 +39,16 @@ export const securityMap = writable<Map<number, ProcessSecurityInfo>>(new Map())
 
 /** Active network connections per process. */
 export const networkConnections = writable<NetworkConnection[]>([]);
+
+/** Current metadata about the network telemetry source feeding the UI. */
+export const networkTelemetryStatus = writable<NetworkTelemetryStatus>({
+  captureBackend: "unavailable",
+  dpiActive: false,
+  usingFallback: false,
+  lastUpdated: null,
+  totalRxBytesPerSec: 0,
+  totalTxBytesPerSec: 0,
+});
 
 // --- Derived ---
 
@@ -193,12 +214,42 @@ export async function refreshNetworkConnections(
   tabs: { url: string; browser: string }[],
 ): Promise<void> {
   const conns: NetworkConnection[] = [];
+  const aggregate = new Map<string, NetworkConnection>();
+  let usedFallback = false;
+  let captureBackend = "unavailable";
+  let dpiActive = false;
+  let totalRxBytesPerSec = 0;
+  let totalTxBytesPerSec = 0;
+
+  function pushConnection(conn: NetworkConnection) {
+    const key = [
+      conn.pid,
+      conn.process_name,
+      conn.remote_addr,
+      conn.remote_port,
+      conn.protocol,
+      conn.direction,
+      conn.state,
+    ].join("|");
+    const existing = aggregate.get(key);
+    if (existing) {
+      existing.bytes_sent += conn.bytes_sent;
+      existing.bytes_recv += conn.bytes_recv;
+      return;
+    }
+    aggregate.set(key, { ...conn });
+  }
 
   // 1) Try real backend data
   try {
     const data: NetworkData = await ipcGetNetworkData();
-    for (const conn of data.recent_connections) {
-      conns.push({
+    captureBackend = data.capture_backend;
+    dpiActive = data.dpi_active;
+    totalRxBytesPerSec = data.net_rx_bytes_per_sec;
+    totalTxBytesPerSec = data.net_tx_bytes_per_sec;
+
+    for (const conn of data.recent_connections.slice(0, MAX_NETWORK_CONNECTIONS)) {
+      pushConnection({
         pid: conn.pid,
         process_name: procs.find((p) => p.pid === conn.pid)?.name ?? `pid:${conn.pid}`,
         remote_addr: conn.dst_ip,
@@ -207,7 +258,7 @@ export async function refreshNetworkConnections(
         direction: conn.direction === "Outbound" ? "outbound" : "inbound",
         bytes_sent: conn.direction === "Outbound" ? conn.bytes : 0,
         bytes_recv: conn.direction === "Inbound" ? conn.bytes : 0,
-        state: "ESTABLISHED",
+        state: "OBSERVED",
       });
     }
   } catch {
@@ -215,14 +266,16 @@ export async function refreshNetworkConnections(
   }
 
   // 2) Fallback: derive connections from browser tabs when backend returned nothing
-  if (conns.length === 0) {
+  if (aggregate.size === 0) {
+    usedFallback = true;
+    captureBackend = "browser-tabs-fallback";
     for (const tab of tabs) {
       try {
         const url = new URL(tab.url);
         const browserProc = procs.find(
           (p) => p.group === "Browser" && p.name.toLowerCase().includes(tab.browser.toLowerCase()),
         );
-        conns.push({
+        pushConnection({
           pid: browserProc?.pid ?? 0,
           process_name: tab.browser,
           remote_addr: url.hostname,
@@ -231,7 +284,7 @@ export async function refreshNetworkConnections(
           direction: "outbound",
           bytes_sent: 0,
           bytes_recv: 0,
-          state: "ESTABLISHED",
+          state: "FALLBACK",
         });
       } catch {
         // Invalid URL, skip
@@ -239,7 +292,21 @@ export async function refreshNetworkConnections(
     }
   }
 
+  conns.push(
+    ...[...aggregate.values()]
+      .sort((a, b) => (b.bytes_sent + b.bytes_recv) - (a.bytes_sent + a.bytes_recv))
+      .slice(0, MAX_NETWORK_CONNECTIONS),
+  );
+
   networkConnections.set(conns);
+  networkTelemetryStatus.set({
+    captureBackend,
+    dpiActive,
+    usingFallback: usedFallback,
+    lastUpdated: Date.now(),
+    totalRxBytesPerSec,
+    totalTxBytesPerSec,
+  });
 }
 
 /** Get security info for a specific PID. */
@@ -272,4 +339,12 @@ export function severityColor(severity: string | null): string {
 export function _resetSecurity(): void {
   securityMap.set(new Map());
   networkConnections.set([]);
+  networkTelemetryStatus.set({
+    captureBackend: "unavailable",
+    dpiActive: false,
+    usingFallback: false,
+    lastUpdated: null,
+    totalRxBytesPerSec: 0,
+    totalTxBytesPerSec: 0,
+  });
 }

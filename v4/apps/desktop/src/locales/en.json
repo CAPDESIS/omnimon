@@ -251,6 +251,8 @@
     "port": "Port",
     "protocol": "Protocol",
     "state": "State",
+    "fallbackNotice": "Showing browser-tab fallback because live socket telemetry is currently unavailable.",
+    "chartUnavailable": "Traffic chart could not be initialized. Network throughput is still updating in the background.",
     "aiTitle": "Network AI Chat",
     "aiPlaceholder": "Ask about traffic spikes, suspicious destinations, or which process owns a connection.",
     "aiEmpty": "Ask follow-up questions about live network connections and traffic trends.",

@@ -3,6 +3,7 @@ import { get } from "svelte/store";
 import {
   securityMap,
   networkConnections,
+  networkTelemetryStatus,
   flaggedPids,
   totalFindings,
   refreshSecurityAnalysis,
@@ -180,6 +181,17 @@ describe("security store", () => {
         [{ url: "https://example.com", browser: "Chrome" }],
       );
       expect(get(networkConnections)[0].pid).toBe(0);
+    });
+
+    it("stores telemetry status when backend data is unavailable and fallback is used", async () => {
+      await refreshNetworkConnections(
+        [makeProc({ pid: 1, name: "Chrome", group: "Browser" })],
+        [{ url: "https://example.com", browser: "Chrome" }],
+      );
+      const status = get(networkTelemetryStatus);
+      expect(status.usingFallback).toBe(true);
+      expect(status.captureBackend).toBe("browser-tabs-fallback");
+      expect(status.lastUpdated).not.toBeNull();
     });
   });
 

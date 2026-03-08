@@ -1,18 +1,39 @@
 import { render, screen, fireEvent } from "@testing-library/svelte";
 import NetworkMap from "../NetworkMap.svelte";
-import { writable } from "svelte/store";
 import type { NetworkConnection } from "../../lib/types";
 
-const { mockNetworkConnections } = vi.hoisted(() => {
+vi.mock("lightweight-charts", () => ({
+  createChart: () => ({
+    addSeries: () => ({
+      setData: vi.fn(),
+      update: vi.fn(),
+    }),
+    timeScale: () => ({ fitContent: vi.fn() }),
+    applyOptions: vi.fn(),
+    remove: vi.fn(),
+  }),
+  AreaSeries: {},
+}));
+
+const { mockNetworkConnections, mockNetworkTelemetryStatus } = vi.hoisted(() => {
   const { writable } = require("svelte/store") as typeof import("svelte/store");
   return {
     mockNetworkConnections: // @ts-ignore
     writable<NetworkConnection[]>([]),
+    mockNetworkTelemetryStatus: writable({
+      captureBackend: "watcher",
+      dpiActive: false,
+      usingFallback: false,
+      lastUpdated: null,
+      totalRxBytesPerSec: 0,
+      totalTxBytesPerSec: 0,
+    }),
   };
 });
 
 vi.mock("../../stores/security", () => ({
   networkConnections: mockNetworkConnections,
+  networkTelemetryStatus: mockNetworkTelemetryStatus,
 }));
 
 function makeConn(overrides?: Partial<NetworkConnection>): NetworkConnection {
@@ -33,6 +54,14 @@ function makeConn(overrides?: Partial<NetworkConnection>): NetworkConnection {
 describe("NetworkMap", () => {
   beforeEach(() => {
     mockNetworkConnections.set([]);
+    mockNetworkTelemetryStatus.set({
+      captureBackend: "watcher",
+      dpiActive: false,
+      usingFallback: false,
+      lastUpdated: null,
+      totalRxBytesPerSec: 0,
+      totalTxBytesPerSec: 0,
+    });
   });
 
   it("renders nothing when no connections", () => {
@@ -137,5 +166,21 @@ describe("NetworkMap", () => {
     await fireEvent.click(screen.getByText("Network Map").closest("button")!);
     const canvas = document.querySelector("canvas");
     expect(canvas).toBeInTheDocument();
+  });
+
+  it("shows traffic tab when throughput exists even without connections", async () => {
+    mockNetworkTelemetryStatus.set({
+      captureBackend: "watcher",
+      dpiActive: false,
+      usingFallback: false,
+      lastUpdated: Date.now(),
+      totalRxBytesPerSec: 4096,
+      totalTxBytesPerSec: 2048,
+    });
+    render(NetworkMap);
+    expect(screen.getByText("Network Map")).toBeInTheDocument();
+    await fireEvent.click(screen.getByText("Network Map").closest("button")!);
+    await fireEvent.click(screen.getByText("Traffic"));
+    expect(screen.getByText(/Inbound/)).toBeInTheDocument();
   });
 });

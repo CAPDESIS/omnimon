@@ -1,7 +1,7 @@
 <script lang="ts">
   import ContextAiChat from "./ContextAiChat.svelte";
-  import { onMount } from "svelte";
-  import { networkConnections } from "../stores/security";
+  import { tick } from "svelte";
+  import { networkConnections, networkTelemetryStatus } from "../stores/security";
   import { metricsHistory } from "../stores/metricsHistory";
   import { theme } from "../stores/preferences";
   import { slide } from "svelte/transition";
@@ -16,6 +16,8 @@
   let dragMode = $state<"content" | null>(null);
   let dragStartY = 0;
   let dragStartHeight = 280;
+  let chartLoadFailed = $state(false);
+  let pendingChartInit = 0;
 
   // Group connections by process, then by domain
   interface ProcessNode {
@@ -66,13 +68,19 @@
   });
 
   let totalConnections = $derived($networkConnections.length);
+  let hasTrafficData = $derived($metricsHistory.length > 0 || $networkTelemetryStatus.totalRxBytesPerSec > 0 || $networkTelemetryStatus.totalTxBytesPerSec > 0);
+  let hasAnyNetworkData = $derived(totalConnections > 0 || hasTrafficData);
 
   // --- Canvas-based connection map ---
   let canvas: HTMLCanvasElement | undefined = $state();
 
   $effect(() => {
     if (!canvas || collapsed || processNodes.length === 0 || activeTab !== "map") return;
-    drawMap(canvas, processNodes);
+    requestAnimationFrame(() => {
+      if (canvas && !collapsed && activeTab === "map") {
+        drawMap(canvas, processNodes);
+      }
+    });
   });
 
   function drawMap(cvs: HTMLCanvasElement, nodes: ProcessNode[]) {
@@ -186,7 +194,11 @@
 
   $effect(() => {
     if (!trafficChartEl || collapsed || activeTab !== "traffic") return;
-    initTrafficChart(trafficChartEl);
+    const token = ++pendingChartInit;
+    tick().then(() => {
+      if (token !== pendingChartInit || !trafficChartEl || collapsed || activeTab !== "traffic") return;
+      initTrafficChart(trafficChartEl);
+    });
   });
 
   function toTrafficPoint(snapshot: MetricsSnapshot, direction: "rx" | "tx"): TrafficPoint {
@@ -215,6 +227,7 @@
     try {
       const lc = await import("lightweight-charts");
       if (chartInstance) return;
+      chartLoadFailed = false;
 
       const getVar = (name: string) =>
         getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -269,7 +282,7 @@
       ro.observe(container);
       trafficResizeObserver = ro;
     } catch {
-      // lightweight-charts not available, show fallback
+      chartLoadFailed = true;
     }
   }
 
@@ -286,6 +299,7 @@
       txSeriesInstance = undefined;
       lastTrafficPointTime = null;
       lastTrafficHistoryIndex = -1;
+      chartLoadFailed = false;
     }
   });
 
@@ -304,6 +318,7 @@
       txSeriesInstance = undefined;
       lastTrafficPointTime = null;
       lastTrafficHistoryIndex = -1;
+      chartLoadFailed = false;
     }
     // defer to allow CSS vars to update
     requestAnimationFrame(() => {
@@ -439,6 +454,8 @@
         total_connections: totalConnections,
         visible_processes: processNodes.length,
         panel_height: panelHeight,
+        capture_backend: $networkTelemetryStatus.captureBackend,
+        using_fallback: $networkTelemetryStatus.usingFallback,
       },
       connections: summarizeConnections($networkConnections),
       traffic: recentTraffic.map((entry) => ({
@@ -449,9 +466,15 @@
     });
   }
 
+  function formatRate(bytesPerSec: number): string {
+    if (bytesPerSec >= 1024 * 1024) return `${(bytesPerSec / (1024 * 1024)).toFixed(2)} MB/s`;
+    if (bytesPerSec >= 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
+    return `${bytesPerSec.toFixed(0)} B/s`;
+  }
+
 </script>
 
-{#if totalConnections > 0}
+{#if hasAnyNetworkData}
 <div class="netmap-section">
     <div class="netmap-toggle-wrap">
       <button
@@ -505,6 +528,9 @@
             <!-- Map Tab -->
             {#if activeTab === "map"}
               <div class="tab-content map-content">
+                {#if totalConnections === 0}
+                  <div class="empty-state">{t("network.waiting")}</div>
+                {:else}
                 <canvas
                   bind:this={canvas}
                   class="netmap-canvas"
@@ -528,6 +554,7 @@
                     </div>
                   {/each}
                 </div>
+                {/if}
               </div>
             {/if}
 
@@ -535,6 +562,9 @@
             {#if activeTab === "table"}
               <div class="tab-content table-content">
                 <div class="network-help">{t("network.connectionsHelp")}</div>
+                {#if totalConnections === 0}
+                  <div class="empty-state">{t("network.waiting")}</div>
+                {:else}
                 <table class="conn-table" aria-label="Active connections">
                   <thead>
                     <tr>
@@ -560,6 +590,7 @@
                 {#if sortedConnections.length > 50}
                   <div class="table-overflow">{t("network.showingCount", { visible: String(visibleConnections.length), total: String(sortedConnections.length) })}</div>
                 {/if}
+                {/if}
               </div>
             {/if}
 
@@ -571,13 +602,24 @@
                   <span class="legend-item rx">&#9660; {t("network.inbound")}</span>
                   <span class="legend-item tx">&#9650; {t("network.outbound")}</span>
                 </div>
-                <div class="traffic-chart" bind:this={trafficChartEl}></div>
+                {#if chartLoadFailed}
+                  <div class="traffic-fallback">{t("network.chartUnavailable")}</div>
+                {:else if !hasTrafficData}
+                  <div class="traffic-fallback">{t("network.waiting")}</div>
+                {/if}
+                <!-- Keep mounted to avoid expensive chart/container re-creation loops while switching tabs -->
+                <div class="traffic-chart" class:hidden={chartLoadFailed || !hasTrafficData} bind:this={trafficChartEl}></div>
               </div>
             {/if}
           </div>
 
           <div class="tab-side">
-            <div class="capture-chip">{t("network.captureBackend", { backend: "watcher" })}</div>
+            <div class="capture-chip">{t("network.captureBackend", { backend: $networkTelemetryStatus.captureBackend })}</div>
+            <div class="capture-chip">RX {$networkTelemetryStatus.totalRxBytesPerSec > 0 ? formatRate($networkTelemetryStatus.totalRxBytesPerSec) : "0 B/s"}</div>
+            <div class="capture-chip">TX {$networkTelemetryStatus.totalTxBytesPerSec > 0 ? formatRate($networkTelemetryStatus.totalTxBytesPerSec) : "0 B/s"}</div>
+            {#if $networkTelemetryStatus.usingFallback}
+              <div class="network-warning">{t("network.fallbackNotice")}</div>
+            {/if}
             <ContextAiChat
               title={t("network.aiTitle")}
               placeholder={t("network.aiPlaceholder")}
@@ -709,6 +751,16 @@
     font-size: calc(var(--base-font-size, 12px) * 0.75);
     color: var(--fg-dim);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  }
+
+  .network-warning,
+  .traffic-fallback {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: calc(var(--base-font-size, 12px) * 0.75);
+    color: var(--yellow);
+    background: rgba(245, 158, 11, 0.08);
   }
 
   .network-help,
@@ -930,6 +982,10 @@
     min-height: 180px;
     border-radius: var(--radius-sm, 4px);
     overflow: hidden;
+  }
+
+  .traffic-chart.hidden {
+    display: none;
   }
 
   @media (max-width: 960px) {

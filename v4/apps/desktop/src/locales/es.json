@@ -251,6 +251,8 @@
     "port": "Puerto",
     "protocol": "Protocolo",
     "state": "Estado",
+    "fallbackNotice": "Se está mostrando el fallback de pestañas del navegador porque la telemetría real de sockets no está disponible por ahora.",
+    "chartUnavailable": "No se pudo inicializar la gráfica de tráfico. El throughput de red sigue actualizándose en segundo plano.",
     "aiTitle": "Chat IA de red",
     "aiPlaceholder": "Pregunta por picos de tráfico, destinos sospechosos o qué proceso tiene una conexión.",
     "aiEmpty": "Haz preguntas de seguimiento sobre conexiones activas y tendencias de tráfico.",
