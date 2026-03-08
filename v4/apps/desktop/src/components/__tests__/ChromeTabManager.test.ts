@@ -6,8 +6,13 @@ import { _resetForTest, browserTabs, processes } from "../../stores/processes";
 
 const mockInvoke = vi.mocked(invoke);
 
-// Mock window.confirm for confirmation dialogs
-window.confirm = vi.fn(() => true);
+// Mock confirmAction to auto-approve (returns Promise<boolean>)
+const mockConfirmAction = vi.fn(() => Promise.resolve(true));
+vi.mock("../../lib/confirm", () => ({
+  confirmAction: (...args: unknown[]) => mockConfirmAction(...args),
+  confirmDialogState: { subscribe: vi.fn(() => () => {}) },
+  resolveConfirmDialog: vi.fn(),
+}));
 
 function makeTab(overrides: Partial<BrowserTab> = {}): BrowserTab {
   return {
@@ -50,6 +55,7 @@ function makeProc(overrides: Partial<ProcessEntry> = {}): ProcessEntry {
 beforeEach(() => {
   _resetForTest();
   mockInvoke.mockReset();
+  mockConfirmAction.mockReturnValue(Promise.resolve(true));
 });
 
 describe("ChromeTabManager", () => {
@@ -255,22 +261,19 @@ describe("ChromeTabManager", () => {
     processes.set([makeProc()]);
     mockInvoke.mockResolvedValue(true);
 
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
-    confirmSpy.mockClear();
+    mockConfirmAction.mockClear();
 
     render(ChromeTabManager);
 
     await fireEvent.click(screen.getByTitle("Select all Chrome tabs"));
     await fireEvent.click(screen.getByTitle("Close 3 selected tab(s)"));
 
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("3"));
+    expect(mockConfirmAction).toHaveBeenCalledTimes(1);
+    expect(mockConfirmAction).toHaveBeenCalledWith(expect.stringContaining("3"));
     await waitFor(() => {
       const calls = mockInvoke.mock.calls.filter((call) => call[0] === "close_browser_tab");
       expect(calls).toHaveLength(3);
     });
-
-    confirmSpy.mockRestore();
   });
 
   it("toggles section collapse via header click", async () => {
@@ -443,14 +446,14 @@ describe("ChromeTabManager", () => {
 
   it("does not close tab when confirmation is canceled", async () => {
     browserTabs.set([makeTab({ id: "c1", title: "Cancelable", browser: "Chrome" })]);
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    mockConfirmAction.mockReturnValue(Promise.resolve(false));
 
     render(ChromeTabManager);
     await fireEvent.click(screen.getByTitle("Close this tab"));
 
     expect(mockInvoke).not.toHaveBeenCalledWith("close_browser_tab", expect.anything());
     expect(screen.getByText("Cancelable")).toBeInTheDocument();
-    confirmSpy.mockRestore();
+    mockConfirmAction.mockReturnValue(Promise.resolve(true));
   });
 
   it("returns early when Close All gets empty filtered tabs", async () => {
@@ -483,12 +486,12 @@ describe("ChromeTabManager", () => {
     render(ChromeTabManager);
     await fireEvent.click(screen.getByTitle("Select all Chrome tabs"));
 
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    mockConfirmAction.mockReturnValue(Promise.resolve(false));
     await fireEvent.click(screen.getByTitle("Close 2 selected tab(s)"));
     await fireEvent.click(screen.getByTitle("Close all Chrome tabs"));
 
     expect(mockInvoke).not.toHaveBeenCalledWith("close_browser_tab", expect.anything());
-    confirmSpy.mockRestore();
+    mockConfirmAction.mockReturnValue(Promise.resolve(true));
   });
 
   it("shows all tabs when filter is empty", () => {

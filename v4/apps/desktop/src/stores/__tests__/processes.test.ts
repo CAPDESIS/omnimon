@@ -61,14 +61,19 @@ function makeProc(overrides: Partial<ProcessEntry> = {}): ProcessEntry {
   };
 }
 
-// Mock window.confirm for confirmation dialogs
-window.confirm = vi.fn(() => true);
+// Mock confirmAction to auto-approve (returns Promise<boolean>)
+const mockConfirmAction = vi.fn(() => Promise.resolve(true));
+vi.mock("../../lib/confirm", () => ({
+  confirmAction: (...args: unknown[]) => mockConfirmAction(...args),
+  confirmDialogState: { subscribe: vi.fn(() => () => {}) },
+  resolveConfirmDialog: vi.fn(),
+}));
 
 beforeEach(() => {
   _resetForTest();
   mockInvoke.mockReset();
   // Confirm dialogs default to "yes" so existing tests pass
-  (window.confirm as ReturnType<typeof vi.fn>).mockReturnValue(true);
+  mockConfirmAction.mockReturnValue(Promise.resolve(true));
 });
 
 // --- applyDiff ---
@@ -296,7 +301,7 @@ describe("killSelected", () => {
   });
 
   it("returns empty array when user cancels confirmation", async () => {
-    (window.confirm as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    mockConfirmAction.mockReturnValue(Promise.resolve(false));
     processes.set([makeProc({ pid: 1 })]);
     selectedPids.set(new Set([1]));
     mockInvoke.mockResolvedValue({ killed: [1], failed: [] });
@@ -336,7 +341,7 @@ describe("killSingle", () => {
   });
 
   it("returns false when user cancels confirmation", async () => {
-    (window.confirm as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    mockConfirmAction.mockReturnValue(Promise.resolve(false));
     processes.set([makeProc({ pid: 1 })]);
     mockInvoke.mockResolvedValue(true);
 

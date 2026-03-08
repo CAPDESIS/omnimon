@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tauri::{
-    menu::{Menu, MenuItem, PredefinedMenuItem},
+    menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager,
 };
@@ -665,6 +665,35 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
+            // --- macOS Application Menu Bar ---
+            let about_metadata = AboutMetadata {
+                name: Some("OmniMon".into()),
+                version: Some("6.0.0".into()),
+                authors: Some(vec!["Jorge Salgado Miranda".into()]),
+                copyright: Some("© 2024-2026 Jorge Salgado Miranda".into()),
+                website: Some("https://github.com/chochy2001/omnimon".into()),
+                website_label: Some("Más información".into()),
+                comments: Some("System Monitor — monitoreo avanzado de procesos, pestañas y red.".into()),
+                ..Default::default()
+            };
+            let about_item = PredefinedMenuItem::about(app, Some("Acerca de OmniMon"), Some(about_metadata))?;
+            let hide = PredefinedMenuItem::hide(app, None)?;
+            let hide_others = PredefinedMenuItem::hide_others(app, None)?;
+            let show_all = PredefinedMenuItem::show_all(app, None)?;
+            let quit_item = PredefinedMenuItem::quit(app, None)?;
+            let sep1 = PredefinedMenuItem::separator(app)?;
+            let sep2 = PredefinedMenuItem::separator(app)?;
+            let sep3 = PredefinedMenuItem::separator(app)?;
+
+            let app_submenu = Submenu::with_items(
+                app,
+                "OmniMon",
+                true,
+                &[&about_item, &sep1, &hide, &hide_others, &show_all, &sep2, &sep3, &quit_item],
+            )?;
+            let app_menu = Menu::with_items(app, &[&app_submenu])?;
+            app.set_menu(app_menu)?;
+
             // Start the background watcher thread for system-level metrics
             macmon_core::watcher::start_watcher();
             automations::start_engine(app.handle().clone());

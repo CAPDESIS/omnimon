@@ -118,7 +118,7 @@
   }
 
   async function closeTab(tab: BrowserTab) {
-    if (!confirmAction(t("tabs.confirmCloseTab", { title: tab.title }))) return;
+    if (!(await confirmAction(t("tabs.confirmCloseTab", { title: tab.title })))) return;
     const next = new Set(closing);
     next.add(tab.id);
     closing = next;
@@ -137,7 +137,7 @@
     const allTabs = $browserTabs;
     const toClose = allTabs.filter((t) => selectedTabIds.has(t.id));
     if (toClose.length === 0) return;
-    if (!confirmAction(t("tabs.confirmCloseSelected", { count: toClose.length }))) return;
+    if (!(await confirmAction(t("tabs.confirmCloseSelected", { count: toClose.length })))) return;
     for (const tab of toClose) {
       const next = new Set(closing);
       next.add(tab.id);
@@ -156,7 +156,7 @@
 
   async function closeAllTabs(tabs: BrowserTab[]) {
     if (tabs.length === 0) return;
-    if (!confirmAction(t("tabs.confirmCloseAll", { count: tabs.length }))) return;
+    if (!(await confirmAction(t("tabs.confirmCloseAll", { count: tabs.length })))) return;
     for (const tab of tabs) {
       const next = new Set(closing);
       next.add(tab.id);

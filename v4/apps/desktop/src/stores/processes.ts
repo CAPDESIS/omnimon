@@ -187,7 +187,7 @@ export async function fetchMetrics(): Promise<void> {
 export async function killSelected(): Promise<number[]> {
   const pids = Array.from(get(selectedPids));
   if (pids.length === 0) return [];
-  if (!confirmAction(t("processes.confirmKillSelected", { count: pids.length }))) return [];
+  if (!(await confirmAction(t("processes.confirmKillSelected", { count: pids.length })))) return [];
   try {
     const result = await ipcKillProcesses(pids);
     const killed = result.killed;
@@ -208,7 +208,7 @@ export async function killSelected(): Promise<number[]> {
 
 /** Kills a single process by PID after user confirmation. Returns true if successfully killed. */
 export async function killSingle(pid: number, name?: string): Promise<boolean> {
-  if (!confirmAction(t("processes.confirmKillSingle", { name: name ?? String(pid), pid }))) return false;
+  if (!(await confirmAction(t("processes.confirmKillSingle", { name: name ?? String(pid), pid })))) return false;
   try {
     const ok = await ipcKillProcess(pid);
     if (ok) {
