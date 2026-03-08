@@ -6,6 +6,44 @@ use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::future::Future;
 use std::time::Duration;
+use std::sync::OnceLock;
+use std::sync::RwLock;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
+
+static AI_CACHE: OnceLock<RwLock<HashMap<u64, String>>> = OnceLock::new();
+
+fn get_ai_cache() -> &'static RwLock<HashMap<u64, String>> {
+    AI_CACHE.get_or_init(|| RwLock::new(HashMap::new()))
+}
+
+fn calculate_hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
+}
+
+pub fn check_prompt_injection(text: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let lower = text.to_lowercase();
+    let blocked_phrases = [
+        "ignora las instrucciones",
+        "ignore previous instructions",
+        "borra mis reglas",
+        "delete rules",
+        "olvida tu propósito",
+        "forget your purpose",
+        "actúa como",
+        "act as",
+    ];
+
+    for phrase in blocked_phrases {
+        if lower.contains(phrase) {
+            return Err("Acción bloqueada: posible inyección de prompt detectada.".into());
+        }
+    }
+    Ok(())
+}
 
 const MAX_RETRIES: u32 = 1;
 const INITIAL_BACKOFF_MS: u64 = 500;
@@ -434,11 +472,20 @@ pub async fn analyze_context_key(
     context: &str,
     api_key: &str,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
+    check_prompt_injection(context)?;
+
+    let cache_key = calculate_hash(&(provider as u8, model, context));
+    if let Ok(cache) = get_ai_cache().read() {
+        if let Some(cached_response) = cache.get(&cache_key) {
+            return Ok(cached_response.clone());
+        }
+    }
+
     let client = build_client()?;
 
     let system_msg = "You are OmniMon, a cross-platform system monitor assistant. Analyze the given process and browser tab information. If the process is a browser renderer/helper, use the tab context to explain which tab or site it likely belongs to. Provide concise, actionable insights: what the process does, whether it's safe to close, memory impact, and any recommendations. Use short paragraphs. Be direct.";
 
-    if provider == AiProvider::Anthropic {
+    let result_text = if provider == AiProvider::Anthropic {
         let body = serde_json::json!({
             "model": model,
             "max_tokens": MAX_TOKENS_CONTEXT,
@@ -452,37 +499,45 @@ pub async fn analyze_context_key(
         let resp_text = check_response_status(resp).await?;
         let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
             .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
-        return resp_json["content"][0]["text"]
+        let text_res: Result<String, Box<dyn Error + Send + Sync>> = resp_json["content"][0]["text"]
             .as_str()
             .map(|s| s.to_string())
             .ok_or_else(|| "Invalid Anthropic response format".into());
+        text_res?
+    } else {
+        // OpenAI-compatible
+        let body = serde_json::json!({
+            "model": model,
+            "messages": [
+                { "role": "system", "content": system_msg },
+                { "role": "user", "content": context }
+            ]
+        });
+        let resp = send_with_retry(|| {
+            let mut req = client
+                .post(provider.api_url())
+                .header("Authorization", format!("Bearer {api_key}"));
+            if provider == AiProvider::OpenRouter {
+                req = add_openrouter_headers(req);
+            }
+            req.json(&body)
+        })
+        .await?;
+        let resp_text = check_response_status(resp).await?;
+        let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
+            .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
+        let text_res: Result<String, Box<dyn Error + Send + Sync>> = resp_json["choices"][0]["message"]["content"]
+            .as_str()
+            .map(|s| s.to_string())
+            .ok_or_else(|| "Invalid response format".into());
+        text_res?
+    };
+
+    if let Ok(mut cache) = get_ai_cache().write() {
+        cache.insert(cache_key, result_text.clone());
     }
 
-    // OpenAI-compatible
-    let body = serde_json::json!({
-        "model": model,
-        "messages": [
-            { "role": "system", "content": system_msg },
-            { "role": "user", "content": context }
-        ]
-    });
-    let resp = send_with_retry(|| {
-        let mut req = client
-            .post(provider.api_url())
-            .header("Authorization", format!("Bearer {api_key}"));
-        if provider == AiProvider::OpenRouter {
-            req = add_openrouter_headers(req);
-        }
-        req.json(&body)
-    })
-    .await?;
-    let resp_text = check_response_status(resp).await?;
-    let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
-        .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
-    resp_json["choices"][0]["message"]["content"]
-        .as_str()
-        .map(|s| s.to_string())
-        .ok_or_else(|| "Invalid response format".into())
+    Ok(result_text)
 }
 
 // ---------------------------------------------------------------------------
@@ -810,6 +865,18 @@ pub async fn chat_with_tools(
     messages: &[(String, String)],
     system_prompt: &str,
 ) -> Result<(String, Option<RawToolCall>), Box<dyn Error + Send + Sync>> {
+    if let Some((_, last_user_msg)) = messages.last() {
+        check_prompt_injection(last_user_msg)?;
+    }
+
+    let cache_key = calculate_hash(&(provider as u8, model, messages, system_prompt));
+    if let Ok(cache) = get_ai_cache().read() {
+        if let Some(cached_response) = cache.get(&cache_key) {
+            let tool_call = parse_tool_call(cached_response);
+            return Ok((cached_response.clone(), tool_call));
+        }
+    }
+
     let client = build_client()?;
 
     // Build the messages array from history (role, content) pairs
@@ -903,6 +970,10 @@ pub async fn chat_with_tools(
             .unwrap_or("")
             .to_string()
     };
+
+    if let Ok(mut cache) = get_ai_cache().write() {
+        cache.insert(cache_key, ai_text.clone());
+    }
 
     let tool_call = parse_tool_call(&ai_text);
     Ok((ai_text, tool_call))

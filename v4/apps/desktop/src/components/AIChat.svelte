@@ -17,6 +17,9 @@
 
   interface ChatMessageWithTool extends ChatMessage {
     toolResult?: ToolResult;
+    isError?: boolean;
+    canRetry?: boolean;
+    retryText?: string;
   }
 
   let input = $state("");
@@ -112,7 +115,19 @@
     } catch (e) {
       if (token !== requestToken) return;
       const msg = e instanceof Error ? e.message : String(e);
-      messages = [...messages, { role: "system", text: msg }];
+      
+      let errorText = msg;
+      const lowerMsg = msg.toLowerCase();
+      
+      if (lowerMsg.includes("timeout") || lowerMsg.includes("time out")) {
+          errorText = "Error de conexión: Timeout agotado. ¿Deseas reintentar o usar un modelo local (Ollama)?";
+      } else if (lowerMsg.includes("fetch failed") || lowerMsg.includes("network error") || lowerMsg.includes("connection refused") || lowerMsg.includes("ollama is not running") || lowerMsg.includes("ai request failed")) {
+          errorText = "Error de API: No se pudo contactar al proveedor. Si usas Ollama, verifica que esté corriendo (`ollama serve`).";
+      } else {
+          errorText = `Error al procesar la solicitud: ${msg}`;
+      }
+
+      messages = [...messages, { role: "system", text: errorText, isError: true, canRetry: true, retryText: trimmed }];
 
       if (msg.includes("No API key") || msg.includes("keyring")) {
         toast.error(t("aiChat.configErrorTitle"), t("aiChat.providerSetupFirst"));
@@ -237,6 +252,23 @@
     input = "";
   }
 
+  function retryMessage(text: string) {
+    if (loading) return;
+    input = text;
+    // Remove the error message and the immediately preceding user message
+    let lastErrorIndex = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].isError) {
+        lastErrorIndex = i;
+        break;
+      }
+    }
+    if (lastErrorIndex !== -1) {
+      messages = messages.filter((_, i) => i !== lastErrorIndex && i !== lastErrorIndex - 1);
+    }
+    handleSubmit();
+  }
+
   function doResizeInput() {
     resizeTextarea(inputRef);
   }
@@ -286,6 +318,13 @@
               <span class="tool-badge" class:success={msg.toolResult.success} class:fail={!msg.toolResult.success}>
                 {msg.toolResult.tool}
               </span>
+            {/if}
+            {#if msg.isError && msg.canRetry && msg.retryText}
+              <div class="error-actions">
+                <button class="retry-btn" onclick={() => retryMessage(msg.retryText!)}>
+                  ↻ {t("common.retry") || "Reintentar"}
+                </button>
+              </div>
             {/if}
           </span>
         </div>
@@ -566,6 +605,26 @@
   .action-buttons {
     display: flex;
     gap: 8px;
+  }
+
+  .error-actions {
+    margin-top: 8px;
+  }
+
+  .retry-btn {
+    padding: 4px 12px;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--accent);
+    font-weight: 600;
+    font-size: calc(var(--base-font-size, 12px) * 0.833);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .retry-btn:hover {
+    background: var(--accent);
+    color: white;
   }
 
   .confirm-btn {
