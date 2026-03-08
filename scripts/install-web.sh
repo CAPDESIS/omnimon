@@ -42,7 +42,7 @@ echo ""
 
 # Fallback migration check
 if [[ -d "$HOME/.local/libexec/macmon" ]] && [[ "$OS" == "Darwin" ]]; then
-    warn "Legacy macmon v3 detected. The new v5 is a standalone App/DMG."
+    warn "Legacy OmniMon v3 detected. The new v5 is a standalone App/DMG."
     warn "You may want to run '~/.local/libexec/macmon/uninstall.sh' to clean up v3 daemons later."
     echo ""
 fi
