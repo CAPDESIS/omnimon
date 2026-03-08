@@ -173,14 +173,14 @@ mod tests {
     #[test]
     fn does_not_exceed_capacity_on_long_wait() {
         reset_all();
-        let config = BucketConfig::new(2, 1000.0);
+        let config = BucketConfig::new(2, 50.0);
         // Exhaust all tokens
         assert!(check_rate_limit("test_cap_max", &config).is_ok());
         assert!(check_rate_limit("test_cap_max", &config).is_ok());
         assert!(check_rate_limit("test_cap_max", &config).is_err());
 
         // Long wait — should refill to capacity, not beyond
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(100));
         assert!(check_rate_limit("test_cap_max", &config).is_ok());
         assert!(check_rate_limit("test_cap_max", &config).is_ok());
         // Should be at 0 now, even if we waited long enough for >2 refills
