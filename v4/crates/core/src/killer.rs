@@ -113,8 +113,7 @@ pub fn is_immutable_blocked_process_name(process_name: &str) -> bool {
 
     static BLOCKED_SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
     let blocked = BLOCKED_SET.get_or_init(|| {
-        let mut set: HashSet<&'static str> =
-            DEFAULT_PROTECTED_PROCESSES.iter().copied().collect();
+        let mut set: HashSet<&'static str> = DEFAULT_PROTECTED_PROCESSES.iter().copied().collect();
 
         #[cfg(target_os = "macos")]
         set.extend(MACOS_PROTECTED_PROCESSES.iter().copied());

@@ -167,10 +167,7 @@ pub fn get_api_key(provider: AiProvider) -> Result<String, Box<dyn Error + Send 
 // ---------------------------------------------------------------------------
 
 /// Adds Anthropic-specific headers (x-api-key, version, content-type) to a request.
-fn add_anthropic_headers(
-    req: reqwest::RequestBuilder,
-    api_key: &str,
-) -> reqwest::RequestBuilder {
+fn add_anthropic_headers(req: reqwest::RequestBuilder, api_key: &str) -> reqwest::RequestBuilder {
     req.header("x-api-key", api_key)
         .header("anthropic-version", ANTHROPIC_VERSION)
         .header("content-type", "application/json")
@@ -211,13 +208,11 @@ pub async fn validate_api_key(
 
     // Ollama: just check that the server is reachable (no API key needed)
     if provider == AiProvider::Ollama {
-        let resp = client
-            .get(OLLAMA_TAGS_URL)
-            .send()
-            .await
-            .map_err(|_| -> Box<dyn Error + Send + Sync> {
+        let resp = client.get(OLLAMA_TAGS_URL).send().await.map_err(
+            |_| -> Box<dyn Error + Send + Sync> {
                 "Ollama is not running — start it with `ollama serve`".into()
-            })?;
+            },
+        )?;
         if !resp.status().is_success() {
             return Err("Ollama server returned an error".into());
         }
@@ -407,8 +402,7 @@ async fn analyze_anthropic(
     });
 
     let resp = send_with_retry(|| {
-        add_anthropic_headers(client.post(AiProvider::Anthropic.api_url()), api_key)
-            .json(&body)
+        add_anthropic_headers(client.post(AiProvider::Anthropic.api_url()), api_key).json(&body)
     })
     .await?;
 
@@ -452,8 +446,7 @@ pub async fn analyze_context_key(
             "messages": [{ "role": "user", "content": context }]
         });
         let resp = send_with_retry(|| {
-            add_anthropic_headers(client.post(AiProvider::Anthropic.api_url()), api_key)
-                .json(&body)
+            add_anthropic_headers(client.post(AiProvider::Anthropic.api_url()), api_key).json(&body)
         })
         .await?;
         let resp_text = check_response_status(resp).await?;
@@ -838,8 +831,7 @@ pub async fn chat_with_tools(
             "messages": msg_array
         });
         let resp = send_with_retry(|| {
-            add_anthropic_headers(client.post(AiProvider::Anthropic.api_url()), api_key)
-                .json(&body)
+            add_anthropic_headers(client.post(AiProvider::Anthropic.api_url()), api_key).json(&body)
         })
         .await?;
         let status = resp.status();

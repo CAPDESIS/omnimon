@@ -144,8 +144,14 @@ fn integration_network_capture_backend_labels() {
         network::NetworkCaptureBackend::PacketFilter.as_str(),
         "Packet Filter (libpcap)"
     );
-    assert_eq!(network::NetworkCaptureBackend::WinDivert.as_str(), "WinDivert");
-    assert_eq!(network::NetworkCaptureBackend::Unsupported.as_str(), "Unsupported");
+    assert_eq!(
+        network::NetworkCaptureBackend::WinDivert.as_str(),
+        "WinDivert"
+    );
+    assert_eq!(
+        network::NetworkCaptureBackend::Unsupported.as_str(),
+        "Unsupported"
+    );
 }
 
 #[test]
@@ -696,8 +702,7 @@ fn integration_security_audit_trail_rotates_encrypted_logs() {
 
 #[test]
 fn integration_audit_trail_writes_and_reads_records() {
-    let dir =
-        std::env::temp_dir().join(format!("omnimon-int-trail-rw-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("omnimon-int-trail-rw-{}", std::process::id()));
     let trail = audit_trail::EncryptedAuditTrail::new(&dir, 4096, 5);
     let key = [55u8; 32];
 
@@ -760,10 +765,10 @@ fn integration_crypto_wrong_key_fails() {
 #[test]
 fn integration_crypto_ed25519_sign_verify() {
     let (signing_key, verifying_key) = crypto::generate_ed25519_keypair();
-    let payload = b"OmniMon v5.1.0 release binary";
+    let payload = b"OmniMon v5.2.0 release binary";
 
-    let sig = crypto::sign_release(&signing_key, payload, "v5.1.0");
-    assert_eq!(sig.version, "v5.1.0");
+    let sig = crypto::sign_release(&signing_key, payload, "v5.2.0");
+    assert_eq!(sig.version, "v5.2.0");
 
     let result = crypto::verify_release(payload, &sig, &verifying_key);
     assert!(result.is_ok());
@@ -857,10 +862,7 @@ fn integration_process_identity_browser_detection() {
         process_identity::browser_family("firefox", "firefox", None),
         Some("Firefox")
     );
-    assert_eq!(
-        process_identity::browser_family("node", "node", None),
-        None
-    );
+    assert_eq!(process_identity::browser_family("node", "node", None), None);
 }
 
 #[test]
@@ -992,8 +994,7 @@ fn integration_cloud_validation_serialization() {
     assert!(json.contains("\"valid\":true"));
     assert!(json.contains("Premium"));
 
-    let deserialized: cloud::CloudValidation =
-        serde_json::from_str(&json).expect("deserialize");
+    let deserialized: cloud::CloudValidation = serde_json::from_str(&json).expect("deserialize");
     assert!(deserialized.valid);
     assert_eq!(deserialized.tier, cloud::CloudTier::Premium);
 }
@@ -1074,7 +1075,9 @@ fn integration_rate_limit_profiles_are_usable() {
     // Verify all predefined profiles can be used without panic
     assert!(rate_limit::check_rate_limit("int_kill_prof", &rate_limit::profiles::KILL).is_ok());
     assert!(rate_limit::check_rate_limit("int_ai_prof", &rate_limit::profiles::AI).is_ok());
-    assert!(rate_limit::check_rate_limit("int_browser_prof", &rate_limit::profiles::BROWSER).is_ok());
+    assert!(
+        rate_limit::check_rate_limit("int_browser_prof", &rate_limit::profiles::BROWSER).is_ok()
+    );
     assert!(rate_limit::check_rate_limit("int_config_prof", &rate_limit::profiles::CONFIG).is_ok());
 }
 

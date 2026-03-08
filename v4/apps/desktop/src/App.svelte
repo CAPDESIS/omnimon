@@ -553,7 +553,7 @@
   <!-- Status Footer -->
   <footer class="statusline" aria-live="polite" aria-atomic="true">
     <span>
-      <span class="version-label" style="color: var(--accent); font-weight: 600;">OmniMon v5.1.0</span> &nbsp;&middot;&nbsp;
+      <span class="version-label" style="color: var(--accent); font-weight: 600;">OmniMon v5.2.0</span> &nbsp;&middot;&nbsp;
       {t("footer.processes", { count: $filtered.length })}{#if $filtered.length !== $processes.length}
         &nbsp;{t("footer.filteredFrom", { count: $processes.length })}{/if}
       {#if $selectedCount > 0}

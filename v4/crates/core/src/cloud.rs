@@ -135,7 +135,7 @@ pub async fn validate_cloud_key(key: &str) -> CloudValidation {
     let response = match client
         .get(&url)
         .header("Authorization", format!("Bearer {}", key.trim()))
-        .header("User-Agent", "OmniMon/5.1.0")
+        .header("User-Agent", "OmniMon/5.2.0")
         .send()
         .await
     {
@@ -207,8 +207,7 @@ fn detect_tier_from_response(body: &serde_json::Value) -> CloudTier {
     if let Some(sub) = body.get("subscription") {
         if let Some(sub_str) = sub.as_str() {
             let lower = sub_str.to_ascii_lowercase();
-            if lower.contains("premium") || lower.contains("pro") || lower.contains("enterprise")
-            {
+            if lower.contains("premium") || lower.contains("pro") || lower.contains("enterprise") {
                 return CloudTier::Premium;
             }
             if lower.contains("free") || lower.contains("starter") {
@@ -217,8 +216,7 @@ fn detect_tier_from_response(body: &serde_json::Value) -> CloudTier {
         }
         if let Some(plan_name) = sub.get("plan").and_then(|v| v.as_str()) {
             let lower = plan_name.to_ascii_lowercase();
-            if lower.contains("premium") || lower.contains("pro") || lower.contains("enterprise")
-            {
+            if lower.contains("premium") || lower.contains("pro") || lower.contains("enterprise") {
                 return CloudTier::Premium;
             }
             if lower.contains("free") || lower.contains("starter") {

@@ -79,8 +79,7 @@ impl TokenBucket {
         let now = Instant::now();
         let elapsed = now.duration_since(self.last_refill).as_secs_f64();
         if elapsed > 0.0 {
-            self.tokens = (self.tokens + elapsed * self.refill_per_sec)
-                .min(self.capacity as f64);
+            self.tokens = (self.tokens + elapsed * self.refill_per_sec).min(self.capacity as f64);
             self.last_refill = now;
         }
     }
@@ -198,13 +197,15 @@ mod tests {
 
     #[test]
     fn predefined_profiles_have_sane_values() {
-        assert!(profiles::KILL.capacity > 0);
-        assert!(profiles::KILL.refill_per_sec > 0.0);
-        assert!(profiles::AI.capacity > 0);
-        assert!(profiles::AI.refill_per_sec > 0.0);
-        assert!(profiles::BROWSER.capacity > 0);
-        assert!(profiles::BROWSER.refill_per_sec > 0.0);
-        assert!(profiles::CONFIG.capacity > 0);
-        assert!(profiles::CONFIG.refill_per_sec > 0.0);
+        const {
+            assert!(profiles::KILL.capacity > 0);
+            assert!(profiles::KILL.refill_per_sec > 0.0);
+            assert!(profiles::AI.capacity > 0);
+            assert!(profiles::AI.refill_per_sec > 0.0);
+            assert!(profiles::BROWSER.capacity > 0);
+            assert!(profiles::BROWSER.refill_per_sec > 0.0);
+            assert!(profiles::CONFIG.capacity > 0);
+            assert!(profiles::CONFIG.refill_per_sec > 0.0);
+        }
     }
 }
