@@ -5,6 +5,9 @@ use core::killer;
 use core::metrics;
 use core::watcher;
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 mod settings;
 
 #[derive(Parser)]

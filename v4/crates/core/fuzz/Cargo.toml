@@ -1,0 +1,32 @@
+[package]
+name = "core-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+core = { path = ".." }
+serde_json = "1"
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "fuzz_rules_payload"
+path = "fuzz_targets/fuzz_rules_payload.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_geoip_payload"
+path = "fuzz_targets/fuzz_geoip_payload.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_rules_evaluate"
+path = "fuzz_targets/fuzz_rules_evaluate.rs"
+doc = false

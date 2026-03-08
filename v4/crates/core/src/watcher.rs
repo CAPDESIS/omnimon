@@ -1,6 +1,14 @@
 //! Background monitoring daemon. Periodically aggregates system metrics, network flows, and dynamically evaluates AI-driven security rules.
+//!
+//! # Zero-Allocation Hot Path
+//!
+//! The watcher tick runs every 2 seconds. To minimize heap churn on a 24/7
+//! daemon, all temporary data structures (`HashMap`, `Vec`) used inside the
+//! tick are pre-allocated in [`WatcherBuffers`] and reused across iterations
+//! via `clear()` + refill, preserving their backing capacity.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -8,6 +16,31 @@ use sysinfo::{ProcessRefreshKind, System};
 
 static CACHED_STATE: OnceLock<Arc<RwLock<SystemState>>> = OnceLock::new();
 static WATCHER_STARTED: AtomicBool = AtomicBool::new(false);
+
+/// Pre-allocated buffers reused across watcher ticks to avoid heap allocations
+/// on the hot path. All containers are cleared (retaining capacity) at the
+/// start of each tick, then refilled in-place.
+struct WatcherBuffers {
+    /// Per-process info buffer. Filled by `collect_state_into` each tick.
+    process_info: Vec<CachedProcessInfo>,
+    /// Maps PID → (rx, tx) bytes/sec for merging network throughput into process info.
+    throughput_map: HashMap<u32, (u64, u64)>,
+    /// Process runtime data fed into the rules engine each tick.
+    runtime: Vec<crate::rules_engine::ProcessRuntime>,
+    /// Tracks the previous tick's process count for next-tick capacity hints.
+    last_process_count: usize,
+}
+
+impl WatcherBuffers {
+    fn new() -> Self {
+        Self {
+            process_info: Vec::with_capacity(512),
+            throughput_map: HashMap::with_capacity(128),
+            runtime: Vec::with_capacity(512),
+            last_process_count: 0,
+        }
+    }
+}
 
 /// Per-process info cached by the watcher thread (memory, CPU%, executable name, start time).
 /// Avoids the need for IPC handlers to create `System` instances on the main thread.
@@ -56,7 +89,14 @@ fn state_handle() -> Arc<RwLock<SystemState>> {
     Arc::clone(CACHED_STATE.get_or_init(|| Arc::new(RwLock::new(SystemState::default()))))
 }
 
-fn collect_state(system: &mut System) -> SystemState {
+/// Static backend label used when no network engine data is available yet.
+const BACKEND_UNKNOWN: &str = "Unknown";
+
+/// Collects system metrics into the provided buffer, avoiding fresh Vec/HashMap allocations.
+///
+/// `buf.process_info` is cleared and refilled in-place so its heap capacity
+/// is carried forward across ticks (zero reallocation after warm-up).
+fn collect_state(system: &mut System, buf: &mut WatcherBuffers) -> SystemState {
     system.refresh_memory();
     system.refresh_cpu();
     system.refresh_processes_specifics(ProcessRefreshKind::everything());
@@ -85,45 +125,52 @@ fn collect_state(system: &mut System) -> SystemState {
         .map(|d| d.as_millis())
         .unwrap_or(0);
 
-    let cached_process_info: Vec<CachedProcessInfo> = system
-        .processes()
-        .iter()
-        .map(|(pid, process)| {
-            let name = process.name().to_string();
-            let exe_path = process.exe().map(|e| e.display().to_string());
-            let exec_name = process
-                .exe()
-                .and_then(|e| e.file_name())
-                .map(|f| f.to_string_lossy().into_owned())
-                .unwrap_or_else(|| name.clone());
-            let bundle_id = crate::process_identity::detect_bundle_id(process.exe());
-            let disk = process.disk_usage();
-            let is_system = crate::killer::is_immutable_blocked_process_name(&name);
-            let group_name = crate::process_identity::classify_group(
-                &name,
-                &exec_name,
-                exe_path.as_deref(),
-                is_system,
-            );
-            CachedProcessInfo {
-                pid: pid.as_u32(),
-                name,
-                group_name,
-                memory_bytes: process.memory(),
-                virtual_memory_bytes: process.virtual_memory(),
-                cpu_pct: process.cpu_usage(),
-                exec_name,
-                exe_path,
-                bundle_id,
-                disk_read_bytes: disk.read_bytes,
-                disk_write_bytes: disk.written_bytes,
-                net_rx_bytes_per_sec: 0,
-                net_tx_bytes_per_sec: 0,
-                energy_impact_score: None,
-                start_time: process.start_time(),
-            }
-        })
-        .collect();
+    // Reuse the process_info buffer: clear retains heap capacity from prior ticks.
+    buf.process_info.clear();
+    if buf.process_info.capacity() < buf.last_process_count {
+        buf.process_info.reserve(buf.last_process_count - buf.process_info.capacity());
+    }
+
+    for (pid, process) in system.processes().iter() {
+        let name = process.name().to_string();
+        let exe_path = process.exe().map(|e| e.display().to_string());
+        let exec_name = process
+            .exe()
+            .and_then(|e| e.file_name())
+            .map(|f| f.to_string_lossy().into_owned())
+            .unwrap_or_else(|| name.clone());
+        let bundle_id = crate::process_identity::detect_bundle_id(process.exe());
+        let disk = process.disk_usage();
+        let is_system = crate::killer::is_immutable_blocked_process_name(&name);
+        let group_name = crate::process_identity::classify_group(
+            &name,
+            &exec_name,
+            exe_path.as_deref(),
+            is_system,
+        );
+        buf.process_info.push(CachedProcessInfo {
+            pid: pid.as_u32(),
+            name,
+            group_name,
+            memory_bytes: process.memory(),
+            virtual_memory_bytes: process.virtual_memory(),
+            cpu_pct: process.cpu_usage(),
+            exec_name,
+            exe_path,
+            bundle_id,
+            disk_read_bytes: disk.read_bytes,
+            disk_write_bytes: disk.written_bytes,
+            net_rx_bytes_per_sec: 0,
+            net_tx_bytes_per_sec: 0,
+            energy_impact_score: None,
+            start_time: process.start_time(),
+        });
+    }
+    buf.last_process_count = buf.process_info.len();
+
+    // Move process data into the snapshot; buf.process_info becomes empty (capacity 0).
+    // The capacity is recovered in the watcher loop after the old state is swapped out.
+    let cached_process_info = std::mem::take(&mut buf.process_info);
 
     SystemState {
         total_memory_bytes,
@@ -134,7 +181,7 @@ fn collect_state(system: &mut System) -> SystemState {
         cpu_usage_percent,
         net_rx_bytes_per_sec: 0,
         net_tx_bytes_per_sec: 0,
-        net_capture_backend: "Unknown".to_string(),
+        net_capture_backend: BACKEND_UNKNOWN.to_string(),
         net_dpi_active: false,
         top_network_processes: Vec::new(),
         recent_network_connections: Vec::new(),
@@ -147,6 +194,10 @@ fn collect_state(system: &mut System) -> SystemState {
 }
 
 /// Spawns a background thread that refreshes the cached [`SystemState`] every 2 seconds.
+///
+/// All temporary data structures are pre-allocated in [`WatcherBuffers`] and
+/// reused across ticks via `clear()` + refill, eliminating per-tick heap
+/// allocations for `HashMap` and `Vec` containers on the hot path.
 ///
 /// Calling this more than once is a no-op.
 pub fn start_watcher() {
@@ -168,9 +219,12 @@ pub fn start_watcher() {
         runtime.block_on(async move {
             let mut system = System::new_all();
             let mut network_engine = crate::network::NetworkTelemetryEngine::new();
+            let mut buffers = WatcherBuffers::new();
 
-            let initial = collect_state(&mut system);
+            let initial = collect_state(&mut system, &mut buffers);
             if let Ok(mut guard) = cache.write() {
+                // Recover the old state's process_info Vec for capacity reuse.
+                buffers.process_info = std::mem::take(&mut guard.cached_process_info);
                 *guard = initial;
             }
 
@@ -191,19 +245,21 @@ pub fn start_watcher() {
                     let mitre_labels =
                         crate::security::label_process_observations(&network_observations);
 
-                    let mut snapshot = collect_state(&mut system);
+                    let mut snapshot = collect_state(&mut system, &mut buffers);
 
-                    let runtime: Vec<crate::rules_engine::ProcessRuntime> = snapshot
-                        .cached_process_info
-                        .iter()
-                        .map(|p| crate::rules_engine::ProcessRuntime {
+                    // Reuse the runtime buffer: clear retains capacity.
+                    buffers.runtime.clear();
+                    for p in &snapshot.cached_process_info {
+                        buffers.runtime.push(crate::rules_engine::ProcessRuntime {
                             pid: p.pid,
                             process_name: p.name.clone(),
                             memory_bytes: p.memory_bytes,
-                        })
-                        .collect();
-                    let dynamic_alerts =
-                        crate::rules_engine::evaluate_events(&sample.recent_connections, &runtime);
+                        });
+                    }
+                    let dynamic_alerts = crate::rules_engine::evaluate_events(
+                        &sample.recent_connections,
+                        &buffers.runtime,
+                    );
                     let heartbeat = crate::audit::build_security_heartbeat(
                         sample.process_throughput.len(),
                         0,
@@ -219,13 +275,17 @@ pub fn start_watcher() {
                     snapshot.net_capture_backend = sample.backend_label;
                     snapshot.net_dpi_active = sample.deep_packet_inspection_active;
                     let process_throughput = sample.process_throughput;
-                    let mut throughput_by_pid = std::collections::HashMap::new();
+
+                    // Reuse the throughput map: clear retains capacity.
+                    buffers.throughput_map.clear();
                     for item in &process_throughput {
-                        throughput_by_pid
+                        buffers
+                            .throughput_map
                             .insert(item.pid, (item.rx_bytes_per_sec, item.tx_bytes_per_sec));
                     }
                     for process in &mut snapshot.cached_process_info {
-                        let (rx, tx) = throughput_by_pid
+                        let (rx, tx) = buffers
+                            .throughput_map
                             .get(&process.pid)
                             .copied()
                             .unwrap_or((0, 0));
@@ -251,6 +311,10 @@ pub fn start_watcher() {
                 match tick_result {
                     Ok(snapshot) => {
                         if let Ok(mut guard) = cache.write() {
+                            // Recover the old state's process_info Vec so its heap
+                            // capacity is reused on the next tick instead of freed.
+                            buffers.process_info =
+                                std::mem::take(&mut guard.cached_process_info);
                             *guard = snapshot;
                         }
                     }
