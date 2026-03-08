@@ -9,6 +9,17 @@
   import { detectBrowser } from "../lib/browser";
   import SecurityBadge from "./SecurityBadge.svelte";
   import { iconForProcess, isNativeIconDataUrl } from "../lib/processIcons";
+  import {
+    PROCESS_TABLE_ROW_BUFFER,
+    RAM_THRESHOLD_DANGER,
+    RAM_THRESHOLD_WARNING,
+    CPU_THRESHOLD_DANGER,
+    CPU_THRESHOLD_WARNING,
+    ENERGY_THRESHOLD_DANGER,
+    ENERGY_THRESHOLD_WARNING,
+    BYTES_PER_MB,
+    BYTES_PER_KB,
+  } from "../lib/constants";
 
   interface Props {
     processes: ProcessEntry[];
@@ -27,7 +38,7 @@
   let visibleColCount = $derived(orderedVisibleCols.length);
 
   let ROW_HEIGHT = $derived(Math.round($fontSize * 1.667));
-  const BUFFER = 10;
+  const BUFFER = PROCESS_TABLE_ROW_BUFFER;
 
   type SortKey = "name" | "pid" | "ram_mb" | "cpu_pct" | "energy_metric" | "network_metric" | "group" | "uptime" | "state";
   let sortKey: SortKey = $state("ram_mb");
@@ -266,27 +277,27 @@
   }
 
   function ramColor(mb: number): string {
-    if (mb >= 1024) return "var(--danger)";
-    if (mb >= 256) return "var(--yellow)";
+    if (mb >= RAM_THRESHOLD_DANGER) return "var(--danger)";
+    if (mb >= RAM_THRESHOLD_WARNING) return "var(--yellow)";
     return "var(--fg)";
   }
 
   function cpuColor(pct: number): string {
-    if (pct >= 50) return "var(--danger)";
-    if (pct >= 10) return "var(--yellow)";
+    if (pct >= CPU_THRESHOLD_DANGER) return "var(--danger)";
+    if (pct >= CPU_THRESHOLD_WARNING) return "var(--yellow)";
     return "var(--fg)";
   }
 
   function energyColor(score: number | null): string {
     const value = score ?? 0;
-    if (value >= 60) return "var(--danger)";
-    if (value >= 20) return "var(--yellow)";
+    if (value >= ENERGY_THRESHOLD_DANGER) return "var(--danger)";
+    if (value >= ENERGY_THRESHOLD_WARNING) return "var(--yellow)";
     return "var(--fg)";
   }
 
   function formatNetworkRate(bytesPerSec: number): string {
-    if (bytesPerSec >= 1_048_576) return `${(bytesPerSec / 1_048_576).toFixed(1)} MB/s`;
-    if (bytesPerSec >= 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
+    if (bytesPerSec >= BYTES_PER_MB) return `${(bytesPerSec / BYTES_PER_MB).toFixed(1)} MB/s`;
+    if (bytesPerSec >= BYTES_PER_KB) return `${(bytesPerSec / BYTES_PER_KB).toFixed(1)} KB/s`;
     return `${bytesPerSec} B/s`;
   }
 

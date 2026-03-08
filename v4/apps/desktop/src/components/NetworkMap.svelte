@@ -9,17 +9,25 @@
   import type { NetworkConnection } from "../lib/types";
   import type { Time } from "lightweight-charts";
   import { t } from "../lib/i18n";
+  import {
+    NETWORK_PANEL_DEFAULT_HEIGHT,
+    NETWORK_SIDE_PANEL_DEFAULT_WIDTH,
+    NETWORK_CANVAS_LEFT_MARGIN,
+    NETWORK_CANVAS_RIGHT_INSET,
+    BYTES_PER_MB,
+    BYTES_PER_KB,
+  } from "../lib/constants";
 
   let collapsed = $state(true);
   let activeTab = $state<"map" | "table" | "traffic">("map");
-  let panelHeight = $state(280);
+  let panelHeight = $state(NETWORK_PANEL_DEFAULT_HEIGHT);
   let dragMode = $state<"content" | null>(null);
-  let sidePanelWidth = $state(320);
+  let sidePanelWidth = $state(NETWORK_SIDE_PANEL_DEFAULT_WIDTH);
   let sideDragMode = $state<"sidebar" | null>(null);
   let dragStartY = 0;
-  let dragStartHeight = 280;
+  let dragStartHeight = NETWORK_PANEL_DEFAULT_HEIGHT;
   let dragStartX = 0;
-  let dragStartWidth = 320;
+  let dragStartWidth = NETWORK_SIDE_PANEL_DEFAULT_WIDTH;
   let chartLoadFailed = $state(false);
   let pendingChartInit = 0;
 
@@ -108,8 +116,8 @@
     const green = getVar("--green") || "#22c55e";
     const border = getVar("--border") || "#27272a";
 
-    const leftMargin = 120;
-    const rightMargin = w - 140;
+    const leftMargin = NETWORK_CANVAS_LEFT_MARGIN;
+    const rightMargin = w - NETWORK_CANVAS_RIGHT_INSET;
     const nodeSpacing = Math.min(40, (h - 20) / Math.max(nodes.length, 1));
 
     ctx.font = `600 11px -apple-system, "SF Pro Text", sans-serif`;
@@ -208,7 +216,7 @@
   function toTrafficPoint(snapshot: MetricsSnapshot, direction: "rx" | "tx"): TrafficPoint {
     return {
       time: snapshot.time as Time,
-      value: (direction === "rx" ? snapshot.netRx : snapshot.netTx) / 1024,
+      value: (direction === "rx" ? snapshot.netRx : snapshot.netTx) / BYTES_PER_KB,
     };
   }
 
@@ -486,15 +494,15 @@
       connections: summarizeConnections($networkConnections),
       traffic: recentTraffic.map((entry) => ({
         time: entry.time,
-        rx_kb_per_sec: Number((entry.netRx / 1024).toFixed(2)),
-        tx_kb_per_sec: Number((entry.netTx / 1024).toFixed(2)),
+        rx_kb_per_sec: Number((entry.netRx / BYTES_PER_KB).toFixed(2)),
+        tx_kb_per_sec: Number((entry.netTx / BYTES_PER_KB).toFixed(2)),
       })),
     });
   }
 
   function formatRate(bytesPerSec: number): string {
-    if (bytesPerSec >= 1024 * 1024) return `${(bytesPerSec / (1024 * 1024)).toFixed(2)} MB/s`;
-    if (bytesPerSec >= 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
+    if (bytesPerSec >= BYTES_PER_MB) return `${(bytesPerSec / BYTES_PER_MB).toFixed(2)} MB/s`;
+    if (bytesPerSec >= BYTES_PER_KB) return `${(bytesPerSec / BYTES_PER_KB).toFixed(1)} KB/s`;
     return `${bytesPerSec.toFixed(0)} B/s`;
   }
 

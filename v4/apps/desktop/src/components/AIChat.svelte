@@ -8,29 +8,27 @@
   import { toast } from "../stores/toasts";
   import { detectPromptInjection } from "../lib/aiConfigBridge";
   import { t } from "../lib/i18n";
+  import { renderMarkdown } from "../lib/markdown";
+  import { scrollToBottom as scrollContainerToBottom, resizeInput as resizeTextarea } from "../lib/chatUtils";
+  import type { ChatMessage } from "../lib/chatUtils";
   import type { ToolResult } from "../lib/types";
   import InfoPopover from "./InfoPopover.svelte";
+  import { AI_CHAT_TIMEOUT_MS } from "../lib/constants";
 
-  interface ChatMessage {
-    role: "user" | "assistant" | "system" | "tool";
-    text: string;
+  interface ChatMessageWithTool extends ChatMessage {
     toolResult?: ToolResult;
   }
 
   let input = $state("");
   let inputRef: HTMLTextAreaElement | undefined = $state();
   let loading = $state(false);
-  let messages = $state<ChatMessage[]>([]);
+  let messages = $state<ChatMessageWithTool[]>([]);
   let chatContainer: HTMLDivElement | undefined = $state();
   let pendingAction = $state<{ tool: string; details: string; result: ToolResult } | null>(null);
   let requestToken = 0;
 
   function scrollToBottom() {
-    requestAnimationFrame(() => {
-      if (chatContainer) {
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-      }
-    });
+    scrollContainerToBottom(chatContainer);
   }
 
   function showProcessDetail(pid: number) {
@@ -62,7 +60,7 @@
     const token = ++requestToken;
 
     if (detectPromptInjection(trimmed)) {
-      toast.error("Security", "Prompt injection attempt blocked.");
+      toast.error(t("toast.securityTitle"), t("toast.promptInjectionBlocked"));
       return;
     }
 
@@ -81,7 +79,7 @@
         .map(m => [m.role, m.text.slice(0, 2000)] as [string, string]);
       // Race the AI call against a 45-second timeout
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(t("aiChat.timeoutError"))), 45000)
+        setTimeout(() => reject(new Error(t("aiChat.timeoutError"))), AI_CHAT_TIMEOUT_MS)
       );
       const response = await Promise.race([
         ipcAiChat(trimmed, cfg.provider, cfg.model, history),
@@ -105,9 +103,9 @@
             { role: "tool", text: result.details, toolResult: result },
           ];
           if (result.success) {
-            toast.success("Action", result.details);
+            toast.success(t("toast.actionTitle"), result.details);
           } else {
-            toast.error("Action Failed", result.details);
+            toast.error(t("toast.actionFailedTitle"), result.details);
           }
         }
       }
@@ -117,7 +115,7 @@
       messages = [...messages, { role: "system", text: msg }];
 
       if (msg.includes("No API key") || msg.includes("keyring")) {
-        toast.error("Config", "Set up an AI provider in Settings first.");
+        toast.error(t("toast.configTitle"), t("toast.setupAiProvider"));
       }
     } finally {
       if (token === requestToken) {
@@ -207,9 +205,9 @@
     ];
 
     if (result.success) {
-      toast.success("Action", result.details);
+      toast.success(t("toast.actionTitle"), result.details);
     } else {
-      toast.error("Action Failed", result.details);
+      toast.error(t("toast.actionFailedTitle"), result.details);
     }
 
     pendingAction = null;
@@ -239,55 +237,18 @@
     input = "";
   }
 
-  function resizeInput() {
-    requestAnimationFrame(() => {
-      if (!inputRef) return;
-      inputRef.style.height = "0px";
-      inputRef.style.height = `${Math.min(inputRef.scrollHeight, 180)}px`;
-    });
+  function doResizeInput() {
+    resizeTextarea(inputRef);
   }
 
   $effect(() => {
     input;
-    resizeInput();
+    doResizeInput();
   });
 
-  function renderMarkdown(text: string): string {
-    let html = text
-      // Escape HTML first
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      // Code blocks (``` ... ```)
-      .replace(/```(\w*)\n([\s\S]*?)```/g, (_m, _lang, code) =>
-        `<pre><code>${code.trim()}</code></pre>`)
-      // Inline code
-      .replace(/`([^`]+)`/g, "<code>$1</code>")
-      // Headers
-      .replace(/^### (.+)$/gm, "<strong style='font-size:1.05em'>$1</strong>")
-      .replace(/^## (.+)$/gm, "<strong style='font-size:1.1em;display:block;margin:6px 0 2px'>$1</strong>")
-      .replace(/^# (.+)$/gm, "<strong style='font-size:1.2em;display:block;margin:8px 0 4px'>$1</strong>")
-      // Bold
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      // Italic
-      .replace(/\*(.+?)\*/g, "<em>$1</em>")
-      // Unordered lists
-      .replace(/^- (.+)$/gm, "<li>$1</li>")
-      // Ordered lists
-      .replace(/^\d+\. (.+)$/gm, "<li>$1</li>")
-      // Line breaks (double newline = paragraph, single = br)
-      .replace(/\n\n/g, "</p><p>")
-      .replace(/\n/g, "<br>");
-
-    // Wrap consecutive <li> in <ul>
-    html = html.replace(/((?:<li>.*?<\/li>(?:<br>)?)+)/g, "<ul>$1</ul>");
-    html = html.replace(/<ul>([\s\S]*?)<\/ul>/g, (_m, inner) =>
-      "<ul>" + inner.replace(/<br>/g, "") + "</ul>");
-
-    // Make PID references clickable
-    html = renderWithClickablePids(html);
-
-    return `<p>${html}</p>`;
+  function renderMarkdownWithPids(text: string): string {
+    const html = renderMarkdown(text);
+    return renderWithClickablePids(html);
   }
 </script>
 
@@ -318,7 +279,7 @@
           </span>
           <span class="chat-text">
             {#if msg.role === "assistant"}
-              {@html renderMarkdown(msg.text)}
+              {@html renderMarkdownWithPids(msg.text)}
             {:else}
               {msg.text}
             {/if}

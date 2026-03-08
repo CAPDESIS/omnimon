@@ -4,12 +4,11 @@
   import { ipcAnalyzeContext } from "../lib/ipc";
   import { aiProviderConfig } from "../stores/preferences";
   import { t } from "../lib/i18n";
+  import { renderMarkdown } from "../lib/markdown";
+  import { scrollToBottom as scrollContainerToBottom, resizeInput as resizeTextarea } from "../lib/chatUtils";
+  import type { ChatMessage } from "../lib/chatUtils";
+  import { AI_CHAT_TIMEOUT_MS } from "../lib/constants";
   import InfoPopover from "./InfoPopover.svelte";
-
-  interface ChatMessage {
-    role: "user" | "assistant" | "system";
-    text: string;
-  }
 
   interface Props {
     title: string;
@@ -40,53 +39,22 @@
   let inputRef: HTMLTextAreaElement | undefined = $state();
   let requestToken = 0;
 
-  function resizeInput() {
-    if (!inputRef) return;
-    inputRef.style.height = "auto";
-    inputRef.style.height = `${Math.min(inputRef.scrollHeight, 180)}px`;
+  function doResizeInput() {
+    resizeTextarea(inputRef);
   }
 
   $effect(() => {
     void input;
-    resizeInput();
+    doResizeInput();
   });
 
   function scrollToBottom() {
-    requestAnimationFrame(() => {
-      if (chatContainer) {
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-      }
-    });
+    scrollContainerToBottom(chatContainer);
   }
 
   function clearConversation() {
     messages = [];
     input = "";
-  }
-
-  function renderMarkdown(text: string): string {
-    let html = text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/```(\w*)\n([\s\S]*?)```/g, (_m, _lang, code) =>
-        `<pre><code>${code.trim()}</code></pre>`)
-      .replace(/`([^`]+)`/g, "<code>$1</code>")
-      .replace(/^### (.+)$/gm, "<strong style='font-size:1.05em'>$1</strong>")
-      .replace(/^## (.+)$/gm, "<strong style='font-size:1.1em;display:block;margin:6px 0 2px'>$1</strong>")
-      .replace(/^# (.+)$/gm, "<strong style='font-size:1.2em;display:block;margin:8px 0 4px'>$1</strong>")
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.+?)\*/g, "<em>$1</em>")
-      .replace(/^- (.+)$/gm, "<li>$1</li>")
-      .replace(/^\d+\. (.+)$/gm, "<li>$1</li>")
-      .replace(/\n\n/g, "</p><p>")
-      .replace(/\n/g, "<br>");
-
-    html = html.replace(/((?:<li>.*?<\/li>(?:<br>)?)+)/g, "<ul>$1</ul>");
-    html = html.replace(/<ul>([\s\S]*?)<\/ul>/g, (_m, inner) =>
-      "<ul>" + inner.replace(/<br>/g, "") + "</ul>");
-
-    return `<p>${html}</p>`;
   }
 
   async function handleSubmit() {
@@ -102,7 +70,7 @@
     try {
       const cfg = get(aiProviderConfig);
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(t("aiChat.timeoutError"))), 45000)
+        setTimeout(() => reject(new Error(t("aiChat.timeoutError"))), AI_CHAT_TIMEOUT_MS)
       );
       const response = await Promise.race([
         ipcAnalyzeContext(buildContext(trimmed), cfg.provider, cfg.model),

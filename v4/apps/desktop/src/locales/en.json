@@ -296,5 +296,17 @@
     "faqA2": "If there is no recent traffic or the OS has not exposed enough telemetry yet, the network section may wait for real activity before showing data.",
     "faqQ3": "Which chat should I use?",
     "faqA3": "Use AI Actions for system questions and actions, AI Config for settings and alert rules, and contextual chats inside panels when you want focused help."
+  },
+  "toast": {
+    "securityTitle": "Security",
+    "promptInjectionBlocked": "Prompt injection attempt blocked.",
+    "actionTitle": "Action",
+    "actionFailedTitle": "Action Failed",
+    "configTitle": "Config",
+    "setupAiProvider": "Set up an AI provider in Settings first.",
+    "configUpdatedTitle": "Config Updated",
+    "alertsCreatedTitle": "Alerts Created",
+    "rulesAppliedTitle": "Rules Applied",
+    "rulesErrorTitle": "Rules Error"
   }
 }

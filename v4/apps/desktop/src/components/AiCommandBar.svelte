@@ -26,6 +26,9 @@
   import { addAlertRule } from "../stores/alerts";
   import { toast } from "../stores/toasts";
   import { t } from "../lib/i18n";
+  import { renderMarkdown } from "../lib/markdown";
+  import { scrollToBottom as scrollContainerToBottom, resizeInput as resizeTextarea } from "../lib/chatUtils";
+  import type { ChatMessage } from "../lib/chatUtils";
   import type { ThemeId } from "../lib/theme";
   import type { LocaleCode } from "../lib/i18n";
   import InfoPopover from "./InfoPopover.svelte";
@@ -34,11 +37,6 @@
   let loading = $state(false);
   let error = $state<string | null>(null);
   let inputRef: HTMLTextAreaElement | undefined = $state();
-
-  interface ChatMessage {
-    role: "user" | "assistant" | "system";
-    text: string;
-  }
 
   let messages = $state<ChatMessage[]>([]);
   let chatContainer: HTMLDivElement | undefined = $state();
@@ -55,11 +53,7 @@
   let pendingChange = $state<PendingChange | null>(null);
 
   function scrollToBottom() {
-    requestAnimationFrame(() => {
-      if (chatContainer) {
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-      }
-    });
+    scrollContainerToBottom(chatContainer);
   }
 
   function getCurrentConfig(): Record<string, unknown> {
@@ -102,7 +96,7 @@
         role: "assistant",
         text: `Applied: ${keys}`,
       }];
-      toast.success("Config Updated", `Changed: ${keys}`);
+      toast.success(t("toast.configUpdatedTitle"), `Changed: ${keys}`);
     }
 
     if (pendingChange.kind === "alerts" && pendingChange.alerts) {
@@ -113,7 +107,7 @@
         role: "assistant",
         text: `Created ${pendingChange.alerts.length} alert rule(s).`,
       }];
-      toast.success("Alerts Created", `${pendingChange.alerts.length} rule(s) added`);
+      toast.success(t("toast.alertsCreatedTitle"), `${pendingChange.alerts.length} rule(s) added`);
     }
 
     if (pendingChange.kind === "ai_rules" && pendingChange.aiRules) {
@@ -124,11 +118,11 @@
           role: "assistant",
           text: `Applied ${count} security rule(s) to the rules engine.`,
         }];
-        toast.success("Rules Applied", `${count} rule(s) sent to the security engine`);
+        toast.success(t("toast.rulesAppliedTitle"), `${count} rule(s) sent to the security engine`);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         messages = [...messages, { role: "system", text: `Failed to apply rules: ${msg}` }];
-        toast.error("Rules Error", msg);
+        toast.error(t("toast.rulesErrorTitle"), msg);
       }
     }
 
@@ -149,7 +143,7 @@
     // Prompt injection detection
     if (detectPromptInjection(trimmed)) {
       error = "Input blocked: detected potential prompt injection.";
-      toast.error("Security", "Prompt injection attempt detected and blocked.");
+      toast.error(t("toast.securityTitle"), t("toast.promptInjectionBlocked"));
       return;
     }
 
@@ -235,7 +229,7 @@
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("Security violation")) {
         error = msg;
-        toast.error("Security", msg);
+        toast.error(t("toast.securityTitle"), msg);
         messages = [...messages, { role: "system", text: msg }];
       } else if (msg.includes("No matching entry") || msg.includes("keyring")) {
         error = t("processes.noApiKey");
@@ -249,29 +243,6 @@
     }
   }
 
-  function renderMarkdown(text: string): string {
-    let html = text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/```(\w*)\n([\s\S]*?)```/g, (_m, _lang, code) =>
-        `<pre><code>${code.trim()}</code></pre>`)
-      .replace(/`([^`]+)`/g, "<code>$1</code>")
-      .replace(/^### (.+)$/gm, "<strong style='font-size:1.05em'>$1</strong>")
-      .replace(/^## (.+)$/gm, "<strong style='font-size:1.1em;display:block;margin:6px 0 2px'>$1</strong>")
-      .replace(/^# (.+)$/gm, "<strong style='font-size:1.2em;display:block;margin:8px 0 4px'>$1</strong>")
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.+?)\*/g, "<em>$1</em>")
-      .replace(/^- (.+)$/gm, "<li>$1</li>")
-      .replace(/^\d+\. (.+)$/gm, "<li>$1</li>")
-      .replace(/\n\n/g, "</p><p>")
-      .replace(/\n/g, "<br>");
-    html = html.replace(/((?:<li>.*?<\/li>(?:<br>)?)+)/g, "<ul>$1</ul>");
-    html = html.replace(/<ul>([\s\S]*?)<\/ul>/g, (_m, inner) =>
-      "<ul>" + inner.replace(/<br>/g, "") + "</ul>");
-    return `<p>${html}</p>`;
-  }
-
   function clearChat() {
     messages = [];
     error = null;
@@ -279,17 +250,13 @@
     pendingChange = null;
   }
 
-  function resizeInput() {
-    requestAnimationFrame(() => {
-      if (!inputRef) return;
-      inputRef.style.height = "0px";
-      inputRef.style.height = `${Math.min(inputRef.scrollHeight, 180)}px`;
-    });
+  function doResizeInput() {
+    resizeTextarea(inputRef);
   }
 
   $effect(() => {
     input;
-    resizeInput();
+    doResizeInput();
   });
 </script>
 

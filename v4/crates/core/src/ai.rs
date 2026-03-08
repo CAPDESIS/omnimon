@@ -11,6 +11,45 @@ const MAX_RETRIES: u32 = 1;
 const INITIAL_BACKOFF_MS: u64 = 500;
 const REQUEST_TIMEOUT_SECS: u64 = 60;
 
+// --- API URLs ---
+const API_URL_OPENROUTER: &str = "https://openrouter.ai/api/v1/chat/completions";
+const API_URL_OPENAI: &str = "https://api.openai.com/v1/chat/completions";
+const API_URL_GEMINI: &str =
+    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+const API_URL_ANTHROPIC: &str = "https://api.anthropic.com/v1/messages";
+const API_URL_OLLAMA: &str = "http://localhost:11434/v1/chat/completions";
+const OLLAMA_TAGS_URL: &str = "http://localhost:11434/api/tags";
+
+// --- Keyring service names ---
+const KEYRING_SERVICE_OPENROUTER: &str = "omnimon_openrouter";
+const KEYRING_SERVICE_OPENAI: &str = "omnimon_openai";
+const KEYRING_SERVICE_GEMINI: &str = "omnimon_gemini";
+const KEYRING_SERVICE_ANTHROPIC: &str = "omnimon_anthropic";
+const KEYRING_SERVICE_OLLAMA: &str = "omnimon_ollama";
+const KEYRING_USER: &str = "ai_api_key";
+
+// --- OpenRouter headers ---
+const OPENROUTER_REFERER: &str = "https://github.com/chochy2001/omnimon";
+const OPENROUTER_TITLE: &str = "OmniMon";
+
+// --- Anthropic protocol version ---
+const ANTHROPIC_VERSION: &str = "2023-06-01";
+
+// --- Max tokens ---
+const MAX_TOKENS_ANALYSIS: u32 = 4096;
+const MAX_TOKENS_CONTEXT: u32 = 2048;
+const MAX_TOKENS_CHAT: u32 = 2048;
+const MAX_TOKENS_VALIDATION: u32 = 1;
+
+// --- Validation model names ---
+const VALIDATION_MODEL_ANTHROPIC: &str = "claude-haiku-4-5-20251001";
+const VALIDATION_MODEL_OPENROUTER: &str = "meta-llama/llama-3.2-3b-instruct:free";
+const VALIDATION_MODEL_DEFAULT: &str = "gpt-4o-mini";
+
+// --- Byte conversion constants ---
+const BYTES_PER_GB: f64 = 1_073_741_824.0;
+const BYTES_PER_MB: f64 = 1_048_576.0;
+
 /// Supported AI backend providers for process analysis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AiProvider {
@@ -24,23 +63,21 @@ pub enum AiProvider {
 impl AiProvider {
     pub fn keyring_service(&self) -> &'static str {
         match self {
-            AiProvider::OpenRouter => "omnimon_openrouter",
-            AiProvider::OpenAI => "omnimon_openai",
-            AiProvider::Gemini => "omnimon_gemini",
-            AiProvider::Anthropic => "omnimon_anthropic",
-            AiProvider::Ollama => "omnimon_ollama",
+            AiProvider::OpenRouter => KEYRING_SERVICE_OPENROUTER,
+            AiProvider::OpenAI => KEYRING_SERVICE_OPENAI,
+            AiProvider::Gemini => KEYRING_SERVICE_GEMINI,
+            AiProvider::Anthropic => KEYRING_SERVICE_ANTHROPIC,
+            AiProvider::Ollama => KEYRING_SERVICE_OLLAMA,
         }
     }
 
     pub fn api_url(&self) -> &'static str {
         match self {
-            AiProvider::OpenRouter => "https://openrouter.ai/api/v1/chat/completions",
-            AiProvider::OpenAI => "https://api.openai.com/v1/chat/completions",
-            AiProvider::Gemini => {
-                "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-            }
-            AiProvider::Anthropic => "https://api.anthropic.com/v1/messages",
-            AiProvider::Ollama => "http://localhost:11434/v1/chat/completions",
+            AiProvider::OpenRouter => API_URL_OPENROUTER,
+            AiProvider::OpenAI => API_URL_OPENAI,
+            AiProvider::Gemini => API_URL_GEMINI,
+            AiProvider::Anthropic => API_URL_ANTHROPIC,
+            AiProvider::Ollama => API_URL_OLLAMA,
         }
     }
 
@@ -76,7 +113,7 @@ impl std::str::FromStr for AiProvider {
 
 /// Persists an API key for the given provider in the OS keyring.
 pub fn save_api_key(provider: AiProvider, key: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let entry = Entry::new(provider.keyring_service(), "ai_api_key")?;
+    let entry = Entry::new(provider.keyring_service(), KEYRING_USER)?;
     entry.set_password(key)?;
     Ok(())
 }
@@ -121,8 +158,46 @@ pub async fn save_api_key_with_ping(
 
 /// Retrieves the stored API key for the given provider from the OS keyring.
 pub fn get_api_key(provider: AiProvider) -> Result<String, Box<dyn Error + Send + Sync>> {
-    let entry = Entry::new(provider.keyring_service(), "ai_api_key")?;
+    let entry = Entry::new(provider.keyring_service(), KEYRING_USER)?;
     Ok(entry.get_password()?)
+}
+
+// ---------------------------------------------------------------------------
+// Header helpers
+// ---------------------------------------------------------------------------
+
+/// Adds Anthropic-specific headers (x-api-key, version, content-type) to a request.
+fn add_anthropic_headers(
+    req: reqwest::RequestBuilder,
+    api_key: &str,
+) -> reqwest::RequestBuilder {
+    req.header("x-api-key", api_key)
+        .header("anthropic-version", ANTHROPIC_VERSION)
+        .header("content-type", "application/json")
+}
+
+/// Adds OpenRouter-specific headers (Referer, X-Title) to a request.
+fn add_openrouter_headers(req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+    req.header("HTTP-Referer", OPENROUTER_REFERER)
+        .header("X-Title", OPENROUTER_TITLE)
+}
+
+/// Checks a response status and returns an error string for non-success responses.
+/// On success, returns the response body as a `String`.
+async fn check_response_status(
+    resp: reqwest::Response,
+) -> Result<String, Box<dyn Error + Send + Sync>> {
+    let status = resp.status();
+    if !status.is_success() {
+        let body_text = resp.text().await.unwrap_or_default();
+        return Err(format!(
+            "AI request failed (status {}): {}",
+            status.as_u16(),
+            body_text.chars().take(200).collect::<String>()
+        )
+        .into());
+    }
+    Ok(resp.text().await?)
 }
 
 /// Validate an API key by making a lightweight test request to the provider.
@@ -137,7 +212,7 @@ pub async fn validate_api_key(
     // Ollama: just check that the server is reachable (no API key needed)
     if provider == AiProvider::Ollama {
         let resp = client
-            .get("http://localhost:11434/api/tags")
+            .get(OLLAMA_TAGS_URL)
             .send()
             .await
             .map_err(|_| -> Box<dyn Error + Send + Sync> {
@@ -151,32 +226,36 @@ pub async fn validate_api_key(
 
     let resp = match provider {
         AiProvider::Anthropic => {
-            client
-                .post(url)
-                .header("x-api-key", key)
-                .header("anthropic-version", "2023-06-01")
-                .header("content-type", "application/json")
-                .body(r#"{"model":"claude-haiku-4-5-20251001","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}"#)
+            let body = format!(
+                r#"{{"model":"{}","max_tokens":{},"messages":[{{"role":"user","content":"hi"}}]}}"#,
+                VALIDATION_MODEL_ANTHROPIC, MAX_TOKENS_VALIDATION
+            );
+            add_anthropic_headers(client.post(url), key)
+                .body(body)
                 .send()
                 .await?
         }
         AiProvider::OpenRouter => {
-            client
+            let body = format!(
+                r#"{{"model":"{}","max_tokens":{},"messages":[{{"role":"user","content":"hi"}}]}}"#,
+                VALIDATION_MODEL_OPENROUTER, MAX_TOKENS_VALIDATION
+            );
+            let req = client
                 .post(url)
                 .header("Authorization", format!("Bearer {}", key))
-                .header("Content-Type", "application/json")
-                .header("HTTP-Referer", "https://github.com/chochy2001/omnimon")
-                .header("X-Title", "OmniMon")
-                .body(r#"{"model":"meta-llama/llama-3.2-3b-instruct:free","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}"#)
-                .send()
-                .await?
+                .header("Content-Type", "application/json");
+            add_openrouter_headers(req).body(body).send().await?
         }
         _ => {
+            let body = format!(
+                r#"{{"model":"{}","max_tokens":{},"messages":[{{"role":"user","content":"hi"}}]}}"#,
+                VALIDATION_MODEL_DEFAULT, MAX_TOKENS_VALIDATION
+            );
             client
                 .post(url)
                 .header("Authorization", format!("Bearer {}", key))
                 .header("Content-Type", "application/json")
-                .body(r#"{"model":"gpt-4o-mini","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}"#)
+                .body(body)
                 .send()
                 .await?
         }
@@ -292,25 +371,13 @@ pub async fn analyze_with_ai_key(
             .post(provider.api_url())
             .header("Authorization", format!("Bearer {}", api_key));
         if provider == AiProvider::OpenRouter {
-            req = req
-                .header("HTTP-Referer", "https://github.com/chochy2001/omnimon")
-                .header("X-Title", "OmniMon");
+            req = add_openrouter_headers(req);
         }
         req.json(&body)
     })
     .await?;
 
-    let status = resp.status();
-    if !status.is_success() {
-        let body_text = resp.text().await.unwrap_or_default();
-        return Err(format!(
-            "AI request failed (status {}): {}",
-            status.as_u16(),
-            body_text.chars().take(200).collect::<String>()
-        )
-        .into());
-    }
-    let resp_text = resp.text().await?;
+    let resp_text = check_response_status(resp).await?;
     let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
         .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
 
@@ -329,7 +396,7 @@ async fn analyze_anthropic(
 ) -> Result<Vec<ProcessSuggestion>, Box<dyn Error + Send + Sync>> {
     let body = serde_json::json!({
         "model": model,
-        "max_tokens": 4096,
+        "max_tokens": MAX_TOKENS_ANALYSIS,
         "system": "You are a helpful assistant that returns strictly raw JSON arrays of suggestions.",
         "messages": [
             {
@@ -340,26 +407,12 @@ async fn analyze_anthropic(
     });
 
     let resp = send_with_retry(|| {
-        client
-            .post(AiProvider::Anthropic.api_url())
-            .header("x-api-key", api_key)
-            .header("anthropic-version", "2023-06-01")
-            .header("content-type", "application/json")
+        add_anthropic_headers(client.post(AiProvider::Anthropic.api_url()), api_key)
             .json(&body)
     })
     .await?;
 
-    let status = resp.status();
-    if !status.is_success() {
-        let body_text = resp.text().await.unwrap_or_default();
-        return Err(format!(
-            "AI request failed (status {}): {}",
-            status.as_u16(),
-            body_text.chars().take(200).collect::<String>()
-        )
-        .into());
-    }
-    let resp_text = resp.text().await?;
+    let resp_text = check_response_status(resp).await?;
     let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
         .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
 
@@ -394,30 +447,16 @@ pub async fn analyze_context_key(
     if provider == AiProvider::Anthropic {
         let body = serde_json::json!({
             "model": model,
-            "max_tokens": 2048,
+            "max_tokens": MAX_TOKENS_CONTEXT,
             "system": system_msg,
             "messages": [{ "role": "user", "content": context }]
         });
         let resp = send_with_retry(|| {
-            client
-                .post(AiProvider::Anthropic.api_url())
-                .header("x-api-key", api_key)
-                .header("anthropic-version", "2023-06-01")
-                .header("content-type", "application/json")
+            add_anthropic_headers(client.post(AiProvider::Anthropic.api_url()), api_key)
                 .json(&body)
         })
         .await?;
-        let status = resp.status();
-        if !status.is_success() {
-            let body_text = resp.text().await.unwrap_or_default();
-            return Err(format!(
-                "AI request failed (status {}): {}",
-                status.as_u16(),
-                body_text.chars().take(200).collect::<String>()
-            )
-            .into());
-        }
-        let resp_text = resp.text().await?;
+        let resp_text = check_response_status(resp).await?;
         let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
             .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
         return resp_json["content"][0]["text"]
@@ -439,24 +478,12 @@ pub async fn analyze_context_key(
             .post(provider.api_url())
             .header("Authorization", format!("Bearer {api_key}"));
         if provider == AiProvider::OpenRouter {
-            req = req
-                .header("HTTP-Referer", "https://github.com/chochy2001/omnimon")
-                .header("X-Title", "OmniMon");
+            req = add_openrouter_headers(req);
         }
         req.json(&body)
     })
     .await?;
-    let status = resp.status();
-    if !status.is_success() {
-        let body_text = resp.text().await.unwrap_or_default();
-        return Err(format!(
-            "AI request failed (status {}): {}",
-            status.as_u16(),
-            body_text.chars().take(200).collect::<String>()
-        )
-        .into());
-    }
-    let resp_text = resp.text().await?;
+    let resp_text = check_response_status(resp).await?;
     let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
         .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
     resp_json["choices"][0]["message"]["content"]
@@ -486,8 +513,8 @@ pub struct ChatResponse {
 
 /// Builds a system prompt injected with live OS state for tool-calling.
 pub fn build_chat_system_prompt(state: &crate::watcher::SystemState) -> String {
-    let ram_total_gb = state.total_memory_bytes as f64 / 1_073_741_824.0;
-    let ram_used_gb = state.used_memory_bytes as f64 / 1_073_741_824.0;
+    let ram_total_gb = state.total_memory_bytes as f64 / BYTES_PER_GB;
+    let ram_used_gb = state.used_memory_bytes as f64 / BYTES_PER_GB;
     let ram_pct = if state.total_memory_bytes > 0 {
         (state.used_memory_bytes as f64 / state.total_memory_bytes as f64 * 100.0) as u32
     } else {
@@ -505,7 +532,7 @@ pub fn build_chat_system_prompt(state: &crate::watcher::SystemState) -> String {
                 "  - PID {} | {} | {:.0}MB RAM | {:.1}% CPU",
                 p.pid,
                 p.name,
-                p.memory_bytes as f64 / 1_048_576.0,
+                p.memory_bytes as f64 / BYTES_PER_MB,
                 p.cpu_pct
             )
         })
@@ -806,16 +833,12 @@ pub async fn chat_with_tools(
     let ai_text = if provider == AiProvider::Anthropic {
         let body = serde_json::json!({
             "model": model,
-            "max_tokens": 2048,
+            "max_tokens": MAX_TOKENS_CHAT,
             "system": system_prompt,
             "messages": msg_array
         });
         let resp = send_with_retry(|| {
-            client
-                .post(AiProvider::Anthropic.api_url())
-                .header("x-api-key", api_key)
-                .header("anthropic-version", "2023-06-01")
-                .header("content-type", "application/json")
+            add_anthropic_headers(client.post(AiProvider::Anthropic.api_url()), api_key)
                 .json(&body)
         })
         .await?;
@@ -856,9 +879,7 @@ pub async fn chat_with_tools(
                 req = req.header("Authorization", format!("Bearer {}", api_key));
             }
             if provider == AiProvider::OpenRouter {
-                req = req
-                    .header("HTTP-Referer", "https://github.com/chochy2001/omnimon")
-                    .header("X-Title", "OmniMon");
+                req = add_openrouter_headers(req);
             }
             req.json(&body)
         })

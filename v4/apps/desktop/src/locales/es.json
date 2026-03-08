@@ -296,5 +296,17 @@
     "faqA2": "Si no hay tráfico reciente o el sistema operativo aún no expone suficiente telemetría, la sección de red espera actividad real antes de mostrar datos.",
     "faqQ3": "¿Qué chat debo usar?",
     "faqA3": "Usa Acciones IA para preguntas y acciones del sistema, Configuración IA para ajustes y reglas, y los chats contextuales dentro de paneles cuando quieras ayuda enfocada."
+  },
+  "toast": {
+    "securityTitle": "Seguridad",
+    "promptInjectionBlocked": "Intento de inyección de prompt bloqueado.",
+    "actionTitle": "Acción",
+    "actionFailedTitle": "Acción fallida",
+    "configTitle": "Configuración",
+    "setupAiProvider": "Configura un proveedor de IA en Ajustes primero.",
+    "configUpdatedTitle": "Configuración actualizada",
+    "alertsCreatedTitle": "Alertas creadas",
+    "rulesAppliedTitle": "Reglas aplicadas",
+    "rulesErrorTitle": "Error de reglas"
   }
 }
