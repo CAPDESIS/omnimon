@@ -298,12 +298,14 @@ pub async fn analyze_with_ai_key(
     })
     .await?;
 
-    if resp.status().is_client_error() {
-        let status = resp.status().as_u16();
-        return Err(format!("AI request failed (status {})", status).into());
+    let status = resp.status();
+    if !status.is_success() {
+        let body_text = resp.text().await.unwrap_or_default();
+        return Err(format!("AI request failed (status {}): {}", status.as_u16(), body_text.chars().take(200).collect::<String>()).into());
     }
-
-    let resp_json: serde_json::Value = resp.json().await?;
+    let resp_text = resp.text().await?;
+    let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
+        .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
 
     let content = resp_json["choices"][0]["message"]["content"]
         .as_str()
@@ -340,12 +342,14 @@ async fn analyze_anthropic(
     })
     .await?;
 
-    if resp.status().is_client_error() {
-        let status = resp.status().as_u16();
-        return Err(format!("AI request failed (status {})", status).into());
+    let status = resp.status();
+    if !status.is_success() {
+        let body_text = resp.text().await.unwrap_or_default();
+        return Err(format!("AI request failed (status {}): {}", status.as_u16(), body_text.chars().take(200).collect::<String>()).into());
     }
-
-    let resp_json: serde_json::Value = resp.json().await?;
+    let resp_text = resp.text().await?;
+    let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
+        .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
 
     let content = resp_json["content"][0]["text"]
         .as_str()
@@ -391,10 +395,14 @@ pub async fn analyze_context_key(
                 .json(&body)
         })
         .await?;
-        if resp.status().is_client_error() {
-            return Err(format!("AI request failed (status {})", resp.status().as_u16()).into());
+        let status = resp.status();
+        if !status.is_success() {
+            let body_text = resp.text().await.unwrap_or_default();
+            return Err(format!("AI request failed (status {}): {}", status.as_u16(), body_text.chars().take(200).collect::<String>()).into());
         }
-        let resp_json: serde_json::Value = resp.json().await?;
+        let resp_text = resp.text().await?;
+        let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
+            .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
         return resp_json["content"][0]["text"]
             .as_str()
             .map(|s| s.to_string())
@@ -421,10 +429,14 @@ pub async fn analyze_context_key(
         req.json(&body)
     })
     .await?;
-    if resp.status().is_client_error() {
-        return Err(format!("API Error: {}", resp.text().await?).into());
+    let status = resp.status();
+    if !status.is_success() {
+        let body_text = resp.text().await.unwrap_or_default();
+        return Err(format!("AI request failed (status {}): {}", status.as_u16(), body_text.chars().take(200).collect::<String>()).into());
     }
-    let resp_json: serde_json::Value = resp.json().await?;
+    let resp_text = resp.text().await?;
+    let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
+        .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
     resp_json["choices"][0]["message"]["content"]
         .as_str()
         .map(|s| s.to_string())
