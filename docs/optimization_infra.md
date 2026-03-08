@@ -6,8 +6,8 @@ This document outlines the tactical DevSecOps hardening (P0/P1) patches applied 
 ## 1. Tauri IPC Scopes Hardening
 **File:** `v4/apps/desktop/src-tauri/capabilities/default.json`
 - Granular scopes were introduced to prevent arbitrary execution or file system access in the event of an XSS attack.
-- Restricted `shell:allow-open` to only permit URLs matching `https://github.com/chochy2001/macmon/*`.
-- Restricted `store:allow-*` (`get`, `set`, `save`, `load`) to restrict read/write access strictly to the `$APPDATA/macmon/*` directory.
+- Restricted `shell:allow-open` to only permit URLs matching `https://github.com/chochy2001/omnimon/*`.
+- Restricted `store:allow-*` (`get`, `set`, `save`, `load`) to restrict read/write access strictly to the `$APPDATA/omnimon/*` directory.
 - **Dependency Cleanup:** Removed `@tauri-apps/plugin-shell` from `v4/apps/desktop/package.json` as it was not imported in the frontend codebase.
 
 ## 2. Secret Leak Prevention

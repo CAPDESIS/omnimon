@@ -1,4 +1,4 @@
-# macmon v4 Desktop — Frontend Architecture
+# OmniMon v5 Desktop — Frontend Architecture
 
 ## Overview
 

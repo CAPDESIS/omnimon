@@ -22,7 +22,7 @@ fn test_status_text_format() {
 
     cmd.assert()
         .success()
-        .stdout(predicate::str::contains("macmon status: running"))
+        .stdout(predicate::str::contains("omnimon status: running"))
         .stdout(predicate::str::contains("Memory:"))
         .stdout(predicate::str::contains("CPU:"))
         .stdout(predicate::str::contains("Top processes by memory:"));

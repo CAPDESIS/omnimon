@@ -15,7 +15,7 @@ When publishing a new release:
 
 1. Update `version` and `sha256` in `Casks/omnimon.rb`:
    ```bash
-   shasum -a 256 macmon_X.Y.Z_aarch64.dmg
+   shasum -a 256 OmniMon-X.Y.Z-macOS-Universal.dmg
    ```
 2. Push to `homebrew-omnimon` main branch.
 

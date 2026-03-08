@@ -1,30 +1,30 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicegui-org/nicegui/main/tauri-capabilities.schema.json",
   "identifier": "default",
-  "description": "Default capabilities for macmon",
+  "description": "Default capabilities for OmniMon",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "autostart:default",
     {
       "identifier": "shell:allow-open",
-      "allow": [{ "url": "https://github.com/chochy2001/macmon/*" }]
+      "allow": [{ "url": "https://github.com/chochy2001/omnimon/*" }]
     },
     {
       "identifier": "store:allow-get",
-      "allow": [{ "path": "$APPDATA/macmon/*" }]
+      "allow": [{ "path": "$APPDATA/omnimon/*" }]
     },
     {
       "identifier": "store:allow-set",
-      "allow": [{ "path": "$APPDATA/macmon/*" }]
+      "allow": [{ "path": "$APPDATA/omnimon/*" }]
     },
     {
       "identifier": "store:allow-save",
-      "allow": [{ "path": "$APPDATA/macmon/*" }]
+      "allow": [{ "path": "$APPDATA/omnimon/*" }]
     },
     {
       "identifier": "store:allow-load",
-      "allow": [{ "path": "$APPDATA/macmon/*" }]
+      "allow": [{ "path": "$APPDATA/omnimon/*" }]
     }
   ]
 }
