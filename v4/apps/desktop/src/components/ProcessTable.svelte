@@ -4,7 +4,7 @@
   import type { ColumnConfig, ColumnKey } from "../stores/preferences";
   import { COLUMN_KEYS } from "../stores/preferences";
   import { toggleSelect, selectedPids, focusedPid, browserTabs } from "../stores/processes";
-  import { fontSize } from "../stores/preferences";
+  import { fontSize, moveColumnToIndex } from "../stores/preferences";
   import { t } from "../lib/i18n";
   import { detectBrowser } from "../lib/browser";
   import SecurityBadge from "./SecurityBadge.svelte";
@@ -81,6 +81,7 @@
   let containerHeight = $state(600);
   let wrapEl: HTMLDivElement | undefined = $state();
   let rafId = 0;
+  let draggedColumn = $state<ColumnKey | null>(null);
 
   let processByPid = $derived.by((): Map<number, ProcessEntry> => {
     const map = new Map<number, ProcessEntry>();
@@ -148,32 +149,44 @@
   });
 
   interface ProcessGroup {
+    key: string;
     name: string;
     procs: ProcessEntry[];
     totalRam: number;
     totalCpu: number;
     count: number;
+    totalNetwork: number;
+    totalEnergy: number;
+  }
+
+  function getGroupIdentity(proc: ProcessEntry): { key: string; label: string } {
+    const browser = detectBrowser(proc);
+    const label = (proc.grouped_name || browser || proc.name || proc.exec_name || proc.group || "Unknown").trim();
+    const key = (proc.group_key || `${label}:${proc.exec_name}:${proc.group_identity_type || proc.group || "proc"}`).trim();
+    return { key, label };
   }
 
   let groups = $derived.by((): ProcessGroup[] => {
     if (!grouping) return [];
-    const map = new Map<string, ProcessEntry[]>();
+    const map = new Map<string, { label: string; procs: ProcessEntry[] }>();
     for (const pid of sortedPids) {
       const p = processByPid.get(pid);
       if (!p) continue;
-      const browser = detectBrowser(p);
-      const groupKey = p.group_key || browser || p.grouped_name || p.name;
-      const arr = map.get(groupKey);
-      if (arr) arr.push(p);
-      else map.set(groupKey, [p]);
+      const identity = getGroupIdentity(p);
+      const group = map.get(identity.key);
+      if (group) group.procs.push(p);
+      else map.set(identity.key, { label: identity.label, procs: [p] });
     }
     return [...map.entries()]
-      .map(([name, procs]) => ({
-        name: procs[0]?.grouped_name || name,
-        procs,
-        totalRam: procs.reduce((s, p) => s + p.ram_mb, 0),
-        totalCpu: procs.reduce((s, p) => s + p.cpu_pct, 0),
-        count: procs.length,
+      .map(([key, value]) => ({
+        key,
+        name: value.label,
+        procs: value.procs,
+        totalRam: value.procs.reduce((s, p) => s + p.ram_mb, 0),
+        totalCpu: value.procs.reduce((s, p) => s + p.cpu_pct, 0),
+        count: value.procs.length,
+        totalNetwork: value.procs.reduce((s, p) => s + networkMetric(p), 0),
+        totalEnergy: value.procs.reduce((s, p) => s + energyMetric(p), 0),
       }))
       .sort((a, b) => b.totalRam - a.totalRam);
   });
@@ -193,7 +206,7 @@
         rows.push({ kind: "process", pid: group.procs[0].pid });
       } else {
         rows.push({ kind: "group-header", group });
-        if (!collapsedGroups.has(group.name)) {
+        if (!collapsedGroups.has(group.key)) {
           for (const proc of group.procs) {
             rows.push({ kind: "process", pid: proc.pid });
           }
@@ -278,13 +291,11 @@
   }
 
   function groupRowNetworkRate(group: ProcessGroup): string {
-    const total = group.procs.reduce((sum, proc) => sum + networkMetric(proc), 0);
-    return formatNetworkRate(total);
+    return formatNetworkRate(group.totalNetwork);
   }
 
   function groupRowEnergy(group: ProcessGroup): string {
-    const total = group.procs.reduce((sum, proc) => sum + energyMetric(proc), 0);
-    return total.toFixed(1);
+    return group.totalEnergy.toFixed(1);
   }
 
   function handleRowClick(proc: ProcessEntry) {
@@ -296,11 +307,22 @@
     oninspect?.(proc);
   }
 
-  function toggleCollapse(name: string) {
+  function toggleCollapse(key: string) {
     const next = new Set(collapsedGroups);
-    if (next.has(name)) next.delete(name);
-    else next.add(name);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
     collapsedGroups = next;
+  }
+
+  function handleColumnDragStart(key: ColumnKey) {
+    draggedColumn = key;
+  }
+
+  function handleColumnDrop(targetKey: ColumnKey) {
+    if (!draggedColumn || draggedColumn === targetKey) return;
+    const targetIndex = orderedVisibleCols.indexOf(targetKey);
+    if (targetIndex >= 0) moveColumnToIndex(draggedColumn, targetIndex);
+    draggedColumn = null;
   }
 </script>
 
@@ -315,7 +337,7 @@
         </svg>
       {/if}
       <span class="name-text">{proc.name}</span>
-      {#if proc.process_count > 1}<span class="badge grouped">x{proc.process_count}</span>{/if}
+      {#if !grouping && proc.process_count > 1}<span class="badge grouped">x{proc.process_count}</span>{/if}
       {#if proc.idle}<span class="badge idle">{t("table.idle")}</span>{/if}
       <SecurityBadge pid={proc.pid} />
     </td>
@@ -373,17 +395,18 @@
 {#snippet groupHeaderRow(group: ProcessGroup)}
   <tr
     class="group-header"
-    onclick={() => toggleCollapse(group.name)}
-    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleCollapse(group.name); } }}
+    onclick={() => toggleCollapse(group.key)}
+    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleCollapse(group.key); } }}
     tabindex="0"
     role="button"
-    aria-expanded={!collapsedGroups.has(group.name)}
+    aria-expanded={!collapsedGroups.has(group.key)}
     aria-label={t("table.toggleGroup", { name: group.name })}
   >
     <td class="col-check"></td>
     <td colspan={visibleColCount} class="group-cell">
-      <span class="chevron" class:open={!collapsedGroups.has(group.name)} aria-hidden="true">&#9654;</span>
+      <span class="chevron" class:open={!collapsedGroups.has(group.key)} aria-hidden="true">&#9654;</span>
       <span class="group-name">{group.name}</span>
+      <span class="badge grouped">x{group.count}</span>
       <span class="group-meta">
         {group.count} &middot; {group.totalRam.toFixed(0)} MB &middot; {group.totalCpu.toFixed(1)}% &middot; {groupRowEnergy(group)} E &middot; {groupRowNetworkRate(group)}
       </span>
@@ -398,41 +421,41 @@
         <th class="col-check" scope="col"><span class="sr-only">{t("table.select")}</span></th>
         {#each orderedVisibleCols as key (key)}
           {#if key === "name"}
-            <th class="col-name sortable" scope="col" aria-sort={sortKey === "name" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByName")} onclick={() => setSort("name")}>
+            <th class="col-name sortable" draggable="true" ondragstart={() => handleColumnDragStart("name")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("name")} scope="col" aria-sort={sortKey === "name" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByName")} onclick={() => setSort("name")}> 
               {t("table.name")}<span aria-hidden="true">{arrow("name")}</span>
             </th>
           {:else if key === "detail"}
-            <th class="col-detail" scope="col">{t("table.detail")}</th>
+            <th class="col-detail" draggable="true" ondragstart={() => handleColumnDragStart("detail")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("detail")} scope="col">{t("table.detail")}</th>
           {:else if key === "group"}
-            <th class="col-group sortable" scope="col" aria-sort={sortKey === "group" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("group")}>
+            <th class="col-group sortable" draggable="true" ondragstart={() => handleColumnDragStart("group")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("group")} scope="col" aria-sort={sortKey === "group" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("group")}> 
               {t("table.group")}<span aria-hidden="true">{arrow("group")}</span>
             </th>
           {:else if key === "ram"}
-            <th class="col-ram sortable" scope="col" aria-sort={sortKey === "ram_mb" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByRam")} onclick={() => setSort("ram_mb")}>
+            <th class="col-ram sortable" draggable="true" ondragstart={() => handleColumnDragStart("ram")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("ram")} scope="col" aria-sort={sortKey === "ram_mb" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByRam")} onclick={() => setSort("ram_mb")}> 
               {t("table.ram")}<span aria-hidden="true">{arrow("ram_mb")}</span>
             </th>
           {:else if key === "cpu"}
-            <th class="col-cpu sortable" scope="col" aria-sort={sortKey === "cpu_pct" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByCpu")} onclick={() => setSort("cpu_pct")}>
+            <th class="col-cpu sortable" draggable="true" ondragstart={() => handleColumnDragStart("cpu")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("cpu")} scope="col" aria-sort={sortKey === "cpu_pct" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByCpu")} onclick={() => setSort("cpu_pct")}> 
               {t("table.cpu")}<span aria-hidden="true">{arrow("cpu_pct")}</span>
             </th>
           {:else if key === "uptime"}
-            <th class="col-uptime sortable" scope="col" aria-sort={sortKey === "uptime" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("uptime")}>
+            <th class="col-uptime sortable" draggable="true" ondragstart={() => handleColumnDragStart("uptime")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("uptime")} scope="col" aria-sort={sortKey === "uptime" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("uptime")}> 
               {t("table.time")}<span aria-hidden="true">{arrow("uptime")}</span>
             </th>
           {:else if key === "energy"}
-            <th class="col-energy sortable" scope="col" aria-sort={sortKey === "energy_metric" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByEnergy")} onclick={() => setSort("energy_metric")}>
+            <th class="col-energy sortable" draggable="true" ondragstart={() => handleColumnDragStart("energy")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("energy")} scope="col" aria-sort={sortKey === "energy_metric" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByEnergy")} onclick={() => setSort("energy_metric")}> 
               {t("table.energy")}<span aria-hidden="true">{arrow("energy_metric")}</span>
             </th>
           {:else if key === "network"}
-            <th class="col-network sortable" scope="col" aria-sort={sortKey === "network_metric" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByNetwork")} onclick={() => setSort("network_metric")}>
+            <th class="col-network sortable" draggable="true" ondragstart={() => handleColumnDragStart("network")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("network")} scope="col" aria-sort={sortKey === "network_metric" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByNetwork")} onclick={() => setSort("network_metric")}> 
               {t("table.network")}<span aria-hidden="true">{arrow("network_metric")}</span>
             </th>
           {:else if key === "pid"}
-            <th class="col-pid sortable" scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByPid")} onclick={() => setSort("pid")}>
+            <th class="col-pid sortable" draggable="true" ondragstart={() => handleColumnDragStart("pid")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("pid")} scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByPid")} onclick={() => setSort("pid")}> 
               {t("table.pid")}<span aria-hidden="true">{arrow("pid")}</span>
             </th>
           {:else if key === "state"}
-            <th class="col-state sortable" scope="col" aria-sort={sortKey === "state" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("state")}>
+            <th class="col-state sortable" draggable="true" ondragstart={() => handleColumnDragStart("state")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("state")} scope="col" aria-sort={sortKey === "state" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("state")}> 
               {t("table.st")}<span aria-hidden="true">{arrow("state")}</span>
             </th>
           {/if}
@@ -443,7 +466,7 @@
       {#if topSpacerHeight > 0}
         <tr class="spacer" aria-hidden="true"><td style="height:{topSpacerHeight}px" colspan={visibleColCount + 1}></td></tr>
       {/if}
-      {#each visibleRows as row (row.kind === "process" ? `p-${row.pid}` : `g-${row.group.name}`)}
+      {#each visibleRows as row (row.kind === "process" ? `p-${row.pid}` : `g-${row.group.key}`)}
         {#if row.kind === "process"}
           {@const proc = processByPid.get(row.pid)}
           {#if proc}
@@ -564,8 +587,11 @@
   }
 
   .group-name {
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .group-meta {
@@ -574,6 +600,10 @@
     font-size: calc(var(--base-font-size) * 0.833);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     flex-shrink: 0;
+    max-width: 48%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .mono {
@@ -603,20 +633,20 @@
     font-size: calc(var(--base-font-size) * 0.833);
   }
   .col-ram {
-    width: 55px;
+    width: 90px;
     text-align: right;
   }
   .col-cpu {
-    width: 48px;
+    width: 76px;
     text-align: right;
   }
   .col-uptime {
-    width: 48px;
+    width: 72px;
     text-align: right;
     color: var(--fg-dim);
   }
   .col-pid {
-    width: 55px;
+    width: 72px;
     text-align: right;
   }
   .col-state {
@@ -631,6 +661,18 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     display: block;
+  }
+
+  th[draggable="true"] {
+    position: relative;
+  }
+
+  th[draggable="true"]::after {
+    content: "⋮⋮";
+    margin-left: 6px;
+    color: var(--fg-dim);
+    font-size: 10px;
+    letter-spacing: -1px;
   }
 
   input[type="checkbox"] {

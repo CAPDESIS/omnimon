@@ -9,6 +9,7 @@
   import { detectPromptInjection } from "../lib/aiConfigBridge";
   import { t } from "../lib/i18n";
   import type { ToolResult } from "../lib/types";
+  import InfoPopover from "./InfoPopover.svelte";
 
   interface ChatMessage {
     role: "user" | "assistant" | "system" | "tool";
@@ -17,6 +18,7 @@
   }
 
   let input = $state("");
+  let inputRef: HTMLTextAreaElement | undefined = $state();
   let loading = $state(false);
   let messages = $state<ChatMessage[]>([]);
   let chatContainer: HTMLDivElement | undefined = $state();
@@ -237,6 +239,19 @@
     input = "";
   }
 
+  function resizeInput() {
+    requestAnimationFrame(() => {
+      if (!inputRef) return;
+      inputRef.style.height = "0px";
+      inputRef.style.height = `${Math.min(inputRef.scrollHeight, 180)}px`;
+    });
+  }
+
+  $effect(() => {
+    input;
+    resizeInput();
+  });
+
   function renderMarkdown(text: string): string {
     let html = text
       // Escape HTML first
@@ -279,7 +294,7 @@
 <div class="ai-chat" role="region" aria-label="AI Chat">
   <div class="chat-header">
     <span class="chat-title">{t("aiChat.title")}</span>
-    <span class="chat-help" title={t("aiChat.helpTooltip")}>&#9432;</span>
+    <InfoPopover label={t("aiChat.title")} content={t("aiChat.helpTooltip")} />
     <span class="chat-provider">{get(aiProviderConfig).provider}</span>
     {#if messages.length > 0}
       <button class="clear-btn" onclick={clearChat}>{t("common.clear")}</button>
@@ -357,14 +372,20 @@
   {/if}
 
   <div class="chat-input-row">
-    <input
+    <textarea
       class="chat-input"
-      type="text"
       placeholder={t("aiChat.placeholder")}
       bind:value={input}
-      onkeydown={(e) => { if (e.key === "Enter") handleSubmit(); }}
+      bind:this={inputRef}
+      rows="1"
+      onkeydown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          handleSubmit();
+        }
+      }}
       disabled={loading}
-    />
+    ></textarea>
     <button
       class="send-btn"
       onclick={handleSubmit}
@@ -500,15 +521,6 @@
     font-size: 0.85em;
     white-space: pre;
   }
-
-  .chat-help {
-    cursor: help;
-    color: var(--fg-dim);
-    font-size: calc(var(--base-font-size, 12px) * 1.1);
-    opacity: 0.7;
-    transition: opacity 0.15s;
-  }
-  .chat-help:hover { opacity: 1; color: var(--accent); }
 
   .cancel-btn {
     margin-left: auto;
@@ -667,6 +679,8 @@
 
   .chat-input {
     flex: 1;
+    min-height: 40px;
+    max-height: 180px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm, 4px);
     background: var(--bg-alt);
@@ -674,8 +688,11 @@
     padding: 6px 10px;
     font-size: calc(var(--base-font-size, 12px) * 0.917);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    line-height: 1.45;
     outline: none;
     transition: border-color 0.15s;
+    resize: none;
+    overflow-y: auto;
   }
   .chat-input:focus { border-color: var(--accent); }
   .chat-input::placeholder { color: var(--fg-dim); opacity: 0.6; }

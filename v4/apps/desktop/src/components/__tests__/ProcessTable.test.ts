@@ -3,6 +3,7 @@ import ProcessTable from "../ProcessTable.svelte";
 import type { ProcessEntry } from "../../lib/types";
 import { selectedPids, focusedPid, browserTabs, _resetForTest } from "../../stores/processes";
 import { get } from "svelte/store";
+import { columnOrder, moveColumnToIndex } from "../../stores/preferences";
 
 function makeProc(overrides: Partial<ProcessEntry> = {}): ProcessEntry {
   return {
@@ -64,6 +65,13 @@ describe("rendering", () => {
     render(ProcessTable, { props: { processes: [makeProc({ pid: 1, ram_mb: 123.456, cpu_pct: 7.89 })] } });
     expect(screen.getByText("123.5")).toBeInTheDocument();
     expect(screen.getByText("7.9")).toBeInTheDocument();
+  });
+
+  it("keeps RAM/CPU/TIME headers visible with wider numeric columns", () => {
+    render(ProcessTable, { props: { processes: [makeProc({ pid: 1, ram_mb: 174.2, cpu_pct: 33.1, uptime: "9h" })] } });
+    expect(screen.getByText("174.2")).toBeInTheDocument();
+    expect(screen.getByText("33.1")).toBeInTheDocument();
+    expect(screen.getByText("9h")).toBeInTheDocument();
   });
 
   it("renders energy and network metrics", () => {
@@ -405,6 +413,32 @@ describe("grouping", () => {
     await fireEvent.keyDown(groupButton, { key: "A" });
     expect(groupButton).toHaveAttribute("aria-expanded", "true");
   });
+
+  it("uses group keys so duplicate visible names do not collapse together", async () => {
+    const procs = [
+      makeProc({ pid: 1, name: "One", grouped_name: "cloud", group_key: "a:cloud", process_count: 3 }),
+      makeProc({ pid: 2, name: "Two", grouped_name: "cloud", group_key: "a:cloud", process_count: 3 }),
+      makeProc({ pid: 3, name: "Three", grouped_name: "cloud", group_key: "b:cloud", process_count: 2 }),
+      makeProc({ pid: 4, name: "Four", grouped_name: "cloud", group_key: "b:cloud", process_count: 2 }),
+    ];
+    render(ProcessTable, { props: { processes: procs, grouping: true } });
+    const groupButtons = screen.getAllByRole("button");
+    expect(groupButtons).toHaveLength(2);
+    await fireEvent.click(groupButtons[0]);
+    expect(groupButtons[0]).toHaveAttribute("aria-expanded", "false");
+    expect(groupButtons[1]).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("shows grouped badge only in the header when grouping is enabled", () => {
+    const procs = [
+      makeProc({ pid: 1, grouped_name: "OpenCode", group_key: "opencode", process_count: 3 }),
+      makeProc({ pid: 2, grouped_name: "OpenCode", group_key: "opencode", process_count: 3 }),
+      makeProc({ pid: 3, grouped_name: "OpenCode", group_key: "opencode", process_count: 3 }),
+    ];
+    const { container } = render(ProcessTable, { props: { processes: procs, grouping: true } });
+    expect(container.querySelectorAll(".group-header .badge.grouped")).toHaveLength(1);
+    expect(container.querySelectorAll("tr:not(.group-header) .badge.grouped")).toHaveLength(0);
+  });
 });
 
 describe("selection", () => {
@@ -551,6 +585,13 @@ describe("virtual scrolling", () => {
 
     await view.rerender({ processes: procs, grouping: false });
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+});
+
+describe("column drag and drop", () => {
+  it("moves a column directly to a target index", () => {
+    moveColumnToIndex("ram", 1);
+    expect(get(columnOrder)[1]).toBe("ram");
   });
 });
 

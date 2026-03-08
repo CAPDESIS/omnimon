@@ -1,4 +1,4 @@
-# OmniMon CLI Manual (v4.5.0)
+# OmniMon CLI Manual (v5.0.2)
 
 ## Overview
 The OmniMon CLI allows you to interact with the core system monitoring and management capabilities directly from your terminal. It offers full parity with the GUI features, allowing you to check system status, manage processes, analyze system state using AI, manage browser tabs, and sync configurations.

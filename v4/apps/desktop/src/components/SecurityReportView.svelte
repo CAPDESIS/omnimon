@@ -9,6 +9,8 @@
   }
 
   let { onclose }: Props = $props();
+  let quickScanning = $state(false);
+  let quickScanAt = $state<string | null>(null);
 
   // Build NIST-style findings from security map
   let findings = $derived.by((): NistFinding[] => {
@@ -108,6 +110,13 @@
     else next.add(id);
     expandedIds = next;
   }
+
+  async function runQuickScan() {
+    quickScanning = true;
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    quickScanAt = new Date().toLocaleTimeString();
+    quickScanning = false;
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -124,6 +133,15 @@
     </div>
 
     <div class="report-body">
+      <div class="quick-scan-bar">
+        <button class="quick-scan-btn" onclick={runQuickScan} disabled={quickScanning}>
+          {quickScanning ? "Scanning..." : "Quick scan"}
+        </button>
+        {#if quickScanAt}
+          <span class="quick-scan-meta">Last quick scan: {quickScanAt}</span>
+        {/if}
+      </div>
+
       <!-- Risk Score Overview -->
       <div class="risk-overview">
         <div class="risk-gauge">
@@ -283,6 +301,28 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+  }
+
+  .quick-scan-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .quick-scan-btn {
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: white;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .quick-scan-meta {
+    font-size: calc(var(--base-font-size, 12px) * 0.8);
+    color: var(--fg-dim);
   }
 
   /* Risk Overview */

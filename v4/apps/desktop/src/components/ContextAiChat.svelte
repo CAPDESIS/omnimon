@@ -4,6 +4,7 @@
   import { ipcAnalyzeContext } from "../lib/ipc";
   import { aiProviderConfig } from "../stores/preferences";
   import { t } from "../lib/i18n";
+  import InfoPopover from "./InfoPopover.svelte";
 
   interface ChatMessage {
     role: "user" | "assistant" | "system";
@@ -115,7 +116,7 @@
   <div class="context-chat-header">
     <span class="context-chat-title">{title}</span>
     {#if helpTooltip}
-      <span class="context-chat-help" title={helpTooltip}>&#9432;</span>
+      <InfoPopover label={title} content={helpTooltip} />
     {/if}
     {#if messages.length > 0}
       <button class="context-chat-clear" onclick={clearConversation}>{t("common.clear")}</button>
@@ -192,11 +193,6 @@
     text-transform: uppercase;
     letter-spacing: 0.4px;
     color: var(--accent);
-  }
-
-  .context-chat-help {
-    color: var(--fg-dim);
-    cursor: help;
   }
 
   .context-chat-clear {

@@ -28,10 +28,12 @@
   import { t } from "../lib/i18n";
   import type { ThemeId } from "../lib/theme";
   import type { LocaleCode } from "../lib/i18n";
+  import InfoPopover from "./InfoPopover.svelte";
 
   let input = $state("");
   let loading = $state(false);
   let error = $state<string | null>(null);
+  let inputRef: HTMLTextAreaElement | undefined = $state();
 
   interface ChatMessage {
     role: "user" | "assistant" | "system";
@@ -276,12 +278,25 @@
     input = "";
     pendingChange = null;
   }
+
+  function resizeInput() {
+    requestAnimationFrame(() => {
+      if (!inputRef) return;
+      inputRef.style.height = "0px";
+      inputRef.style.height = `${Math.min(inputRef.scrollHeight, 180)}px`;
+    });
+  }
+
+  $effect(() => {
+    input;
+    resizeInput();
+  });
 </script>
 
 <div class="command-bar" role="region" aria-label="AI Configuration">
   <div class="bar-header">
     <span class="bar-label">{t("aiConfig.title")}</span>
-    <span class="bar-help" title={t("aiConfig.helpTooltip")}>&#9432;</span>
+    <InfoPopover label={t("aiConfig.title")} content={t("aiConfig.helpTooltip")} />
   </div>
   {#if messages.length > 0}
     <div class="chat-messages" bind:this={chatContainer} transition:slide={{ duration: 200 }}>
@@ -391,14 +406,20 @@
   <div class="command-row">
     <div class="command-input-wrap">
       <span class="command-prefix">&gt;</span>
-      <input
+      <textarea
         class="command-input"
-        type="text"
         placeholder={t("aiConfig.placeholder")}
         bind:value={input}
-        onkeydown={(e) => { if (e.key === "Enter") handleSubmit(); }}
+        bind:this={inputRef}
+        rows="1"
+        onkeydown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            handleSubmit();
+          }
+        }}
         disabled={loading}
-      />
+      ></textarea>
       {#if input || messages.length > 0}
         <button class="clear-btn" onclick={clearChat} aria-label={t("common.clear")}>×</button>
       {/if}
@@ -437,15 +458,6 @@
     letter-spacing: 0.5px;
     color: var(--fg-dim);
   }
-
-  .bar-help {
-    cursor: help;
-    color: var(--fg-dim);
-    font-size: calc(var(--base-font-size, 12px) * 1.0);
-    opacity: 0.7;
-    transition: opacity 0.15s;
-  }
-  .bar-help:hover { opacity: 1; color: var(--accent); }
 
   .chat-messages {
     max-height: 180px;
@@ -686,12 +698,12 @@
   .command-input-wrap {
     flex: 1;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm, 4px);
-    padding: 0 6px;
-    height: calc(var(--base-font-size, 12px) * 2);
+    padding: 6px;
+    min-height: calc(var(--base-font-size, 12px) * 2.3);
     transition: border-color 0.15s;
   }
   .command-input-wrap:focus-within {
@@ -715,7 +727,11 @@
     font-size: calc(var(--base-font-size, 12px) * 0.917);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     outline: none;
-    height: 100%;
+    min-height: 22px;
+    max-height: 180px;
+    line-height: 1.45;
+    resize: none;
+    overflow-y: auto;
   }
   .command-input::placeholder { color: var(--fg-dim); opacity: 0.6; }
   .command-input:disabled { opacity: 0.5; }

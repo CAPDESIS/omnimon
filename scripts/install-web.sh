@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# install-web.sh - Smart Multiplatform Web Installer for OmniMon v4
-# Usage: curl -fsSL https://raw.githubusercontent.com/chochy2001/omnimon/main/install-web.sh | bash
+# install-web.sh - Smart Multiplatform Web Installer for OmniMon v5
+# Usage: curl -fsSL https://raw.githubusercontent.com/chochy2001/omnimon/main/scripts/install-web.sh | bash
 set -euo pipefail
 
 REPO="chochy2001/omnimon"
@@ -26,7 +26,7 @@ OS="$(uname -s)"
 ARCH="$(uname -m)"
 
 info "Detected OS: $OS ($ARCH)"
-info "Fetching latest v4 release info from GitHub API..."
+info "Fetching latest v5 release info from GitHub API..."
 
 release_json=$(curl -fsSL "$API_URL" 2>/dev/null) || error "Failed to fetch release info from GitHub API"
 
@@ -42,7 +42,7 @@ echo ""
 
 # Fallback migration check
 if [[ -d "$HOME/.local/libexec/macmon" ]] && [[ "$OS" == "Darwin" ]]; then
-    warn "Legacy macmon v3 detected. The new v4 is a standalone App/DMG."
+    warn "Legacy macmon v3 detected. The new v5 is a standalone App/DMG."
     warn "You may want to run '~/.local/libexec/macmon/uninstall.sh' to clean up v3 daemons later."
     echo ""
 fi
@@ -71,13 +71,26 @@ if [[ "$OS" == "Darwin" ]]; then
     hdiutil attach "$dmg_path"
 
 elif [[ "$OS" == "Linux" ]]; then
-    info "Linux Environment. Looking for .deb artifact..."
+    info "Linux Environment. Looking for .deb or .rpm artifact..."
     asset_url=$(get_asset_url "\.deb")
     
     if [[ -z "$asset_url" ]]; then
-        error "Could not find .deb in latest release. Visit: https://github.com/$REPO/releases"
+        asset_url=$(get_asset_url "\.rpm")
+        if [[ -z "$asset_url" ]]; then
+            error "Could not find .deb or .rpm in latest release. Visit: https://github.com/$REPO/releases"
+        fi
     fi
-    
+
+    if [[ "$asset_url" == *.rpm ]]; then
+        rpm_path="${TMPDIR_INSTALL}/omnimon.rpm"
+        info "Downloading $asset_url ..."
+        curl -fSL -o "$rpm_path" "$asset_url" || error "Failed to download RPM"
+        info "Installing rpm package (requires sudo)..."
+        sudo rpm -Uvh "$rpm_path"
+        info "OmniMon installed successfully."
+        exit 0
+    fi
+
     deb_path="${TMPDIR_INSTALL}/omnimon.deb"
     info "Downloading $asset_url ..."
     curl -fSL -o "$deb_path" "$asset_url" || error "Failed to download DEB"
@@ -87,23 +100,23 @@ elif [[ "$OS" == "Linux" ]]; then
     info "OmniMon installed successfully."
 
 elif [[ "$OS" == *"MINGW"* ]] || [[ "$OS" == *"CYGWIN"* ]] || [[ "$OS" == *"MSYS"* ]]; then
-    info "Windows Environment. Looking for .exe artifact..."
-    asset_url=$(get_asset_url "\.exe")
+    info "Windows Environment. Looking for .msi artifact..."
+    asset_url=$(get_asset_url "\.msi")
     
     if [[ -z "$asset_url" ]]; then
-        error "Could not find .exe in latest release. Visit: https://github.com/$REPO/releases"
+        error "Could not find .msi in latest release. Visit: https://github.com/$REPO/releases"
     fi
     
-    exe_path="${TMPDIR_INSTALL}/omnimon-setup.exe"
+    exe_path="${TMPDIR_INSTALL}/omnimon-setup.msi"
     info "Downloading $asset_url ..."
     curl -fSL -o "$exe_path" "$asset_url" || error "Failed to download EXE"
     
     info "Launching installer..."
-    start "$exe_path"
+    start msiexec /i "$exe_path"
 
 else
     error "Operating System '$OS' is not automatically supported by this script. Download binaries from: https://github.com/$REPO/releases"
 fi
 
 echo ""
-info "Transition to OmniMon v4 Complete!"
+info "Transition to OmniMon v5 Complete!"

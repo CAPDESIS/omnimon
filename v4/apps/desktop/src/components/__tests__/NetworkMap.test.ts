@@ -99,7 +99,7 @@ describe("NetworkMap", () => {
     const toggle = screen.getByText("Network Map").closest("button")!;
     await fireEvent.click(toggle);
     expect(screen.getByText("Chrome")).toBeInTheDocument();
-    expect(screen.getByText("google.com")).toBeInTheDocument();
+    expect(screen.getByText("google.com:443")).toBeInTheDocument();
   });
 
   it("toggle button is always visible when connections exist", async () => {
@@ -156,7 +156,7 @@ describe("NetworkMap", () => {
     ]);
     render(NetworkMap);
     await fireEvent.click(screen.getByText("Network Map").closest("button")!);
-    const chips = screen.getAllByText("google.com");
+    const chips = screen.getAllByText("google.com:443");
     expect(chips).toHaveLength(1);
   });
 

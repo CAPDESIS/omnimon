@@ -81,8 +81,15 @@ export function applyDiff(current: ProcessEntry[], incoming: ProcessEntry[]): Pr
       if (
         existing.cpu_pct !== p.cpu_pct ||
         existing.ram_mb !== p.ram_mb ||
+        existing.net_rx_bytes_per_sec !== p.net_rx_bytes_per_sec ||
+        existing.net_tx_bytes_per_sec !== p.net_tx_bytes_per_sec ||
+        existing.energy_impact_score !== p.energy_impact_score ||
         existing.state !== p.state ||
-        existing.idle !== p.idle
+        existing.idle !== p.idle ||
+        existing.group !== p.group ||
+        existing.group_key !== p.group_key ||
+        existing.grouped_name !== p.grouped_name ||
+        existing.process_count !== p.process_count
       ) {
         result.push(p);
       } else {

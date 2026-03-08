@@ -14,8 +14,12 @@
   let activeTab = $state<"map" | "table" | "traffic">("map");
   let panelHeight = $state(280);
   let dragMode = $state<"content" | null>(null);
+  let sidePanelWidth = $state(320);
+  let sideDragMode = $state<"sidebar" | null>(null);
   let dragStartY = 0;
   let dragStartHeight = 280;
+  let dragStartX = 0;
+  let dragStartWidth = 320;
   let chartLoadFailed = $state(false);
   let pendingChartInit = 0;
 
@@ -368,19 +372,21 @@
   });
 
   // --- Connections table sort ---
-  let tableSortKey = $state<"process" | "addr" | "port" | "proto" | "state">("process");
+  let tableSortKey = $state<"process" | "addr" | "port" | "proto" | "state" | "direction" | "bytes">("process");
   let tableSortAsc = $state(true);
 
   let sortedConnections = $derived.by(() => {
     const conns = [...$networkConnections];
     conns.sort((a, b) => {
-      let va: string | number, vb: string | number;
+      let va: string | number = "", vb: string | number = "";
       switch (tableSortKey) {
         case "process": va = a.process_name; vb = b.process_name; break;
         case "addr": va = a.remote_addr; vb = b.remote_addr; break;
         case "port": va = a.remote_port; vb = b.remote_port; break;
         case "proto": va = a.protocol; vb = b.protocol; break;
         case "state": va = a.state; vb = b.state; break;
+        case "direction": va = a.direction; vb = b.direction; break;
+        case "bytes": va = totalConnBytes(a); vb = totalConnBytes(b); break;
       }
       if (typeof va === "string" && typeof vb === "string") {
         return tableSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
@@ -390,7 +396,7 @@
     return conns;
   });
 
-  let visibleConnections = $derived(sortedConnections.slice(0, 50));
+  let visibleConnections = $derived(sortedConnections.slice(0, 100));
 
   function setTableSort(key: typeof tableSortKey) {
     if (tableSortKey === key) tableSortAsc = !tableSortAsc;
@@ -417,6 +423,26 @@
     dragStartHeight = panelHeight;
     window.addEventListener("mousemove", onResizeMove);
     window.addEventListener("mouseup", stopResize);
+  }
+
+  function startSideResize(event: MouseEvent) {
+    event.preventDefault();
+    sideDragMode = "sidebar";
+    dragStartX = event.clientX;
+    dragStartWidth = sidePanelWidth;
+    window.addEventListener("mousemove", onSideResizeMove);
+    window.addEventListener("mouseup", stopSideResize);
+  }
+
+  function onSideResizeMove(event: MouseEvent) {
+    if (!sideDragMode) return;
+    sidePanelWidth = Math.max(260, Math.min(dragStartWidth - (event.clientX - dragStartX), 520));
+  }
+
+  function stopSideResize() {
+    sideDragMode = null;
+    window.removeEventListener("mousemove", onSideResizeMove);
+    window.removeEventListener("mouseup", stopSideResize);
   }
 
   function onResizeMove(event: MouseEvent) {
@@ -472,6 +498,18 @@
     return `${bytesPerSec.toFixed(0)} B/s`;
   }
 
+  function totalConnBytes(conn: NetworkConnection): number {
+    return conn.bytes_sent + conn.bytes_recv;
+  }
+
+  function exportMapSnapshot() {
+    if (!canvas) return;
+    const link = document.createElement("a");
+    link.href = canvas.toDataURL("image/png");
+    link.download = `omnimon-network-map-${Date.now()}.png`;
+    link.click();
+  }
+
 </script>
 
 {#if hasAnyNetworkData}
@@ -487,6 +525,7 @@
       <span class="netmap-count">{t("network.summary", { connections: String(totalConnections), processes: String(processNodes.length) })}</span>
       </button>
       <span class="netmap-actions">
+        <button class="size-btn" type="button" onclick={exportMapSnapshot} title={t("network.exportMap")}>⇩</button>
         <button class="size-btn" type="button" onclick={() => setPanelSize(-40)} title={t("common.smaller")}>−</button>
         <button class="size-btn" type="button" onclick={() => setPanelSize(40)} title={t("common.larger")}>+</button>
       </span>
@@ -519,7 +558,7 @@
           >{t("network.traffic")}</button>
         </div>
 
-        <div class="tab-grid">
+        <div class="tab-grid" style={`grid-template-columns:minmax(0,1fr) 6px minmax(260px, ${sidePanelWidth}px)`}>
           <div class="tab-main">
             {#if totalConnections === 0 && activeTab !== "traffic"}
               <div class="empty-state">{t("network.waiting")}</div>
@@ -544,7 +583,7 @@
                       <div class="domain-chips">
                         {#each node.domains.slice(0, 5) as domain}
                           <span class="domain-chip" title="{domain.hostname}:{domain.port} ({domain.protocol})">
-                            {domain.hostname}
+                            {domain.hostname}:{domain.port}
                           </span>
                         {/each}
                         {#if node.domains.length > 5}
@@ -571,7 +610,9 @@
                       <th class="sortable" onclick={() => setTableSort("process")}>{t("network.process")}{sortArrow("process")}</th>
                       <th class="sortable" onclick={() => setTableSort("addr")}>{t("network.destination")}{sortArrow("addr")}</th>
                       <th class="sortable" onclick={() => setTableSort("port")}>{t("network.port")}{sortArrow("port")}</th>
+                      <th class="sortable" onclick={() => setTableSort("direction")}>{t("network.direction")}{sortArrow("direction")}</th>
                       <th class="sortable" onclick={() => setTableSort("proto")}>{t("network.protocol")}{sortArrow("proto")}</th>
+                      <th class="sortable" onclick={() => setTableSort("bytes")}>{t("network.bytes")}{sortArrow("bytes")}</th>
                       <th class="sortable" onclick={() => setTableSort("state")}>{t("network.state")}{sortArrow("state")}</th>
                     </tr>
                   </thead>
@@ -581,7 +622,9 @@
                         <td class="col-process">{conn.process_name}</td>
                         <td class="col-addr mono">{conn.remote_addr}</td>
                         <td class="col-port mono">{conn.remote_port}</td>
+                        <td class="col-direction mono">{conn.direction}</td>
                         <td class="col-proto mono">{conn.protocol.toUpperCase()}</td>
+                        <td class="col-bytes mono">{formatRate(totalConnBytes(conn))}</td>
                         <td class="col-state mono">{conn.state}</td>
                       </tr>
                     {/each}
@@ -598,6 +641,11 @@
             {#if activeTab === "traffic"}
               <div class="tab-content traffic-content">
                 <div class="network-help">{t("network.trafficHelp")}</div>
+                <div class="traffic-topline">
+                  <div class="traffic-stat"><span>RX</span><strong>{formatRate($networkTelemetryStatus.totalRxBytesPerSec)}</strong></div>
+                  <div class="traffic-stat"><span>TX</span><strong>{formatRate($networkTelemetryStatus.totalTxBytesPerSec)}</strong></div>
+                  <div class="traffic-stat"><span>{t("network.connections")}</span><strong>{totalConnections}</strong></div>
+                </div>
                 <div class="traffic-legend">
                   <span class="legend-item rx">&#9660; {t("network.inbound")}</span>
                   <span class="legend-item tx">&#9650; {t("network.outbound")}</span>
@@ -613,10 +661,14 @@
             {/if}
           </div>
 
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+          <div class="side-resize-divider" class:active={sideDragMode === "sidebar"} onmousedown={startSideResize} role="separator" aria-orientation="vertical" aria-label={t("common.expand")}></div>
+
           <div class="tab-side">
             <div class="capture-chip">{t("network.captureBackend", { backend: $networkTelemetryStatus.captureBackend })}</div>
             <div class="capture-chip">RX {$networkTelemetryStatus.totalRxBytesPerSec > 0 ? formatRate($networkTelemetryStatus.totalRxBytesPerSec) : "0 B/s"}</div>
             <div class="capture-chip">TX {$networkTelemetryStatus.totalTxBytesPerSec > 0 ? formatRate($networkTelemetryStatus.totalTxBytesPerSec) : "0 B/s"}</div>
+            <div class="network-help">{t("network.mapDeepInfo")}</div>
             {#if $networkTelemetryStatus.usingFallback}
               <div class="network-warning">{t("network.fallbackNotice")}</div>
             {/if}
@@ -728,7 +780,6 @@
 
   .tab-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
     min-height: 0;
     flex: 1;
   }
@@ -761,6 +812,18 @@
     font-size: calc(var(--base-font-size, 12px) * 0.75);
     color: var(--yellow);
     background: rgba(245, 158, 11, 0.08);
+  }
+
+  .side-resize-divider {
+    width: 6px;
+    cursor: ew-resize;
+    background: var(--border);
+    transition: background 0.15s ease;
+  }
+
+  .side-resize-divider:hover,
+  .side-resize-divider.active {
+    background: var(--accent);
   }
 
   .network-help,
@@ -943,7 +1006,9 @@
   .col-process { max-width: 120px; font-weight: 600; }
   .col-addr { max-width: 180px; }
   .col-port { width: 60px; text-align: right; }
+  .col-direction { width: 88px; text-transform: uppercase; }
   .col-proto { width: 50px; text-align: center; }
+  .col-bytes { width: 95px; text-align: right; }
   .col-state { width: 90px; color: var(--fg-dim); }
 
   .table-overflow {
@@ -958,6 +1023,35 @@
   .traffic-content {
     padding: 8px 10px;
     height: 100%;
+  }
+
+  .traffic-topline {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0 0 8px;
+  }
+
+  .traffic-stat {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    background: rgba(255,255,255,0.02);
+  }
+
+  .traffic-stat span {
+    font-size: calc(var(--base-font-size, 12px) * 0.72);
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  .traffic-stat strong {
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: calc(var(--base-font-size, 12px) * 0.9);
   }
 
   .traffic-legend {
@@ -990,7 +1084,11 @@
 
   @media (max-width: 960px) {
     .tab-grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr !important;
+    }
+
+    .side-resize-divider {
+      display: none;
     }
 
     .tab-side {

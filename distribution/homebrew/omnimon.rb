@@ -1,8 +1,8 @@
 cask "omnimon" do
-  version "4.5.0"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  version "5.0.2"
+  sha256 "ee82df3fca4c66e701bf8cf75fc522eeb73a43491b22943d1cb1a3880e12e7d2"
 
-  url "https://github.com/chochy2001/omnimon/releases/download/v#{version}/OmniMon_#{version}_aarch64.dmg"
+  url "https://github.com/chochy2001/omnimon/releases/download/v#{version}/OmniMon-#{version}-macOS-Universal.dmg"
   name "OmniMon"
   desc "Cross-platform system monitor, process manager, and AI assistant"
   homepage "https://github.com/chochy2001/omnimon"

@@ -191,4 +191,10 @@ describe("App AI Command Bar", () => {
     await fireEvent.click(screen.getByRole("button", { name: /Help Center/i }));
     expect(screen.getByText("How OmniMon works")).toBeInTheDocument();
   });
+
+  it("opens deep-dive modal from dashboard cards", async () => {
+    render(App);
+    await fireEvent.click(screen.getAllByRole("button", { name: /Network/i })[0]);
+    expect(screen.getByText("Deep Dive")).toBeInTheDocument();
+  });
 });

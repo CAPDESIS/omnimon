@@ -8,8 +8,8 @@ use core::watcher;
 mod settings;
 
 #[derive(Parser)]
-#[command(name = "macmon")]
-#[command(version = "4.3.0", about = "OmniMon: Monitor de sistema y navegador de próxima generación de alto rendimiento.", long_about = None)]
+#[command(name = "omnimon")]
+#[command(version = "5.0.2", about = "OmniMon: Monitor de sistema y navegador de próxima generación de alto rendimiento.", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -21,7 +21,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Get the status of macmon
+    /// Get the status of OmniMon
     Status {
         /// Output format
         #[arg(long, value_enum, default_value_t = Format::Text)]
@@ -294,7 +294,7 @@ fn main() {
                     println!("{}", serde_json::to_string_pretty(&output).unwrap());
                 }
                 Format::Text => {
-                    println!("macmon status: running");
+                    println!("omnimon status: running");
                     println!();
                     println!(
                         "  Memory: {} / {} ({:.1}% used)",
@@ -605,7 +605,7 @@ fn main() {
                 let _api_key = match entry.get_password() {
                     Ok(k) => k,
                     Err(_) => {
-                        eprintln!("Error: CrabNebula API Key not found. Please run 'macmon cloud login <key>' first.");
+                        eprintln!("Error: CrabNebula API Key not found. Please run 'omnimon cloud login <key>' first.");
                         std::process::exit(1);
                     }
                 };

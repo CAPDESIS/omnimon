@@ -286,6 +286,20 @@ export function moveColumnDown(key: ColumnKey): void {
   });
 }
 
+/** Moves a column directly to a target index using drag-and-drop semantics. */
+export function moveColumnToIndex(key: ColumnKey, targetIndex: number): void {
+  columnOrder.update((order) => {
+    const from = order.indexOf(key);
+    if (from < 0) return order;
+    const clampedTarget = Math.max(0, Math.min(targetIndex, order.length - 1));
+    if (from === clampedTarget) return order;
+    const next = [...order];
+    const [item] = next.splice(from, 1);
+    next.splice(clampedTarget, 0, item);
+    return next;
+  });
+}
+
 export {
   MIN_FONT_SIZE,
   MAX_FONT_SIZE,

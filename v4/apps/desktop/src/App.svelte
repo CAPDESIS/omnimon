@@ -16,6 +16,8 @@
   import CloudSync from "./components/CloudSync.svelte";
   import Automations from "./components/Automations.svelte";
   import HelpCenterModal from "./components/HelpCenterModal.svelte";
+  import SystemMetricModal from "./components/SystemMetricModal.svelte";
+  import InfoPopover from "./components/InfoPopover.svelte";
   import { totalFindings } from "./stores/security";
   import { initSecurityAlertListener } from "./stores/alerts";
   import type { ProcessEntry } from "./lib/types";
@@ -81,6 +83,7 @@
   let showSecurityReport = $state(false);
   let showAutomations = $state(false);
   let showHelpCenter = $state(false);
+  let activeMetricModal = $state<"cpu" | "ram" | "network" | "swap" | "processes" | null>(null);
 
   // Resizable tab panel (backed by store for persistence)
   let tabPanelHeight = $state($tabPanelHeightStore);
@@ -400,7 +403,7 @@
       <!-- GitHub Sponsors Banner -->
       <a
         class="btn btn-sponsor"
-        href="https://github.com/sponsors/chochy2001/dashboard"
+        href="https://github.com/sponsors/chochy2001"
         target="_blank"
         rel="noopener noreferrer"
         title="Support OmniMon on GitHub Sponsors"
@@ -415,7 +418,7 @@
 
       <div class="btn-group">
         <button
-          class="btn"
+          class="btn btn-text-icon"
           class:active={$grouping}
           onclick={() => $grouping = !$grouping}
           title={t("toolbar.toggleGrouping")}
@@ -426,6 +429,7 @@
             <rect x="9" y="1" width="5" height="5" rx="1"/>
             <rect x="9" y="9" width="5" height="5" rx="1"/>
           </svg>
+          <span>{t("toolbar.groups")}</span>
         </button>
         <button class="btn" onclick={selectAllVisible} aria-label={t("toolbar.selectAll")}>{t("toolbar.all")}</button>
         <button class="btn" onclick={selectNone} aria-label={t("toolbar.deselectAll")}>{t("toolbar.none")}</button>
@@ -455,6 +459,8 @@
         <option value="gaming" title={t("toolbar.gamingDesc")}>{t("toolbar.gaming")}</option>
         <option value="battery" title={t("toolbar.batteryDesc")}>{t("toolbar.batterySaver")}</option>
       </select>
+      <InfoPopover label={t("toolbar.aiProfile")} content={t("toolbar.profileBehavior")} />
+      <span class="profile-caption">{t(`toolbar.${$aiProfile === "battery" ? "batteryDesc" : `${$aiProfile}Desc`}`)}</span>
       <button
         class="btn btn-accent"
         onclick={() => analyzeWithAi($aiProviderConfig.provider, $aiProviderConfig.model)}
@@ -549,7 +555,7 @@
   </header>
 
   <!-- Dashboard with charts -->
-  <SystemDashboard collapsed={dashboardCollapsed} />
+  <SystemDashboard collapsed={dashboardCollapsed} onopenmetric={(metric) => { activeMetricModal = metric; }} />
 
   <!-- Browser Tabs Panel -->
   <div class="tab-panel" style="height: {tabPanelHeight}px">
@@ -587,6 +593,7 @@
     <div class="ai-panel" role="region" aria-label={t("ai.suggestions")}>
       <div class="ai-header">
         <span class="ai-title">{t("ai.suggestions")}</span>
+        <InfoPopover label={t("ai.suggestions")} content={t("toolbar.aiSuggestionsHelp")} />
         <button class="btn btn-sm" onclick={dismissAiSuggestions}>{t("ai.dismiss")}</button>
       </div>
       {#if $aiError}
@@ -633,7 +640,7 @@
   <!-- Status Footer -->
   <footer class="statusline" aria-live="polite" aria-atomic="true">
     <span>
-      <span class="version-label" style="color: var(--accent); font-weight: 600;">OmniMon v5.0.1</span> &nbsp;&middot;&nbsp;
+      <span class="version-label" style="color: var(--accent); font-weight: 600;">OmniMon v5.0.2</span> &nbsp;&middot;&nbsp;
       {t("footer.processes", { count: $filtered.length })}{#if $filtered.length !== $processes.length}
         &nbsp;{t("footer.filteredFrom", { count: $processes.length })}{/if}
       {#if $selectedCount > 0}
@@ -892,6 +899,10 @@
   <HelpCenterModal onclose={() => showHelpCenter = false} />
 {/if}
 
+{#if activeMetricModal}
+  <SystemMetricModal metric={activeMetricModal} onclose={() => activeMetricModal = null} />
+{/if}
+
 <style>
   /* ==============================
      GLOBAL RESET & BASE
@@ -1006,6 +1017,8 @@
     align-items: center;
     gap: 4px;
     flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   .search-wrapper {
@@ -1100,6 +1113,8 @@
   .btn-text-icon {
     gap: 6px;
     padding-inline: 8px;
+    white-space: normal;
+    min-height: calc(var(--base-font-size) * 2.1);
   }
 
   .btn-icon-glyph {
@@ -1184,6 +1199,13 @@
     gap: 2px;
   }
 
+  .profile-caption {
+    max-width: 180px;
+    font-size: calc(var(--base-font-size) * 0.72);
+    color: var(--fg-dim);
+    line-height: 1.3;
+  }
+
   .font-size-display {
     font-size: calc(var(--base-font-size) * 0.833);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
@@ -1204,6 +1226,37 @@
     cursor: pointer;
   }
   .profile-select:focus { border-color: var(--accent); }
+
+  @media (max-width: 1280px) {
+    .profile-caption {
+      max-width: 140px;
+    }
+  }
+
+  @media (max-width: 1060px) {
+    .toolbar {
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .toolbar-right {
+      width: 100%;
+    }
+
+    .search-wrapper {
+      max-width: 100%;
+    }
+
+    .separator {
+      display: none;
+    }
+
+    .profile-caption {
+      max-width: 100%;
+      flex-basis: 100%;
+      order: 10;
+    }
+  }
 
   /* ==============================
      PANELS

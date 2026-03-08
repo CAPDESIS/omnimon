@@ -5,9 +5,10 @@
 
   interface Props {
     collapsed?: boolean;
+    onopenmetric?: (metric: "cpu" | "ram" | "network" | "swap" | "processes") => void;
   }
 
-  let { collapsed = false }: Props = $props();
+  let { collapsed = false, onopenmetric }: Props = $props();
 
   let cpuCanvas: HTMLCanvasElement | undefined = $state();
   let ramCanvas: HTMLCanvasElement | undefined = $state();
@@ -138,15 +139,15 @@
 
 {#if $stats && !collapsed}
   <div class="dashboard">
-    <div class="metric-card">
+    <button class="metric-card metric-button" onclick={() => onopenmetric?.("cpu")}>
       <div class="metric-header">
         <span class="metric-label">CPU</span>
         <span class="metric-value" style="color: {colorForPct(avgCpu)}">{avgCpu.toFixed(1)}%</span>
       </div>
       <canvas bind:this={cpuCanvas} class="spark" height={CHART_H}></canvas>
-    </div>
+    </button>
 
-    <div class="metric-card">
+    <button class="metric-card metric-button" onclick={() => onopenmetric?.("ram")}>
       <div class="metric-header">
         <span class="metric-label">RAM</span>
         <span class="metric-value" style="color: {colorForPct($stats.ram_used_pct)}">
@@ -154,9 +155,9 @@
         </span>
       </div>
       <canvas bind:this={ramCanvas} class="spark" height={CHART_H}></canvas>
-    </div>
+    </button>
 
-    <div class="metric-card">
+    <button class="metric-card metric-button" onclick={() => onopenmetric?.("network")}>
       <div class="metric-header">
         <span class="metric-label">Network</span>
         <span class="metric-value net-values">
@@ -165,21 +166,21 @@
         </span>
       </div>
       <canvas bind:this={netCanvas} class="spark" height={CHART_H}></canvas>
-    </div>
+    </button>
 
     <div class="metric-card metric-stats">
-      <div class="stat-row">
+      <button class="stat-row stat-button" onclick={() => onopenmetric?.("swap")}>
         <span class="stat-label">{t("status.swap")}</span>
         <span class="stat-value">{$stats.swap_used_mb} MB</span>
-      </div>
-      <div class="stat-row">
+      </button>
+      <button class="stat-row stat-button" onclick={() => onopenmetric?.("processes")}>
         <span class="stat-label">{t("status.procs")}</span>
         <span class="stat-value">{$stats.total_processes}</span>
-      </div>
-      <div class="stat-row">
+      </button>
+      <button class="stat-row stat-button" onclick={() => onopenmetric?.("cpu")}>
         <span class="stat-label">{t("status.idle")}</span>
         <span class="stat-value">{$processes.filter((p) => p.idle).length}</span>
-      </div>
+      </button>
     </div>
   </div>
 {/if}
@@ -204,6 +205,28 @@
     flex-direction: column;
     gap: 6px;
     min-width: 0;
+  }
+
+  .metric-button,
+  .stat-button {
+    cursor: pointer;
+  }
+
+  .metric-button {
+    text-align: left;
+    border: 1px solid var(--border);
+  }
+
+  .metric-button:hover,
+  .stat-button:hover {
+    border-color: var(--accent);
+    background: var(--bg-hover);
+  }
+
+  .metric-button:focus-visible,
+  .stat-button:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: 1px;
   }
 
   .metric-header {
@@ -265,6 +288,13 @@
     justify-content: space-between;
     align-items: center;
     gap: 8px;
+  }
+
+  .stat-button {
+    border: none;
+    background: transparent;
+    padding: 0;
+    width: 100%;
   }
 
   .stat-label {
