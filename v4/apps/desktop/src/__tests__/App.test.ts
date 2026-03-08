@@ -142,11 +142,13 @@ vi.mock("../stores/alerts", () => ({
   alertRules: writable([]),
   firedAlerts: writable([]),
   dynamicAlerts: writable([]),
+  smartAlerts: writable([]),
   evaluateAlerts: vi.fn(),
   addAlertRule: vi.fn(),
   removeAlertRule: vi.fn(),
   clearFiredAlerts: vi.fn(),
   clearDynamicAlerts: vi.fn(),
+  dismissSmartAlert: vi.fn(),
   initSecurityAlertListener: vi.fn().mockResolvedValue(() => {}),
   _resetAlerts: vi.fn(),
 }));

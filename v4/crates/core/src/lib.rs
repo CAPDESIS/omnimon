@@ -12,6 +12,7 @@ pub mod metrics;
 pub mod network;
 mod os_native;
 pub mod process_identity;
+pub mod rate_limit;
 pub mod rules_engine;
 pub mod security;
 pub mod telemetry;
