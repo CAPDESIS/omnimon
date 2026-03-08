@@ -90,6 +90,19 @@ export const selectedRamMB = derived(
       .reduce((sum, p) => sum + p.ram_mb, 0),
 );
 
+/** Shallow comparison for SystemStats to avoid unnecessary re-renders on poll. */
+function shallowEqualStats(a: SystemStats, b: SystemStats): boolean {
+  return (
+    a.total_ram_mb === b.total_ram_mb &&
+    a.used_ram_mb === b.used_ram_mb &&
+    a.swap_used_mb === b.swap_used_mb &&
+    a.total_processes === b.total_processes &&
+    a.idle_processes === b.idle_processes &&
+    Math.abs(a.net_rx_bytes_per_sec - b.net_rx_bytes_per_sec) < 100 &&
+    Math.abs(a.net_tx_bytes_per_sec - b.net_tx_bytes_per_sec) < 100
+  );
+}
+
 /**
  * Applies a diff-based update to the process list: adds new PIDs, updates changed metrics
  * (reusing object references when unchanged), and removes dead PIDs.
@@ -148,7 +161,11 @@ export async function fetchMetrics(): Promise<void> {
     ) {
       processes.set(updated);
     }
-    stats.set(data.stats);
+    // Only update stats if values actually changed to avoid unnecessary re-renders
+    const prevStats = get(stats);
+    if (!prevStats || !shallowEqualStats(prevStats, data.stats)) {
+      stats.set(data.stats);
+    }
 
     // Feed time-series history & alert evaluation
     const cpuAvg = updated.length > 0

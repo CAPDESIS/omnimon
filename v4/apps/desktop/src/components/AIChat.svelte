@@ -1,5 +1,6 @@
 <script lang="ts">
   import { get } from "svelte/store";
+
   import { slide } from "svelte/transition";
   import { ipcAiChat, ipcGetBrowserTabs, ipcCloseBrowserTab, ipcKillProcess, ipcKillProcesses } from "../lib/ipc";
   import { aiProviderConfig } from "../stores/preferences";
@@ -30,6 +31,7 @@
   let chatContainer: HTMLDivElement | undefined = $state();
   let pendingAction = $state<{ tool: string; details: string; result: ToolResult } | null>(null);
   let requestToken = 0;
+
 
   function scrollToBottom() {
     scrollContainerToBottom(chatContainer);
@@ -64,6 +66,7 @@
     const token = ++requestToken;
 
     if (detectPromptInjection(trimmed)) {
+      console.warn("[AIChat] Blocked prompt injection attempt");
       toast.error(t("aiChat.blockedTitle"), t("aiChat.blockedPrompt"));
       return;
     }
@@ -96,7 +99,6 @@
 
       if (response.tool_call) {
         const result = response.tool_call;
-
         // For destructive actions, require confirmation
         if (result.tool === "close_tabs" || result.tool === "kill_process" || result.tool === "kill_by_name") {
           pendingAction = { tool: result.tool, details: result.details, result };
@@ -116,6 +118,7 @@
     } catch (e) {
       if (token !== requestToken) return;
       const msg = e instanceof Error ? e.message : String(e);
+      console.warn("[AIChat] Chat request failed:", msg);
       
       let errorText = msg;
       const lowerMsg = msg.toLowerCase();
@@ -256,7 +259,6 @@
     if (!pendingAction) return;
     loading = true;
     const { result } = pendingAction;
-
     if (result.tool === "close_tabs" && result.success) {
       const executed = await executeCloseTabs(result.details);
       result.details = executed.message;

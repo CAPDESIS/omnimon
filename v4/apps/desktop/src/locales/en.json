@@ -99,7 +99,15 @@
     "collapse": "Collapse",
     "larger": "Larger",
     "smaller": "Smaller",
-    "askAi": "Ask AI"
+    "askAi": "Ask AI",
+    "browserTabs": "Browser Tabs",
+    "networkMap": "Network Map",
+    "processes": "Processes",
+    "userView": "User View",
+    "userViewHelp": "Choose between a simplified view and the full Pro console.",
+    "loadError": "Failed to load component",
+    "ignore": "Ignore",
+    "dismiss": "Dismiss"
   },
   "settings": {
     "title": "OmniMon Settings",
@@ -170,6 +178,7 @@
     "chatHelp": "Ask detailed questions about the selected process, its tabs, and whether the current behavior looks normal.",
     "aiHint": "Click \"Ask AI\" to get insights about this process.",
     "aiHintWithTabs": "Click \"Ask AI\" to get insights about this process and its browser tabs.",
+    "forceQuit": "Force Quit",
     "escToClose": "Esc to close",
     "selectTab": "Select {title}",
     "goToTab": "Go to tab: {title}\n{url}",
@@ -424,6 +433,9 @@
     "secondsAgo": "{count}s ago",
     "minutesAgo": "{count}m ago",
     "hoursAgo": "{count}h ago"
+  },
+  "smartAlerts": {
+    "title": "Health Report"
   },
   "toast": {
     "securityTitle": "Security",

@@ -76,6 +76,7 @@ fn format_uptime(secs: u64) -> String {
 /// All data is read from caches populated by background threads — no heavy OS
 /// calls or mutex contention happen on the main/IPC thread.
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
     let snapshot = macmon_core::telemetry::telemetry_snapshot(Some(100));
 
@@ -226,6 +227,7 @@ fn refresh_tab_cache_if_stale() -> Arc<Vec<BrowserTab>> {
 
 /// IPC: List open browser tabs — returns from cache, refreshes in background if stale.
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 fn get_browser_tabs() -> Result<Vec<BrowserTab>, String> {
     // Return cached data instantly — Arc clone is O(1)
     let cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
@@ -246,6 +248,7 @@ fn get_browser_tabs() -> Result<Vec<BrowserTab>, String> {
 
 /// IPC: Gracefully close a browser tab via AppleScript/CDP (not process kill).
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 fn close_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result<bool, String> {
     macmon_core::rate_limit::check_rate_limit(
         "close_browser_tab",
@@ -266,6 +269,7 @@ fn close_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result
 
 /// IPC: Focus (navigate to) a browser tab via AppleScript/CDP.
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 fn focus_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result<bool, String> {
     macmon_core::rate_limit::check_rate_limit(
         "focus_browser_tab",
@@ -286,6 +290,7 @@ fn focus_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result
 
 /// IPC: Kill a single process by PID using the real OS-native killer.
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 fn kill_process(pid: u32) -> Result<bool, String> {
     macmon_core::rate_limit::check_rate_limit(
         "kill_process",
@@ -307,6 +312,7 @@ pub struct KillProcessesResult {
 
 /// IPC: Kill multiple processes by PIDs. Returns killed and failed PIDs with error messages.
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 fn kill_processes(pids: Vec<u32>) -> Result<KillProcessesResult, String> {
     macmon_core::rate_limit::check_rate_limit(
         "kill_processes",
@@ -345,6 +351,7 @@ fn get_api_key_with_fallback(app: &AppHandle, provider: &str) -> Result<String, 
 
 /// IPC: Save AI Configuration — keyring first, Tauri Store as fallback.
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 fn save_ai_config(
     app: AppHandle,
     provider: String,
@@ -377,24 +384,28 @@ fn save_ai_config(
 
 /// IPC: Check whether an API key exists (keyring or store).
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 fn check_api_key(app: AppHandle, provider: String) -> Result<bool, String> {
     Ok(get_api_key_with_fallback(&app, &provider).is_ok())
 }
 
 /// IPC: Apply AI-generated rules payload directly into core rules engine.
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 fn apply_ai_rules(payload: String) -> Result<usize, String> {
     macmon_core::rules_engine::upsert_rules_from_ai_json(&payload)
 }
 
 /// IPC: Return JSON schema contract for AI rules payload.
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 fn get_ai_rules_schema() -> String {
     macmon_core::rules_engine::ai_rules_schema_json()
 }
 
 /// IPC: Validate AI API key by making a test request
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 async fn validate_api_key(provider: String, key: String) -> Result<bool, String> {
     macmon_core::rate_limit::check_rate_limit(
         "validate_api_key",
@@ -413,6 +424,7 @@ async fn validate_api_key(provider: String, key: String) -> Result<bool, String>
 
 /// IPC: Analyze processes using AI
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 async fn analyze_processes(
     app: AppHandle,
     profile: String,
@@ -462,6 +474,7 @@ async fn analyze_processes(
 
 /// IPC: Free-form AI analysis of a process context (returns plain text).
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 async fn analyze_context(
     app: AppHandle,
     context: String,
@@ -484,6 +497,7 @@ async fn analyze_context(
 /// Data comes from the background watcher's cached state — no expensive OS calls on the IPC thread.
 /// Returns empty arrays when the network-capture feature is unavailable or no data has been collected yet.
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 fn get_network_data() -> Result<serde_json::Value, String> {
     let state = macmon_core::watcher::get_cached_state();
     Ok(serde_json::json!({
@@ -498,6 +512,7 @@ fn get_network_data() -> Result<serde_json::Value, String> {
 
 /// IPC: Query whether the main window is currently visible.
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 fn get_window_visible(app: tauri::AppHandle) -> bool {
     app.get_webview_window("main")
         .and_then(|w| w.is_visible().ok())
@@ -505,6 +520,7 @@ fn get_window_visible(app: tauri::AppHandle) -> bool {
 }
 
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 #[allow(dead_code)]
 fn save_cloud_key(key: String) -> Result<(), String> {
     macmon_core::rate_limit::check_rate_limit(
@@ -516,6 +532,7 @@ fn save_cloud_key(key: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 #[allow(dead_code)]
 fn get_cloud_key() -> Result<String, String> {
     let entry = keyring::Entry::new("omnimon", "crabnebula_api_key").map_err(|e| e.to_string())?;
@@ -524,6 +541,7 @@ fn get_cloud_key() -> Result<String, String> {
 
 /// IPC: Interactive AI chat with live system state injection and tool calling.
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 async fn ai_chat(
     app: AppHandle,
     message: String,

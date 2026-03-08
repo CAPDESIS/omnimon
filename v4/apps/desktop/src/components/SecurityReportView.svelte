@@ -7,6 +7,7 @@
   import type { ProcessSecurityInfo, NistFinding, NistSeverity } from "../lib/types";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
 
+
   interface Props {
     onclose: () => void;
   }
@@ -125,8 +126,11 @@
 
   function toggleExpand(id: string) {
     const next = new Set(expandedIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
     expandedIds = next;
   }
 

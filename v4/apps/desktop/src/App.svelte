@@ -13,6 +13,7 @@
   import ProfilePanel from "./components/ProfilePanel.svelte";
   import ConfirmDialog from "./components/ConfirmDialog.svelte";
   import SkeletonBlock from "./components/SkeletonBlock.svelte";
+  import AIChat from "./components/AIChat.svelte";
   import { totalFindings } from "./stores/security";
   import { initSecurityAlertListener } from "./stores/alerts";
   import type { ProcessEntry } from "./lib/types";
@@ -99,7 +100,7 @@
   let securityReportViewPromise = $state<Promise<any> | null>(null);
   let helpCenterModalPromise = $state<Promise<any> | null>(null);
   let systemMetricModalPromise = $state<Promise<any> | null>(null);
-  let aiChatPromise = $state<Promise<any> | null>(null);
+  // AIChat is now eagerly imported (no lazy loading needed for ~11KB component)
   let networkMapPromise = $state<Promise<any> | null>(null);
   let cloudSyncPromise = $state<Promise<any> | null>(null);
   let automationsPromise = $state<Promise<any> | null>(null);
@@ -126,9 +127,6 @@
     systemMetricModalPromise ??= import("./components/SystemMetricModal.svelte");
   }
 
-  function loadAiChat() {
-    aiChatPromise ??= import("./components/AIChat.svelte");
-  }
 
   function loadNetworkMap() {
     networkMapPromise ??= import("./components/NetworkMap.svelte");
@@ -193,6 +191,20 @@
   let aiChatDragging = $state(false);
   let aiChatDragStartY = 0;
   let aiChatDragStartHeight = 0;
+
+  // Section resize heights
+  let networkMapExtraHeight = $state(0);
+  let aiChatExtraHeight = $state(0);
+
+  function resizeSection(section: "tabs" | "network" | "aichat", delta: number) {
+    if (section === "tabs") {
+      tabPanelHeight = Math.max(80, Math.min(tabPanelHeight + delta, 800));
+    } else if (section === "network") {
+      networkMapExtraHeight = Math.max(-200, Math.min(networkMapExtraHeight + delta, 400));
+    } else if (section === "aichat") {
+      aiChatExtraHeight = Math.max(-100, Math.min(aiChatExtraHeight + delta, 400));
+    }
+  }
 
   // Platform detection for OS-specific styles
   let platform = $state<"macos" | "windows" | "linux">("macos");
@@ -382,6 +394,7 @@
   }
 
   onMount(() => {
+    console.debug("[APP] onMount started");
     let disposed = false;
     const unlistenFns: Array<() => void> = [];
     const observers: Array<IntersectionObserver> = [];
@@ -394,15 +407,17 @@
           }
           unlistenFns.push(fn);
         })
-        .catch(() => {
-          // Listener registration failed (non-Tauri context/tests). Ignore.
+        .catch((err) => {
+          console.warn("[APP] Listener registration failed:", err);
         });
     };
 
     platform = detectPlatform();
+    console.debug(`[APP] Platform detected: ${platform}`);
     document.documentElement.setAttribute("data-platform", platform);
 
     loadPreferences().then(() => {
+      console.debug("[APP] Preferences loaded, initializing i18n and polling.");
       initI18n($localePreference);
       startPolling(2000);
     });
@@ -435,10 +450,11 @@
     const networkObserver = observeVisibility(networkMapHost, loadNetworkMap);
     if (networkObserver) observers.push(networkObserver);
 
-    const aiChatObserver = observeVisibility(aiChatHost, loadAiChat);
-    if (aiChatObserver) observers.push(aiChatObserver);
+    // AI Chat loads on-click (no observer needed since host is inside {#if collapsed})
 
+    console.debug("[APP] onMount finished");
     return () => {
+      console.debug("[APP] onMount cleanup (disposed)");
       disposed = true;
       stopPolling();
       clearTimeout(debounceTimer);
@@ -601,6 +617,7 @@
     onincreasefont={increaseFontSize}
   />
 
+  <div class="scrollable-sections">
   <div class="section-header" role="button" tabindex="0"
     onclick={() => $profilesCollapsedStore = !$profilesCollapsedStore}
     onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $profilesCollapsedStore = !$profilesCollapsedStore; } }}
@@ -625,7 +642,13 @@
     aria-expanded={!$browserTabsCollapsedStore}
   >
     <span class="section-chevron" class:open={!$browserTabsCollapsedStore}>&#9654;</span>
-    <span class="section-label">{t("common.browserTabs", { default: "Browser Tabs" })}</span>
+    <span class="section-label">{t("common.browserTabs")}</span>
+    {#if !$browserTabsCollapsedStore}
+      <span class="section-resize-btns">
+        <button class="section-size-btn" type="button" onclick={(e: MouseEvent) => { e.stopPropagation(); resizeSection("tabs", -60); }} aria-label={t("common.smaller")}>−</button>
+        <button class="section-size-btn" type="button" onclick={(e: MouseEvent) => { e.stopPropagation(); resizeSection("tabs", 60); }} aria-label={t("common.larger")}>+</button>
+      </span>
+    {/if}
   </div>
   {#if !$browserTabsCollapsedStore}
     <div class="tab-panel" style="height: {tabPanelHeight}px" bind:this={chromeTabsHost}>
@@ -660,7 +683,7 @@
     aria-expanded={!$mainTableCollapsedStore}
   >
     <span class="section-chevron" class:open={!$mainTableCollapsedStore}>&#9654;</span>
-    <span class="section-label">{t("common.processes", { default: "Processes" })}</span>
+    <span class="section-label">{t("common.processes")}</span>
   </div>
   {#if !$mainTableCollapsedStore}
     {#if $loading}
@@ -731,21 +754,31 @@
 
   <!-- Network Connection Map -->
   <div class="section-header" role="button" tabindex="0"
-    onclick={() => $networkMapCollapsedStore = !$networkMapCollapsedStore}
-    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $networkMapCollapsedStore = !$networkMapCollapsedStore; } }}
+    onclick={() => { $networkMapCollapsedStore = !$networkMapCollapsedStore; if (!$networkMapCollapsedStore) loadNetworkMap(); }}
+    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $networkMapCollapsedStore = !$networkMapCollapsedStore; if (!$networkMapCollapsedStore) loadNetworkMap(); } }}
     aria-expanded={!$networkMapCollapsedStore}
   >
     <span class="section-chevron" class:open={!$networkMapCollapsedStore}>&#9654;</span>
-    <span class="section-label">{t("common.networkMap", { default: "Network Map" })}</span>
+    <span class="section-label">{t("common.networkMap")}</span>
+    {#if !$networkMapCollapsedStore}
+      <span class="section-resize-btns">
+        <button class="section-size-btn" type="button" onclick={(e: MouseEvent) => { e.stopPropagation(); resizeSection("network", -60); }} aria-label={t("common.smaller")}>−</button>
+        <button class="section-size-btn" type="button" onclick={(e: MouseEvent) => { e.stopPropagation(); resizeSection("network", 60); }} aria-label={t("common.larger")}>+</button>
+      </span>
+    {/if}
   </div>
   {#if !$networkMapCollapsedStore}
-    <div bind:this={networkMapHost}>
+    <div bind:this={networkMapHost} style="--section-extra-height:{networkMapExtraHeight}px">
       {#if networkMapPromise}
-        {#await networkMapPromise then NetworkMapModule}
-          <NetworkMapModule.default mode={$userMode} />
-        {:catch}
+        {#await networkMapPromise}
           <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
             <SkeletonBlock width="100%" height="140px" rounded="14px" />
+          </div>
+        {:then NetworkMapModule}
+          <NetworkMapModule.default mode={$userMode} extraHeight={networkMapExtraHeight} />
+        {:catch}
+          <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
+            <p style="padding:12px;color:var(--fg-dim);">{t("common.loadError", { default: "Failed to load component" })}</p>
           </div>
         {/await}
       {:else}
@@ -764,37 +797,23 @@
 
   <!-- AI Interactive Chat (Tool Calling) -->
   <div class="section-header" role="button" tabindex="0"
-    onclick={() => $aiChatCollapsedStore = !$aiChatCollapsedStore}
+    onclick={() => { $aiChatCollapsedStore = !$aiChatCollapsedStore; }}
     onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $aiChatCollapsedStore = !$aiChatCollapsedStore; } }}
     aria-expanded={!$aiChatCollapsedStore}
   >
     <span class="section-chevron" class:open={!$aiChatCollapsedStore}>&#9654;</span>
     <span class="section-label">{t("aiChat.title")}</span>
+    {#if !$aiChatCollapsedStore}
+      <span class="section-resize-btns">
+        <button class="section-size-btn" type="button" onclick={(e: MouseEvent) => { e.stopPropagation(); resizeSection("aichat", -60); }} aria-label={t("common.smaller")}>−</button>
+        <button class="section-size-btn" type="button" onclick={(e: MouseEvent) => { e.stopPropagation(); resizeSection("aichat", 60); }} aria-label={t("common.larger")}>+</button>
+      </span>
+    {/if}
   </div>
   {#if !$aiChatCollapsedStore}
-    <div class="ai-chat-panel" style="height: {aiChatPanelHeight}px" bind:this={aiChatHost}>
-      {#if aiChatPromise}
-        {#await aiChatPromise then AIChatModule}
-          <AIChatModule.default />
-        {:catch}
-          <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
-            <SkeletonBlock width="100%" height="100%" rounded="12px" />
-          </div>
-        {/await}
-      {:else}
-        <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
-          <SkeletonBlock width="100%" height="100%" rounded="12px" />
-        </div>
-      {/if}
+    <div class="ai-chat-panel" bind:this={aiChatHost} style={aiChatExtraHeight !== 0 ? `min-height:${220 + aiChatExtraHeight}px` : ""}>
+      <AIChat />
     </div>
-    <button
-      type="button"
-      class="resize-divider"
-      class:active={aiChatDragging}
-      onmousedown={onAiChatDividerMousedown}
-      onkeydown={onAiChatDividerKeydown}
-      aria-label={t("common.expand")}
-    ></button>
   {/if}
 
   <!-- AI Command Bar (Natural Language Config) -->
@@ -809,6 +828,8 @@
   {#if !$aiConfigCollapsedStore}
     <AiCommandBar />
   {/if}
+
+  </div><!-- end .scrollable-sections -->
 
   <!-- Status Footer -->
   <footer class="statusline" aria-live="polite" aria-atomic="true">
@@ -1215,6 +1236,43 @@
     overflow: hidden;
   }
 
+  .scrollable-sections {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .section-resize-btns {
+    display: inline-flex;
+    gap: 2px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .section-size-btn {
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--fg);
+    cursor: pointer;
+    font-weight: 700;
+    font-size: calc(var(--base-font-size, 12px) * 0.917);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+  }
+
+  .section-size-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
   /* ==============================
      BUTTONS
      ============================== */
@@ -1363,8 +1421,8 @@
   }
 
   .ai-chat-panel {
-    flex: 1 1 auto;
-    overflow: auto;
+    flex-shrink: 0;
+    overflow: visible;
     min-height: 0;
   }
 

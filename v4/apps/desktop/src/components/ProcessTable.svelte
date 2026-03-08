@@ -277,8 +277,9 @@
   });
 
   function setSort(key: SortKey) {
-    if (sortKey === key) sortAsc = !sortAsc;
-    else {
+    if (sortKey === key) {
+      sortAsc = !sortAsc;
+    } else {
       sortKey = key;
       sortAsc = key === "name" || key === "group";
     }
@@ -350,8 +351,11 @@
 
   function toggleCollapse(key: string) {
     const next = new Set(collapsedGroups);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
     collapsedGroups = next;
   }
 

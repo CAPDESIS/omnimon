@@ -195,12 +195,18 @@ function analyzeProcessSecurity(proc: ProcessEntry): ProcessSecurityInfo {
 /** Run security analysis on all processes. Call on each poll cycle. */
 export function refreshSecurityAnalysis(procs: ProcessEntry[]): void {
   const map = new Map<number, ProcessSecurityInfo>();
+  let threatsFound = 0;
+  let cvesFound = 0;
+  
   for (const proc of procs) {
     const info = analyzeProcessSecurity(proc);
     if (info.threats.length > 0 || info.cves.length > 0) {
       map.set(proc.pid, info);
+      threatsFound += info.threats.length;
+      cvesFound += info.cves.length;
     }
   }
+  
   securityMap.set(map);
 }
 
@@ -261,7 +267,8 @@ export async function refreshNetworkConnections(
         state: "OBSERVED",
       });
     }
-  } catch {
+  } catch (err) {
+    console.warn("[Network] Backend unavailable, falling back to browser tabs. Error:", err);
     // Backend unavailable — fall through to browser-tab fallback
   }
 

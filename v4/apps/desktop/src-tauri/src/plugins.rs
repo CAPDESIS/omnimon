@@ -656,11 +656,13 @@ pub fn start_engine(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 pub fn list_plugins(app: AppHandle) -> Result<Vec<PluginDescriptor>, String> {
     Ok(engine(&app)?.list_plugins())
 }
 
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 pub fn install_plugin(
     app: AppHandle,
     file_name: String,
@@ -670,6 +672,7 @@ pub fn install_plugin(
 }
 
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 pub fn set_plugin_enabled(
     app: AppHandle,
     plugin_id: String,
@@ -679,6 +682,7 @@ pub fn set_plugin_enabled(
 }
 
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 pub fn remove_plugin(app: AppHandle, plugin_id: String) -> Result<(), String> {
     engine(&app)?.remove_plugin(&plugin_id)
 }

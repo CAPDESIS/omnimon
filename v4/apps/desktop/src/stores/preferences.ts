@@ -130,8 +130,10 @@ async function getStore() {
   try {
     const { load } = await import("@tauri-apps/plugin-store");
     storeInstance = await load("preferences.json", { autoSave: false, defaults: {} });
+    console.debug("[PREFERENCES] Loaded Tauri store instance.");
     return storeInstance;
-  } catch {
+  } catch (err) {
+    console.warn("[PREFERENCES] Failed to load Tauri store instance:", err);
     return null;
   }
 }
@@ -139,7 +141,10 @@ async function getStore() {
 /** Loads all user preferences from the Tauri persistent store, falling back to defaults on error. */
 export async function loadPreferences(): Promise<void> {
   const store = await getStore();
-  if (!store) return;
+  if (!store) {
+    console.debug("[PREFERENCES] Store unavailable. Using default preferences.");
+    return;
+  }
 
   try {
     const savedFontSize = await store.get("fontSize");
@@ -239,15 +244,18 @@ export async function loadPreferences(): Promise<void> {
 
     const savedAiConfigCollapsed = await store.get("aiConfigCollapsed");
     if (typeof savedAiConfigCollapsed === "boolean") aiConfigCollapsedStore.set(savedAiConfigCollapsed);
-  } catch {
-    // Use defaults on any read error
+
+  } catch (err) {
+    console.warn("[PREFERENCES] Failed to read some preferences, falling back to defaults:", err);
   }
 }
 
 /** Persists all current preference values to the Tauri persistent store. */
 export async function savePreferences(): Promise<void> {
   const store = await getStore();
-  if (!store) return;
+  if (!store) {
+    return;
+  }
 
   try {
     await store.set("fontSize", get(fontSize));
@@ -271,8 +279,8 @@ export async function savePreferences(): Promise<void> {
     await store.set("aiConfigCollapsed", get(aiConfigCollapsedStore));
 
     await store.save();
-  } catch {
-    // Best-effort persistence
+  } catch (err) {
+    console.warn("[PREFERENCES] Failed to save preferences:", err);
   }
 }
 
@@ -287,6 +295,7 @@ function debouncedSave() {
 
 /** Subscribes to all preference stores and auto-saves on changes (debounced). Returns an unsubscribe function. */
 export function initPreferenceSubscriptions(): () => void {
+  console.debug("[PREFERENCES] Initializing preference subscriptions for auto-save.");
   const unsubs = [
     fontSize.subscribe(() => debouncedSave()),
     columns.subscribe(() => debouncedSave()),

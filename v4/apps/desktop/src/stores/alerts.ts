@@ -32,6 +32,19 @@ export const firedAlerts = writable<FiredAlert[]>([]);
 /** Smart AI Alerts */
 export const smartAlerts = writable<SmartAlert[]>([]);
 
+/**
+ * Sanitize browser helper process names to generic descriptions
+ * so Health Report alerts don't expose brand names to end users.
+ * E.g. "Google Chrome Helper (Renderer)" -> "browser helper process"
+ */
+const BROWSER_HELPER_RE =
+  /^(Google Chrome|Chrome|Chromium|Brave( Browser)?|Microsoft Edge|Arc|Opera|Vivaldi|Safari|Firefox)\s*(Helper|Renderer|Web Content|Content Process|Worker)/i;
+
+function sanitizeProcessName(name: string): string {
+  if (BROWSER_HELPER_RE.test(name)) return "browser helper process";
+  return name;
+}
+
 let alertId = 0;
 const MAX_FIRED = 100;
 
@@ -159,15 +172,15 @@ async function evaluateSmartHealth(stats: SystemStats, processes: ProcessEntry[]
   const topDisk = sortedDisk[0];
 
   if (topCpu && topCpu.cpu_pct > 80) {
-    problem = `Alto uso de CPU (${topCpu.cpu_pct.toFixed(0)}%) por ${topCpu.name}`;
+    problem = `Alto uso de CPU (${topCpu.cpu_pct.toFixed(0)}%) por ${sanitizeProcessName(topCpu.name)}`;
     targetProc = topCpu;
   } else if (topDisk && (topDisk.disk_read_mb + topDisk.disk_write_mb) > 500) {
-    problem = `Alta actividad de Disco (Lectura/Escritura) por ${topDisk.name}`;
+    problem = `Alta actividad de Disco (Lectura/Escritura) por ${sanitizeProcessName(topDisk.name)}`;
     targetProc = topDisk;
   } else if (stats.ram_used_pct > 90) {
     const topRam = [...processes].sort((a,b) => b.ram_mb - a.ram_mb)[0];
     if (topRam) {
-       problem = `Memoria RAM casi llena (90%+). ${topRam.name} es el mayor consumidor`;
+       problem = `Memoria RAM casi llena (90%+). ${sanitizeProcessName(topRam.name)} es el mayor consumidor`;
        targetProc = topRam;
     }
   }
@@ -213,7 +226,7 @@ Genera una explicación muy breve (1-2 oraciones) usando términos coloquiales (
   const cfg = get(aiProviderConfig);
   try {
      const reqPayload = `INSTRUCCIÓN DEL SISTEMA:\n${prompt}\n\nDATOS DE TELEMETRÍA:\n${ctxStr}`;
-     const explanation = await ipcAnalyzeContext(reqPayload, cfg.provider, cfg.model);
+      const explanation = await ipcAnalyzeContext(reqPayload, cfg.provider, cfg.model);
      
      smartAlerts.update(s => [...s, {
         id: `smart-${Date.now()}`,
@@ -268,8 +281,10 @@ export async function initSecurityAlertListener(): Promise<() => void> {
         alert.message || `${alert.process_name} (PID ${alert.pid}) triggered rule "${alert.rule_name}"`,
       );
     });
+    console.debug("[DynamicAlerts] Initialized Tauri security-alert listener");
     return unlisten;
-  } catch {
+  } catch (err) {
+    console.warn("[DynamicAlerts] Failed to initialize Tauri listener (likely SSR or test env):", err);
     // Not in Tauri context (tests, SSR), return no-op
     return () => {};
   }

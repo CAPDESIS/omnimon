@@ -13,6 +13,16 @@ import type {
   PluginMetric,
 } from "./types";
 
+async function loggedInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  try {
+    const result = args ? await invoke<T>(cmd, args) : await invoke<T>(cmd);
+    return result;
+  } catch (error) {
+    console.error(`[IPC ERROR] <- ${cmd}`, error);
+    throw error;
+  }
+}
+
 const VALID_BROWSERS = new Set<string>(["Chrome", "Safari", "Brave", "Edge", "Arc", "Firefox"]);
 
 /** Error thrown when a Tauri IPC response fails runtime type validation. */
@@ -131,7 +141,7 @@ function validateSystemStats(raw: unknown): SystemStats {
 
 /** Fetches system metrics (process list + stats) from the Rust backend via IPC. */
 export async function ipcGetMetrics(idleThreshold?: number): Promise<Metrics> {
-  const data: unknown = await invoke("get_metrics", { idleThreshold: idleThreshold ?? 1.0 });
+  const data: unknown = await loggedInvoke("get_metrics", { idleThreshold: idleThreshold ?? 1.0 });
 
   if (data == null || typeof data !== "object") {
     throw new IPCValidationError("metrics", data, "Expected object from get_metrics");
@@ -150,14 +160,14 @@ export async function ipcGetMetrics(idleThreshold?: number): Promise<Metrics> {
 
 /** Sends a kill signal to a single process by PID. Returns true if successful. */
 export async function ipcKillProcess(pid: number): Promise<boolean> {
-  const result: unknown = await invoke("kill_process", { pid });
+  const result: unknown = await loggedInvoke("kill_process", { pid });
   assertBoolean("kill_process result", result);
   return result;
 }
 
 /** Kills multiple processes by PID in batch. Returns an object with killed PIDs and failed PIDs with error messages. */
 export async function ipcKillProcesses(pids: number[]): Promise<KillProcessesResult> {
-  const result: unknown = await invoke("kill_processes", { pids });
+  const result: unknown = await loggedInvoke("kill_processes", { pids });
 
   if (result == null || typeof result !== "object" || Array.isArray(result)) {
     throw new IPCValidationError("kill_processes result", result, "Expected object with killed/failed from kill_processes");
@@ -214,7 +224,7 @@ function validateBrowserTab(raw: unknown, index: number): BrowserTab {
 
 /** Retrieves all open browser tabs across supported browsers via the Rust backend. */
 export async function ipcGetBrowserTabs(): Promise<BrowserTab[]> {
-  const data: unknown = await invoke("get_browser_tabs");
+  const data: unknown = await loggedInvoke("get_browser_tabs");
 
   if (!Array.isArray(data)) {
     throw new IPCValidationError("get_browser_tabs", data, "Expected array from get_browser_tabs");
@@ -225,21 +235,21 @@ export async function ipcGetBrowserTabs(): Promise<BrowserTab[]> {
 
 /** Closes a specific browser tab identified by its tab ID, URL, and browser name. */
 export async function ipcCloseBrowserTab(tabId: string, tabUrl: string, browser: string): Promise<boolean> {
-  const result: unknown = await invoke("close_browser_tab", { tabId, tabUrl, browser });
+  const result: unknown = await loggedInvoke("close_browser_tab", { tabId, tabUrl, browser });
   assertBoolean("close_browser_tab result", result);
   return result;
 }
 
 /** Brings a specific browser tab to the foreground by its tab ID, URL, and browser name. */
 export async function ipcFocusBrowserTab(tabId: string, tabUrl: string, browser: string): Promise<boolean> {
-  const result: unknown = await invoke("focus_browser_tab", { tabId, tabUrl, browser });
+  const result: unknown = await loggedInvoke("focus_browser_tab", { tabId, tabUrl, browser });
   assertBoolean("focus_browser_tab result", result);
   return result;
 }
 
 /** Sends a free-form context string to the AI backend for analysis. Returns the AI response text. */
 export async function ipcAnalyzeContext(context: string, provider: string, model: string): Promise<string> {
-  const result: unknown = await invoke("analyze_context", { context, provider, model });
+  const result: unknown = await loggedInvoke("analyze_context", { context, provider, model });
   assertString("analyze_context result", result);
   return result;
 }
@@ -321,26 +331,26 @@ function validatePluginDescriptor(raw: unknown, index: number): PluginDescriptor
 
 /** Persists AI provider configuration (provider, model, API key) to secure storage via the backend. */
 export async function ipcSaveAiConfig(provider: string, model: string, key: string): Promise<void> {
-  await invoke("save_ai_config", { provider, model, key });
+  await loggedInvoke("save_ai_config", { provider, model, key });
 }
 
 /** Checks whether an API key exists in secure storage for the given AI provider. */
 export async function ipcCheckApiKey(provider: string): Promise<boolean> {
-  const result: unknown = await invoke("check_api_key", { provider });
+  const result: unknown = await loggedInvoke("check_api_key", { provider });
   assertBoolean("check_api_key result", result);
   return result;
 }
 
 /** Validates an API key against the provider's API. Returns true if the key is valid. */
 export async function ipcValidateApiKey(provider: string, key: string): Promise<boolean> {
-  const result: unknown = await invoke("validate_api_key", { provider, key });
+  const result: unknown = await loggedInvoke("validate_api_key", { provider, key });
   assertBoolean("validate_api_key result", result);
   return result;
 }
 
 /** Sends the current process list to the AI backend for optimization suggestions based on a usage profile. */
 export async function ipcAnalyzeProcesses(profile: string, provider: string, model: string): Promise<ProcessSuggestion[]> {
-  const data: unknown = await invoke("analyze_processes", { profile, provider, model });
+  const data: unknown = await loggedInvoke("analyze_processes", { profile, provider, model });
 
   if (!Array.isArray(data)) {
     throw new IPCValidationError("analyze_processes", data, "Expected array from analyze_processes");
@@ -351,21 +361,21 @@ export async function ipcAnalyzeProcesses(profile: string, provider: string, mod
 
 /** Returns whether the main application window is currently visible. */
 export async function ipcGetWindowVisible(): Promise<boolean> {
-  const result: unknown = await invoke("get_window_visible");
+  const result: unknown = await loggedInvoke("get_window_visible");
   assertBoolean("get_window_visible result", result);
   return result;
 }
 
 /** Sends AI-generated rules payload to the Rust rules engine. Returns number of rules applied. */
 export async function ipcApplyAiRules(payload: string): Promise<number> {
-  const result: unknown = await invoke("apply_ai_rules", { payload });
+  const result: unknown = await loggedInvoke("apply_ai_rules", { payload });
   assertFiniteNumber("apply_ai_rules result", result);
   return result;
 }
 
 /** Sends a chat message to the AI backend with tool calling support. */
 export async function ipcAiChat(message: string, provider: string, model: string, history: Array<[string, string]> = []): Promise<ChatResponse> {
-  const result: unknown = await invoke("ai_chat", { message, provider, model, history });
+  const result: unknown = await loggedInvoke("ai_chat", { message, provider, model, history });
 
   if (result == null || typeof result !== "object") {
     throw new IPCValidationError("ai_chat result", result, "Expected object from ai_chat");
@@ -381,14 +391,14 @@ export async function ipcAiChat(message: string, provider: string, model: string
 
 /** Retrieves the JSON schema contract for AI rules from the Rust backend. */
 export async function ipcGetAiRulesSchema(): Promise<string> {
-  const result: unknown = await invoke("get_ai_rules_schema");
+  const result: unknown = await loggedInvoke("get_ai_rules_schema");
   assertString("get_ai_rules_schema result", result);
   return result;
 }
 
 /** Fetches real network telemetry data (per-process throughput + recent connections) from the Rust backend. */
 export async function ipcGetNetworkData(): Promise<NetworkData> {
-  const data: unknown = await invoke("get_network_data");
+  const data: unknown = await loggedInvoke("get_network_data");
 
   if (data == null || typeof data !== "object") {
     throw new IPCValidationError("get_network_data", data, "Expected object from get_network_data");
@@ -417,7 +427,7 @@ export async function ipcGetNetworkData(): Promise<NetworkData> {
 }
 
 export async function ipcListPlugins(): Promise<PluginDescriptor[]> {
-  const data: unknown = await invoke("list_plugins");
+  const data: unknown = await loggedInvoke("list_plugins");
   if (!Array.isArray(data)) {
     throw new IPCValidationError("list_plugins", data, "Expected array from list_plugins");
   }
@@ -425,15 +435,15 @@ export async function ipcListPlugins(): Promise<PluginDescriptor[]> {
 }
 
 export async function ipcInstallPlugin(fileName: string, source: string): Promise<PluginDescriptor> {
-  const data: unknown = await invoke("install_plugin", { fileName, source });
+  const data: unknown = await loggedInvoke("install_plugin", { fileName, source });
   return validatePluginDescriptor(data, 0);
 }
 
 export async function ipcSetPluginEnabled(pluginId: string, enabled: boolean): Promise<PluginDescriptor> {
-  const data: unknown = await invoke("set_plugin_enabled", { pluginId, enabled });
+  const data: unknown = await loggedInvoke("set_plugin_enabled", { pluginId, enabled });
   return validatePluginDescriptor(data, 0);
 }
 
 export async function ipcRemovePlugin(pluginId: string): Promise<void> {
-  await invoke("remove_plugin", { pluginId });
+  await loggedInvoke("remove_plugin", { pluginId });
 }

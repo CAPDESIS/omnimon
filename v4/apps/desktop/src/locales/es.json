@@ -99,7 +99,15 @@
     "collapse": "Colapsar",
     "larger": "Más grande",
     "smaller": "Más pequeño",
-    "askAi": "Preguntar IA"
+    "askAi": "Preguntar IA",
+    "browserTabs": "Pestañas del Navegador",
+    "networkMap": "Mapa de Red",
+    "processes": "Procesos",
+    "userView": "Vista Usuario",
+    "userViewHelp": "Elige entre una vista simplificada y la consola completa Pro.",
+    "loadError": "No se pudo cargar el componente",
+    "ignore": "Ignorar",
+    "dismiss": "Descartar"
   },
   "settings": {
     "title": "Ajustes de OmniMon",
@@ -170,6 +178,7 @@
     "chatHelp": "Pregunta detalles sobre el proceso seleccionado, sus pestañas y si el comportamiento actual parece normal.",
     "aiHint": "Haz clic en \"Preguntar IA\" para obtener información sobre este proceso.",
     "aiHintWithTabs": "Haz clic en \"Preguntar IA\" para obtener información sobre este proceso y sus pestañas.",
+    "forceQuit": "Forzar cierre",
     "escToClose": "Esc para cerrar",
     "selectTab": "Seleccionar {title}",
     "goToTab": "Ir a pestaña: {title}\n{url}",
@@ -424,6 +433,9 @@
     "secondsAgo": "Hace {count}s",
     "minutesAgo": "Hace {count}m",
     "hoursAgo": "Hace {count}h"
+  },
+  "smartAlerts": {
+    "title": "Reporte de Salud"
   },
   "toast": {
     "securityTitle": "Seguridad",

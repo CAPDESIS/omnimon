@@ -21,11 +21,12 @@
 
   interface Props {
     mode?: "basic" | "pro";
+    extraHeight?: number;
   }
 
-  let { mode = "pro" }: Props = $props();
+  let { mode = "pro", extraHeight = 0 }: Props = $props();
 
-  let collapsed = $state(true);
+  let collapsed = $state(false);
   let activeTab = $state<"map" | "table" | "traffic">("map");
   let panelHeight = $state(NETWORK_PANEL_DEFAULT_HEIGHT);
   let dragMode = $state<"content" | null>(null);
@@ -38,6 +39,7 @@
   let chartLoadFailed = $state(false);
   let pendingChartInit = 0;
   let proMode = $derived(mode === "pro");
+
 
   // Group connections by process, then by domain
   interface ProcessNode {
@@ -328,7 +330,8 @@
       });
       ro.observe(container);
       trafficResizeObserver = ro;
-    } catch {
+    } catch (err) {
+      console.warn("[NetworkMap] Chart load failed", err);
       chartLoadFailed = true;
     }
   }
@@ -595,28 +598,9 @@
 
 </script>
 
-{#if hasAnyNetworkData}
 <div class="netmap-section">
-    <div class="netmap-toggle-wrap">
-      <button
-        class="netmap-toggle"
-        aria-expanded={!collapsed}
-        aria-controls="network-map-panel"
-        onclick={() => collapsed = !collapsed}
-      >
-      <span class="chevron" class:open={!collapsed}>&#9654;</span>
-      <span class="netmap-title">{t("network.title")}</span>
-      <span class="netmap-count">{t("network.summary", { connections: String(totalConnections), processes: String(processCount) })}</span>
-      </button>
-      <span class="netmap-actions">
-        <button class="size-btn" type="button" onclick={exportMapSnapshot} title={t("network.exportMap")} aria-label={t("network.exportMap")}>⇩</button>
-        <button class="size-btn" type="button" onclick={() => setPanelSize(-40)} title={t("common.smaller")} aria-label={t("common.smaller")}>−</button>
-        <button class="size-btn" type="button" onclick={() => setPanelSize(40)} title={t("common.larger")} aria-label={t("common.larger")}>+</button>
-      </span>
-    </div>
-
-    {#if !collapsed}
-      <div id="network-map-panel" class="netmap-body" style={`height:${panelHeight}px`} transition:slide={{ duration: 200 }}>
+    {#if hasAnyNetworkData}
+      <div id="network-map-panel" class="netmap-body" style={`height:${panelHeight + extraHeight}px`}>
         <div class="summary-strip" transition:fade={{ duration: 180 }}>
           {#each summaryCards as card (card.label)}
             <div class="summary-card">
@@ -820,79 +804,13 @@
         ></button>
       </div>
     {/if}
-  </div>
-{/if}
+</div>
 
 <style>
   .netmap-section {
     flex-shrink: 0;
     border-top: 1px solid var(--border);
     background: var(--bg-alt);
-  }
-
-  .netmap-toggle {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex: 1;
-    padding: 6px 10px;
-    border: none;
-    background: transparent;
-    color: var(--fg);
-    cursor: pointer;
-    font-size: calc(var(--base-font-size, 12px) * 0.917);
-    text-align: left;
-  }
-  .netmap-toggle:hover { background: var(--bg-hover); }
-
-  .netmap-toggle-wrap {
-    display: flex;
-    align-items: stretch;
-  }
-
-  .netmap-actions {
-    display: inline-flex;
-    gap: 4px;
-    margin-left: 8px;
-  }
-
-  .size-btn {
-    width: 22px;
-    height: 22px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--bg);
-    color: var(--fg);
-    cursor: pointer;
-    font-weight: 700;
-  }
-
-  .size-btn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-
-  .chevron {
-    font-size: calc(var(--base-font-size, 12px) * 0.667);
-    color: var(--fg-dim);
-    transition: transform 0.15s ease;
-    display: inline-block;
-  }
-  .chevron.open { transform: rotate(90deg); }
-
-  .netmap-title {
-    font-weight: 700;
-    font-size: calc(var(--base-font-size, 12px) * 0.75);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--chart-net-rx, var(--green));
-  }
-
-  .netmap-count {
-    font-size: calc(var(--base-font-size, 12px) * 0.75);
-    color: var(--fg-dim);
-    font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    margin-left: auto;
   }
 
   .netmap-body {
@@ -951,6 +869,7 @@
   .tab-main,
   .tab-side {
     min-height: 0;
+    overflow-y: auto;
   }
 
   .tab-side {

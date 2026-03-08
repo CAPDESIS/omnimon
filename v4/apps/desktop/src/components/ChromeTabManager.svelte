@@ -1,4 +1,5 @@
 <script lang="ts">
+
   import type { BrowserTab } from "../lib/types";
   import { ipcCloseBrowserTab, ipcFocusBrowserTab } from "../lib/ipc";
   import { browserTabs, chromeProcesses } from "../stores/processes";
@@ -16,6 +17,7 @@
   let expandedBrowsers = $state<Set<string>>(new Set(["Chrome", "Safari", "Brave", "Edge", "Arc", "Firefox"]));
   let closing = $state<Set<string>>(new Set());
   let selectedTabIds = $state<Set<string>>(new Set());
+
 
   interface BrowserSection {
     name: string;
@@ -114,7 +116,7 @@
     try {
       await ipcFocusBrowserTab(tab.id, tab.url, tab.browser);
     } catch (e) {
-      console.error("Failed to focus tab:", e);
+      console.warn("[ChromeTabManager] Failed to focus tab:", e);
     }
   }
 
@@ -133,7 +135,7 @@
       } else {
         toast.error(t("tabs.closeErrorTitle") || "Close failed", msg);
       }
-      console.error("Failed to close tab:", e);
+      console.warn("[ChromeTabManager] Failed to close tab:", e);
     }
     const after = new Set(closing);
     after.delete(tab.id);
@@ -155,7 +157,7 @@
         removeTabFromStore(tab.id);
       } catch (e) {
         failCount++;
-        console.error("Failed to close tab:", tab.title, e);
+        console.warn("[ChromeTabManager] Failed to close tab:", tab.title, e);
       }
       const after = new Set(closing);
       after.delete(tab.id);
@@ -182,7 +184,7 @@
         removeTabFromStore(tab.id);
       } catch (e) {
         failCount++;
-        console.error("Failed to close tab:", tab.title, e);
+        console.warn("[ChromeTabManager] Failed to close tab:", tab.title, e);
       }
       const after = new Set(closing);
       after.delete(tab.id);

@@ -93,6 +93,7 @@ pub fn remove_rule(app: &AppHandle, id: &str) {
 }
 
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 pub fn get_automation_rules(app: AppHandle) -> Vec<AutomationRule> {
     let init_flag = RULES_INITIALIZED.get_or_init(|| Arc::new(RwLock::new(false)));
     let mut is_init = write_lock_or_recover(init_flag);
@@ -118,12 +119,14 @@ pub fn get_automation_rules(app: AppHandle) -> Vec<AutomationRule> {
 }
 
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 pub fn add_automation_rule(app: AppHandle, rule: AutomationRule) {
     let _ = get_automation_rules(app.clone()); // Ensure init
     add_rule(&app, rule);
 }
 
 #[tauri::command]
+#[tracing::instrument(skip_all)]
 pub fn remove_automation_rule(app: AppHandle, id: String) {
     let _ = get_automation_rules(app.clone()); // Ensure init
     remove_rule(&app, &id);

@@ -22,8 +22,8 @@
       <div class="smart-alert-card" transition:slide={{ duration: 250 }}>
         <div class="alert-header">
           <span class="icon">⚠️</span>
-          <strong>Health Report</strong>
-          <button class="close-btn" onclick={() => handleIgnore(alert.id)} aria-label="Dismiss">✕</button>
+          <strong>{t("smartAlerts.title")}</strong>
+          <button class="close-btn" onclick={() => handleIgnore(alert.id)} aria-label={t("common.dismiss")}>✕</button>
         </div>
         
         <div class="alert-body">
@@ -33,11 +33,11 @@
 
         <div class="alert-actions">
           <button class="action-btn ignore" onclick={() => handleIgnore(alert.id)}>
-            {t("common.ignore") || "Ignorar"}
+            {t("common.ignore")}
           </button>
           {#if alert.processPid}
             <button class="action-btn force-quit" onclick={() => handleForceQuit(alert.id, alert.processPid)}>
-              {t("process.forceQuit") || "Forzar Cierre"}
+              {t("process.forceQuit")}
             </button>
           {/if}
         </div>

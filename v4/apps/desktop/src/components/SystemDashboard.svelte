@@ -120,6 +120,10 @@
     }
   });
 
+  function handleOpenMetric(metric: "cpu" | "ram" | "network" | "swap" | "processes") {
+    onopenmetric?.(metric);
+  }
+
   let avgCpu = $derived(
     $processes.length > 0
       ? $processes.reduce((sum, p) => sum + p.cpu_pct, 0) / $processes.length
@@ -141,7 +145,7 @@
 
 {#if $stats && !collapsed}
   <div class="dashboard">
-    <button class="metric-card metric-button" onclick={() => onopenmetric?.("cpu")}>
+    <button class="metric-card metric-button" onclick={() => handleOpenMetric("cpu")}>
       <div class="metric-header">
         <span class="metric-label">CPU</span>
         <span class="metric-value" style="color: {colorForPct(avgCpu)}">{avgCpu.toFixed(1)}%</span>
@@ -149,7 +153,7 @@
       <canvas bind:this={cpuCanvas} class="spark" height={CHART_H}></canvas>
     </button>
 
-    <button class="metric-card metric-button" onclick={() => onopenmetric?.("ram")}>
+    <button class="metric-card metric-button" onclick={() => handleOpenMetric("ram")}>
       <div class="metric-header">
         <span class="metric-label">RAM</span>
         <span class="metric-value" style="color: {colorForPct($stats.ram_used_pct)}">
@@ -160,7 +164,7 @@
     </button>
 
     {#if proMode}
-      <button class="metric-card metric-button" onclick={() => onopenmetric?.("network")}>
+      <button class="metric-card metric-button" onclick={() => handleOpenMetric("network")}>
         <div class="metric-header">
           <span class="metric-label">Network</span>
           <span class="metric-value net-values">
@@ -174,17 +178,17 @@
 
     <div class="metric-card metric-stats">
       {#if proMode}
-        <button class="stat-row stat-button" onclick={() => onopenmetric?.("swap")}>
+        <button class="stat-row stat-button" onclick={() => handleOpenMetric("swap")}>
           <span class="stat-label">{t("status.swap")}</span>
           <span class="stat-value">{$stats.swap_used_mb} MB</span>
         </button>
       {/if}
-      <button class="stat-row stat-button" onclick={() => onopenmetric?.("processes")}>
+      <button class="stat-row stat-button" onclick={() => handleOpenMetric("processes")}>
         <span class="stat-label">{t("status.procs")}</span>
         <span class="stat-value">{$stats.total_processes}</span>
       </button>
       {#if proMode}
-        <button class="stat-row stat-button" onclick={() => onopenmetric?.("cpu")}>
+        <button class="stat-row stat-button" onclick={() => handleOpenMetric("cpu")}>
           <span class="stat-label">{t("status.idle")}</span>
           <span class="stat-value">{$processes.filter((p) => p.idle).length}</span>
         </button>
