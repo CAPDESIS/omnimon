@@ -234,6 +234,7 @@ fn windows_icon_data_url(exe_path: Option<&str>) -> Option<String> {
     file_to_data_url(&output)
 }
 
+#[cfg(target_os = "macos")]
 fn first_matching_file(dir: &Path, extensions: &[&str]) -> Option<PathBuf> {
     let entries = fs::read_dir(dir).ok()?;
     for entry in entries.flatten() {
