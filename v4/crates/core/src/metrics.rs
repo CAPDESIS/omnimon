@@ -364,6 +364,9 @@ mod tests {
     #[test]
     fn process_telemetry_contains_ids() {
         let telemetry = snapshot_process_telemetry();
+        assert!(!telemetry.is_empty());
+        // Windows has PID 0 (System Idle Process), so only assert pid > 0 on Unix
+        #[cfg(not(target_os = "windows"))]
         assert!(telemetry.iter().all(|p| p.pid > 0));
     }
 
