@@ -302,7 +302,12 @@ pub async fn analyze_with_ai_key(
     let status = resp.status();
     if !status.is_success() {
         let body_text = resp.text().await.unwrap_or_default();
-        return Err(format!("AI request failed (status {}): {}", status.as_u16(), body_text.chars().take(200).collect::<String>()).into());
+        return Err(format!(
+            "AI request failed (status {}): {}",
+            status.as_u16(),
+            body_text.chars().take(200).collect::<String>()
+        )
+        .into());
     }
     let resp_text = resp.text().await?;
     let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
@@ -346,7 +351,12 @@ async fn analyze_anthropic(
     let status = resp.status();
     if !status.is_success() {
         let body_text = resp.text().await.unwrap_or_default();
-        return Err(format!("AI request failed (status {}): {}", status.as_u16(), body_text.chars().take(200).collect::<String>()).into());
+        return Err(format!(
+            "AI request failed (status {}): {}",
+            status.as_u16(),
+            body_text.chars().take(200).collect::<String>()
+        )
+        .into());
     }
     let resp_text = resp.text().await?;
     let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
@@ -399,7 +409,12 @@ pub async fn analyze_context_key(
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            return Err(format!("AI request failed (status {}): {}", status.as_u16(), body_text.chars().take(200).collect::<String>()).into());
+            return Err(format!(
+                "AI request failed (status {}): {}",
+                status.as_u16(),
+                body_text.chars().take(200).collect::<String>()
+            )
+            .into());
         }
         let resp_text = resp.text().await?;
         let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
@@ -433,7 +448,12 @@ pub async fn analyze_context_key(
     let status = resp.status();
     if !status.is_success() {
         let body_text = resp.text().await.unwrap_or_default();
-        return Err(format!("AI request failed (status {}): {}", status.as_u16(), body_text.chars().take(200).collect::<String>()).into());
+        return Err(format!(
+            "AI request failed (status {}): {}",
+            status.as_u16(),
+            body_text.chars().take(200).collect::<String>()
+        )
+        .into());
     }
     let resp_text = resp.text().await?;
     let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
@@ -774,9 +794,7 @@ pub async fn chat_with_tools(
     // Build the messages array from history (role, content) pairs
     let msg_array: Vec<serde_json::Value> = messages
         .iter()
-        .map(|(role, content)| {
-            serde_json::json!({"role": role, "content": content})
-        })
+        .map(|(role, content)| serde_json::json!({"role": role, "content": content}))
         .collect();
 
     // Log payload size for debugging
@@ -804,8 +822,16 @@ pub async fn chat_with_tools(
         eprintln!("[ai-chat] anthropic response status={}", status.as_u16());
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            eprintln!("[ai-chat] ERROR body: {}", &body_text[..body_text.len().min(500)]);
-            return Err(format!("AI request failed (status {}): {}", status.as_u16(), body_text.chars().take(200).collect::<String>()).into());
+            eprintln!(
+                "[ai-chat] ERROR body: {}",
+                &body_text[..body_text.len().min(500)]
+            );
+            return Err(format!(
+                "AI request failed (status {}): {}",
+                status.as_u16(),
+                body_text.chars().take(200).collect::<String>()
+            )
+            .into());
         }
         let resp_text = resp.text().await?;
         eprintln!("[ai-chat] response_len={}", resp_text.len());
@@ -837,11 +863,22 @@ pub async fn chat_with_tools(
         })
         .await?;
         let status = resp.status();
-        eprintln!("[ai-chat] openai-compat response status={}", status.as_u16());
+        eprintln!(
+            "[ai-chat] openai-compat response status={}",
+            status.as_u16()
+        );
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
-            eprintln!("[ai-chat] ERROR body: {}", &body_text[..body_text.len().min(500)]);
-            return Err(format!("AI request failed (status {}): {}", status.as_u16(), body_text.chars().take(200).collect::<String>()).into());
+            eprintln!(
+                "[ai-chat] ERROR body: {}",
+                &body_text[..body_text.len().min(500)]
+            );
+            return Err(format!(
+                "AI request failed (status {}): {}",
+                status.as_u16(),
+                body_text.chars().take(200).collect::<String>()
+            )
+            .into());
         }
         let resp_text = resp.text().await?;
         eprintln!("[ai-chat] response_len={}", resp_text.len());
