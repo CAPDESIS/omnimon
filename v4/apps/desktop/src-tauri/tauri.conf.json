@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "beforeDevCommand": "bun run dev",
+    "beforeBuildCommand": "bun run build"
   },
   "app": {
     "windows": [
@@ -15,7 +15,7 @@
         "title": "OmniMon - System Monitor",
         "width": 1100,
         "height": 700,
-        "visible": false,
+        "visible": true,
         "minWidth": 800,
         "minHeight": 400,
         "resizable": true,
@@ -24,7 +24,7 @@
     ],
     "trayIcon": {
       "iconPath": "icons/icon.png",
-      "iconAsTemplate": true,
+      "iconAsTemplate": false,
       "tooltip": "OmniMon - System Monitor"
     },
     "security": {

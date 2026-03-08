@@ -247,6 +247,29 @@
     }
   }
 
+  function renderMarkdown(text: string): string {
+    let html = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/```(\w*)\n([\s\S]*?)```/g, (_m, _lang, code) =>
+        `<pre><code>${code.trim()}</code></pre>`)
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/^### (.+)$/gm, "<strong style='font-size:1.05em'>$1</strong>")
+      .replace(/^## (.+)$/gm, "<strong style='font-size:1.1em;display:block;margin:6px 0 2px'>$1</strong>")
+      .replace(/^# (.+)$/gm, "<strong style='font-size:1.2em;display:block;margin:8px 0 4px'>$1</strong>")
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>")
+      .replace(/^- (.+)$/gm, "<li>$1</li>")
+      .replace(/^\d+\. (.+)$/gm, "<li>$1</li>")
+      .replace(/\n\n/g, "</p><p>")
+      .replace(/\n/g, "<br>");
+    html = html.replace(/((?:<li>.*?<\/li>(?:<br>)?)+)/g, "<ul>$1</ul>");
+    html = html.replace(/<ul>([\s\S]*?)<\/ul>/g, (_m, inner) =>
+      "<ul>" + inner.replace(/<br>/g, "") + "</ul>");
+    return `<p>${html}</p>`;
+  }
+
   function clearChat() {
     messages = [];
     error = null;
@@ -263,7 +286,13 @@
           <span class="chat-role">
             {msg.role === "user" ? "You" : msg.role === "assistant" ? "AI" : "System"}
           </span>
-          <span class="chat-text">{msg.text}</span>
+          <span class="chat-text">
+            {#if msg.role === "assistant"}
+              {@html renderMarkdown(msg.text)}
+            {:else}
+              {msg.text}
+            {/if}
+          </span>
         </div>
       {/each}
     </div>
@@ -424,8 +453,38 @@
 
   .chat-text {
     color: var(--fg);
-    white-space: pre-wrap;
     word-break: break-word;
+    line-height: 1.6;
+    flex: 1;
+  }
+
+  .chat-user .chat-text { white-space: pre-wrap; }
+
+  .chat-text :global(p) { margin: 0 0 4px; }
+  .chat-text :global(p:last-child) { margin-bottom: 0; }
+  .chat-text :global(strong) { color: var(--fg); font-weight: 700; }
+  .chat-text :global(em) { font-style: italic; color: var(--fg-dim); }
+  .chat-text :global(ul) { margin: 4px 0; padding-left: 18px; list-style: disc; }
+  .chat-text :global(li) { margin: 2px 0; }
+  .chat-text :global(code) {
+    background: rgba(0, 0, 0, 0.15);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: 0.9em;
+  }
+  .chat-text :global(pre) {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin: 6px 0;
+    overflow-x: auto;
+  }
+  .chat-text :global(pre code) {
+    background: none;
+    padding: 0;
+    font-size: 0.85em;
+    white-space: pre;
   }
 
   /* --- Preview Panel --- */
