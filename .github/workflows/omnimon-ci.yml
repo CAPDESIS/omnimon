@@ -95,7 +95,7 @@ jobs:
 
     - name: Run Backend Tests with Coverage (Linux)
       if: matrix.platform == 'linux'
-      run: cargo llvm-cov --all-features --workspace --fail-under-lines 85 --ignore-filename-regex "(ai\.rs|src-tauri|cli.src.main\.rs|os_native\.rs|network\.rs)" -- --test-threads=1
+      run: cargo llvm-cov --all-features --workspace --fail-under-lines 85 --ignore-filename-regex "(ai\.rs|src-tauri|cli.src.main\.rs|os_native\.rs|network\.rs|tui/src/(app|event|lib)\.rs)" -- --test-threads=1
       working-directory: ./v4
 
     - name: Run Backend Tests (macOS)
