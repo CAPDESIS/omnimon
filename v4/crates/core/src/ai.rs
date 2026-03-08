@@ -545,7 +545,11 @@ fn parse_tool_call(text: &str) -> Option<RawToolCall> {
     let call: RawToolCall = serde_json::from_str(json_str).ok()?;
     // Only accept known tools
     match call.tool.as_str() {
-        "kill_process" | "kill_by_name" | "close_tabs" | "add_automation_rule" | "remove_automation_rule" => Some(call),
+        "kill_process"
+        | "kill_by_name"
+        | "close_tabs"
+        | "add_automation_rule"
+        | "remove_automation_rule" => Some(call),
         _ => None,
     }
 }
@@ -676,7 +680,10 @@ pub fn execute_tool_call(
                 Ok(count) => ToolResult {
                     tool: "add_automation_rule".into(),
                     success: true,
-                    details: format!("Added {} automation rule(s): {} on {} {} > {}", count, id, process_pattern, metric, threshold),
+                    details: format!(
+                        "Added {} automation rule(s): {} on {} {} > {}",
+                        count, id, process_pattern, metric, threshold
+                    ),
                 },
                 Err(e) => ToolResult {
                     tool: "add_automation_rule".into(),

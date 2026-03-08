@@ -254,7 +254,8 @@ pub fn estimate_energy_impact(
     let memory_mb = memory_bytes as f64 / 1_048_576.0;
     let disk_mb = (disk_read_bytes.saturating_add(disk_write_bytes)) as f64 / 1_048_576.0;
     let net_mb = (net_rx_bytes_per_sec.saturating_add(net_tx_bytes_per_sec)) as f64 / 1_048_576.0;
-    let score = (cpu_usage_percent as f64 * 0.65) + (memory_mb * 0.015) + (disk_mb * 0.1) + (net_mb * 0.2);
+    let score =
+        (cpu_usage_percent as f64 * 0.65) + (memory_mb * 0.015) + (disk_mb * 0.1) + (net_mb * 0.2);
     if score > 0.0 {
         Some(score.min(1000.0) as f32)
     } else {
@@ -417,8 +418,15 @@ mod tests {
     #[test]
     fn energy_impact_score_increases_with_activity() {
         let low = estimate_energy_impact(1.0, 1024, 0, 0, 0, 0).unwrap_or_default();
-        let high = estimate_energy_impact(80.0, 512 * 1_048_576, 10_000_000, 5_000_000, 2_000_000, 1_000_000)
-            .unwrap_or_default();
+        let high = estimate_energy_impact(
+            80.0,
+            512 * 1_048_576,
+            10_000_000,
+            5_000_000,
+            2_000_000,
+            1_000_000,
+        )
+        .unwrap_or_default();
         assert!(high > low);
     }
 }

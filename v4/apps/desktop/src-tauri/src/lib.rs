@@ -111,7 +111,9 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
                 disk_write_mb: (disk_write_mb * 10.0).round() / 10.0,
                 net_rx_bytes_per_sec: entry.net_rx_bytes_per_sec,
                 net_tx_bytes_per_sec: entry.net_tx_bytes_per_sec,
-                energy_impact_score: entry.energy_impact_score.map(|value| (value as f64 * 10.0).round() / 10.0),
+                energy_impact_score: entry
+                    .energy_impact_score
+                    .map(|value| (value as f64 * 10.0).round() / 10.0),
                 uptime,
                 group: entry.group.clone(),
                 group_key: entry.group_key.clone(),
@@ -494,42 +496,42 @@ async fn ai_chat(
             .map_err(|e| e.to_string())?;
 
     // If AI requested a tool call, execute it
-    let tool_result = tool_call.map(|call| {
-        match call.tool.as_str() {
-            "add_automation_rule" => {
-                if let Ok(rule) = serde_json::from_value::<automations::AutomationRule>(call.args.clone()) {
-                    automations::add_rule(&app, rule);
-                    macmon_core::ai::ToolResult {
-                        tool: call.tool,
-                        success: true,
-                        details: "Added automation rule successfully".into(),
-                    }
-                } else {
-                    macmon_core::ai::ToolResult {
-                        tool: call.tool,
-                        success: false,
-                        details: "Failed to parse rule arguments".into(),
-                    }
+    let tool_result = tool_call.map(|call| match call.tool.as_str() {
+        "add_automation_rule" => {
+            if let Ok(rule) =
+                serde_json::from_value::<automations::AutomationRule>(call.args.clone())
+            {
+                automations::add_rule(&app, rule);
+                macmon_core::ai::ToolResult {
+                    tool: call.tool,
+                    success: true,
+                    details: "Added automation rule successfully".into(),
+                }
+            } else {
+                macmon_core::ai::ToolResult {
+                    tool: call.tool,
+                    success: false,
+                    details: "Failed to parse rule arguments".into(),
                 }
             }
-            "remove_automation_rule" => {
-                if let Some(id) = call.args["id"].as_str() {
-                    automations::remove_rule(&app, id);
-                    macmon_core::ai::ToolResult {
-                        tool: call.tool,
-                        success: true,
-                        details: "Removed automation rule successfully".into(),
-                    }
-                } else {
-                    macmon_core::ai::ToolResult {
-                        tool: call.tool,
-                        success: false,
-                        details: "Failed to parse rule id".into(),
-                    }
-                }
-            }
-            _ => macmon_core::ai::execute_tool_call(&call.tool, &call.args, &sys_state),
         }
+        "remove_automation_rule" => {
+            if let Some(id) = call.args["id"].as_str() {
+                automations::remove_rule(&app, id);
+                macmon_core::ai::ToolResult {
+                    tool: call.tool,
+                    success: true,
+                    details: "Removed automation rule successfully".into(),
+                }
+            } else {
+                macmon_core::ai::ToolResult {
+                    tool: call.tool,
+                    success: false,
+                    details: "Failed to parse rule id".into(),
+                }
+            }
+        }
+        _ => macmon_core::ai::execute_tool_call(&call.tool, &call.args, &sys_state),
     });
 
     // Build reply text: include tool result feedback

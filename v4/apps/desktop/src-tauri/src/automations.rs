@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Duration, Instant};
-use std::collections::HashMap;
 use tauri::AppHandle;
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_store::StoreExt;
@@ -62,7 +62,7 @@ pub fn get_automation_rules(app: AppHandle) -> Vec<AutomationRule> {
         }
         *is_init = true;
     }
-    
+
     get_rules().read().unwrap().clone()
 }
 
@@ -80,7 +80,7 @@ pub fn remove_automation_rule(app: AppHandle, id: String) {
 
 pub fn start_engine(app: AppHandle) {
     let _ = get_automation_rules(app.clone()); // Pre-load rules
-    
+
     std::thread::spawn(move || {
         let mut violations: HashMap<(String, u32), Instant> = HashMap::new();
         loop {

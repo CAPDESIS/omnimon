@@ -221,10 +221,14 @@ pub fn start_watcher() {
                     let process_throughput = sample.process_throughput;
                     let mut throughput_by_pid = std::collections::HashMap::new();
                     for item in &process_throughput {
-                        throughput_by_pid.insert(item.pid, (item.rx_bytes_per_sec, item.tx_bytes_per_sec));
+                        throughput_by_pid
+                            .insert(item.pid, (item.rx_bytes_per_sec, item.tx_bytes_per_sec));
                     }
                     for process in &mut snapshot.cached_process_info {
-                        let (rx, tx) = throughput_by_pid.get(&process.pid).copied().unwrap_or((0, 0));
+                        let (rx, tx) = throughput_by_pid
+                            .get(&process.pid)
+                            .copied()
+                            .unwrap_or((0, 0));
                         process.net_rx_bytes_per_sec = rx;
                         process.net_tx_bytes_per_sec = tx;
                         process.energy_impact_score = crate::metrics::estimate_energy_impact(

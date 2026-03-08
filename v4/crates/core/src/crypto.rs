@@ -267,7 +267,9 @@ mod tests {
 
         let result = verify_release(payload, &sig, &wrong_verifying_key);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("signature verification failed"));
+        assert!(result
+            .unwrap_err()
+            .contains("signature verification failed"));
     }
 
     #[test]
