@@ -5,10 +5,12 @@
 
   interface Props {
     collapsed?: boolean;
+    mode?: "basic" | "pro";
     onopenmetric?: (metric: "cpu" | "ram" | "network" | "swap" | "processes") => void;
   }
 
-  let { collapsed = false, onopenmetric }: Props = $props();
+  let { collapsed = false, mode = "pro", onopenmetric }: Props = $props();
+  let proMode = $derived(mode === "pro");
 
   let cpuCanvas: HTMLCanvasElement | undefined = $state();
   let ramCanvas: HTMLCanvasElement | undefined = $state();
@@ -157,30 +159,36 @@
       <canvas bind:this={ramCanvas} class="spark" height={CHART_H}></canvas>
     </button>
 
-    <button class="metric-card metric-button" onclick={() => onopenmetric?.("network")}>
-      <div class="metric-header">
-        <span class="metric-label">Network</span>
-        <span class="metric-value net-values">
-          <span class="net-rx">{formatRate($stats.net_rx_bytes_per_sec)}</span>
-          <span class="net-tx">{formatRate($stats.net_tx_bytes_per_sec)}</span>
-        </span>
-      </div>
-      <canvas bind:this={netCanvas} class="spark" height={CHART_H}></canvas>
-    </button>
+    {#if proMode}
+      <button class="metric-card metric-button" onclick={() => onopenmetric?.("network")}>
+        <div class="metric-header">
+          <span class="metric-label">Network</span>
+          <span class="metric-value net-values">
+            <span class="net-rx">{formatRate($stats.net_rx_bytes_per_sec)}</span>
+            <span class="net-tx">{formatRate($stats.net_tx_bytes_per_sec)}</span>
+          </span>
+        </div>
+        <canvas bind:this={netCanvas} class="spark" height={CHART_H}></canvas>
+      </button>
+    {/if}
 
     <div class="metric-card metric-stats">
-      <button class="stat-row stat-button" onclick={() => onopenmetric?.("swap")}>
-        <span class="stat-label">{t("status.swap")}</span>
-        <span class="stat-value">{$stats.swap_used_mb} MB</span>
-      </button>
+      {#if proMode}
+        <button class="stat-row stat-button" onclick={() => onopenmetric?.("swap")}>
+          <span class="stat-label">{t("status.swap")}</span>
+          <span class="stat-value">{$stats.swap_used_mb} MB</span>
+        </button>
+      {/if}
       <button class="stat-row stat-button" onclick={() => onopenmetric?.("processes")}>
         <span class="stat-label">{t("status.procs")}</span>
         <span class="stat-value">{$stats.total_processes}</span>
       </button>
-      <button class="stat-row stat-button" onclick={() => onopenmetric?.("cpu")}>
-        <span class="stat-label">{t("status.idle")}</span>
-        <span class="stat-value">{$processes.filter((p) => p.idle).length}</span>
-      </button>
+      {#if proMode}
+        <button class="stat-row stat-button" onclick={() => onopenmetric?.("cpu")}>
+          <span class="stat-label">{t("status.idle")}</span>
+          <span class="stat-value">{$processes.filter((p) => p.idle).length}</span>
+        </button>
+      {/if}
     </div>
   </div>
 {/if}

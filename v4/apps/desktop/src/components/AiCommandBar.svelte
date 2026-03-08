@@ -379,7 +379,7 @@
         bind:value={input}
         bind:this={inputRef}
         rows="1"
-        onkeydown={(e) => {
+        onkeydown={(e: KeyboardEvent) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             handleSubmit();

@@ -143,7 +143,7 @@
       placeholder={placeholder}
       aria-label={inputAriaLabel}
       disabled={loading}
-      onkeydown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
+      onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
       style="resize: none;"
     ></textarea>
     <button class="context-chat-send" onclick={handleSubmit} disabled={loading || !input.trim()}>

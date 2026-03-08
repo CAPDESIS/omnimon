@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/svelte";
+import { render, screen, fireEvent, waitFor } from "@testing-library/svelte";
 import NetworkMap from "../NetworkMap.svelte";
 import type { NetworkConnection } from "../../lib/types";
 
@@ -98,7 +98,7 @@ describe("NetworkMap", () => {
     render(NetworkMap);
     const toggle = screen.getByText("Network Map").closest("button")!;
     await fireEvent.click(toggle);
-    expect(screen.getByText("Chrome")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Chrome")).toBeInTheDocument());
     expect(screen.getByText("google.com:443")).toBeInTheDocument();
   });
 
@@ -107,7 +107,7 @@ describe("NetworkMap", () => {
     render(NetworkMap);
     const toggle = screen.getByText("Network Map").closest("button")!;
     await fireEvent.click(toggle);
-    expect(screen.getByText("Chrome")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Chrome")).toBeInTheDocument());
     // Toggle button remains available after second click
     await fireEvent.click(toggle);
     expect(screen.getByText("Network Map")).toBeInTheDocument();
@@ -121,6 +121,7 @@ describe("NetworkMap", () => {
     ]);
     render(NetworkMap);
     await fireEvent.click(screen.getByText("Network Map").closest("button")!);
+    await waitFor(() => expect(screen.getByText("Chrome")).toBeInTheDocument());
     const procNames = screen.getAllByText(/^(Chrome|Firefox)$/);
     expect(procNames[0].textContent).toBe("Chrome");
   });
@@ -146,7 +147,7 @@ describe("NetworkMap", () => {
     mockNetworkConnections.set(conns);
     render(NetworkMap);
     await fireEvent.click(screen.getByText("Network Map").closest("button")!);
-    expect(screen.getByText("+2")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("+2")).toBeInTheDocument());
   });
 
   it("deduplicates same domain:port connections", async () => {
@@ -156,6 +157,7 @@ describe("NetworkMap", () => {
     ]);
     render(NetworkMap);
     await fireEvent.click(screen.getByText("Network Map").closest("button")!);
+    await waitFor(() => expect(screen.getByText("google.com:443")).toBeInTheDocument());
     const chips = screen.getAllByText("google.com:443");
     expect(chips).toHaveLength(1);
   });
@@ -164,6 +166,7 @@ describe("NetworkMap", () => {
     mockNetworkConnections.set([makeConn()]);
     render(NetworkMap);
     await fireEvent.click(screen.getByText("Network Map").closest("button")!);
+    await waitFor(() => expect(document.querySelector("canvas")).toBeInTheDocument());
     const canvas = document.querySelector("canvas");
     expect(canvas).toBeInTheDocument();
   });
@@ -181,6 +184,31 @@ describe("NetworkMap", () => {
     expect(screen.getByText("Network Map")).toBeInTheDocument();
     await fireEvent.click(screen.getByText("Network Map").closest("button")!);
     await fireEvent.click(screen.getByText("Traffic"));
-    expect(screen.getByText(/Inbound/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Inbound/)).toBeInTheDocument());
+  });
+
+  it("shows summary cards when expanded", async () => {
+    mockNetworkConnections.set([makeConn({ remote_addr: "google.com" })]);
+    render(NetworkMap);
+    await fireEvent.click(screen.getByText("Network Map").closest("button")!);
+    expect(screen.getByText("Live throughput")).toBeInTheDocument();
+    expect(screen.getByText("Active hosts")).toBeInTheDocument();
+  });
+
+  it("basic mode hides advanced tabs and sidebar", async () => {
+    mockNetworkConnections.set([makeConn()]);
+    render(NetworkMap, { props: { mode: "basic" } });
+    await fireEvent.click(screen.getByText("Network Map").closest("button")!);
+    expect(screen.queryByText("Connections")).not.toBeInTheDocument();
+    expect(screen.queryByText("Traffic")).not.toBeInTheDocument();
+    expect(screen.getByText(/focused on the map/i)).toBeInTheDocument();
+  });
+
+  it("renders skeleton while switching tabs", async () => {
+    mockNetworkConnections.set([makeConn()]);
+    render(NetworkMap);
+    await fireEvent.click(screen.getByText("Network Map").closest("button")!);
+    await fireEvent.click(screen.getByText("Connections"));
+    expect(screen.getByRole("status", { name: /loading connection inventory/i })).toBeInTheDocument();
   });
 });

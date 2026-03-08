@@ -1,20 +1,25 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { cpuSeries, ramSeries, netRxSeries, netTxSeries, swapSeries, metricsHistory } from "../stores/metricsHistory";
   import { filtered, stats } from "../stores/processes";
   import NetworkMap from "./NetworkMap.svelte";
+  import type { UserMode } from "../stores/preferences";
   import { t } from "../lib/i18n";
   import type { MetricPoint } from "../stores/metricsHistory";
   import type { ProcessEntry } from "../lib/types";
+  import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
 
   type MetricKind = "cpu" | "ram" | "network" | "swap" | "processes";
   type SortKey = "name" | "pid" | "cpu" | "ram" | "net" | "state" | "uptime";
 
   interface Props {
     metric: MetricKind;
+    mode?: UserMode;
     onclose: () => void;
   }
 
-  let { metric, onclose }: Props = $props();
+  let { metric, mode = "pro", onclose }: Props = $props();
+  let modalEl: HTMLDivElement | undefined = $state();
   function defaultSortKey(kind: MetricKind): SortKey {
     if (kind === "cpu") return "cpu";
     if (kind === "ram" || kind === "swap") return "ram";
@@ -32,8 +37,16 @@
   });
 
   function closeOnEscape(event: KeyboardEvent) {
-    if (event.key === "Escape") onclose();
+    if (event.key === "Escape") {
+      onclose();
+      return;
+    }
+    trapFocus(event, modalEl);
   }
+
+  onMount(() => {
+    requestAnimationFrame(() => focusFirstFocusable(modalEl));
+  });
 
   function metricTitle(kind: MetricKind): string {
     switch (kind) {
@@ -122,7 +135,7 @@
 <div class="backdrop" onclick={onclose} onkeydown={closeOnEscape} role="presentation">
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="metric-modal-title" tabindex="-1">
+  <div class="modal" bind:this={modalEl} onclick={(e: MouseEvent) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="metric-modal-title" tabindex="-1">
     <div class="header">
       <div>
         <div class="eyebrow">{t("status.deepDive")}</div>
@@ -140,7 +153,7 @@
             <div class="summary-card"><span class="card-label">Samples</span><span class="card-value">{$metricsHistory.length}</span></div>
             <div class="summary-card"><span class="card-label">Processes</span><span class="card-value">{$stats?.total_processes ?? 0}</span></div>
           </div>
-          <NetworkMap />
+          <NetworkMap mode={mode} />
         </div>
       {:else}
         <!-- Summary cards -->

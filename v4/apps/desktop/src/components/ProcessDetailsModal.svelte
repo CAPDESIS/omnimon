@@ -1,12 +1,15 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { fade, fly } from "svelte/transition";
+  import SkeletonBlock from "./SkeletonBlock.svelte";
   import type { ProcessEntry, BrowserTab } from "../lib/types";
   import { ipcCloseBrowserTab, ipcFocusBrowserTab } from "../lib/ipc";
   import { browserTabs } from "../stores/processes";
   import { t } from "../lib/i18n";
   import { detectBrowser } from "../lib/browser";
   import { ipcAnalyzeContext } from "../lib/ipc";
-  import { aiProviderConfig } from "../stores/preferences";
+  import { aiProviderConfig, userMode } from "../stores/preferences";
+  import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
 
   interface Props {
     process: ProcessEntry;
@@ -23,6 +26,7 @@
   let aiResponse = $state("");
   let aiAnalyzing = $state(false);
   let aiError = $state<string | null>(null);
+  let proMode = $derived($userMode === "pro");
 
   let detectedBrowser = $derived(detectBrowser(process));
 
@@ -169,26 +173,15 @@
   }
 
   onMount(() => {
-    modalEl?.focus();
+    requestAnimationFrame(() => focusFirstFocusable(modalEl));
   });
 
   function handleBackdropKeydown(e: KeyboardEvent) {
-    if (e.key === "Escape") onclose();
-    if (e.key === "Tab" && modalEl) {
-      const focusable = modalEl.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
+    if (e.key === "Escape") {
+      onclose();
+      return;
     }
+    trapFocus(e, modalEl);
   }
 </script>
 
@@ -216,27 +209,34 @@
       <button class="close-btn" onclick={onclose} aria-label={t("common.close")}>&times;</button>
     </div>
     <div class="body">
+      <div class="mode-banner" transition:fade={{ duration: 180 }}>
+        {$userMode === "basic" ? t("processView.basicHint") : t("processView.advancedHint")}
+      </div>
       <div class="section-label">{t("process.section")}</div>
       <div class="row">
         <span class="label">{t("process.name")}</span>
         <span class="value mono">{process.name}</span>
       </div>
-      <div class="row">
-        <span class="label">{t("process.executable")}</span>
-        <span class="value mono">{process.exec_name}</span>
-      </div>
+      {#if proMode}
+        <div class="row" transition:fly={{ x: -8, duration: 160 }}>
+          <span class="label">{t("process.executable")}</span>
+          <span class="value mono">{process.exec_name}</span>
+        </div>
+      {/if}
       <div class="row">
         <span class="label">{t("process.pid")}</span>
         <span class="value mono">{process.pid}</span>
       </div>
-      <div class="row">
-        <span class="label">{t("process.group")}</span>
-        <span class="value">{process.group || "\u2014"}</span>
-      </div>
-      <div class="row">
-        <span class="label">{t("process.state")}</span>
-        <span class="value mono">{process.state}</span>
-      </div>
+      {#if proMode}
+        <div class="row" transition:fly={{ x: -8, duration: 160 }}>
+          <span class="label">{t("process.group")}</span>
+          <span class="value">{process.group || "\u2014"}</span>
+        </div>
+        <div class="row" transition:fly={{ x: -8, duration: 160 }}>
+          <span class="label">{t("process.state")}</span>
+          <span class="value mono">{process.state}</span>
+        </div>
+      {/if}
       <div class="row">
         <span class="label">{t("process.system")}</span>
         <span class="value">{process.is_system ? t("common.yes") : t("common.no")}</span>
@@ -257,7 +257,7 @@
         <span class="value mono">{process.uptime || "\u2014"}</span>
       </div>
 
-      {#if allBrowserTabs.length > 0}
+      {#if proMode && allBrowserTabs.length > 0}
         <div class="section-divider"></div>
         <div class="tabs-header">
           <div class="section-label">{t("process.browserTabs", { count: allBrowserTabs.length })}</div>
@@ -277,7 +277,7 @@
             type="text"
             placeholder={t("process.filterTabs")}
             value={tabFilter}
-            oninput={(e) => tabFilter = (e.target as HTMLInputElement).value}
+            oninput={(e: Event) => tabFilter = (e.target as HTMLInputElement).value}
             aria-label={t("process.filterTabsLabel")}
           />
         </div>
@@ -301,6 +301,7 @@
                 class="tab-title-btn"
                 onclick={() => focusTab(tab)}
                 title={t("process.goToTab", { title: tab.title, url: tab.url })}
+                aria-label={t("processView.focusTabLabel", { title: tab.title || t("common.untitled") })}
               >
                 {tab.title || t("common.untitled")}
               </button>
@@ -310,6 +311,7 @@
                 onclick={() => closeTab(tab)}
                 disabled={closingTabs.has(tab.id)}
                 title={t("process.closeThisTab")}
+                aria-label={t("processView.closeTabLabel", { title: tab.title || t("common.untitled") })}
               >
                 &#10005;
               </button>
@@ -325,14 +327,21 @@
       <div class="ai-section">
         <div class="ai-header-row">
           <div class="section-label">{t("process.aiAnalysis")}</div>
-          <button class="btn-ask-ai" onclick={askAi} disabled={aiAnalyzing}>
+          <button class="btn-ask-ai" onclick={askAi} disabled={aiAnalyzing} aria-busy={aiAnalyzing} aria-label={aiAnalyzing ? t("processView.analyzingAria") : t("process.askAi")}>
             {aiAnalyzing ? t("process.analyzing") : t("process.askAi")}
           </button>
         </div>
         {#if aiError}
           <div class="ai-error">{aiError}</div>
         {/if}
-        {#if aiResponse}
+        {#if aiAnalyzing}
+          <div class="ai-skeleton" role="status" aria-label={t("processView.analyzingAria")}>
+            <SkeletonBlock width="38%" height="12px" rounded="999px" />
+            <SkeletonBlock width="100%" height="12px" rounded="999px" />
+            <SkeletonBlock width="92%" height="12px" rounded="999px" />
+            <SkeletonBlock width="72%" height="12px" rounded="999px" />
+          </div>
+        {:else if aiResponse}
           <div class="ai-response">{aiResponse}</div>
         {:else if !aiAnalyzing && !aiError}
           <div class="ai-hint">{allBrowserTabs.length > 0 ? t("process.aiHintWithTabs") : t("process.aiHint")}</div>
@@ -413,6 +422,17 @@
 
   .body {
     padding: 6px 0;
+  }
+
+  .mode-banner {
+    margin: 4px 10px 8px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    background: color-mix(in srgb, var(--bg) 92%, white 2%);
+    color: var(--fg-dim);
+    font-size: calc(var(--base-font-size) * 0.78);
+    line-height: 1.45;
   }
 
   .section-label {
@@ -546,9 +566,12 @@
     gap: 4px;
     padding: 2px 10px;
     font-size: calc(var(--base-font-size) * 0.833);
+    border-radius: 8px;
+    transition: transform 0.18s ease, background 0.18s ease, opacity 0.18s ease;
   }
   .tab-item:hover {
     background: var(--bg-hover);
+    transform: translateX(2px);
   }
   .tab-item.selected {
     background: var(--bg-selected);
@@ -673,6 +696,17 @@
     margin: 4px 10px;
     border-radius: 4px;
     border: 1px solid var(--border);
+  }
+
+  .ai-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    margin: 4px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg) 92%, white 2%);
   }
 
   .ai-hint {

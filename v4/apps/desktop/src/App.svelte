@@ -19,6 +19,9 @@
   import SystemMetricModal from "./components/SystemMetricModal.svelte";
   import InfoPopover from "./components/InfoPopover.svelte";
   import SmartAlerts from "./components/SmartAlerts.svelte";
+  import AppToolbar from "./components/AppToolbar.svelte";
+  import ProfilePanel from "./components/ProfilePanel.svelte";
+  import SkeletonBlock from "./components/SkeletonBlock.svelte";
   import { totalFindings } from "./stores/security";
   import { initSecurityAlertListener } from "./stores/alerts";
   import type { ProcessEntry } from "./lib/types";
@@ -66,6 +69,7 @@
     MIN_IDLE_THRESHOLD,
     MAX_IDLE_THRESHOLD,
     customTheme,
+    userMode,
     type ThemeMode,
   } from "./stores/preferences";
   import { ipcValidateApiKey, ipcCheckApiKey, ipcAnalyzeContext } from "./lib/ipc";
@@ -73,6 +77,7 @@
   import { t, locale, initI18n } from "./lib/i18n";
   import { inspectProcessRequest } from "./stores/uiActions";
   import type { LocaleCode } from "./lib/i18n";
+  import { focusFirstFocusable, trapFocus } from "./lib/focusTrap";
 
   let detailProcess: ProcessEntry | null = $state(null);
   let searchInput: HTMLInputElement | undefined = $state();
@@ -85,6 +90,7 @@
   let showAutomations = $state(false);
   let showHelpCenter = $state(false);
   let activeMetricModal = $state<"cpu" | "ram" | "network" | "swap" | "processes" | null>(null);
+  let settingsModalEl: HTMLDivElement | undefined = $state();
 
   // Resizable tab panel (backed by store for persistence)
   let tabPanelHeight = $state($tabPanelHeightStore);
@@ -184,7 +190,7 @@
       await saveAiConfigAction($aiProviderConfig.provider, $aiProviderConfig.model, trimmed);
       const stored = await ipcCheckApiKey($aiProviderConfig.provider);
       if (!stored) {
-        settingsError = "API key could not be saved to the system keyring.";
+        settingsError = t("settings.apiKeyKeyringError");
         return;
       }
       settingsSaved = true;
@@ -207,6 +213,14 @@
     settingsSaved = false;
   }
 
+  function handleSettingsKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape") {
+      closeSettings();
+      return;
+    }
+    trapFocus(event, settingsModalEl);
+  }
+
   function onSearchInput(e: Event) {
     const val = (e.target as HTMLInputElement).value;
     searchValue = val;
@@ -223,7 +237,7 @@
       const autostart = await import("@tauri-apps/plugin-autostart");
       autostartEnabled = await autostart.isEnabled();
     } catch {
-      autostartError = "Auto-start is unavailable in this runtime.";
+      autostartError = t("settings.autostartUnavailable");
     } finally {
       autostartLoading = false;
     }
@@ -240,7 +254,7 @@
       else await autostart.disable();
     } catch {
       autostartEnabled = prev;
-      autostartError = "Failed to update auto-start setting.";
+      autostartError = t("settings.autostartUpdateFailed");
     }
   }
 
@@ -276,7 +290,7 @@
 
     registerUnlistener(initSecurityAlertListener());
     registerUnlistener(
-      listen<boolean>("window-visibility", (event) => {
+      listen<boolean>("window-visibility", (event: { payload: boolean }) => {
         if (event.payload) {
           startPolling(2000);
         } else {
@@ -369,196 +383,65 @@
   function closeDetail() {
     detailProcess = null;
   }
+
+  let visibleColumns = $derived.by(() => {
+    if ($userMode === "pro") return $columns;
+    return {
+      ...$columns,
+      detail: false,
+      energy: false,
+      network: false,
+      uptime: false,
+      pid: false,
+      state: false,
+    };
+  });
+
+  let basicModeNetworkHint = $derived($userMode === "basic");
+
+  $effect(() => {
+    if (showSettings) {
+      requestAnimationFrame(() => focusFirstFocusable(settingsModalEl));
+    }
+  });
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
 <main style="--base-font-size: {$fontSize}px">
-  <!-- Toolbar -->
-  <header class="toolbar">
-    <div class="toolbar-left">
-      <div class="search-wrapper">
-        <svg class="search-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="6.5" cy="6.5" r="5"/>
-          <line x1="10" y1="10" x2="14" y2="14"/>
-        </svg>
-        <input
-          class="search"
-          type="text"
-          placeholder={t("toolbar.searchPlaceholder")}
-          aria-label={t("toolbar.searchLabel")}
-          value={searchValue}
-          oninput={onSearchInput}
-          bind:this={searchInput}
-        />
-        {#if searchValue}
-          <button
-            class="search-clear"
-            onclick={() => { searchValue = ""; $search = ""; }}
-            aria-label={t("toolbar.clearSearch")}
-          >&times;</button>
-        {/if}
-      </div>
-    </div>
-    <div class="toolbar-right">
-      <!-- GitHub Sponsors Banner -->
-      <a
-        class="btn btn-sponsor"
-        href="https://github.com/sponsors/chochy2001"
-        target="_blank"
-        rel="noopener noreferrer"
-        title="Support OmniMon on GitHub Sponsors"
-        style="color: var(--accent); border-color: var(--accent); display: flex; align-items: center; gap: 4px;"
-      >
-        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-          <path fill-rule="evenodd" d="M4.25 2.5c-1.336 0-2.75 1.164-2.75 3 0 2.15 1.58 4.144 3.365 5.682A20.565 20.565 0 008 13.393a20.561 20.561 0 003.135-2.211C12.92 9.644 14.5 7.65 14.5 5.5c0-1.836-1.414-3-2.75-3-1.373 0-2.609.986-3.029 2.456a.75.75 0 01-1.442 0C6.859 3.486 5.623 2.5 4.25 2.5zM8 14.25l-.345.666-.002-.001-.006-.003-.018-.01a7.643 7.643 0 01-.31-.17 22.075 22.075 0 01-3.434-2.414C2.045 10.731 0 8.35 0 5.5 0 2.836 2.086 1 4.25 1 5.797 1 7.153 1.802 8 3.02 8.847 1.802 10.203 1 11.75 1 13.914 1 16 2.836 16 5.5c0 2.85-2.045 5.231-3.885 6.818a22.08 22.08 0 01-3.744 2.584l-.018.01-.006.003h-.002L8 14.25z"></path>
-        </svg>
-        Sponsor
-      </a>
-      <span class="separator"></span>
+  <AppToolbar
+    searchValue={searchValue}
+    onsearch={onSearchInput}
+    onclearsearch={() => { searchValue = ""; $search = ""; }}
+    selectedCount={$selectedCount}
+    selectedRamMB={$selectedRamMB}
+    grouping={$grouping}
+    totalFindings={$totalFindings}
+    aiLoading={$aiLoading}
+    aiProfile={$aiProfile}
+    fontSize={$fontSize}
+    onselectall={selectAllVisible}
+    onselectnone={selectNone}
+    onkillselected={killSelected}
+    ontogglegrouping={() => $grouping = !$grouping}
+    onchangepofile={(value) => $aiProfile = value}
+    onanalyze={() => analyzeWithAi($aiProviderConfig.provider, $aiProviderConfig.model)}
+    onopensecurity={() => showSecurityReport = true}
+    ontoggledashboard={() => dashboardCollapsed = !dashboardCollapsed}
+    dashboardCollapsed={dashboardCollapsed}
+    ontoggleautomations={() => showAutomations = !showAutomations}
+    onopensettings={() => showSettings = true}
+    onopenhelp={() => showHelpCenter = true}
+    ondecreasefont={decreaseFontSize}
+    onincreasefont={increaseFontSize}
+  />
 
-      <div class="btn-group">
-        <button
-          class="btn btn-text-icon"
-          class:active={$grouping}
-          onclick={() => $grouping = !$grouping}
-          title={t("toolbar.toggleGrouping")}
-        >
-          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-            <rect x="1" y="1" width="5" height="5" rx="1"/>
-            <rect x="1" y="9" width="5" height="5" rx="1"/>
-            <rect x="9" y="1" width="5" height="5" rx="1"/>
-            <rect x="9" y="9" width="5" height="5" rx="1"/>
-          </svg>
-          <span>{t("toolbar.groups")}</span>
-        </button>
-        <button class="btn" onclick={selectAllVisible} aria-label={t("toolbar.selectAll")}>{t("toolbar.all")}</button>
-        <button class="btn" onclick={selectNone} aria-label={t("toolbar.deselectAll")}>{t("toolbar.none")}</button>
-      </div>
-
-      <button
-        class="btn btn-kill"
-        onclick={killSelected}
-        disabled={$selectedCount === 0}
-        aria-label={t("toolbar.closeSelected")}
-      >
-        {t("toolbar.close")}{#if $selectedCount > 0}
-          &nbsp;({$selectedCount} &middot; {$selectedRamMB.toFixed(0)} MB){/if}
-      </button>
-
-      <span class="separator"></span>
-
-      <select
-        class="profile-select"
-        value={$aiProfile}
-        onchange={(e) => $aiProfile = (e.target as HTMLSelectElement).value}
-        aria-label={t("toolbar.aiProfile")}
-        title={t("toolbar.profileHelp")}
-      >
-        <option value="general" title={t("toolbar.generalDesc")}>{t("toolbar.general")}</option>
-        <option value="developer" title={t("toolbar.developerDesc")}>{t("toolbar.developer")}</option>
-        <option value="gaming" title={t("toolbar.gamingDesc")}>{t("toolbar.gaming")}</option>
-        <option value="battery" title={t("toolbar.batteryDesc")}>{t("toolbar.batterySaver")}</option>
-      </select>
-      <InfoPopover label={t("toolbar.aiProfile")} content={t("toolbar.profileBehavior")} />
-      <span class="profile-caption">{t(`toolbar.${$aiProfile === "battery" ? "batteryDesc" : `${$aiProfile}Desc`}`)}</span>
-      <button
-        class="btn btn-accent"
-        onclick={() => analyzeWithAi($aiProviderConfig.provider, $aiProviderConfig.model)}
-        disabled={$aiLoading}
-      >
-        {$aiLoading ? t("toolbar.analyzing") : t("toolbar.aiAnalyze")}
-      </button>
-
-      <span class="separator"></span>
-
-      <AlertPanel />
-
-      <button
-        class="btn btn-icon btn-text-icon"
-        class:has-findings={$totalFindings > 0}
-        onclick={() => showSecurityReport = true}
-        title={t("toolbar.securityFindings", { count: String($totalFindings) })}
-      >
-        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-          <path d="M8 0L2 3v5c0 4 2.6 6.5 6 8 3.4-1.5 6-4 6-8V3L8 0zm0 2l4 2v4c0 3-1.9 5-4 6.3C5.9 13 4 11 4 8V4l4-2zm-1 4v3h2V6H7zm0 4v1.5h2V10H7z"/>
-        </svg>
-        <span>{t("toolbar.security")}</span>
-        {#if $totalFindings > 0}
-          <span class="findings-badge">{$totalFindings}</span>
-        {/if}
-      </button>
-
-      <button
-        class="btn btn-icon btn-text-icon"
-        onclick={() => dashboardCollapsed = !dashboardCollapsed}
-        title={dashboardCollapsed ? t("toolbar.showDashboard") : t("toolbar.hideDashboard")}
-        aria-label={dashboardCollapsed ? t("toolbar.showDashboard") : t("toolbar.hideDashboard")}
-      >
-        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-          {#if dashboardCollapsed}
-            <path d="M3 4h10v1H3zM3 7h10v1H3zM3 10h10v1H3z"/>
-          {:else}
-            <path d="M1 1h6v6H1zM9 1h6v6H9zM1 9h6v6H1zM9 9h6v6H9z" fill="none" stroke="currentColor" stroke-width="1.2"/>
-          {/if}
-        </svg>
-        <span>{t("toolbar.dashboard")}</span>
-      </button>
-
-      <button
-        class="btn btn-icon btn-text-icon"
-        onclick={() => showAutomations = !showAutomations}
-        title={t("toolbar.automations")}
-        aria-label={t("toolbar.automations")}
-      >
-        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-          <path d="M8 0a8 8 0 100 16A8 8 0 008 0zm1 11H7V7h2v4zm0-5H7V4h2v2z"/>
-        </svg>
-        <span>{t("toolbar.automations")}</span>
-      </button>
-
-      <button
-        class="btn btn-icon btn-text-icon"
-        onclick={() => showSettings = true}
-        title={t("toolbar.aiSettings")}
-        aria-label={t("toolbar.aiSettings")}
-      >
-        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-          <path d="M7 1h2v2.1a5 5 0 011.2.5l1.5-1.5 1.4 1.4-1.5 1.5a5 5 0 01.5 1.2H14v2h-2.1a5 5 0 01-.5 1.2l1.5 1.5-1.4 1.4-1.5-1.5a5 5 0 01-1.2.5V14H7v-2.1a5 5 0 01-1.2-.5l-1.5 1.5-1.4-1.4 1.5-1.5a5 5 0 01-.5-1.2H2V7h2.1a5 5 0 01.5-1.2L3.1 4.3l1.4-1.4 1.5 1.5A5 5 0 017 3.9V1zm1 5a2 2 0 100 4 2 2 0 000-4z"/>
-        </svg>
-        <span>{t("toolbar.aiSettings")}</span>
-      </button>
-
-      <button
-        class="btn btn-icon btn-text-icon"
-        onclick={() => showHelpCenter = true}
-        title={t("toolbar.helpCenter")}
-        aria-label={t("toolbar.helpCenter")}
-      >
-        <span class="btn-icon-glyph">?</span>
-        <span>{t("toolbar.helpCenter")}</span>
-      </button>
-
-      <div class="font-controls">
-        <button
-          class="btn btn-icon"
-          onclick={decreaseFontSize}
-          title={t("toolbar.decreaseFont")}
-          aria-label={t("toolbar.decreaseFontLabel")}
-        >A-</button>
-        <span class="font-size-display">{$fontSize}</span>
-        <button
-          class="btn btn-icon"
-          onclick={increaseFontSize}
-          title={t("toolbar.increaseFont")}
-          aria-label={t("toolbar.increaseFontLabel")}
-        >A+</button>
-      </div>
-    </div>
-  </header>
+  <div class="profiles-shell">
+    <ProfilePanel />
+  </div>
 
   <!-- Dashboard with charts -->
-  <SystemDashboard collapsed={dashboardCollapsed} onopenmetric={(metric) => { activeMetricModal = metric; }} />
+  <SystemDashboard collapsed={dashboardCollapsed} mode={$userMode} onopenmetric={(metric) => { activeMetricModal = metric; }} />
 
   <!-- Browser Tabs Panel -->
   <div class="tab-panel" style="height: {tabPanelHeight}px">
@@ -577,15 +460,34 @@
 
   <!-- Process Table -->
   {#if $loading}
-    <div class="loading" role="status" aria-busy="true">
-      <div class="loading-spinner"></div>
-      <span>{t("common.loading")}</span>
+    <div class="loading-shell" role="status" aria-busy="true" aria-label={t("common.loadingAria")}>
+      <div class="loading-toolbar-card">
+        <SkeletonBlock width="22%" height="14px" rounded="999px" />
+        <SkeletonBlock width="100%" height="42px" rounded="14px" />
+      </div>
+      <div class="loading-table-card">
+        <div class="loading-table-header">
+          <SkeletonBlock width="14%" height="12px" rounded="999px" />
+          <SkeletonBlock width="10%" height="12px" rounded="999px" />
+          <SkeletonBlock width="12%" height="12px" rounded="999px" />
+          <SkeletonBlock width="8%" height="12px" rounded="999px" />
+        </div>
+        {#each Array(7) as _, index}
+          <div class="loading-row" style={`animation-delay:${index * 50}ms`}>
+            <SkeletonBlock width="28px" height="28px" rounded="8px" />
+            <SkeletonBlock width="20%" height="12px" rounded="999px" />
+            <SkeletonBlock width="12%" height="12px" rounded="999px" />
+            <SkeletonBlock width="16%" height="12px" rounded="999px" />
+            <SkeletonBlock width="10%" height="12px" rounded="999px" />
+          </div>
+        {/each}
+      </div>
     </div>
   {:else}
     <ProcessTable
       processes={$filtered}
       grouping={$grouping}
-      columns={$columns}
+      columns={visibleColumns}
       columnOrder={$columnOrder}
       oninspect={inspectProcess}
     />
@@ -617,10 +519,18 @@
   {/if}
 
   <!-- AI Security Insights (human-readable) -->
-  <AiInsightCard />
+  {#if $userMode === "pro"}
+    <AiInsightCard />
+  {/if}
 
   <!-- Network Connection Map -->
-  <NetworkMap />
+  <NetworkMap mode={$userMode} />
+  {#if basicModeNetworkHint}
+    <div class="mode-hint-card" role="note">
+      <span class="mode-hint-label">{t("common.userView")}</span>
+      <span>{t("profiles.proHint")}</span>
+    </div>
+  {/if}
 
   <!-- AI Interactive Chat (Tool Calling) -->
   <div class="ai-chat-panel" style="height: {aiChatPanelHeight}px">
@@ -660,11 +570,11 @@
 
 {#if showSettings}
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="backdrop" onclick={closeSettings} onkeydown={(e) => { if (e.key === "Escape") closeSettings(); }} role="presentation">
+  <div class="backdrop" onclick={closeSettings} onkeydown={handleSettingsKeydown} role="presentation">
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_interactive_supports_focus -->
-    <div class="settings-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
+    <div class="settings-modal" bind:this={settingsModalEl} onclick={(e: MouseEvent) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
       <div class="settings-header">
         <h2 class="settings-title" id="settings-title">{t("settings.title")}</h2>
         <button class="close-btn" onclick={closeSettings} aria-label={t("settings.closeSettings")}>&times;</button>
@@ -676,7 +586,7 @@
             id="provider-select"
             class="settings-select"
             value={$aiProviderConfig.provider}
-            onchange={(e) => {
+            onchange={(e: Event) => {
               const newProvider = (e.target as HTMLSelectElement).value as AiProviderKind;
               aiProviderConfig.update((c) => ({ ...c, provider: newProvider }));
             }}
@@ -694,7 +604,7 @@
             type="text"
             placeholder={t("settings.modelPlaceholder")}
             value={$aiProviderConfig.model}
-            oninput={(e) => {
+            oninput={(e: Event) => {
               aiProviderConfig.update((c) => ({ ...c, model: (e.target as HTMLInputElement).value }));
             }}
           />
@@ -750,12 +660,27 @@
         <div class="settings-divider"></div>
         <div class="settings-section-label">{t("settings.appearance")}</div>
         <div class="settings-row">
+          <label class="settings-label" for="user-mode-select">{t("common.userView")}</label>
+          <div class="settings-field-stack">
+            <select
+              id="user-mode-select"
+              class="settings-select"
+              value={$userMode}
+              onchange={(e: Event) => { $userMode = (e.target as HTMLSelectElement).value === "basic" ? "basic" : "pro"; }}
+            >
+              <option value="basic">{t("profiles.basic")}</option>
+              <option value="pro">{t("profiles.pro")}</option>
+            </select>
+            <span class="settings-hint">{t("common.userViewHelp")}</span>
+          </div>
+        </div>
+        <div class="settings-row">
           <label class="settings-label" for="theme-select">{t("settings.theme")}</label>
           <select
             id="theme-select"
             class="settings-select"
             value={$theme}
-            onchange={(e) => { $theme = (e.target as HTMLSelectElement).value as ThemeMode; }}
+            onchange={(e: Event) => { $theme = (e.target as HTMLSelectElement).value as ThemeMode; }}
           >
             <option value="auto">{t("settings.themeAuto")}</option>
             <option value="light">{t("settings.themeLight")}</option>
@@ -772,7 +697,7 @@
                 id="custom-base"
                 class="settings-select"
                 value={$customTheme?.base ?? "dark"}
-                onchange={(e) => {
+                onchange={(e: Event) => {
                   const base = (e.target as HTMLSelectElement).value as "dark" | "light" | "cyberpunk";
                   customTheme.update((ct) => ({ name: ct?.name ?? "My Theme", base, overrides: ct?.overrides ?? {} }));
                 }}
@@ -797,7 +722,7 @@
                   type="color"
                   class="color-picker"
                   value={$customTheme?.overrides?.[colorOpt.key] ?? ""}
-                  oninput={(e) => {
+                  oninput={(e: Event) => {
                     const val = (e.target as HTMLInputElement).value;
                     customTheme.update((ct) => ({
                       name: ct?.name ?? "My Theme",
@@ -828,7 +753,7 @@
             id="locale-select"
             class="settings-select"
             value={$localePreference}
-            onchange={(e) => { $localePreference = (e.target as HTMLSelectElement).value as LocaleCode; }}
+            onchange={(e: Event) => { $localePreference = (e.target as HTMLSelectElement).value as LocaleCode; }}
           >
             <option value="auto">{t("settings.langAuto")}</option>
             <option value="en">{t("settings.langEn")}</option>
@@ -848,7 +773,7 @@
             min={MIN_IDLE_THRESHOLD}
             max={MAX_IDLE_THRESHOLD}
             value={$idleThreshold}
-            oninput={(e) => {
+            oninput={(e: Event) => {
               const v = parseFloat((e.target as HTMLInputElement).value);
               if (!isNaN(v) && v >= MIN_IDLE_THRESHOLD && v <= MAX_IDLE_THRESHOLD) {
                 $idleThreshold = v;
@@ -858,7 +783,7 @@
           <span class="settings-hint">{t("settings.idleHint")}</span>
         </div>
         <div class="settings-row">
-          <label class="settings-label" for="autostart-toggle">Auto-start</label>
+          <label class="settings-label" for="autostart-toggle">{t("settings.autostart")}</label>
           <label class="settings-toggle" for="autostart-toggle">
             <input
               id="autostart-toggle"
@@ -867,7 +792,7 @@
               disabled={autostartLoading}
               onchange={handleAutostartToggle}
             />
-            <span>Launch OmniMon at login</span>
+            <span>{t("settings.launchAtLogin")}</span>
           </label>
         </div>
         {#if autostartError}
@@ -904,7 +829,7 @@
 {/if}
 
 {#if activeMetricModal}
-  <SystemMetricModal metric={activeMetricModal} onclose={() => activeMetricModal = null} />
+  <SystemMetricModal metric={activeMetricModal} mode={$userMode} onclose={() => activeMetricModal = null} />
 {/if}
 
 <style>
@@ -997,88 +922,6 @@
   }
 
   /* ==============================
-     TOOLBAR
-     ============================== */
-  .toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 6px 10px;
-    background: var(--bg-alt);
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-    min-height: calc(var(--base-font-size) * 2.5);
-  }
-
-  .toolbar-left {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .toolbar-right {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-
-  .search-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
-    max-width: 320px;
-  }
-
-  .search-icon {
-    position: absolute;
-    left: 8px;
-    color: var(--fg-dim);
-    pointer-events: none;
-  }
-
-  .search {
-    width: 100%;
-    padding: 4px 24px 4px 28px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 4px);
-    background: var(--bg);
-    color: var(--fg);
-    font-size: calc(var(--base-font-size) * 0.917);
-    outline: none;
-    height: calc(var(--base-font-size) * 2);
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-  .search:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--accent-dim, rgba(59,130,246,0.15));
-  }
-
-  .search-clear {
-    position: absolute;
-    right: 4px;
-    width: 16px;
-    height: 16px;
-    border: none;
-    background: transparent;
-    color: var(--fg-dim);
-    font-size: 14px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    line-height: 1;
-    border-radius: 2px;
-  }
-  .search-clear:hover {
-    color: var(--fg);
-    background: var(--bg-hover);
-  }
-
-  /* ==============================
      BUTTONS
      ============================== */
   .btn {
@@ -1100,54 +943,7 @@
   }
   .btn:hover { background: var(--bg-hover); }
   .btn:disabled { opacity: 0.4; cursor: default; }
-  .btn.active {
-    background: var(--accent);
-    color: white;
-    border-color: var(--accent);
-  }
-
   .btn-sm { padding: 2px 6px; height: auto; }
-
-  .btn-icon {
-    padding: 4px 6px;
-    font-size: calc(var(--base-font-size) * 0.833);
-    font-weight: 600;
-  }
-
-  .btn-text-icon {
-    gap: 6px;
-    padding-inline: 8px;
-    white-space: normal;
-    min-height: calc(var(--base-font-size) * 2.1);
-  }
-
-  .btn-icon-glyph {
-    width: 16px;
-    height: 16px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid currentColor;
-    border-radius: 999px;
-    font-size: calc(var(--base-font-size) * 0.75);
-    line-height: 1;
-  }
-
-  .btn-group {
-    display: flex;
-    gap: 0;
-  }
-  .btn-group .btn {
-    border-radius: 0;
-    margin-left: -1px;
-  }
-  .btn-group .btn:first-child {
-    border-radius: var(--radius-sm, 4px) 0 0 var(--radius-sm, 4px);
-    margin-left: 0;
-  }
-  .btn-group .btn:last-child {
-    border-radius: 0 var(--radius-sm, 4px) var(--radius-sm, 4px) 0;
-  }
 
   .btn-kill {
     background: var(--danger);
@@ -1165,101 +961,10 @@
   }
   .btn-accent:hover:not(:disabled) { background: var(--accent-hover, #1d4ed8); }
 
-  /* ==============================
-     CONTROLS
-     ============================== */
-  .separator {
-    width: 1px;
-    height: calc(var(--base-font-size) * 1.333);
-    background: var(--border);
-    flex-shrink: 0;
-  }
-
-  .has-findings {
-    position: relative;
-    color: var(--yellow);
-    border-color: var(--yellow);
-  }
-  .findings-badge {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-    min-width: 14px;
-    height: 14px;
-    border-radius: 7px;
-    background: var(--danger);
-    color: white;
-    font-size: 9px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 3px;
-  }
-
-  .font-controls {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-  }
-
-  .profile-caption {
-    max-width: 180px;
-    font-size: calc(var(--base-font-size) * 0.72);
-    color: var(--fg-dim);
-    line-height: 1.3;
-  }
-
-  .font-size-display {
-    font-size: calc(var(--base-font-size) * 0.833);
-    font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    color: var(--fg-dim);
-    min-width: calc(var(--base-font-size) * 1.667);
-    text-align: center;
-  }
-
-  .profile-select {
-    padding: 2px 6px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 4px);
-    background: var(--bg);
-    color: var(--fg);
-    font-size: calc(var(--base-font-size) * 0.833);
-    height: calc(var(--base-font-size) * 2);
-    outline: none;
-    cursor: pointer;
-  }
-  .profile-select:focus { border-color: var(--accent); }
-
-  @media (max-width: 1280px) {
-    .profile-caption {
-      max-width: 140px;
-    }
-  }
-
-  @media (max-width: 1060px) {
-    .toolbar {
-      align-items: flex-start;
-      gap: 8px;
-    }
-
-    .toolbar-right {
-      width: 100%;
-    }
-
-    .search-wrapper {
-      max-width: 100%;
-    }
-
-    .separator {
-      display: none;
-    }
-
-    .profile-caption {
-      max-width: 100%;
-      flex-basis: 100%;
-      order: 10;
-    }
+  .profiles-shell {
+    padding: 0 12px 12px;
+    background: var(--bg-alt);
+    border-bottom: 1px solid var(--border);
   }
 
   /* ==============================
@@ -1285,27 +990,63 @@
     background: var(--accent);
   }
 
-  .loading {
+  .loading-shell {
     flex: 1;
     display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 12px 18px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-alt) 92%, white 2%), var(--bg));
+  }
+
+  .loading-toolbar-card,
+  .loading-table-card,
+  .mode-hint-card {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--bg-surface, var(--bg-alt)) 92%, white 2%);
+    box-shadow: 0 18px 28px rgba(0, 0, 0, 0.08);
+  }
+
+  .loading-toolbar-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .loading-table-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    flex: 1;
+  }
+
+  .loading-table-header,
+  .loading-row {
+    display: grid;
+    grid-template-columns: 28px 2fr 1fr 1fr 0.8fr;
+    gap: 10px;
     align-items: center;
-    justify-content: center;
-    gap: 8px;
+  }
+
+  .mode-hint-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 8px 12px 0;
+    padding: 12px 14px;
     color: var(--fg-dim);
-    font-size: calc(var(--base-font-size) * 0.917);
+    line-height: 1.45;
   }
 
-  .loading-spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
+  .mode-hint-label {
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    font-size: calc(var(--base-font-size) * 0.72);
+    font-weight: 800;
   }
 
   /* ==============================
@@ -1482,6 +1223,14 @@
     font-size: calc(var(--base-font-size) * 0.917);
   }
 
+  .settings-field-stack {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+  }
+
   .settings-label {
     min-width: 80px;
     width: auto;
@@ -1599,7 +1348,7 @@
   .settings-hint {
     font-size: calc(var(--base-font-size) * 0.75);
     color: var(--fg-dim);
-    white-space: nowrap;
+    white-space: normal;
   }
 
   .settings-toggle {
@@ -1650,5 +1399,26 @@
     border-top: 1px solid var(--border);
     display: flex;
     justify-content: flex-end;
+  }
+
+  @media (max-width: 840px) {
+    .loading-table-header,
+    .loading-row {
+      grid-template-columns: 24px 1.8fr 1fr;
+    }
+
+    .loading-table-header :global(.skeleton-block:nth-child(n+4)),
+    .loading-row :global(.skeleton-block:nth-child(n+4)) {
+      display: none;
+    }
+
+    .settings-row {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .settings-label {
+      min-width: 0;
+    }
   }
 </style>

@@ -60,7 +60,7 @@
     const token = ++requestToken;
 
     if (detectPromptInjection(trimmed)) {
-      toast.error(t("toast.securityTitle"), t("toast.promptInjectionBlocked"));
+      toast.error(t("aiChat.blockedTitle"), t("aiChat.blockedPrompt"));
       return;
     }
 
@@ -103,9 +103,9 @@
             { role: "tool", text: result.details, toolResult: result },
           ];
           if (result.success) {
-            toast.success(t("toast.actionTitle"), result.details);
+            toast.success(t("aiChat.actionSuccessTitle"), result.details);
           } else {
-            toast.error(t("toast.actionFailedTitle"), result.details);
+            toast.error(t("aiChat.actionErrorTitle"), result.details);
           }
         }
       }
@@ -115,7 +115,7 @@
       messages = [...messages, { role: "system", text: msg }];
 
       if (msg.includes("No API key") || msg.includes("keyring")) {
-        toast.error(t("toast.configTitle"), t("toast.setupAiProvider"));
+        toast.error(t("aiChat.configErrorTitle"), t("aiChat.providerSetupFirst"));
       }
     } finally {
       if (token === requestToken) {
@@ -128,11 +128,11 @@
   function formatActionDetails(tool: string, details: string): string {
     if (details.startsWith("close_tabs_except:")) {
       const patterns = details.replace("close_tabs_except:", "").split("|").join(", ");
-      return `Close ALL tabs EXCEPT those matching: ${patterns}`;
+      return t("aiChat.closeTabsExcept", { patterns });
     }
     if (details.startsWith("close_tabs:")) {
       const patterns = details.replace("close_tabs:", "").split("|").join(", ");
-      return `Close tabs matching: ${patterns}`;
+      return t("aiChat.closeTabsMatching", { patterns });
     }
     return details;
   }
@@ -140,7 +140,7 @@
   async function executeCloseTabs(details: string): Promise<{ closed: number; message: string }> {
     const isExcept = details.startsWith("close_tabs_except:");
     const raw = details.replace(/^close_tabs(_except)?:/, "").trim();
-    if (!raw) return { closed: 0, message: "No pattern provided" };
+    if (!raw) return { closed: 0, message: t("aiChat.noPatternProvided") };
 
     try {
       const allTabs = await ipcGetBrowserTabs();
@@ -163,9 +163,9 @@
         });
       }
 
-       if (toClose.length === 0) {
-         return { closed: 0, message: `No tabs matched: ${patterns.join(", ")}` };
-       }
+        if (toClose.length === 0) {
+          return { closed: 0, message: t("aiChat.noTabsMatched", { patterns: patterns.join(", ") }) };
+        }
 
       let closed = 0;
       const failed: string[] = [];
@@ -179,11 +179,11 @@
       }
 
       const msg = closed > 0
-        ? `Closed ${closed} tab(s)${failed.length > 0 ? `, ${failed.length} failed` : ""}`
-        : `Failed to close ${failed.length} tab(s)`;
+        ? t("aiChat.closedTabs", { count: closed, suffix: failed.length > 0 ? `, ${failed.length} failed` : "" })
+        : t("aiChat.failedCloseTabs", { count: failed.length });
       return { closed, message: msg };
     } catch (e) {
-      return { closed: 0, message: `Error: ${e instanceof Error ? e.message : String(e)}` };
+      return { closed: 0, message: t("aiChat.errorPrefix", { message: e instanceof Error ? e.message : String(e) }) };
     }
   }
 
@@ -205,9 +205,9 @@
     ];
 
     if (result.success) {
-      toast.success(t("toast.actionTitle"), result.details);
+      toast.success(t("aiChat.actionSuccessTitle"), result.details);
     } else {
-      toast.error(t("toast.actionFailedTitle"), result.details);
+      toast.error(t("aiChat.actionErrorTitle"), result.details);
     }
 
     pendingAction = null;
@@ -246,13 +246,12 @@
     doResizeInput();
   });
 
-  function renderMarkdownWithPids(text: string): string {
-    const html = renderMarkdown(text);
-    return renderWithClickablePids(html);
+  function renderMessage(text: string): string {
+    return renderWithClickablePids(renderMarkdown(text));
   }
 </script>
 
-<div class="ai-chat" role="region" aria-label="AI Chat">
+<div class="ai-chat" role="region" aria-label={t("aiChat.regionLabel")}>
   <div class="chat-header">
     <span class="chat-title">{t("aiChat.title")}</span>
     <InfoPopover label={t("aiChat.title")} content={t("aiChat.helpTooltip")} />
@@ -279,7 +278,7 @@
           </span>
           <span class="chat-text">
             {#if msg.role === "assistant"}
-              {@html renderMarkdownWithPids(msg.text)}
+              {@html renderMessage(msg.text)}
             {:else}
               {msg.text}
             {/if}
@@ -339,7 +338,7 @@
       bind:value={input}
       bind:this={inputRef}
       rows="1"
-      onkeydown={(e) => {
+      onkeydown={(e: KeyboardEvent) => {
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
           handleSubmit();
@@ -352,7 +351,7 @@
       onclick={handleSubmit}
       disabled={loading || !input.trim()}
     >
-      {loading ? "..." : t("aiChat.send")}
+      {loading ? t("common.loadingShort") : t("aiChat.send")}
     </button>
   </div>
 </div>

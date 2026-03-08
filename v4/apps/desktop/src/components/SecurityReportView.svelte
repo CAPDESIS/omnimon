@@ -1,14 +1,18 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { securityMap, totalFindings, flaggedPids, severityColor, severityRank } from "../stores/security";
   import { processes } from "../stores/processes";
   import { slide } from "svelte/transition";
+  import { t } from "../lib/i18n";
   import type { ProcessSecurityInfo, NistFinding, NistSeverity } from "../lib/types";
+  import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
 
   interface Props {
     onclose: () => void;
   }
 
   let { onclose }: Props = $props();
+  let modalEl: HTMLDivElement | undefined = $state();
   let quickScanning = $state(false);
   let quickScanAt = $state<string | null>(null);
 
@@ -22,7 +26,11 @@
           category: "threat",
           severity: threat.confidence >= 0.8 ? "high" : threat.confidence >= 0.5 ? "medium" : "low",
           title: formatIndicator(threat.indicator),
-          description: `Process "${threat.process_name}" (PID ${pid}) exhibits behavior consistent with ${threat.mitre_techniques.map((t) => t.name).join(", ")}.`,
+          description: t("securityReport.threatDescription", {
+            process: threat.process_name,
+            pid,
+            techniques: threat.mitre_techniques.map((technique) => technique.name).join(", "),
+          }),
           affected_process: threat.process_name,
           pid,
           mitre_id: threat.mitre_techniques[0]?.technique_id,
@@ -35,7 +43,7 @@
           category: "vulnerability",
           severity: (cve.severity as NistSeverity) ?? "medium",
           title: cve.cve_id,
-          description: cve.summary ?? `Known vulnerability in ${cve.product}.`,
+          description: cve.summary ?? t("securityReport.knownVulnerability", { product: cve.product }),
           affected_process: cve.process_name,
           pid,
           cve_id: cve.cve_id,
@@ -67,22 +75,22 @@
   function getRecommendation(type: string, detail: string): string {
     if (type === "threat") {
       switch (detail) {
-        case "SuspiciousMemoryRead": return "Investigate this process immediately. It may be attempting to dump credentials from memory. Consider terminating it and scanning for malware.";
-        case "DllInjection": return "This process uses a system binary commonly abused for code execution. Verify it was launched intentionally and check its parent process.";
-        case "RemoteThreadInjection": return "This tool can establish reverse shells. Verify network connections and ensure it's being used for authorized purposes.";
-        case "UnsignedModuleLoad": return "PowerShell can execute arbitrary scripts. Review recent command history and ensure execution policies are configured properly.";
-        default: return "Review this process and verify it's operating within expected parameters.";
+        case "SuspiciousMemoryRead": return t("securityReport.recommendationThreatSuspiciousMemoryRead");
+        case "DllInjection": return t("securityReport.recommendationThreatDllInjection");
+        case "RemoteThreadInjection": return t("securityReport.recommendationThreatRemoteThreadInjection");
+        case "UnsignedModuleLoad": return t("securityReport.recommendationThreatUnsignedModuleLoad");
+        default: return t("securityReport.recommendationThreatDefault");
       }
     }
-    return `Update ${detail} to the latest version. Check vendor advisories for patches addressing this vulnerability.`;
+    return t("securityReport.recommendationCve", { detail });
   }
 
   function riskLabel(score: number): string {
-    if (score >= 75) return "Critical";
-    if (score >= 50) return "High";
-    if (score >= 25) return "Moderate";
-    if (score > 0) return "Low";
-    return "None";
+    if (score >= 75) return t("securityReport.critical");
+    if (score >= 50) return t("securityReport.high");
+    if (score >= 25) return t("securityReport.moderate");
+    if (score > 0) return t("securityReport.low");
+    return t("securityReport.none");
   }
 
   function riskColor(score: number): string {
@@ -94,15 +102,16 @@
 
   function severityLabel(severity: string): string {
     switch (severity) {
-      case "critical": return "CRITICAL";
-      case "high": return "HIGH";
-      case "medium": return "MEDIUM";
-      case "low": return "LOW";
-      default: return "INFO";
+      case "critical": return t("securityReport.severityCritical");
+      case "high": return t("securityReport.severityHigh");
+      case "medium": return t("securityReport.severityMedium");
+      case "low": return t("securityReport.severityLow");
+      default: return t("securityReport.severityInfo");
     }
   }
 
   let expandedIds = $state(new Set<string>());
+  let generatedAt = $state("");
 
   function toggleExpand(id: string) {
     const next = new Set(expandedIds);
@@ -133,92 +142,118 @@
 
     quickScanResults = { suspicious, networkIssues, highMem, highCpu };
     quickScanAt = new Date().toLocaleTimeString();
+    generatedAt = new Date().toLocaleTimeString();
     quickScanning = false;
+  }
+
+  $effect(() => {
+    findings;
+    if (!generatedAt) {
+      generatedAt = new Date().toLocaleTimeString();
+    }
+  });
+
+  onMount(() => {
+    requestAnimationFrame(() => focusFirstFocusable(modalEl));
+  });
+
+  function handleDialogKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape") {
+      onclose();
+      return;
+    }
+    trapFocus(event, modalEl);
   }
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<div class="report-backdrop" onclick={onclose} onkeydown={(e) => { if (e.key === "Escape") onclose(); }} role="presentation">
+<div class="report-backdrop" onclick={onclose} onkeydown={handleDialogKeydown} role="presentation">
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <div class="report-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="report-title">
+  <div class="report-modal" bind:this={modalEl} onclick={(e: MouseEvent) => e.stopPropagation()} role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="report-title">
     <div class="report-header">
       <div class="report-title-row">
-        <h2 id="report-title" class="report-title">Security Report</h2>
-        <span class="report-subtitle">NIST Framework Assessment</span>
+        <h2 id="report-title" class="report-title">{t("securityReport.title")}</h2>
+        <span class="report-subtitle">{t("securityReport.subtitle")}</span>
       </div>
-      <button class="report-close" onclick={onclose} aria-label="Close">&times;</button>
+      <button class="report-close" onclick={onclose} aria-label={t("common.close")}>×</button>
     </div>
 
     <div class="report-body">
       <div class="quick-scan-bar">
         <button class="quick-scan-btn" onclick={runQuickScan} disabled={quickScanning}>
-          {quickScanning ? "Scanning..." : "Quick scan"}
+          {quickScanning ? t("securityReport.scanning") : t("securityReport.quickScan")}
         </button>
         {#if quickScanAt}
-          <span class="quick-scan-meta">Last quick scan: {quickScanAt}</span>
+          <span class="quick-scan-meta">{t("securityReport.lastQuickScan", { time: quickScanAt })}</span>
         {/if}
       </div>
 
-      {#if quickScanAt}
+      {#if quickScanning}
+        <div class="quick-scan-results quick-scan-results-loading" aria-hidden="true">
+          {#each Array(4) as _, index}
+            <div class="scan-stat scan-stat-skeleton" style={`animation-delay:${index * 70}ms`}>
+              <span class="scan-stat-value skeleton-block"></span>
+              <span class="scan-stat-label skeleton-line"></span>
+            </div>
+          {/each}
+        </div>
+      {:else if quickScanAt}
         <div class="quick-scan-results">
           <div class="scan-stat" style="color: {quickScanResults.suspicious > 0 ? 'var(--danger)' : 'var(--green)'}">
             <span class="scan-stat-value">{quickScanResults.suspicious}</span>
-            <span class="scan-stat-label">Suspicious processes</span>
+            <span class="scan-stat-label">{t("securityReport.suspiciousProcesses")}</span>
           </div>
           <div class="scan-stat" style="color: {quickScanResults.networkIssues > 0 ? 'var(--yellow)' : 'var(--green)'}">
             <span class="scan-stat-value">{quickScanResults.networkIssues}</span>
-            <span class="scan-stat-label">High bandwidth (&gt;10 MB/s)</span>
+            <span class="scan-stat-label">{t("securityReport.highBandwidth")}</span>
           </div>
           <div class="scan-stat" style="color: {quickScanResults.highMem > 0 ? 'var(--yellow)' : 'var(--green)'}">
             <span class="scan-stat-value">{quickScanResults.highMem}</span>
-            <span class="scan-stat-label">High memory (&gt;2 GB)</span>
+            <span class="scan-stat-label">{t("securityReport.highMemory")}</span>
           </div>
           <div class="scan-stat" style="color: {quickScanResults.highCpu > 0 ? 'var(--yellow)' : 'var(--green)'}">
             <span class="scan-stat-value">{quickScanResults.highCpu}</span>
-            <span class="scan-stat-label">High CPU (&gt;80%)</span>
+            <span class="scan-stat-label">{t("securityReport.highCpu")}</span>
           </div>
         </div>
       {/if}
 
-      <!-- Risk Score Overview -->
       <div class="risk-overview">
         <div class="risk-gauge">
           <div class="risk-score" style="color: {riskColor(riskScore)}">{riskScore}</div>
-          <div class="risk-label" style="color: {riskColor(riskScore)}">{riskLabel(riskScore)} Risk</div>
+          <div class="risk-label" style="color: {riskColor(riskScore)}">{riskLabel(riskScore)} {t("securityReport.riskSuffix")}</div>
         </div>
         <div class="risk-breakdown">
           <div class="risk-stat">
             <span class="risk-count" style="color: var(--danger)">{criticalCount}</span>
-            <span class="risk-stat-label">Critical</span>
+            <span class="risk-stat-label">{t("securityReport.critical")}</span>
           </div>
           <div class="risk-stat">
             <span class="risk-count" style="color: var(--danger)">{highCount}</span>
-            <span class="risk-stat-label">High</span>
+            <span class="risk-stat-label">{t("securityReport.high")}</span>
           </div>
           <div class="risk-stat">
             <span class="risk-count" style="color: var(--yellow)">{mediumCount}</span>
-            <span class="risk-stat-label">Medium</span>
+            <span class="risk-stat-label">{t("securityReport.medium")}</span>
           </div>
           <div class="risk-stat">
             <span class="risk-count" style="color: var(--fg-dim)">{lowCount}</span>
-            <span class="risk-stat-label">Low</span>
+            <span class="risk-stat-label">{t("securityReport.low")}</span>
           </div>
         </div>
         <div class="risk-summary">
           {#if findings.length === 0}
-            No security issues detected. Your system appears healthy.
+            {t("securityReport.healthy")}
           {:else}
-            Found {findings.length} security finding{findings.length !== 1 ? "s" : ""} across
-            {$flaggedPids.size} process{$flaggedPids.size !== 1 ? "es" : ""}. Review the details below.
+            {t("securityReport.summary", { findings: findings.length, processes: $flaggedPids.size })}
           {/if}
         </div>
       </div>
 
-      <!-- Findings List -->
       {#if findings.length > 0}
         <div class="findings-section">
-          <h3 class="section-title">Findings</h3>
+          <h3 class="section-title">{t("securityReport.findings")}</h3>
           {#each findings as finding (finding.id)}
             <div class="finding-card">
               <button class="finding-header" onclick={() => toggleExpand(finding.id)}>
@@ -239,11 +274,11 @@
               {#if expandedIds.has(finding.id)}
                 <div class="finding-detail" transition:slide={{ duration: 150 }}>
                   <div class="detail-section">
-                    <span class="detail-label">What happened</span>
+                    <span class="detail-label">{t("securityReport.whatHappened")}</span>
                     <p class="detail-text">{finding.description}</p>
                   </div>
                   <div class="detail-section">
-                    <span class="detail-label">What to do</span>
+                    <span class="detail-label">{t("securityReport.whatToDo")}</span>
                     <p class="detail-text recommendation">{finding.recommendation}</p>
                   </div>
                 </div>
@@ -253,16 +288,15 @@
         </div>
       {/if}
 
-      <!-- Scanned Processes -->
       <div class="meta-section">
-        <span class="meta-label">Scanned</span>
-        <span class="meta-value">{$processes.length} processes</span>
+        <span class="meta-label">{t("securityReport.scanned")}</span>
+        <span class="meta-value">{t("securityReport.processCount", { count: $processes.length })}</span>
         <span class="meta-sep">·</span>
-        <span class="meta-label">Flagged</span>
+        <span class="meta-label">{t("securityReport.flagged")}</span>
         <span class="meta-value">{$flaggedPids.size}</span>
         <span class="meta-sep">·</span>
-        <span class="meta-label">Generated</span>
-        <span class="meta-value">{new Date().toLocaleTimeString()}</span>
+        <span class="meta-label">{t("securityReport.generated")}</span>
+        <span class="meta-value">{generatedAt}</span>
       </div>
     </div>
   </div>
@@ -289,6 +323,7 @@
     max-height: 85vh;
     overflow-y: auto;
     box-shadow: var(--shadow-lg, 0 8px 32px rgba(0,0,0,0.6));
+    animation: report-enter 180ms ease-out;
   }
 
   .report-header {
@@ -351,12 +386,24 @@
 
   .quick-scan-btn {
     border: 1px solid var(--accent);
-    background: var(--accent);
+    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 62%, white 18%));
     color: white;
     border-radius: 8px;
     padding: 8px 12px;
     font-weight: 700;
     cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+  }
+
+  .quick-scan-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 22px rgba(0, 0, 0, 0.18);
+    filter: saturate(1.08);
+  }
+
+  .quick-scan-btn:disabled {
+    cursor: progress;
+    opacity: 0.88;
   }
 
   .quick-scan-meta {
@@ -371,7 +418,11 @@
     padding: 10px;
     border: 1px solid var(--border);
     border-radius: var(--radius-md, 8px);
-    background: var(--bg);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 88%, white 5%), var(--bg));
+  }
+
+  .quick-scan-results-loading {
+    pointer-events: none;
   }
 
   .scan-stat {
@@ -379,6 +430,14 @@
     flex-direction: column;
     align-items: center;
     gap: 2px;
+    min-height: 72px;
+    justify-content: center;
+  }
+
+  .scan-stat-skeleton {
+    border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--bg-alt) 88%, white 2%);
   }
 
   .scan-stat-value {
@@ -395,13 +454,33 @@
     color: var(--fg-dim);
   }
 
+  .skeleton-block,
+  .skeleton-line {
+    display: block;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent), color-mix(in srgb, var(--border) 75%, transparent);
+    background-size: 220px 100%, 100% 100%;
+    animation: shimmer 1.2s linear infinite;
+  }
+
+  .skeleton-block {
+    width: 48px;
+    height: 24px;
+    border-radius: 8px;
+  }
+
+  .skeleton-line {
+    width: 90px;
+    height: 10px;
+    border-radius: 999px;
+  }
+
   /* Risk Overview */
   .risk-overview {
     display: flex;
     flex-direction: column;
     gap: 12px;
     padding: 16px;
-    background: var(--bg);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, transparent), var(--bg));
     border: 1px solid var(--border);
     border-radius: var(--radius-md, 8px);
   }
@@ -477,6 +556,14 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-sm, 4px);
     overflow: hidden;
+    background: color-mix(in srgb, var(--bg) 92%, white 3%);
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  }
+
+  .finding-card:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
   }
 
   .finding-header {
@@ -493,6 +580,13 @@
     text-align: left;
   }
   .finding-header:hover { background: var(--bg-hover); }
+
+  .finding-header:focus-visible,
+  .report-close:focus-visible,
+  .quick-scan-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
 
   .finding-severity {
     flex-shrink: 0;
@@ -600,5 +694,44 @@
 
   .meta-sep {
     color: var(--fg-dim);
+  }
+
+  @keyframes report-enter {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes shimmer {
+    from {
+      background-position: -220px 0, 0 0;
+    }
+    to {
+      background-position: 220px 0, 0 0;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .report-modal {
+      width: min(92vw, 560px);
+    }
+
+    .quick-scan-results {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .risk-breakdown,
+    .meta-section {
+      flex-wrap: wrap;
+    }
+
+    .finding-header {
+      flex-wrap: wrap;
+    }
   }
 </style>

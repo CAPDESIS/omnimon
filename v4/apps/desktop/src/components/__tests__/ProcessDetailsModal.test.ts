@@ -4,6 +4,21 @@ import ProcessDetailsModal from "../ProcessDetailsModal.svelte";
 import type { ProcessEntry } from "../../lib/types";
 import { _resetForTest, browserTabs } from "../../stores/processes";
 
+const { mockUserMode } = vi.hoisted(() => {
+  const { writable } = require("svelte/store") as typeof import("svelte/store");
+  return {
+    mockUserMode: writable("pro"),
+  };
+});
+
+vi.mock("../../stores/preferences", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../stores/preferences")>();
+  return {
+    ...actual,
+    userMode: mockUserMode,
+  };
+});
+
 const mockInvoke = vi.mocked(invoke);
 
 function makeProc(overrides: Partial<ProcessEntry> = {}): ProcessEntry {
@@ -37,6 +52,7 @@ function makeProc(overrides: Partial<ProcessEntry> = {}): ProcessEntry {
 beforeEach(() => {
   _resetForTest();
   mockInvoke.mockReset();
+  mockUserMode.set("pro");
 });
 
 describe("rendering", () => {
@@ -271,6 +287,19 @@ describe("rendering", () => {
     expect(screen.getByText("Broken")).toBeInTheDocument();
     const domainEl = document.querySelector(".tab-domain") as HTMLElement;
     expect(domainEl.textContent).toBe("");
+  });
+
+  it("shows a basic mode hint banner", () => {
+    mockUserMode.set("basic");
+    render(ProcessDetailsModal, { props: { process: makeProc(), onclose: vi.fn() } });
+    expect(screen.getByText(/most relevant process details/i)).toBeInTheDocument();
+  });
+
+  it("hides advanced fields in basic mode", () => {
+    mockUserMode.set("basic");
+    render(ProcessDetailsModal, { props: { process: makeProc(), onclose: vi.fn() } });
+    expect(screen.queryByText("Executable")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^State$/)).not.toBeInTheDocument();
   });
 });
 
@@ -528,6 +557,13 @@ describe("AI analysis", () => {
   it("shows AI hint text", () => {
     render(ProcessDetailsModal, { props: { process: makeProc(), onclose: vi.fn() } });
     expect(screen.getByText(/Click "Ask AI" to get insights/)).toBeInTheDocument();
+  });
+
+  it("shows analysis skeleton while waiting for AI", async () => {
+    mockInvoke.mockImplementationOnce(() => new Promise((resolve) => setTimeout(() => resolve("done"), 30)));
+    render(ProcessDetailsModal, { props: { process: makeProc(), onclose: vi.fn() } });
+    await fireEvent.click(screen.getByText("Ask AI"));
+    expect(screen.getByRole("status", { name: /analyzing process details/i })).toBeInTheDocument();
   });
 
   it("calls analyze_context on AI button click", async () => {
