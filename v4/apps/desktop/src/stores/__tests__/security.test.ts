@@ -138,7 +138,7 @@ describe("security store", () => {
   });
 
   describe("refreshNetworkConnections", () => {
-    it("derives connections from browser tabs", () => {
+    it("derives connections from browser tabs (fallback when backend unavailable)", async () => {
       const procs = [
         makeProc({ pid: 1, name: "Chrome", group: "Browser" }),
       ];
@@ -146,7 +146,7 @@ describe("security store", () => {
         { url: "https://example.com/page", browser: "Chrome" },
         { url: "https://github.com/repo", browser: "Chrome" },
       ];
-      refreshNetworkConnections(procs, tabs);
+      await refreshNetworkConnections(procs, tabs);
       const conns = get(networkConnections);
       expect(conns).toHaveLength(2);
       expect(conns[0].remote_addr).toBe("example.com");
@@ -156,8 +156,8 @@ describe("security store", () => {
       expect(conns[1].remote_addr).toBe("github.com");
     });
 
-    it("handles http URLs with port 80", () => {
-      refreshNetworkConnections(
+    it("handles http URLs with port 80", async () => {
+      await refreshNetworkConnections(
         [makeProc({ pid: 1, name: "Firefox", group: "Browser" })],
         [{ url: "http://localhost:3000/dev", browser: "Firefox" }],
       );
@@ -166,16 +166,16 @@ describe("security store", () => {
       expect(conns[0].remote_port).toBe(3000);
     });
 
-    it("skips invalid URLs gracefully", () => {
-      refreshNetworkConnections(
+    it("skips invalid URLs gracefully", async () => {
+      await refreshNetworkConnections(
         [makeProc({ pid: 1, name: "Chrome", group: "Browser" })],
         [{ url: "not-a-url", browser: "Chrome" }],
       );
       expect(get(networkConnections)).toHaveLength(0);
     });
 
-    it("assigns pid 0 when no matching browser process", () => {
-      refreshNetworkConnections(
+    it("assigns pid 0 when no matching browser process", async () => {
+      await refreshNetworkConnections(
         [],
         [{ url: "https://example.com", browser: "Chrome" }],
       );

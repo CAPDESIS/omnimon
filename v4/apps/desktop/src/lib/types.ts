@@ -116,6 +116,36 @@ export interface NetworkConnection {
   state: string;            // ESTABLISHED, LISTEN, etc.
 }
 
+// --- Backend Network Telemetry (from Rust watcher) ---
+
+export interface ProcessNetworkThroughput {
+  pid: number;
+  rx_bytes_per_sec: number;
+  tx_bytes_per_sec: number;
+  tcp_packets_per_sec: number;
+  udp_packets_per_sec: number;
+}
+
+export interface ProcessConnectionEvent {
+  pid: number;
+  protocol: "Tcp" | "Udp";
+  direction: "Inbound" | "Outbound";
+  src_ip: string;
+  dst_ip: string;
+  src_port: number;
+  dst_port: number;
+  bytes: number;
+}
+
+export interface NetworkData {
+  top_processes: ProcessNetworkThroughput[];
+  recent_connections: ProcessConnectionEvent[];
+  net_rx_bytes_per_sec: number;
+  net_tx_bytes_per_sec: number;
+  capture_backend: string;
+  dpi_active: boolean;
+}
+
 export interface SuperProcess {
   binary_key: string;
   display_name: string;

@@ -109,21 +109,43 @@
     }
   }
 
+  function formatActionDetails(tool: string, details: string): string {
+    if (details.startsWith("close_tabs_except:")) {
+      const patterns = details.replace("close_tabs_except:", "").split("|").join(", ");
+      return `Close ALL tabs EXCEPT those matching: ${patterns}`;
+    }
+    if (details.startsWith("close_tabs:")) {
+      const patterns = details.replace("close_tabs:", "").split("|").join(", ");
+      return `Close tabs matching: ${patterns}`;
+    }
+    return details;
+  }
+
   async function executeCloseTabs(details: string): Promise<{ closed: number; message: string }> {
-    // details format: "close_tabs:<pattern>"
-    const pattern = details.replace(/^close_tabs:/, "").trim();
-    if (!pattern) return { closed: 0, message: "No pattern provided" };
+    const isExcept = details.startsWith("close_tabs_except:");
+    const raw = details.replace(/^close_tabs(_except)?:/, "").trim();
+    if (!raw) return { closed: 0, message: "No pattern provided" };
 
     try {
       const allTabs = await ipcGetBrowserTabs();
-      const patterns = pattern.split("|").map(p => p.trim().toLowerCase());
+      const patterns = raw.split("|").map(p => p.trim().toLowerCase());
 
-      // Match tabs whose URL or title contains any of the patterns
-      const toClose = allTabs.filter(tab => {
-        const url = tab.url.toLowerCase();
-        const title = tab.title.toLowerCase();
-        return patterns.some(p => url.includes(p) || title.includes(p));
-      });
+      let toClose;
+      if (isExcept) {
+        // Close everything EXCEPT tabs matching the patterns
+        toClose = allTabs.filter(tab => {
+          const url = tab.url.toLowerCase();
+          const title = tab.title.toLowerCase();
+          return !patterns.some(p => url.includes(p) || title.includes(p));
+        });
+      } else {
+        // Close tabs that MATCH the patterns
+        toClose = allTabs.filter(tab => {
+          const url = tab.url.toLowerCase();
+          const title = tab.title.toLowerCase();
+          return patterns.some(p => url.includes(p) || title.includes(p));
+        });
+      }
 
       if (toClose.length === 0) {
         return { closed: 0, message: `No tabs matched pattern "${pattern}"` };
@@ -282,7 +304,7 @@
             <span class="action-icon">⚠</span>
             <strong>Pending Action: {pendingAction.tool}</strong>
           </div>
-          <div class="action-details">{pendingAction.details}</div>
+          <div class="action-details">{formatActionDetails(pendingAction.tool, pendingAction.details)}</div>
           <div class="action-buttons">
             <button class="confirm-btn" onclick={confirmAction}>Confirm</button>
             <button class="reject-btn" onclick={rejectAction}>Cancel</button>

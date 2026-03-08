@@ -492,10 +492,14 @@ Respond with a JSON object ONLY when performing an action:
 Available tools:
 1. **kill_process** - Kill one process by PID. Args: {{"pid": <number>}}
 2. **kill_by_name** - Kill ALL processes matching a name. Args: {{"name": "<string>"}}
-3. **close_tabs** - Close browser tabs by URL/title pattern. Args: {{"pattern": "<url_or_title_substring>"}}
+3. **close_tabs** - Close browser tabs. Two modes:
+   - **Positive match** (close tabs that match): Args: {{"pattern": "<url_or_title_substring>"}}
+     Example: {{"tool": "close_tabs", "args": {{"pattern": "youtube|netflix"}}, "reason": "closing video sites"}}
+   - **Exclusion match** (close ALL tabs EXCEPT matching): Args: {{"except": "<url_or_title_substring>"}}
+     Example: {{"tool": "close_tabs", "args": {{"except": "crunchyroll|github|gemini"}}, "reason": "keeping only specified tabs"}}
    - Pattern matches against tab URL and title (case-insensitive substring).
-   - Use pipe `|` to match multiple patterns: "youtube.com|reddit.com"
-   - To close all tabs EXCEPT certain ones, list patterns for the tabs you WANT TO CLOSE.
+   - Use pipe `|` to match multiple patterns.
+   - When the user says "close everything except X, Y, Z" or "keep only X, Y, Z", use the `except` mode.
 4. **add_automation_rule** - Auto-monitor a process. Args: {{"id": "<string>", "process_pattern": "<string>", "metric": "cpu|ram", "threshold": <number>, "duration_secs": <number>, "action": "kill|alert"}}
 5. **remove_automation_rule** - Remove a rule. Args: {{"id": "<string>"}}
 
@@ -509,7 +513,9 @@ Available tools:
    d. Only output the tool JSON AFTER the user confirms.
 4. For close_tabs: ALWAYS list each tab you plan to close with its title and URL, and each tab you will keep.
 5. Prefer kill_by_name over kill_process when the user references a process name.
-6. Respond in the same language the user writes in."#,
+6. Respond in the same language the user writes in.
+7. **When the user confirms** with words like "sí", "yes", "hazlo", "procede", "dale", "do it", "go ahead", "adelante" — execute the previously discussed action immediately by outputting the tool JSON. Do NOT ask for confirmation again.
+8. Use the conversation history to remember what was previously discussed. If you proposed an action and the user confirmed, execute it."#,
         os = std::env::consts::OS,
         cpu = state.cpu_usage_percent,
         swap = state.swap_used_mb,
@@ -642,19 +648,29 @@ pub fn execute_tool_call(
             }
         }
         "close_tabs" => {
-            let pattern = args["pattern"].as_str().unwrap_or("");
-            if pattern.is_empty() {
-                return ToolResult {
+            let pattern = args.get("pattern").and_then(|v| v.as_str()).unwrap_or("");
+            let except = args.get("except").and_then(|v| v.as_str()).unwrap_or("");
+
+            if !except.is_empty() {
+                // Exclusion mode: close all tabs EXCEPT those matching
+                ToolResult {
+                    tool: "close_tabs".into(),
+                    success: true,
+                    details: format!("close_tabs_except:{}", except),
+                }
+            } else if !pattern.is_empty() {
+                // Positive mode: close tabs that match
+                ToolResult {
+                    tool: "close_tabs".into(),
+                    success: true,
+                    details: format!("close_tabs:{}", pattern),
+                }
+            } else {
+                ToolResult {
                     tool: "close_tabs".into(),
                     success: false,
-                    details: "No URL pattern provided".into(),
-                };
-            }
-            // Tab closing is handled by the frontend; return instruction
-            ToolResult {
-                tool: "close_tabs".into(),
-                success: true,
-                details: format!("close_tabs:{}", pattern),
+                    details: "No pattern or except provided".into(),
+                }
             }
         }
         "add_automation_rule" => {

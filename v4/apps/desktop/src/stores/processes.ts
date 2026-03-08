@@ -272,7 +272,7 @@ async function fetchBrowserTabs(): Promise<void> {
   try {
     const tabs = await ipcGetBrowserTabs();
     browserTabs.set(tabs);
-    refreshNetworkConnections(get(processes), tabs);
+    await refreshNetworkConnections(get(processes), tabs);
   } catch {
     // Best-effort — don't block anything
   }

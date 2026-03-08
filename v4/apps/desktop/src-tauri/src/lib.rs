@@ -446,6 +446,23 @@ async fn analyze_context(
         .map_err(|e| e.to_string())
 }
 
+/// IPC: Return real network telemetry data (top processes by throughput + recent connections).
+///
+/// Data comes from the background watcher's cached state — no expensive OS calls on the IPC thread.
+/// Returns empty arrays when the network-capture feature is unavailable or no data has been collected yet.
+#[tauri::command]
+fn get_network_data() -> Result<serde_json::Value, String> {
+    let state = macmon_core::watcher::get_cached_state();
+    Ok(serde_json::json!({
+        "top_processes": state.top_network_processes,
+        "recent_connections": state.recent_network_connections,
+        "net_rx_bytes_per_sec": state.net_rx_bytes_per_sec,
+        "net_tx_bytes_per_sec": state.net_tx_bytes_per_sec,
+        "capture_backend": state.net_capture_backend,
+        "dpi_active": state.net_dpi_active,
+    }))
+}
+
 /// IPC: Query whether the main window is currently visible.
 #[tauri::command]
 fn get_window_visible(app: tauri::AppHandle) -> bool {
@@ -695,6 +712,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_metrics,
+            get_network_data,
             kill_process,
             kill_processes,
             save_ai_config,

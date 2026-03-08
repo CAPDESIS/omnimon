@@ -16,7 +16,9 @@ import type {
   NetworkConnection,
   MitreTechnique,
   BehaviorIndicator,
+  NetworkData,
 } from "../lib/types";
+import { ipcGetNetworkData } from "../lib/ipc";
 import { processes } from "./processes";
 
 // --- Stores ---
@@ -181,36 +183,59 @@ export function refreshSecurityAnalysis(procs: ProcessEntry[]): void {
   securityMap.set(map);
 }
 
-// --- Network connection heuristics ---
-// Until the backend exposes per-process network data,
-// we derive synthetic connection info from browser processes + tabs.
+// --- Network connection data ---
+// Fetches real network telemetry from the Rust backend.
+// Falls back to browser-tab-derived connections when the backend
+// returns no data (e.g. network-capture feature not compiled).
 
-export function refreshNetworkConnections(
+export async function refreshNetworkConnections(
   procs: ProcessEntry[],
   tabs: { url: string; browser: string }[],
-): void {
+): Promise<void> {
   const conns: NetworkConnection[] = [];
 
-  // Derive connections from browser tabs
-  for (const tab of tabs) {
-    try {
-      const url = new URL(tab.url);
-      const browserProc = procs.find(
-        (p) => p.group === "Browser" && p.name.toLowerCase().includes(tab.browser.toLowerCase()),
-      );
+  // 1) Try real backend data
+  try {
+    const data: NetworkData = await ipcGetNetworkData();
+    for (const conn of data.recent_connections) {
       conns.push({
-        pid: browserProc?.pid ?? 0,
-        process_name: tab.browser,
-        remote_addr: url.hostname,
-        remote_port: url.port ? parseInt(url.port) : (url.protocol === "https:" ? 443 : 80),
-        protocol: "tcp",
-        direction: "outbound",
-        bytes_sent: 0,
-        bytes_recv: 0,
+        pid: conn.pid,
+        process_name: procs.find((p) => p.pid === conn.pid)?.name ?? `pid:${conn.pid}`,
+        remote_addr: conn.dst_ip,
+        remote_port: conn.dst_port,
+        protocol: conn.protocol === "Tcp" ? "tcp" : "udp",
+        direction: conn.direction === "Outbound" ? "outbound" : "inbound",
+        bytes_sent: conn.direction === "Outbound" ? conn.bytes : 0,
+        bytes_recv: conn.direction === "Inbound" ? conn.bytes : 0,
         state: "ESTABLISHED",
       });
-    } catch {
-      // Invalid URL, skip
+    }
+  } catch {
+    // Backend unavailable — fall through to browser-tab fallback
+  }
+
+  // 2) Fallback: derive connections from browser tabs when backend returned nothing
+  if (conns.length === 0) {
+    for (const tab of tabs) {
+      try {
+        const url = new URL(tab.url);
+        const browserProc = procs.find(
+          (p) => p.group === "Browser" && p.name.toLowerCase().includes(tab.browser.toLowerCase()),
+        );
+        conns.push({
+          pid: browserProc?.pid ?? 0,
+          process_name: tab.browser,
+          remote_addr: url.hostname,
+          remote_port: url.port ? parseInt(url.port) : (url.protocol === "https:" ? 443 : 80),
+          protocol: "tcp",
+          direction: "outbound",
+          bytes_sent: 0,
+          bytes_recv: 0,
+          state: "ESTABLISHED",
+        });
+      } catch {
+        // Invalid URL, skip
+      }
     }
   }
 

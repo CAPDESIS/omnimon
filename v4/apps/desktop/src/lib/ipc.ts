@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ProcessEntry, SystemStats, Metrics, BrowserTab, BrowserName, ProcessSuggestion, KillProcessesResult, ChatResponse } from "./types";
+import type { ProcessEntry, SystemStats, Metrics, BrowserTab, BrowserName, ProcessSuggestion, KillProcessesResult, ChatResponse, NetworkData } from "./types";
 
 const VALID_BROWSERS = new Set<string>(["Chrome", "Safari", "Brave", "Edge", "Arc", "Firefox"]);
 
@@ -308,4 +308,34 @@ export async function ipcGetAiRulesSchema(): Promise<string> {
   const result: unknown = await invoke("get_ai_rules_schema");
   assertString("get_ai_rules_schema result", result);
   return result;
+}
+
+/** Fetches real network telemetry data (per-process throughput + recent connections) from the Rust backend. */
+export async function ipcGetNetworkData(): Promise<NetworkData> {
+  const data: unknown = await invoke("get_network_data");
+
+  if (data == null || typeof data !== "object") {
+    throw new IPCValidationError("get_network_data", data, "Expected object from get_network_data");
+  }
+  const d = data as Record<string, unknown>;
+
+  if (!Array.isArray(d.top_processes)) {
+    throw new IPCValidationError("get_network_data.top_processes", d.top_processes, "Expected array for top_processes");
+  }
+  if (!Array.isArray(d.recent_connections)) {
+    throw new IPCValidationError("get_network_data.recent_connections", d.recent_connections, "Expected array for recent_connections");
+  }
+  assertFiniteNumber("get_network_data.net_rx_bytes_per_sec", d.net_rx_bytes_per_sec);
+  assertFiniteNumber("get_network_data.net_tx_bytes_per_sec", d.net_tx_bytes_per_sec);
+  assertString("get_network_data.capture_backend", d.capture_backend);
+  assertBoolean("get_network_data.dpi_active", d.dpi_active);
+
+  return {
+    top_processes: d.top_processes as NetworkData["top_processes"],
+    recent_connections: d.recent_connections as NetworkData["recent_connections"],
+    net_rx_bytes_per_sec: d.net_rx_bytes_per_sec as number,
+    net_tx_bytes_per_sec: d.net_tx_bytes_per_sec as number,
+    capture_backend: d.capture_backend as string,
+    dpi_active: d.dpi_active as boolean,
+  };
 }
