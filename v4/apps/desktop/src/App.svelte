@@ -15,6 +15,7 @@
   import AiInsightCard from "./components/AiInsightCard.svelte";
   import CloudSync from "./components/CloudSync.svelte";
   import Automations from "./components/Automations.svelte";
+  import HelpCenterModal from "./components/HelpCenterModal.svelte";
   import { totalFindings } from "./stores/security";
   import { initSecurityAlertListener } from "./stores/alerts";
   import type { ProcessEntry } from "./lib/types";
@@ -64,7 +65,6 @@
     customTheme,
     type ThemeMode,
   } from "./stores/preferences";
-  import { aiChatPanelHeight as aiChatPanelHeightStore } from "./stores/preferences";
   import { ipcValidateApiKey, ipcCheckApiKey, ipcAnalyzeContext } from "./lib/ipc";
   import { listen } from "@tauri-apps/api/event";
   import { t, locale, initI18n } from "./lib/i18n";
@@ -80,6 +80,7 @@
   let dashboardCollapsed = $state(false);
   let showSecurityReport = $state(false);
   let showAutomations = $state(false);
+  let showHelpCenter = $state(false);
 
   // Resizable tab panel (backed by store for persistence)
   let tabPanelHeight = $state($tabPanelHeightStore);
@@ -496,7 +497,7 @@
       </button>
 
       <button
-        class="btn btn-icon"
+        class="btn btn-icon btn-text-icon"
         onclick={() => showAutomations = !showAutomations}
         title={t("toolbar.automations")}
         aria-label={t("toolbar.automations")}
@@ -504,10 +505,11 @@
         <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
           <path d="M8 0a8 8 0 100 16A8 8 0 008 0zm1 11H7V7h2v4zm0-5H7V4h2v2z"/>
         </svg>
+        <span>{t("toolbar.automations")}</span>
       </button>
 
       <button
-        class="btn btn-icon"
+        class="btn btn-icon btn-text-icon"
         onclick={() => showSettings = true}
         title={t("toolbar.aiSettings")}
         aria-label={t("toolbar.aiSettings")}
@@ -515,6 +517,17 @@
         <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
           <path d="M7 1h2v2.1a5 5 0 011.2.5l1.5-1.5 1.4 1.4-1.5 1.5a5 5 0 01.5 1.2H14v2h-2.1a5 5 0 01-.5 1.2l1.5 1.5-1.4 1.4-1.5-1.5a5 5 0 01-1.2.5V14H7v-2.1a5 5 0 01-1.2-.5l-1.5 1.5-1.4-1.4 1.5-1.5a5 5 0 01-.5-1.2H2V7h2.1a5 5 0 01.5-1.2L3.1 4.3l1.4-1.4 1.5 1.5A5 5 0 017 3.9V1zm1 5a2 2 0 100 4 2 2 0 000-4z"/>
         </svg>
+        <span>{t("toolbar.aiSettings")}</span>
+      </button>
+
+      <button
+        class="btn btn-icon btn-text-icon"
+        onclick={() => showHelpCenter = true}
+        title={t("toolbar.helpCenter")}
+        aria-label={t("toolbar.helpCenter")}
+      >
+        <span class="btn-icon-glyph">?</span>
+        <span>{t("toolbar.helpCenter")}</span>
       </button>
 
       <div class="font-controls">
@@ -620,7 +633,7 @@
   <!-- Status Footer -->
   <footer class="statusline" aria-live="polite" aria-atomic="true">
     <span>
-      <span class="version-label" style="color: var(--accent); font-weight: 600;">OmniMon v5.0.0</span> &nbsp;&middot;&nbsp;
+      <span class="version-label" style="color: var(--accent); font-weight: 600;">OmniMon v5.0.1</span> &nbsp;&middot;&nbsp;
       {t("footer.processes", { count: $filtered.length })}{#if $filtered.length !== $processes.length}
         &nbsp;{t("footer.filteredFrom", { count: $processes.length })}{/if}
       {#if $selectedCount > 0}
@@ -875,6 +888,10 @@
   <Automations />
 {/if}
 
+{#if showHelpCenter}
+  <HelpCenterModal onclose={() => showHelpCenter = false} />
+{/if}
+
 <style>
   /* ==============================
      GLOBAL RESET & BASE
@@ -1078,6 +1095,23 @@
     padding: 4px 6px;
     font-size: calc(var(--base-font-size) * 0.833);
     font-weight: 600;
+  }
+
+  .btn-text-icon {
+    gap: 6px;
+    padding-inline: 8px;
+  }
+
+  .btn-icon-glyph {
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    font-size: calc(var(--base-font-size) * 0.75);
+    line-height: 1;
   }
 
   .btn-group {

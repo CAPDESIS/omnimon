@@ -43,7 +43,8 @@
     "securityFindings": "Reporte de Seguridad ({count} hallazgos)",
     "showDashboard": "Mostrar Panel",
     "hideDashboard": "Ocultar Panel",
-    "automations": "Automatizaciones"
+    "automations": "Automatizaciones",
+    "helpCenter": "Centro de ayuda"
   },
   "ai": {
     "suggestions": "Sugerencias IA",
@@ -254,5 +255,35 @@
     "aiPlaceholder": "Pregunta por picos de tráfico, destinos sospechosos o qué proceso tiene una conexión.",
     "aiEmpty": "Haz preguntas de seguimiento sobre conexiones activas y tendencias de tráfico.",
     "aiHelp": "Usa la telemetría de red actual y la lista visible de conexiones para explicar qué está pasando en la red."
+  },
+  "helpCenter": {
+    "eyebrow": "FAQ y guías",
+    "title": "Cómo funciona OmniMon",
+    "aiTitle": "Zonas de IA",
+    "aiActionsTitle": "Acciones IA",
+    "aiActionsBody": "Usa este chat para preguntar por procesos, pestañas, memoria, CPU, y para ejecutar acciones soportadas como cerrar pestañas. Es el asistente orientado a acciones.",
+    "aiConfigTitle": "Configuración IA",
+    "aiConfigBody": "Usa esta entrada para crear reglas de alerta o ajustar configuraciones con lenguaje natural. Sirve para configuración, no para matar procesos o cerrar pestañas directamente.",
+    "alertRulesTitle": "¿Qué es una alert rule?",
+    "alertRulesBody": "Las reglas de alerta observan métricas como CPU, RAM o uso por proceso. Se activan cuando la métrica cruza el umbral definido y aparecen en Alerts para que puedas revisarlas o eliminarlas.",
+    "networkTitle": "Vistas de red",
+    "networkMapBody": "Map agrupa destinos vivos por proceso para que veas qué apps están hablando con qué hosts.",
+    "networkConnectionsBody": "Connections lista destinos actuales, puertos, protocolos y estados para la telemetría de red visible.",
+    "networkTrafficBody": "Traffic grafica throughput de entrada y salida a lo largo del tiempo para detectar picos o actividad sostenida.",
+    "profilesTitle": "Perfiles de análisis",
+    "controlsTitle": "Controles principales",
+    "securityReportBody": "Abre el reporte de seguridad y los hallazgos generados por análisis de procesos, CVEs y alertas dinámicas.",
+    "dashboardBody": "Muestra u oculta las tarjetas del dashboard superior para enfocarte en procesos o volver a ver las gráficas.",
+    "automationsBody": "Abre el constructor de automatizaciones para crear reglas persistentes que reaccionan cuando un proceso cruza tus umbrales.",
+    "settingsBody": "Abre proveedor, modelo, API key, tema, idioma y ajustes de rendimiento de la app.",
+    "fontTitle": "Controles de fuente",
+    "fontBody": "Aumenta o reduce el tamaño de fuente para tener tablas más densas o dashboards más legibles.",
+    "faqTitle": "Preguntas frecuentes",
+    "faqQ1": "¿Por qué la IA pide confirmación?",
+    "faqA1": "Las acciones destructivas como cerrar pestañas deben revisarse antes de ejecutarse para que confirmes exactamente qué va a pasar.",
+    "faqQ2": "¿Por qué la sección Network puede verse vacía?",
+    "faqA2": "Si no hay tráfico reciente o el sistema operativo aún no expone suficiente telemetría, la sección de red espera actividad real antes de mostrar datos.",
+    "faqQ3": "¿Qué chat debo usar?",
+    "faqA3": "Usa Acciones IA para preguntas y acciones del sistema, Configuración IA para ajustes y reglas, y los chats contextuales dentro de paneles cuando quieras ayuda enfocada."
   }
 }

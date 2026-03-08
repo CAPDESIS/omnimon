@@ -1,6 +1,6 @@
 [package]
 name = "omnimon-desktop"
-version = "5.0.0"
+version = "5.0.2"
 edition = "2021"
 
 [lib]

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
+  import { onMount } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
   
   interface AutomationRule {
     id: string;
@@ -11,21 +11,15 @@
     action: string;
   }
 
-  interface Props {
-    onclose?: () => void;
-  }
-
-  let { onclose = () => {} }: Props = $props();
-
   let rules = $state<AutomationRule[]>([]);
-  let process_pattern = $state('');
-  let metric = $state('ram');
+  let process_pattern = $state("");
+  let metric = $state("ram");
   let threshold = $state(1024);
   let duration_secs = $state(60);
-  let action = $state('alert');
+  let action = $state("alert");
 
   async function loadRules() {
-    rules = await invoke<AutomationRule[]>('get_automation_rules');
+    rules = await invoke<AutomationRule[]>("get_automation_rules");
   }
 
   async function addRule() {
@@ -37,12 +31,12 @@
       duration_secs,
       action,
     };
-    await invoke('add_automation_rule', { rule });
+    await invoke("add_automation_rule", { rule });
     await loadRules();
   }
 
   async function removeRule(id: string) {
-    await invoke('remove_automation_rule', { id });
+    await invoke("remove_automation_rule", { id });
     await loadRules();
   }
 
@@ -54,7 +48,6 @@
 <div class="automations-container">
   <div class="automations-header">
     <h2>Automations Engine</h2>
-    <button class="close-btn" onclick={onclose} aria-label="Close automations">×</button>
   </div>
   
   <div class="builder">
@@ -90,7 +83,6 @@
 <style>
   .automations-container { padding: 1rem; color: #e2e8f0; }
   .automations-header { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
-  .close-btn { border: 1px solid #475569; background: transparent; color: inherit; border-radius: 0.375rem; width: 2rem; height: 2rem; cursor: pointer; }
   .builder { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
   .rule-item { display: flex; justify-content: space-between; padding: 0.5rem; background: #1e293b; margin-bottom: 0.5rem; }
 </style>

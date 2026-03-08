@@ -43,7 +43,8 @@
     "securityFindings": "Security Report ({count} findings)",
     "showDashboard": "Show Dashboard",
     "hideDashboard": "Hide Dashboard",
-    "automations": "Automations"
+    "automations": "Automations",
+    "helpCenter": "Help Center"
   },
   "ai": {
     "suggestions": "AI Suggestions",
@@ -254,5 +255,35 @@
     "aiPlaceholder": "Ask about traffic spikes, suspicious destinations, or which process owns a connection.",
     "aiEmpty": "Ask follow-up questions about live network connections and traffic trends.",
     "aiHelp": "Uses current network telemetry and the visible connections list to explain what is happening on the network."
+  },
+  "helpCenter": {
+    "eyebrow": "FAQ & Guides",
+    "title": "How OmniMon works",
+    "aiTitle": "AI areas",
+    "aiActionsTitle": "AI Actions",
+    "aiActionsBody": "Use this chat to ask about processes, tabs, memory, CPU, and to trigger supported actions like closing tabs. It is the action-oriented assistant.",
+    "aiConfigTitle": "AI Config",
+    "aiConfigBody": "Use this input to create alert rules or tweak app settings in natural language. It is for configuration, not for killing processes or tab actions.",
+    "alertRulesTitle": "What is an alert rule?",
+    "alertRulesBody": "Alert rules watch metrics like CPU, RAM, or process-specific usage. They trigger when the metric crosses the threshold you defined, and they show up in Alerts so you can review or remove them.",
+    "networkTitle": "Network views",
+    "networkMapBody": "Map groups live destinations by process so you can see which apps are talking to which hosts.",
+    "networkConnectionsBody": "Connections lists the current destinations, ports, protocols, and states for the visible network telemetry.",
+    "networkTrafficBody": "Traffic charts inbound and outbound throughput over time so you can spot spikes and sustained activity.",
+    "profilesTitle": "Analysis profiles",
+    "controlsTitle": "Main controls",
+    "securityReportBody": "Opens the security report and findings generated from process, CVE, and dynamic alert analysis.",
+    "dashboardBody": "Shows or hides the dashboard cards at the top so you can focus on processes or bring charts back.",
+    "automationsBody": "Opens the automation builder to create persistent monitoring rules that react when a process matches your thresholds.",
+    "settingsBody": "Opens provider, model, API key, theme, language, and performance settings for the app.",
+    "fontTitle": "Font controls",
+    "fontBody": "Increase or decrease font size for denser tables or more readable dashboards.",
+    "faqTitle": "Frequently asked questions",
+    "faqQ1": "Why does the AI ask for confirmation?",
+    "faqA1": "Destructive actions like closing tabs should be reviewed before execution so you can verify what will happen.",
+    "faqQ2": "Why can Network be empty?",
+    "faqA2": "If there is no recent traffic or the OS has not exposed enough telemetry yet, the network section may wait for real activity before showing data.",
+    "faqQ3": "Which chat should I use?",
+    "faqA3": "Use AI Actions for system questions and actions, AI Config for settings and alert rules, and contextual chats inside panels when you want focused help."
   }
 }

@@ -112,6 +112,8 @@ vi.mock("../stores/preferences", () => {
     idleThreshold: writable(1),
     theme: writable("auto"),
     tabPanelHeight: writable(160),
+    aiChatPanelHeight: writable(220),
+    networkPanelHeight: writable(280),
     localePreference: writable("en"),
     loadPreferences: vi.fn(async () => {}),
     savePreferences: vi.fn(async () => {}),
@@ -182,5 +184,11 @@ describe("App AI Command Bar", () => {
     expect(searchInput).toBeInTheDocument();
     expect(screen.getByText("AI Analyze")).toBeInTheDocument();
     expect(screen.getByText("Close")).toBeInTheDocument();
+  });
+
+  it("opens the help center from the toolbar", async () => {
+    render(App);
+    await fireEvent.click(screen.getByRole("button", { name: /Help Center/i }));
+    expect(screen.getByText("How OmniMon works")).toBeInTheDocument();
   });
 });
