@@ -323,8 +323,8 @@ describe("close behavior", () => {
   it("Escape key calls onclose", async () => {
     const onclose = vi.fn();
     render(ProcessDetailsModal, { props: { process: makeProc(), onclose } });
-    const backdrop = screen.getByRole("presentation");
-    await fireEvent.keyDown(backdrop, { key: "Escape" });
+    const dialog = screen.getByRole("dialog");
+    await fireEvent.keyDown(dialog, { key: "Escape" });
     expect(onclose).toHaveBeenCalledTimes(1);
   });
 });
@@ -338,8 +338,8 @@ describe("focus trap", () => {
     closeBtn.focus();
     expect(document.activeElement).toBe(closeBtn);
 
-    const backdrop = screen.getByRole("presentation");
-    await fireEvent.keyDown(backdrop, { key: "Tab" });
+    const dialog = screen.getByRole("dialog");
+    await fireEvent.keyDown(dialog, { key: "Tab" });
     expect(document.activeElement).toBe(closeBtn);
   });
 
@@ -350,8 +350,8 @@ describe("focus trap", () => {
     const askAiBtn = screen.getByText("Ask AI");
 
     closeBtn.focus();
-    const backdrop = screen.getByRole("presentation");
-    await fireEvent.keyDown(backdrop, { key: "Tab", shiftKey: true });
+    const dialog = screen.getByRole("dialog");
+    await fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
     // Last focusable is now the "Ask AI" button
     expect(document.activeElement).toBe(askAiBtn);
   });
@@ -359,35 +359,35 @@ describe("focus trap", () => {
   it("returns early when no focusable elements exist", async () => {
     render(ProcessDetailsModal, { props: { process: makeProc(), onclose: vi.fn() } });
     const modal = screen.getByRole("dialog") as HTMLDivElement;
-    const backdrop = screen.getByRole("presentation");
+    const dialog = screen.getByRole("dialog");
     vi.spyOn(modal, "querySelectorAll").mockReturnValue([] as unknown as NodeListOf<HTMLElement>);
 
-    await fireEvent.keyDown(backdrop, { key: "Tab" });
+    await fireEvent.keyDown(dialog, { key: "Tab" });
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("does not wrap focus when tabbing from non-edge position", async () => {
     render(ProcessDetailsModal, { props: { process: makeProc(), onclose: vi.fn() } });
     const modal = screen.getByRole("dialog") as HTMLDivElement;
-    const backdrop = screen.getByRole("presentation");
+    const dialog = screen.getByRole("dialog");
     const first = document.createElement("button");
     const last = document.createElement("button");
     modal.append(first, last);
     first.focus();
     vi.spyOn(modal, "querySelectorAll").mockReturnValue([first, last] as unknown as NodeListOf<HTMLElement>);
 
-    await fireEvent.keyDown(backdrop, { key: "Tab" });
+    await fireEvent.keyDown(dialog, { key: "Tab" });
     expect(document.activeElement).toBe(first);
   });
 
   it("wraps Tab from last focusable back to first", async () => {
     render(ProcessDetailsModal, { props: { process: makeProc(), onclose: vi.fn() } });
-    const backdrop = screen.getByRole("presentation");
+    const dialog = screen.getByRole("dialog");
     const closeBtn = screen.getByLabelText("Close");
     const askAiBtn = screen.getByText("Ask AI");
 
     askAiBtn.focus();
-    await fireEvent.keyDown(backdrop, { key: "Tab" });
+    await fireEvent.keyDown(dialog, { key: "Tab" });
     expect(document.activeElement).toBe(closeBtn);
   });
 });

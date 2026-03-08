@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import { cpuSeries, ramSeries, netRxSeries, netTxSeries, swapSeries, metricsHistory } from "../stores/metricsHistory";
   import { filtered, stats } from "../stores/processes";
-  import NetworkMap from "./NetworkMap.svelte";
   import type { UserMode } from "../stores/preferences";
   import { t } from "../lib/i18n";
   import type { MetricPoint } from "../stores/metricsHistory";
@@ -29,11 +28,28 @@
   let sortKey = $state<SortKey>("ram");
   let sortAsc = $state(false);
   let processLimit = $state(30);
+  let networkMapPromise = $state<Promise<any> | null>(null);
+
+  function closeWhenBackdropMatches(event: MouseEvent) {
+    if (event.target === event.currentTarget) {
+      onclose();
+    }
+  }
+
+  function stopMouseEventPropagation(event: MouseEvent) {
+    event.stopPropagation();
+  }
 
   $effect(() => {
     sortKey = defaultSortKey(metric);
     sortAsc = false;
     processLimit = 30;
+  });
+
+  $effect(() => {
+    if (metric === "network") {
+      networkMapPromise ??= import("./NetworkMap.svelte");
+    }
   });
 
   function closeOnEscape(event: KeyboardEvent) {
@@ -99,6 +115,7 @@
   }
 
   const topProcesses = $derived.by(() => {
+    if (metric === "network") return [];
     const list = [...$filtered];
     list.sort((a, b) => {
       const va = getSortValue(a, sortKey);
@@ -129,13 +146,17 @@
       default: return [];
     }
   });
+
+  function metricSummaryLabel(kind: MetricKind): string {
+    if (kind === "cpu") return formatSeries($cpuSeries, "%");
+    if (kind === "ram") return formatSeries($ramSeries, "%");
+    if (kind === "swap") return formatSeries($swapSeries, " MB");
+    return `${$stats?.total_processes ?? 0} visible`;
+  }
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<div class="backdrop" onclick={onclose} onkeydown={closeOnEscape} role="presentation">
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <div class="modal" bind:this={modalEl} onclick={(e: MouseEvent) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="metric-modal-title" tabindex="-1">
+<div class="backdrop" onmousedown={closeWhenBackdropMatches} role="presentation">
+  <div class="modal" bind:this={modalEl} onmousedown={stopMouseEventPropagation} onkeydown={closeOnEscape} role="dialog" aria-modal="true" aria-labelledby="metric-modal-title" tabindex="-1">
     <div class="header">
       <div>
         <div class="eyebrow">{t("status.deepDive")}</div>
@@ -153,17 +174,21 @@
             <div class="summary-card"><span class="card-label">Samples</span><span class="card-value">{$metricsHistory.length}</span></div>
             <div class="summary-card"><span class="card-label">Processes</span><span class="card-value">{$stats?.total_processes ?? 0}</span></div>
           </div>
-          <NetworkMap mode={mode} />
+          {#if networkMapPromise}
+            {#await networkMapPromise then NetworkMapModule}
+              <NetworkMapModule.default mode={mode} />
+            {/await}
+          {/if}
         </div>
       {:else}
         <!-- Summary cards -->
         <div class="summary-row">
           <div class="summary-card wide">
-            <span class="card-label">{metricTitle(metric)}</span>
-            <span class="card-value">
-              {metric === "cpu" ? formatSeries($cpuSeries, "%") : metric === "ram" ? formatSeries($ramSeries, "%") : metric === "swap" ? formatSeries($swapSeries, " MB") : `${$stats?.total_processes ?? 0} visible`}
-            </span>
-          </div>
+              <span class="card-label">{metricTitle(metric)}</span>
+              <span class="card-value">
+                {metricSummaryLabel(metric)}
+              </span>
+            </div>
           <div class="summary-card"><span class="card-label">History</span><span class="card-value">{$metricsHistory.length} samples</span></div>
           <div class="summary-card"><span class="card-label">Showing</span><span class="card-value">{topProcesses.length} / {$filtered.length}</span></div>
         </div>
@@ -171,7 +196,7 @@
         <!-- Sparkline chart -->
         {#if activeSeries.length > 1}
           <div class="sparkline-container">
-            <svg viewBox="0 0 200 32" preserveAspectRatio="none" class="sparkline-svg">
+            <svg viewBox="0 0 200 32" preserveAspectRatio="none" class="sparkline-svg" role="img" aria-label={metricSummaryLabel(metric)}>
               <path d={sparklinePath(activeSeries)} fill="none" stroke="var(--accent)" stroke-width="1.5" />
             </svg>
           </div>
@@ -184,13 +209,13 @@
             <table class="process-table">
               <thead>
                 <tr>
-                  <th class="th-name" onclick={() => toggleSort("name")}>Name{sortIndicator("name")}</th>
-                  <th class="th-pid" onclick={() => toggleSort("pid")}>PID{sortIndicator("pid")}</th>
-                  <th class="th-num" onclick={() => toggleSort("cpu")}>CPU%{sortIndicator("cpu")}</th>
-                  <th class="th-num" onclick={() => toggleSort("ram")}>RAM MB{sortIndicator("ram")}</th>
-                  <th class="th-num" onclick={() => toggleSort("net")}>Net{sortIndicator("net")}</th>
-                  <th class="th-state" onclick={() => toggleSort("state")}>State{sortIndicator("state")}</th>
-                  <th class="th-uptime" onclick={() => toggleSort("uptime")}>Uptime{sortIndicator("uptime")}</th>
+                  <th class="th-name" scope="col"><button type="button" class="sort-button" onclick={() => toggleSort("name")}>Name<span aria-hidden="true">{sortIndicator("name")}</span></button></th>
+                  <th class="th-pid" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => toggleSort("pid")}>PID<span aria-hidden="true">{sortIndicator("pid")}</span></button></th>
+                  <th class="th-num" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => toggleSort("cpu")}>CPU%<span aria-hidden="true">{sortIndicator("cpu")}</span></button></th>
+                  <th class="th-num" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => toggleSort("ram")}>RAM MB<span aria-hidden="true">{sortIndicator("ram")}</span></button></th>
+                  <th class="th-num" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => toggleSort("net")}>Net<span aria-hidden="true">{sortIndicator("net")}</span></button></th>
+                  <th class="th-state" scope="col"><button type="button" class="sort-button" onclick={() => toggleSort("state")}>State<span aria-hidden="true">{sortIndicator("state")}</span></button></th>
+                  <th class="th-uptime" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => toggleSort("uptime")}>Uptime<span aria-hidden="true">{sortIndicator("uptime")}</span></button></th>
                 </tr>
               </thead>
               <tbody>
@@ -353,19 +378,35 @@
 
   .process-table th {
     padding: 8px 10px;
-    text-align: left;
     font-size: calc(var(--base-font-size, 12px) * 0.75);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.3px;
     color: var(--fg-dim);
     border-bottom: 1px solid var(--border);
-    cursor: pointer;
     user-select: none;
     white-space: nowrap;
   }
 
-  .process-table th:hover {
+  .sort-button {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    text-align: left;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .sort-button-num {
+    text-align: right;
+  }
+
+  .sort-button:hover,
+  .sort-button:focus-visible {
     color: var(--accent);
   }
 

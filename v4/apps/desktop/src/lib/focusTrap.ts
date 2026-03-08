@@ -20,6 +20,16 @@ export function focusFirstFocusable(container: HTMLElement | null | undefined): 
   else container.focus();
 }
 
+export function rememberActiveElement(): HTMLElement | null {
+  if (typeof document === "undefined") return null;
+  return document.activeElement instanceof HTMLElement ? document.activeElement : null;
+}
+
+export function restoreFocus(element: HTMLElement | null | undefined): void {
+  if (!element || !element.isConnected) return;
+  element.focus();
+}
+
 export function trapFocus(event: KeyboardEvent, container: HTMLElement | null | undefined): void {
   if (event.key !== "Tab" || !container) return;
   const focusable = getFocusableElements(container);

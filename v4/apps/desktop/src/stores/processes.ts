@@ -32,15 +32,45 @@ export const selectedPids = writable<Set<number>>(new Set());
 // --- Derived stores ---
 
 /** Derived store of processes filtered by the current search query (matches name, PID, or group). */
+let lastFilterQuery = "";
+let lastFilterMeta: Array<{ pid: number; name: string; group: string }> = [];
+let lastFilterMatches: number[] = [];
 export const filtered = derived([processes, search], ([$processes, $search]) => {
   const q = $search.trim().toLowerCase();
-  if (!q) return $processes;
-  return $processes.filter(
-    (p) =>
-      p.name.toLowerCase().includes(q) ||
-      String(p.pid).includes(q) ||
-      p.group.toLowerCase().includes(q),
-  );
+  if (!q) {
+    lastFilterQuery = "";
+    lastFilterMeta = [];
+    lastFilterMatches = [];
+    return $processes;
+  }
+
+  const sameQuery = q === lastFilterQuery;
+  const sameMeta =
+    sameQuery &&
+    $processes.length === lastFilterMeta.length &&
+    $processes.every((proc, index) => {
+      const cached = lastFilterMeta[index];
+      return cached !== undefined && cached.pid === proc.pid && cached.name === proc.name && cached.group === proc.group;
+    });
+
+  if (sameMeta) {
+    return lastFilterMatches.map((index) => $processes[index]).filter((proc): proc is ProcessEntry => proc !== undefined);
+  }
+
+  const matches: number[] = [];
+  const next = $processes.filter((proc, index) => {
+    const included =
+      proc.name.toLowerCase().includes(q) ||
+      String(proc.pid).includes(q) ||
+      proc.group.toLowerCase().includes(q);
+    if (included) matches.push(index);
+    return included;
+  });
+
+  lastFilterQuery = q;
+  lastFilterMeta = $processes.map((proc) => ({ pid: proc.pid, name: proc.name, group: proc.group }));
+  lastFilterMatches = matches;
+  return next;
 });
 
 /** Derived store containing only processes in the "Browser" group. */
@@ -301,16 +331,49 @@ const ERROR_TOAST_THRESHOLD = 3;
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let tabIntervalId: ReturnType<typeof setInterval> | null = null;
 let networkIntervalId: ReturnType<typeof setInterval> | null = null;
+let pollingIntervalMs = 2000;
+
+const pollingTargets = {
+  browserTabs: true,
+  network: false,
+};
+
+function syncBrowserTabsPolling(): void {
+  if (tabIntervalId !== null) {
+    clearInterval(tabIntervalId);
+    tabIntervalId = null;
+  }
+  if (!pollingTargets.browserTabs) return;
+  fetchBrowserTabs();
+  tabIntervalId = setInterval(fetchBrowserTabs, 5000);
+}
+
+function syncNetworkPolling(): void {
+  if (networkIntervalId !== null) {
+    clearInterval(networkIntervalId);
+    networkIntervalId = null;
+  }
+  if (!pollingTargets.network) return;
+  fetchNetworkConnections();
+  networkIntervalId = setInterval(fetchNetworkConnections, pollingIntervalMs);
+}
+
+export function setPollingTarget(target: "browserTabs" | "network", active: boolean): void {
+  if (pollingTargets[target] === active) return;
+  pollingTargets[target] = active;
+  if (intervalId === null) return;
+  if (target === "browserTabs") syncBrowserTabsPolling();
+  else syncNetworkPolling();
+}
 
 /** Starts periodic polling for metrics (every intervalMs) and browser tabs (every 5s). */
 export function startPolling(intervalMs = 2000): void {
+  pollingIntervalMs = intervalMs;
   stopPolling();
   fetchMetrics();
-  fetchBrowserTabs();
-   fetchNetworkConnections();
   intervalId = setInterval(fetchMetrics, intervalMs);
-  tabIntervalId = setInterval(fetchBrowserTabs, 5000); // tabs every 5s, not 2s
-  networkIntervalId = setInterval(fetchNetworkConnections, intervalMs);
+  syncBrowserTabsPolling();
+  syncNetworkPolling();
 }
 
 /** Stops all active polling intervals for metrics and browser tabs. */

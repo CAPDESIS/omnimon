@@ -2,21 +2,10 @@
   import { onMount } from "svelte";
   import { get } from "svelte/store";
   import ProcessTable from "./components/ProcessTable.svelte";
-  import ChromeTabManager from "./components/ChromeTabManager.svelte";
-  import StatusBar from "./components/StatusBar.svelte";
-  import ProcessDetailsModal from "./components/ProcessDetailsModal.svelte";
   import SystemDashboard from "./components/SystemDashboard.svelte";
   import ToastContainer from "./components/ToastContainer.svelte";
-  import AlertPanel from "./components/AlertPanel.svelte";
   import AiCommandBar from "./components/AiCommandBar.svelte";
-  import AIChat from "./components/AIChat.svelte";
-  import NetworkMap from "./components/NetworkMap.svelte";
-  import SecurityReportView from "./components/SecurityReportView.svelte";
   import AiInsightCard from "./components/AiInsightCard.svelte";
-  import CloudSync from "./components/CloudSync.svelte";
-  import Automations from "./components/Automations.svelte";
-  import HelpCenterModal from "./components/HelpCenterModal.svelte";
-  import SystemMetricModal from "./components/SystemMetricModal.svelte";
   import InfoPopover from "./components/InfoPopover.svelte";
   import SmartAlerts from "./components/SmartAlerts.svelte";
   import AppToolbar from "./components/AppToolbar.svelte";
@@ -32,13 +21,13 @@
     filtered,
     loading,
     search,
-    selectedPids,
     selectedCount,
     selectedRamMB,
     focusedPid,
     grouping,
     startPolling,
     stopPolling,
+    setPollingTarget,
     killSelected,
     killSingle,
     selectAllVisible,
@@ -72,12 +61,12 @@
     userMode,
     type ThemeMode,
   } from "./stores/preferences";
-  import { ipcValidateApiKey, ipcCheckApiKey, ipcAnalyzeContext } from "./lib/ipc";
+  import { ipcValidateApiKey, ipcCheckApiKey } from "./lib/ipc";
   import { listen } from "@tauri-apps/api/event";
   import { t, locale, initI18n } from "./lib/i18n";
   import { inspectProcessRequest } from "./stores/uiActions";
   import type { LocaleCode } from "./lib/i18n";
-  import { focusFirstFocusable, trapFocus } from "./lib/focusTrap";
+  import { focusFirstFocusable, trapFocus, rememberActiveElement, restoreFocus } from "./lib/focusTrap";
 
   let detailProcess: ProcessEntry | null = $state(null);
   let searchInput: HTMLInputElement | undefined = $state();
@@ -91,6 +80,95 @@
   let showHelpCenter = $state(false);
   let activeMetricModal = $state<"cpu" | "ram" | "network" | "swap" | "processes" | null>(null);
   let settingsModalEl: HTMLDivElement | undefined = $state();
+  let settingsReturnFocusEl: HTMLElement | null = $state(null);
+  let chromeTabsHost: HTMLDivElement | undefined = $state();
+  let networkMapHost: HTMLDivElement | undefined = $state();
+  let aiChatHost: HTMLDivElement | undefined = $state();
+
+  let chromeTabManagerPromise = $state<Promise<any> | null>(null);
+  let processDetailsModalPromise = $state<Promise<any> | null>(null);
+  let securityReportViewPromise = $state<Promise<any> | null>(null);
+  let helpCenterModalPromise = $state<Promise<any> | null>(null);
+  let systemMetricModalPromise = $state<Promise<any> | null>(null);
+  let aiChatPromise = $state<Promise<any> | null>(null);
+  let networkMapPromise = $state<Promise<any> | null>(null);
+  let cloudSyncPromise = $state<Promise<any> | null>(null);
+  let automationsPromise = $state<Promise<any> | null>(null);
+
+  function loadChromeTabManager() {
+    chromeTabManagerPromise ??= import("./components/ChromeTabManager.svelte");
+    setPollingTarget("browserTabs", true);
+  }
+
+  function loadProcessDetailsModal() {
+    processDetailsModalPromise ??= import("./components/ProcessDetailsModal.svelte");
+  }
+
+  function loadSecurityReportView() {
+    securityReportViewPromise ??= import("./components/SecurityReportView.svelte");
+  }
+
+  function loadHelpCenterModal() {
+    helpCenterModalPromise ??= import("./components/HelpCenterModal.svelte");
+  }
+
+  function loadSystemMetricModal() {
+    systemMetricModalPromise ??= import("./components/SystemMetricModal.svelte");
+  }
+
+  function loadAiChat() {
+    aiChatPromise ??= import("./components/AIChat.svelte");
+  }
+
+  function loadNetworkMap() {
+    networkMapPromise ??= import("./components/NetworkMap.svelte");
+    setPollingTarget("network", true);
+  }
+
+  function loadCloudSync() {
+    cloudSyncPromise ??= import("./components/CloudSync.svelte");
+  }
+
+  function loadAutomations() {
+    automationsPromise ??= import("./components/Automations.svelte");
+  }
+
+  function closeWhenBackdropMatches(event: MouseEvent, onclose: () => void) {
+    if (event.target === event.currentTarget) {
+      onclose();
+    }
+  }
+
+  function closeSettingsFromBackdrop(event: MouseEvent) {
+    closeWhenBackdropMatches(event, closeSettings);
+  }
+
+  function stopMouseEventPropagation(event: MouseEvent) {
+    event.stopPropagation();
+  }
+
+  function observeVisibility(node: HTMLElement | undefined, onVisible: () => void): IntersectionObserver | null {
+    if (!node || typeof IntersectionObserver === "undefined") {
+      onVisible();
+      return null;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            onVisible();
+            observer.disconnect();
+            break;
+          }
+        }
+      },
+      { rootMargin: "240px 0px" },
+    );
+
+    observer.observe(node);
+    return observer;
+  }
 
   // Resizable tab panel (backed by store for persistence)
   let tabPanelHeight = $state($tabPanelHeightStore);
@@ -109,6 +187,7 @@
   $effect(() => {
     const proc = $inspectProcessRequest;
     if (proc) {
+      loadProcessDetailsModal();
       detailProcess = proc;
       inspectProcessRequest.set(null); // Reset after consuming
     }
@@ -142,6 +221,17 @@
     window.removeEventListener("mouseup", onDividerMouseup);
   }
 
+  function onDividerKeydown(event: KeyboardEvent) {
+    const step = event.shiftKey ? 40 : 20;
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      tabPanelHeight = Math.max(40, tabPanelHeight - step);
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      tabPanelHeight = Math.min(window.innerHeight - 200, tabPanelHeight + step);
+    }
+  }
+
   function onAiChatDividerMousedown(e: MouseEvent) {
     e.preventDefault();
     aiChatDragging = true;
@@ -160,6 +250,17 @@
     aiChatDragging = false;
     window.removeEventListener("mousemove", onAiChatDividerMousemove);
     window.removeEventListener("mouseup", onAiChatDividerMouseup);
+  }
+
+  function onAiChatDividerKeydown(event: KeyboardEvent) {
+    const step = event.shiftKey ? 40 : 20;
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      aiChatPanelHeight = Math.max(140, aiChatPanelHeight - step);
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      aiChatPanelHeight = Math.min(640, aiChatPanelHeight + step);
+    }
   }
 
   // AI settings modal state
@@ -207,10 +308,18 @@
     applyThemeTokens($theme as ThemeId);
   });
 
+  $effect(() => {
+    if (showSettings) {
+      settingsReturnFocusEl = rememberActiveElement();
+      loadCloudSync();
+    }
+  });
+
   function closeSettings() {
     showSettings = false;
     settingsError = null;
     settingsSaved = false;
+    restoreFocus(settingsReturnFocusEl);
   }
 
   function handleSettingsKeydown(event: KeyboardEvent) {
@@ -261,6 +370,7 @@
   onMount(() => {
     let disposed = false;
     const unlistenFns: Array<() => void> = [];
+    const observers: Array<IntersectionObserver> = [];
     const registerUnlistener = (promise: Promise<() => void>) => {
       promise
         .then((fn) => {
@@ -305,6 +415,15 @@
       }),
     );
 
+    const chromeObserver = observeVisibility(chromeTabsHost, loadChromeTabManager);
+    if (chromeObserver) observers.push(chromeObserver);
+
+    const networkObserver = observeVisibility(networkMapHost, loadNetworkMap);
+    if (networkObserver) observers.push(networkObserver);
+
+    const aiChatObserver = observeVisibility(aiChatHost, loadAiChat);
+    if (aiChatObserver) observers.push(aiChatObserver);
+
     return () => {
       disposed = true;
       stopPolling();
@@ -317,6 +436,9 @@
       unsubLocale();
       for (const unlisten of unlistenFns) {
         unlisten();
+      }
+      for (const observer of observers) {
+        observer.disconnect();
       }
       unlistenFns.length = 0;
     };
@@ -377,11 +499,34 @@
   }
 
   function inspectProcess(proc: ProcessEntry) {
+    loadProcessDetailsModal();
     detailProcess = proc;
   }
 
   function closeDetail() {
     detailProcess = null;
+  }
+
+  function openSecurityReport() {
+    loadSecurityReportView();
+    showSecurityReport = true;
+  }
+
+  function toggleAutomations() {
+    if (!showAutomations) {
+      loadAutomations();
+    }
+    showAutomations = !showAutomations;
+  }
+
+  function openHelpCenter() {
+    loadHelpCenterModal();
+    showHelpCenter = true;
+  }
+
+  function openMetricModal(metric: "cpu" | "ram" | "network" | "swap" | "processes") {
+    loadSystemMetricModal();
+    activeMetricModal = metric;
   }
 
   let visibleColumns = $derived.by(() => {
@@ -426,12 +571,12 @@
     ontogglegrouping={() => $grouping = !$grouping}
     onchangepofile={(value) => $aiProfile = value}
     onanalyze={() => analyzeWithAi($aiProviderConfig.provider, $aiProviderConfig.model)}
-    onopensecurity={() => showSecurityReport = true}
+    onopensecurity={openSecurityReport}
     ontoggledashboard={() => dashboardCollapsed = !dashboardCollapsed}
     dashboardCollapsed={dashboardCollapsed}
-    ontoggleautomations={() => showAutomations = !showAutomations}
+    ontoggleautomations={toggleAutomations}
     onopensettings={() => showSettings = true}
-    onopenhelp={() => showHelpCenter = true}
+    onopenhelp={openHelpCenter}
     ondecreasefont={decreaseFontSize}
     onincreasefont={increaseFontSize}
   />
@@ -441,22 +586,32 @@
   </div>
 
   <!-- Dashboard with charts -->
-  <SystemDashboard collapsed={dashboardCollapsed} mode={$userMode} onopenmetric={(metric) => { activeMetricModal = metric; }} />
+  <SystemDashboard collapsed={dashboardCollapsed} mode={$userMode} onopenmetric={openMetricModal} />
 
   <!-- Browser Tabs Panel -->
-  <div class="tab-panel" style="height: {tabPanelHeight}px">
-    <ChromeTabManager filter={searchValue} />
+  <div class="tab-panel" style="height: {tabPanelHeight}px" bind:this={chromeTabsHost}>
+    {#if chromeTabManagerPromise}
+      {#await chromeTabManagerPromise then ChromeTabManagerModule}
+        <ChromeTabManagerModule.default filter={searchValue} />
+      {:catch}
+        <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
+          <SkeletonBlock width="100%" height="100%" rounded="12px" />
+        </div>
+      {/await}
+    {:else}
+      <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
+        <SkeletonBlock width="100%" height="100%" rounded="12px" />
+      </div>
+    {/if}
   </div>
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div
+  <button
+    type="button"
     class="resize-divider"
     class:active={dragging}
     onmousedown={onDividerMousedown}
-    role="separator"
-    aria-orientation="horizontal"
+    onkeydown={onDividerKeydown}
     aria-label={t("common.resizeTabPanel")}
-    tabindex="-1"
-  ></div>
+  ></button>
 
   <!-- Process Table -->
   {#if $loading}
@@ -524,7 +679,21 @@
   {/if}
 
   <!-- Network Connection Map -->
-  <NetworkMap mode={$userMode} />
+  <div bind:this={networkMapHost}>
+    {#if networkMapPromise}
+      {#await networkMapPromise then NetworkMapModule}
+        <NetworkMapModule.default mode={$userMode} />
+      {:catch}
+        <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
+          <SkeletonBlock width="100%" height="140px" rounded="14px" />
+        </div>
+      {/await}
+    {:else}
+      <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
+        <SkeletonBlock width="100%" height="140px" rounded="14px" />
+      </div>
+    {/if}
+  </div>
   {#if basicModeNetworkHint}
     <div class="mode-hint-card" role="note">
       <span class="mode-hint-label">{t("common.userView")}</span>
@@ -533,19 +702,29 @@
   {/if}
 
   <!-- AI Interactive Chat (Tool Calling) -->
-  <div class="ai-chat-panel" style="height: {aiChatPanelHeight}px">
-    <AIChat />
+  <div class="ai-chat-panel" style="height: {aiChatPanelHeight}px" bind:this={aiChatHost}>
+    {#if aiChatPromise}
+      {#await aiChatPromise then AIChatModule}
+        <AIChatModule.default />
+      {:catch}
+        <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
+          <SkeletonBlock width="100%" height="100%" rounded="12px" />
+        </div>
+      {/await}
+    {:else}
+      <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
+        <SkeletonBlock width="100%" height="100%" rounded="12px" />
+      </div>
+    {/if}
   </div>
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div
+  <button
+    type="button"
     class="resize-divider"
     class:active={aiChatDragging}
     onmousedown={onAiChatDividerMousedown}
-    role="separator"
-    aria-orientation="horizontal"
+    onkeydown={onAiChatDividerKeydown}
     aria-label={t("common.expand")}
-    tabindex="-1"
-  ></div>
+  ></button>
 
   <!-- AI Command Bar (Natural Language Config) -->
   <AiCommandBar />
@@ -565,16 +744,16 @@
 </main>
 
 {#if detailProcess}
-  <ProcessDetailsModal process={detailProcess} onclose={closeDetail} />
+  {#if processDetailsModalPromise}
+    {#await processDetailsModalPromise then ProcessDetailsModalModule}
+      <ProcessDetailsModalModule.default process={detailProcess} onclose={closeDetail} />
+    {/await}
+  {/if}
 {/if}
 
 {#if showSettings}
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="backdrop" onclick={closeSettings} onkeydown={handleSettingsKeydown} role="presentation">
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_interactive_supports_focus -->
-    <div class="settings-modal" bind:this={settingsModalEl} onclick={(e: MouseEvent) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
+  <div class="backdrop" onmousedown={closeSettingsFromBackdrop} role="presentation">
+    <div class="settings-modal" bind:this={settingsModalEl} onkeydown={handleSettingsKeydown} onmousedown={stopMouseEventPropagation} role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
       <div class="settings-header">
         <h2 class="settings-title" id="settings-title">{t("settings.title")}</h2>
         <button class="close-btn" onclick={closeSettings} aria-label={t("settings.closeSettings")}>&times;</button>
@@ -798,7 +977,11 @@
         {#if autostartError}
           <div class="settings-error">{autostartError}</div>
         {/if}
-        <CloudSync />
+        {#if cloudSyncPromise}
+          {#await cloudSyncPromise then CloudSyncModule}
+            <CloudSyncModule.default />
+          {/await}
+        {/if}
       </div>
       <div class="settings-footer">
         <button
@@ -814,22 +997,38 @@
 {/if}
 
 {#if showSecurityReport}
-  <SecurityReportView onclose={() => showSecurityReport = false} />
+  {#if securityReportViewPromise}
+    {#await securityReportViewPromise then SecurityReportViewModule}
+      <SecurityReportViewModule.default onclose={() => showSecurityReport = false} />
+    {/await}
+  {/if}
 {/if}
 
 <ToastContainer />
 <SmartAlerts />
 
 {#if showAutomations}
-  <Automations />
+  {#if automationsPromise}
+    {#await automationsPromise then AutomationsModule}
+      <AutomationsModule.default />
+    {/await}
+  {/if}
 {/if}
 
 {#if showHelpCenter}
-  <HelpCenterModal onclose={() => showHelpCenter = false} />
+  {#if helpCenterModalPromise}
+    {#await helpCenterModalPromise then HelpCenterModalModule}
+      <HelpCenterModalModule.default onclose={() => showHelpCenter = false} />
+    {/await}
+  {/if}
 {/if}
 
 {#if activeMetricModal}
-  <SystemMetricModal metric={activeMetricModal} mode={$userMode} onclose={() => activeMetricModal = null} />
+  {#if systemMetricModalPromise}
+    {#await systemMetricModalPromise then SystemMetricModalModule}
+      <SystemMetricModalModule.default metric={activeMetricModal} mode={$userMode} onclose={() => activeMetricModal = null} />
+    {/await}
+  {/if}
 {/if}
 
 <style>
@@ -978,9 +1177,19 @@
     min-width: 0;
   }
 
+  .lazy-panel-fallback {
+    width: 100%;
+    height: 100%;
+    padding: 10px 12px;
+    background: var(--bg-alt);
+  }
+
   .resize-divider {
     flex-shrink: 0;
     height: 3px;
+    width: 100%;
+    padding: 0;
+    border: none;
     background: var(--border);
     cursor: ns-resize;
     position: relative;

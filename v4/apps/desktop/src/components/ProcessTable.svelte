@@ -100,18 +100,22 @@
     return map;
   });
 
-  let _sortedSnapshot = "";
+  let _sortedSnapshot: Array<{ pid: number; value: string | number }> = [];
   let _sortedKey: SortKey = "ram_mb";
   let _sortedAsc = false;
   let _sortedPidsCache: number[] = [];
 
   let sortedPids = $derived.by((): number[] => {
-    let snapshot = `${sortKey}:${sortAsc ? 1 : 0}:${processes.length}|`;
-    for (const proc of processes) {
-      snapshot += `${proc.pid}:${String(sortValue(proc, sortKey))}|`;
-    }
+    const sameInputs =
+      sortKey === _sortedKey &&
+      sortAsc === _sortedAsc &&
+      processes.length === _sortedSnapshot.length &&
+      processes.every((proc, index) => {
+        const cached = _sortedSnapshot[index];
+        return cached !== undefined && cached.pid === proc.pid && cached.value === sortValue(proc, sortKey);
+      });
 
-    if (snapshot === _sortedSnapshot && sortKey === _sortedKey && sortAsc === _sortedAsc) {
+    if (sameInputs) {
       return _sortedPidsCache;
     }
 
@@ -124,7 +128,7 @@
       return sortAsc ? Number(va) - Number(vb) : Number(vb) - Number(va);
     });
 
-    _sortedSnapshot = snapshot;
+    _sortedSnapshot = processes.map((proc) => ({ pid: proc.pid, value: sortValue(proc, sortKey) }));
     _sortedKey = sortKey;
     _sortedAsc = sortAsc;
     _sortedPidsCache = sorted.map((proc) => proc.pid);
@@ -179,27 +183,33 @@
 
   let groups = $derived.by((): ProcessGroup[] => {
     if (!grouping) return [];
-    const map = new Map<string, { label: string; procs: ProcessEntry[] }>();
+    const map = new Map<string, ProcessGroup>();
     for (const pid of sortedPids) {
       const p = processByPid.get(pid);
       if (!p) continue;
       const identity = getGroupIdentity(p);
       const group = map.get(identity.key);
-      if (group) group.procs.push(p);
-      else map.set(identity.key, { label: identity.label, procs: [p] });
+      if (group) {
+        group.procs.push(p);
+        group.totalRam += p.ram_mb;
+        group.totalCpu += p.cpu_pct;
+        group.count += 1;
+        group.totalNetwork += networkMetric(p);
+        group.totalEnergy += energyMetric(p);
+      } else {
+        map.set(identity.key, {
+          key: identity.key,
+          name: identity.label,
+          procs: [p],
+          totalRam: p.ram_mb,
+          totalCpu: p.cpu_pct,
+          count: 1,
+          totalNetwork: networkMetric(p),
+          totalEnergy: energyMetric(p),
+        });
+      }
     }
-    return [...map.entries()]
-      .map(([key, value]) => ({
-        key,
-        name: value.label,
-        procs: value.procs,
-        totalRam: value.procs.reduce((s, p) => s + p.ram_mb, 0),
-        totalCpu: value.procs.reduce((s, p) => s + p.cpu_pct, 0),
-        count: value.procs.length,
-        totalNetwork: value.procs.reduce((s, p) => s + networkMetric(p), 0),
-        totalEnergy: value.procs.reduce((s, p) => s + energyMetric(p), 0),
-      }))
-      .sort((a, b) => b.totalRam - a.totalRam);
+    return [...map.values()].sort((a, b) => b.totalRam - a.totalRam);
   });
 
   // --- Flat row model for virtual scroll ---
@@ -229,12 +239,13 @@
 
   // --- Virtual window ---
   let totalHeight = $derived(flatRows.length * ROW_HEIGHT);
+  let effectiveContainerHeight = $derived(containerHeight > 0 ? containerHeight : 600);
 
   let visibleStartIdx = $derived(
     Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER),
   );
   let visibleEndIdx = $derived(
-    Math.min(flatRows.length, Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT) + BUFFER),
+    Math.min(flatRows.length, Math.ceil((scrollTop + effectiveContainerHeight) / ROW_HEIGHT) + BUFFER),
   );
   let visibleRows = $derived(flatRows.slice(visibleStartIdx, visibleEndIdx));
   let topSpacerHeight = $derived(visibleStartIdx * ROW_HEIGHT);
@@ -252,11 +263,13 @@
     if (!wrapEl) return;
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        containerHeight = entry.contentRect.height;
+        if (entry.contentRect.height > 0) {
+          containerHeight = entry.contentRect.height;
+        }
       }
     });
     ro.observe(wrapEl);
-    containerHeight = wrapEl.clientHeight;
+    containerHeight = wrapEl.clientHeight > 0 ? wrapEl.clientHeight : containerHeight;
     return () => {
       ro.disconnect();
       if (rafId) cancelAnimationFrame(rafId);
@@ -318,6 +331,23 @@
     oninspect?.(proc);
   }
 
+  function handleRowKeydown(event: KeyboardEvent, proc: ProcessEntry) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      oninspect?.(proc);
+      return;
+    }
+    if (event.key === " ") {
+      event.preventDefault();
+      handleRowClick(proc);
+    }
+  }
+
+  function sortLabel(key: SortKey): string {
+    const direction = sortKey === key ? (sortAsc ? "ascending" : "descending") : "sortable";
+    return `${key} ${direction}`;
+  }
+
   function toggleCollapse(key: string) {
     const next = new Set(collapsedGroups);
     if (next.has(key)) next.delete(key);
@@ -334,6 +364,10 @@
     const targetIndex = orderedVisibleCols.indexOf(targetKey);
     if (targetIndex >= 0) moveColumnToIndex(draggedColumn, targetIndex);
     draggedColumn = null;
+  }
+
+  function allowColumnDrop(event: DragEvent) {
+    event.preventDefault();
   }
 </script>
 
@@ -387,6 +421,8 @@
     class:rank-up={movedUpPids.has(proc.pid)}
     onclick={() => handleRowClick(proc)}
     ondblclick={() => handleRowDblClick(proc)}
+    onkeydown={(event: KeyboardEvent) => handleRowKeydown(event, proc)}
+    tabindex={proc.is_system ? -1 : 0}
   >
     <td class="col-check">
       <input
@@ -404,23 +440,17 @@
 {/snippet}
 
 {#snippet groupHeaderRow(group: ProcessGroup)}
-  <tr
-    class="group-header"
-    onclick={() => toggleCollapse(group.key)}
-    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleCollapse(group.key); } }}
-    tabindex="0"
-    role="button"
-    aria-expanded={!collapsedGroups.has(group.key)}
-    aria-label={t("table.toggleGroup", { name: group.name })}
-  >
+  <tr class="group-header">
     <td class="col-check"></td>
     <td colspan={visibleColCount} class="group-cell">
-      <span class="chevron" class:open={!collapsedGroups.has(group.key)} aria-hidden="true">&#9654;</span>
-      <span class="group-name">{group.name}</span>
-      <span class="badge grouped">x{group.count}</span>
-      <span class="group-meta">
-        {group.count} &middot; {group.totalRam.toFixed(0)} MB &middot; {group.totalCpu.toFixed(1)}% &middot; {groupRowEnergy(group)} E &middot; {groupRowNetworkRate(group)}
-      </span>
+      <button type="button" class="group-toggle" onclick={() => toggleCollapse(group.key)} aria-expanded={!collapsedGroups.has(group.key)} aria-label={t("table.toggleGroup", { name: group.name })}>
+        <span class="chevron" class:open={!collapsedGroups.has(group.key)} aria-hidden="true">&#9654;</span>
+        <span class="group-name">{group.name}</span>
+        <span class="badge grouped">x{group.count}</span>
+        <span class="group-meta">
+          {group.count} &middot; {group.totalRam.toFixed(0)} MB &middot; {group.totalCpu.toFixed(1)}% &middot; {groupRowEnergy(group)} E &middot; {groupRowNetworkRate(group)}
+        </span>
+      </button>
     </td>
   </tr>
 {/snippet}
@@ -432,42 +462,42 @@
         <th class="col-check" scope="col"><span class="sr-only">{t("table.select")}</span></th>
         {#each orderedVisibleCols as key (key)}
           {#if key === "name"}
-            <th class="col-name sortable" draggable="true" ondragstart={() => handleColumnDragStart("name")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("name")} scope="col" aria-sort={sortKey === "name" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByName")} onclick={() => setSort("name")}> 
-              {t("table.name")}<span aria-hidden="true">{arrow("name")}</span>
+            <th class="col-name sortable" draggable="true" ondragstart={() => handleColumnDragStart("name")} ondragover={allowColumnDrop} ondrop={() => handleColumnDrop("name")} scope="col" aria-sort={sortKey === "name" ? (sortAsc ? "ascending" : "descending") : "none"}>
+              <button type="button" class="sort-button" aria-label={sortLabel("name")} onclick={() => setSort("name")}>{t("table.name")}<span aria-hidden="true">{arrow("name")}</span></button>
             </th>
           {:else if key === "detail"}
-            <th class="col-detail" draggable="true" ondragstart={() => handleColumnDragStart("detail")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("detail")} scope="col">{t("table.detail")}</th>
+            <th class="col-detail" draggable="true" ondragstart={() => handleColumnDragStart("detail")} ondragover={allowColumnDrop} ondrop={() => handleColumnDrop("detail")} scope="col">{t("table.detail")}</th>
           {:else if key === "group"}
-            <th class="col-group sortable" draggable="true" ondragstart={() => handleColumnDragStart("group")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("group")} scope="col" aria-sort={sortKey === "group" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("group")}> 
-              {t("table.group")}<span aria-hidden="true">{arrow("group")}</span>
+            <th class="col-group sortable" draggable="true" ondragstart={() => handleColumnDragStart("group")} ondragover={allowColumnDrop} ondrop={() => handleColumnDrop("group")} scope="col" aria-sort={sortKey === "group" ? (sortAsc ? "ascending" : "descending") : "none"}>
+              <button type="button" class="sort-button" aria-label={sortLabel("group")} onclick={() => setSort("group")}>{t("table.group")}<span aria-hidden="true">{arrow("group")}</span></button>
             </th>
           {:else if key === "ram"}
-            <th class="col-ram sortable" draggable="true" ondragstart={() => handleColumnDragStart("ram")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("ram")} scope="col" aria-sort={sortKey === "ram_mb" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByRam")} onclick={() => setSort("ram_mb")}> 
-              {t("table.ram")}<span aria-hidden="true">{arrow("ram_mb")}</span>
+            <th class="col-ram sortable" draggable="true" ondragstart={() => handleColumnDragStart("ram")} ondragover={allowColumnDrop} ondrop={() => handleColumnDrop("ram")} scope="col" aria-sort={sortKey === "ram_mb" ? (sortAsc ? "ascending" : "descending") : "none"}>
+              <button type="button" class="sort-button sort-button-num" aria-label={sortLabel("ram_mb")} onclick={() => setSort("ram_mb")}>{t("table.ram")}<span aria-hidden="true">{arrow("ram_mb")}</span></button>
             </th>
           {:else if key === "cpu"}
-            <th class="col-cpu sortable" draggable="true" ondragstart={() => handleColumnDragStart("cpu")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("cpu")} scope="col" aria-sort={sortKey === "cpu_pct" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByCpu")} onclick={() => setSort("cpu_pct")}> 
-              {t("table.cpu")}<span aria-hidden="true">{arrow("cpu_pct")}</span>
+            <th class="col-cpu sortable" draggable="true" ondragstart={() => handleColumnDragStart("cpu")} ondragover={allowColumnDrop} ondrop={() => handleColumnDrop("cpu")} scope="col" aria-sort={sortKey === "cpu_pct" ? (sortAsc ? "ascending" : "descending") : "none"}>
+              <button type="button" class="sort-button sort-button-num" aria-label={sortLabel("cpu_pct")} onclick={() => setSort("cpu_pct")}>{t("table.cpu")}<span aria-hidden="true">{arrow("cpu_pct")}</span></button>
             </th>
           {:else if key === "uptime"}
-            <th class="col-uptime sortable" draggable="true" ondragstart={() => handleColumnDragStart("uptime")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("uptime")} scope="col" aria-sort={sortKey === "uptime" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("uptime")}> 
-              {t("table.time")}<span aria-hidden="true">{arrow("uptime")}</span>
+            <th class="col-uptime sortable" draggable="true" ondragstart={() => handleColumnDragStart("uptime")} ondragover={allowColumnDrop} ondrop={() => handleColumnDrop("uptime")} scope="col" aria-sort={sortKey === "uptime" ? (sortAsc ? "ascending" : "descending") : "none"}>
+              <button type="button" class="sort-button sort-button-num" aria-label={sortLabel("uptime")} onclick={() => setSort("uptime")}>{t("table.time")}<span aria-hidden="true">{arrow("uptime")}</span></button>
             </th>
           {:else if key === "energy"}
-            <th class="col-energy sortable" draggable="true" ondragstart={() => handleColumnDragStart("energy")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("energy")} scope="col" aria-sort={sortKey === "energy_metric" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByEnergy")} onclick={() => setSort("energy_metric")}> 
-              {t("table.energy")}<span aria-hidden="true">{arrow("energy_metric")}</span>
+            <th class="col-energy sortable" draggable="true" ondragstart={() => handleColumnDragStart("energy")} ondragover={allowColumnDrop} ondrop={() => handleColumnDrop("energy")} scope="col" aria-sort={sortKey === "energy_metric" ? (sortAsc ? "ascending" : "descending") : "none"}>
+              <button type="button" class="sort-button sort-button-num" aria-label={sortLabel("energy_metric")} onclick={() => setSort("energy_metric")}>{t("table.energy")}<span aria-hidden="true">{arrow("energy_metric")}</span></button>
             </th>
           {:else if key === "network"}
-            <th class="col-network sortable" draggable="true" ondragstart={() => handleColumnDragStart("network")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("network")} scope="col" aria-sort={sortKey === "network_metric" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByNetwork")} onclick={() => setSort("network_metric")}> 
-              {t("table.network")}<span aria-hidden="true">{arrow("network_metric")}</span>
+            <th class="col-network sortable" draggable="true" ondragstart={() => handleColumnDragStart("network")} ondragover={allowColumnDrop} ondrop={() => handleColumnDrop("network")} scope="col" aria-sort={sortKey === "network_metric" ? (sortAsc ? "ascending" : "descending") : "none"}>
+              <button type="button" class="sort-button sort-button-num" aria-label={sortLabel("network_metric")} onclick={() => setSort("network_metric")}>{t("table.network")}<span aria-hidden="true">{arrow("network_metric")}</span></button>
             </th>
           {:else if key === "pid"}
-            <th class="col-pid sortable" draggable="true" ondragstart={() => handleColumnDragStart("pid")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("pid")} scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"} aria-label={t("table.sortByPid")} onclick={() => setSort("pid")}> 
-              {t("table.pid")}<span aria-hidden="true">{arrow("pid")}</span>
+            <th class="col-pid sortable" draggable="true" ondragstart={() => handleColumnDragStart("pid")} ondragover={allowColumnDrop} ondrop={() => handleColumnDrop("pid")} scope="col" aria-sort={sortKey === "pid" ? (sortAsc ? "ascending" : "descending") : "none"}>
+              <button type="button" class="sort-button sort-button-num" aria-label={sortLabel("pid")} onclick={() => setSort("pid")}>{t("table.pid")}<span aria-hidden="true">{arrow("pid")}</span></button>
             </th>
           {:else if key === "state"}
-            <th class="col-state sortable" draggable="true" ondragstart={() => handleColumnDragStart("state")} ondragover={(e) => e.preventDefault()} ondrop={() => handleColumnDrop("state")} scope="col" aria-sort={sortKey === "state" ? (sortAsc ? "ascending" : "descending") : "none"} onclick={() => setSort("state")}> 
-              {t("table.st")}<span aria-hidden="true">{arrow("state")}</span>
+            <th class="col-state sortable" draggable="true" ondragstart={() => handleColumnDragStart("state")} ondragover={allowColumnDrop} ondrop={() => handleColumnDrop("state")} scope="col" aria-sort={sortKey === "state" ? (sortAsc ? "ascending" : "descending") : "none"}>
+              <button type="button" class="sort-button" aria-label={sortLabel("state")} onclick={() => setSort("state")}>{t("table.st")}<span aria-hidden="true">{arrow("state")}</span></button>
             </th>
           {/if}
         {/each}
@@ -530,9 +560,28 @@
     line-height: calc(var(--base-font-size) * 1.667);
   }
   th.sortable {
+    cursor: default;
+  }
+
+  .sort-button {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    text-align: left;
+    padding: 0;
     cursor: pointer;
   }
-  th.sortable:hover {
+
+  .sort-button-num {
+    text-align: right;
+  }
+
+  .sort-button:hover,
+  .sort-button:focus-visible {
     color: var(--fg);
   }
 
@@ -571,20 +620,33 @@
   }
 
   .group-header {
-    cursor: pointer;
     background: var(--bg-alt);
   }
   .group-header:hover {
     background: var(--bg-hover);
   }
   .group-cell {
+    padding: 0;
+  }
+
+  .group-toggle {
+    width: 100%;
+    height: calc(var(--base-font-size) * 1.667);
+    border: none;
+    background: transparent;
     font-weight: 600;
     font-size: calc(var(--base-font-size) * 0.917);
+    color: var(--fg);
     padding: 0 6px;
     display: flex;
     align-items: center;
     gap: 6px;
-    height: calc(var(--base-font-size) * 1.667);
+    cursor: pointer;
+  }
+
+  .group-toggle:hover,
+  .group-toggle:focus-visible {
+    background: var(--bg-hover);
   }
 
   .chevron {
