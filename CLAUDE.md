@@ -6,9 +6,10 @@
 - Idioma de commits: español o inglés según contexto, pero nunca incluir atribución a IA
 
 ## Builds
-- Frontend: `npx vite build` y `npx vitest run` deben pasar
+- Frontend: `bun run build` y `bun run test` deben pasar
 - Backend: `cargo check --workspace` debe compilar sin errores
-- Full-stack: `npm run tauri build -- --debug --no-bundle` para validación rápida
+- Full-stack: `bun run tauri build -- --debug --no-bundle` para validación rápida
+- Package manager: **bun** (no npm/node). Lockfile: `bun.lock`
 
 ## Comunicación
 - Responder en español al usuario
