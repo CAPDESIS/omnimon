@@ -6,6 +6,7 @@
   import { t } from "../lib/i18n";
   import { AI_PROVIDERS } from "../lib/types";
   import AlertPanel from "./AlertPanel.svelte";
+  import Button from "./Button.svelte";
   import InfoPopover from "./InfoPopover.svelte";
 
   interface Props {
@@ -93,8 +94,9 @@
       {/if}
     </div>
 
-    <a
-      class="btn btn-sponsor"
+    <Button
+      class="btn-sponsor"
+      variant="ghost"
       href="https://github.com/sponsors/chochy2001"
       target="_blank"
       rel="noopener noreferrer"
@@ -104,11 +106,11 @@
         <path fill-rule="evenodd" d="M4.25 2.5c-1.336 0-2.75 1.164-2.75 3 0 2.15 1.58 4.144 3.365 5.682A20.565 20.565 0 008 13.393a20.561 20.561 0 003.135-2.211C12.92 9.644 14.5 7.65 14.5 5.5c0-1.836-1.414-3-2.75-3-1.373 0-2.609.986-3.029 2.456a.75.75 0 01-1.442 0C6.859 3.486 5.623 2.5 4.25 2.5zM8 14.25l-.345.666-.002-.001-.006-.003-.018-.01a7.643 7.643 0 01-.31-.17 22.075 22.075 0 01-3.434-2.414C2.045 10.731 0 8.35 0 5.5 0 2.836 2.086 1 4.25 1 5.797 1 7.153 1.802 8 3.02 8.847 1.802 10.203 1 11.75 1 13.914 1 16 2.836 16 5.5c0 2.85-2.045 5.231-3.885 6.818a22.08 22.08 0 01-3.744 2.584l-.018.01-.006.003h-.002L8 14.25z"></path>
       </svg>
       <span>{t("settings.sponsor")}</span>
-    </a>
+    </Button>
 
     <div class="selection-cluster">
       <div class="btn-group">
-        <button class="btn btn-text-icon" class:active={grouping} onclick={ontogglegrouping} title={t("toolbar.toggleGrouping")}>
+        <Button active={grouping} onclick={ontogglegrouping} title={t("toolbar.toggleGrouping")}>
           <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
             <rect x="1" y="1" width="5" height="5" rx="1"/>
             <rect x="1" y="9" width="5" height="5" rx="1"/>
@@ -116,13 +118,13 @@
             <rect x="9" y="9" width="5" height="5" rx="1"/>
           </svg>
           <span>{t("toolbar.groups")}</span>
-        </button>
-        <button class="btn" onclick={onselectall}>{t("toolbar.all")}</button>
-        <button class="btn" onclick={onselectnone}>{t("toolbar.none")}</button>
+        </Button>
+        <Button variant="secondary" onclick={onselectall}>{t("toolbar.all")}</Button>
+        <Button variant="secondary" onclick={onselectnone}>{t("toolbar.none")}</Button>
       </div>
-      <button class="btn btn-kill" onclick={onkillselected} disabled={selectedCount === 0} aria-label={t("toolbar.closeSelected")}>
+      <Button variant="danger" onclick={onkillselected} disabled={selectedCount === 0} aria-label={t("toolbar.closeSelected")}>
         {t("toolbar.close")}{#if selectedCount > 0}&nbsp;({selectedCount} · {selectedRamMB.toFixed(0)} MB){/if}
-      </button>
+      </Button>
     </div>
   </div>
 
@@ -139,17 +141,17 @@
         <option value="battery">{profileLabel("battery")}</option>
       </select>
       <InfoPopover label={t("toolbar.aiProfile")} content={t("toolbar.profileBehavior")} />
-      <button class="btn btn-accent" onclick={onanalyze} disabled={aiLoading}>{aiLoading ? t("toolbar.analyzing") : t("toolbar.aiAnalyze")}</button>
+      <Button variant="primary" onclick={onanalyze} disabled={aiLoading}>{aiLoading ? t("toolbar.analyzing") : t("toolbar.aiAnalyze")}</Button>
     </div>
 
     <div class="toolbar-actions">
       <AlertPanel />
-      <button class="btn btn-icon btn-text-icon" class:has-findings={totalFindings > 0} onclick={onopensecurity} title={t("toolbar.securityFindings", { count: String(totalFindings) })}>
+      <Button class="toolbar-action-button" variant="secondary" onclick={onopensecurity} title={t("toolbar.securityFindings", { count: String(totalFindings) })}>
         <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M8 0L2 3v5c0 4 2.6 6.5 6 8 3.4-1.5 6-4 6-8V3L8 0zm0 2l4 2v4c0 3-1.9 5-4 6.3C5.9 13 4 11 4 8V4l4-2zm-1 4v3h2V6H7zm0 4v1.5h2V10H7z"/></svg>
         <span>{t("toolbar.security")}</span>
         {#if totalFindings > 0}<span class="findings-badge">{totalFindings}</span>{/if}
-      </button>
-      <button class="btn btn-icon btn-text-icon" onclick={ontoggledashboard} title={dashboardCollapsed ? t("toolbar.showDashboard") : t("toolbar.hideDashboard")}>
+      </Button>
+      <Button class="toolbar-action-button" variant="secondary" onclick={ontoggledashboard} title={dashboardCollapsed ? t("toolbar.showDashboard") : t("toolbar.hideDashboard")}>
         <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
           {#if dashboardCollapsed}
             <path d="M3 4h10v1H3zM3 7h10v1H3zM3 10h10v1H3z"/>
@@ -158,15 +160,15 @@
           {/if}
         </svg>
         <span>{t("toolbar.dashboard")}</span>
-      </button>
-      <button class="btn btn-icon btn-text-icon" onclick={ontoggleautomations} title={t("toolbar.automations")}><span>●</span><span>{t("toolbar.automations")}</span></button>
-      <button class="btn btn-icon btn-text-icon" onclick={onopenplugins} title={t("toolbar.plugins")}><span>Lua</span><span>{t("toolbar.plugins")}</span></button>
-      <button class="btn btn-icon btn-text-icon" onclick={onopensettings} title={t("toolbar.aiSettings")}><span>⚙</span><span>{t("toolbar.aiSettings")}</span></button>
-      <button class="btn btn-icon btn-text-icon" onclick={onopenhelp} title={t("toolbar.helpCenter")}><span class="btn-icon-glyph">?</span><span>{t("toolbar.helpCenter")}</span></button>
+      </Button>
+      <Button class="toolbar-action-button" variant="secondary" onclick={ontoggleautomations} title={t("toolbar.automations")}><span>●</span><span>{t("toolbar.automations")}</span></Button>
+      <Button class="toolbar-action-button" variant="secondary" onclick={onopenplugins} title={t("toolbar.plugins")}><span>Lua</span><span>{t("toolbar.plugins")}</span></Button>
+      <Button class="toolbar-action-button" variant="secondary" onclick={onopensettings} title={t("toolbar.aiSettings")}><span>⚙</span><span>{t("toolbar.aiSettings")}</span></Button>
+      <Button class="toolbar-action-button" variant="secondary" onclick={onopenhelp} title={t("toolbar.helpCenter")}><span class="btn-icon-glyph">?</span><span>{t("toolbar.helpCenter")}</span></Button>
       <div class="font-controls">
-        <button class="btn btn-icon" onclick={ondecreasefont} title={t("toolbar.decreaseFont")} aria-label={t("toolbar.decreaseFontLabel")}>A-</button>
+        <Button variant="ghost" size="icon" onclick={ondecreasefont} title={t("toolbar.decreaseFont")} aria-label={t("toolbar.decreaseFontLabel")}>A-</Button>
         <span class="font-size-display">{fontSize}</span>
-        <button class="btn btn-icon" onclick={onincreasefont} title={t("toolbar.increaseFont")} aria-label={t("toolbar.increaseFontLabel")}>A+</button>
+        <Button variant="ghost" size="icon" onclick={onincreasefont} title={t("toolbar.increaseFont")} aria-label={t("toolbar.increaseFontLabel")}>A+</Button>
       </div>
     </div>
   </div>
@@ -276,22 +278,23 @@
     line-height: 1.35;
   }
 
-  .btn,
   .profile-select {
     transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
   }
 
-  .btn:hover,
   .profile-select:hover,
-  .btn:focus-visible,
   .profile-select:focus-visible {
     transform: translateY(-1px);
     box-shadow: 0 8px 22px rgba(0,0,0,0.18);
   }
 
-  .btn-sponsor {
+  :global(.btn-sponsor) {
     border-color: var(--accent);
     color: var(--accent);
+  }
+
+  :global(.toolbar-action-button) {
+    min-width: 0;
   }
 
   .btn-icon-glyph {

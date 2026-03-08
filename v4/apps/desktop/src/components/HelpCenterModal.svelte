@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { t } from "../lib/i18n";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
+  import Button from "./Button.svelte";
 
   interface Props {
     onclose: () => void;
@@ -40,10 +41,31 @@
         <div class="eyebrow">{t("helpCenter.eyebrow")}</div>
         <h2 id="help-center-title">{t("helpCenter.title")}</h2>
       </div>
-      <button class="close-btn" onclick={onclose} aria-label={t("common.close")}>×</button>
+      <Button variant="ghost" size="icon" class="close-button" onclick={onclose} aria-label={t("common.close")}>×</Button>
     </div>
 
     <div class="body">
+      <section class="section about-section">
+        <div class="about-card">
+          <div>
+            <div class="card-title">{t("helpCenter.aboutTitle")}</div>
+            <p>{t("helpCenter.aboutBody")}</p>
+          </div>
+          <div class="about-meta">
+            <span class="about-version">OmniMon 6.0.0</span>
+            <span>{t("helpCenter.createdBy")}</span>
+          </div>
+          <Button
+            href="https://github.com/chochy2001/omnimon"
+            target="_blank"
+            rel="noopener noreferrer"
+            variant="secondary"
+          >
+            {t("helpCenter.moreInfo")}
+          </Button>
+        </div>
+      </section>
+
       <section class="section">
         <h3>{t("helpCenter.aiTitle")}</h3>
         <div class="card-grid">
@@ -165,20 +187,36 @@
     color: var(--fg);
   }
 
-  .close-btn {
-    width: 30px;
-    height: 30px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: transparent;
-    color: var(--fg-dim);
-    cursor: pointer;
-    font-size: 18px;
+  :global(.close-button) {
+    flex-shrink: 0;
   }
 
-  .close-btn:hover {
-    color: var(--fg);
-    background: var(--bg-hover);
+  .about-section {
+    margin-bottom: 4px;
+  }
+
+  .about-card {
+    display: grid;
+    gap: 14px;
+    padding: 18px;
+    border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+    border-radius: 16px;
+    background:
+      radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 16%, transparent), transparent 42%),
+      color-mix(in srgb, var(--bg-surface, var(--bg-alt)) 94%, white 2%);
+  }
+
+  .about-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    color: var(--fg-dim);
+  }
+
+  .about-version {
+    color: var(--accent);
+    font-weight: 800;
+    letter-spacing: 0.04em;
   }
 
   .body {
@@ -240,6 +278,10 @@
   }
 
   @media (max-width: 760px) {
+    .about-card {
+      padding: 16px;
+    }
+
     .card-grid {
       grid-template-columns: 1fr;
     }

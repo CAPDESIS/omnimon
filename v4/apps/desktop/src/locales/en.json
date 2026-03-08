@@ -363,6 +363,10 @@
   "helpCenter": {
     "eyebrow": "FAQ & Guides",
     "title": "How OmniMon works",
+    "aboutTitle": "About OmniMon",
+    "aboutBody": "Version 6.0.0 introduces a more consistent visual language, unified controls, and better breathing room across the interface.",
+    "createdBy": "Created by Jorge Salgado Miranda.",
+    "moreInfo": "More information",
     "aiTitle": "AI areas",
     "aiActionsTitle": "AI Actions",
     "aiActionsBody": "Use this chat to ask about processes, tabs, memory, CPU, and to trigger supported actions like closing tabs. It is the action-oriented assistant.",

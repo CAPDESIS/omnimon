@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
+  import Button from './Button.svelte';
 
   let key = $state('');
   let status = $state('');
@@ -65,10 +66,10 @@
     />
   </div>
   <div class="actions">
-    <button class="btn btn-accent" onclick={saveKey} disabled={loadingKey || savingKey || !key.trim()}>
+    <Button variant="primary" onclick={saveKey} disabled={loadingKey || savingKey || !key.trim()}>
       {savingKey ? 'Saving...' : 'Save Key'}
-    </button>
-    <button class="btn" onclick={syncNow} disabled={loadingKey || savingKey}>Sync Now</button>
+    </Button>
+    <Button variant="secondary" onclick={syncNow} disabled={loadingKey || savingKey}>Sync Now</Button>
   </div>
   {#if status}
     <p class="status">{status}</p>

@@ -10,6 +10,7 @@
   import { ipcAnalyzeContext } from "../lib/ipc";
   import { aiProviderConfig, userMode } from "../stores/preferences";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
+  import Button from "./Button.svelte";
 
   interface Props {
     process: ProcessEntry;
@@ -269,12 +270,12 @@
         <div class="tabs-header">
           <div class="section-label">{t("process.browserTabs", { count: allBrowserTabs.length })}</div>
           <div class="tabs-actions">
-            <button class="btn-tab-action" onclick={selectAllTabs} title={t("process.selectAllTabs")}>{t("common.all")}</button>
-            <button class="btn-tab-action" onclick={selectNoneTabs} title={t("process.deselectAll")}>{t("common.none")}</button>
+            <Button variant="secondary" size="sm" class="btn-tab-action" onclick={selectAllTabs} title={t("process.selectAllTabs")}>{t("common.all")}</Button>
+            <Button variant="ghost" size="sm" class="btn-tab-action" onclick={selectNoneTabs} title={t("process.deselectAll")}>{t("common.none")}</Button>
             {#if selectedCount > 0}
-              <button class="btn-tab-close-selected" onclick={closeSelectedTabs} title={t("process.closeCountTitle", { count: selectedCount })}>
+              <Button variant="danger" size="sm" class="btn-tab-close-selected" onclick={closeSelectedTabs} title={t("process.closeCountTitle", { count: selectedCount })}>
                 {t("process.closeCount", { count: selectedCount })}
-              </button>
+              </Button>
             {/if}
           </div>
         </div>
@@ -304,24 +305,28 @@
                 aria-label={t("process.selectTab", { title: tab.title })}
                 onclick={() => toggleTab(tab.id)}
               />
-              <button
+              <Button
                 class="tab-title-btn"
+                variant="ghost"
+                size="sm"
                 onclick={() => focusTab(tab)}
                 title={t("process.goToTab", { title: tab.title, url: tab.url })}
                 aria-label={t("processView.focusTabLabel", { title: tab.title || t("common.untitled") })}
               >
                 {tab.title || t("common.untitled")}
-              </button>
+              </Button>
               <span class="tab-domain" title={tab.url}>{getDomain(tab.url)}</span>
-              <button
+              <Button
                 class="btn-tab-kill"
+                variant="danger"
+                size="icon"
                 onclick={() => closeTab(tab)}
                 disabled={closingTabs.has(tab.id)}
                 title={t("process.closeThisTab")}
                 aria-label={t("processView.closeTabLabel", { title: tab.title || t("common.untitled") })}
               >
                 &#10005;
-              </button>
+              </Button>
             </div>
           {/each}
           {#if filteredTabs.length === 0}
@@ -334,9 +339,9 @@
       <div class="ai-section">
         <div class="ai-header-row">
           <div class="section-label">{t("process.aiAnalysis")}</div>
-          <button class="btn-ask-ai" onclick={askAi} disabled={aiAnalyzing} aria-busy={aiAnalyzing} aria-label={aiAnalyzing ? t("processView.analyzingAria") : t("process.askAi")}>
+          <Button class="btn-ask-ai" variant="primary" onclick={askAi} disabled={aiAnalyzing} aria-busy={aiAnalyzing} aria-label={aiAnalyzing ? t("processView.analyzingAria") : t("process.askAi")}>
             {aiAnalyzing ? t("process.analyzing") : t("process.askAi")}
-          </button>
+          </Button>
         </div>
         {#if aiError}
           <div class="ai-error">{aiError}</div>
@@ -502,38 +507,17 @@
 
   .tabs-actions {
     display: flex;
-    gap: 3px;
+    gap: 6px;
   }
 
-  .btn-tab-action {
-    padding: 1px 5px;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    background: transparent;
-    color: var(--fg-dim);
-    font-size: calc(var(--base-font-size) * 0.75);
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .btn-tab-action:hover {
-    background: var(--bg-hover);
-    color: var(--fg);
+  :global(.btn-tab-action) {
+    min-height: 30px;
   }
 
-  .btn-tab-close-selected {
-    padding: 1px 6px;
-    border: 1px solid var(--danger);
-    border-radius: 3px;
-    background: var(--danger);
-    color: white;
-    font-size: calc(var(--base-font-size) * 0.75);
-    font-weight: 600;
-    cursor: pointer;
+  :global(.btn-tab-close-selected) {
     text-transform: uppercase;
     letter-spacing: 0.3px;
-  }
-  .btn-tab-close-selected:hover {
-    background: #b71c1c;
+    min-height: 30px;
   }
 
   .tab-filter-row {
@@ -596,23 +580,20 @@
     flex-shrink: 0;
   }
 
-  .tab-title-btn {
+  :global(.tab-title-btn) {
     flex: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    background: none;
-    border: none;
-    padding: 0;
-    color: var(--fg);
-    font-size: calc(var(--base-font-size) * 0.833);
-    cursor: pointer;
     text-align: left;
+    justify-content: flex-start;
+    padding: 0 4px;
+    min-height: 28px;
+    border-color: transparent;
   }
-  .tab-title-btn:hover {
+  :global(.tab-title-btn:hover) {
     color: var(--accent);
-    text-decoration: underline;
   }
 
   .tab-domain {
@@ -626,25 +607,11 @@
     font-size: calc(var(--base-font-size) * 0.75);
   }
 
-  .btn-tab-kill {
-    width: 18px;
-    height: 18px;
-    padding: 0;
-    border: 1px solid transparent;
-    border-radius: 3px;
-    background: transparent;
-    color: var(--fg-dim);
-    font-size: calc(var(--base-font-size) * 0.833);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  :global(.btn-tab-kill) {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
     flex-shrink: 0;
-  }
-  .btn-tab-kill:hover {
-    background: rgba(211, 47, 47, 0.15);
-    color: var(--danger);
-    border-color: var(--danger);
   }
 
   .tab-empty {
@@ -666,22 +633,8 @@
     padding-right: 10px;
   }
 
-  .btn-ask-ai {
-    padding: 2px 8px;
-    border: 1px solid var(--accent);
-    border-radius: 3px;
-    background: var(--accent);
-    color: white;
-    font-size: calc(var(--base-font-size) * 0.75);
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .btn-ask-ai:hover:not(:disabled) {
-    background: #005fa3;
-  }
-  .btn-ask-ai:disabled {
-    opacity: 0.5;
-    cursor: default;
+  :global(.btn-ask-ai) {
+    min-height: 34px;
   }
 
   .ai-error {
