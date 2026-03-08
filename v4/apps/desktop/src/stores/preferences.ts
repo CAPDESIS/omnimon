@@ -87,6 +87,24 @@ export const idleThreshold = writable(DEFAULT_IDLE_THRESHOLD);
 /** Current theme mode: "auto" follows system, or forced "light"/"dark". */
 export const theme = writable<ThemeMode>(DEFAULT_THEME);
 
+/** Collapse state for AI Profile panel. */
+export const profilesCollapsedStore = writable(false);
+
+/** Collapse state for Main Table panel. */
+export const mainTableCollapsedStore = writable(false);
+
+/** Collapse state for Network panel. */
+export const networkMapCollapsedStore = writable(false);
+
+/** Collapse state for Browser Tabs panel. */
+export const browserTabsCollapsedStore = writable(false);
+
+/** Collapse state for AI Chat panel. */
+export const aiChatCollapsedStore = writable(false);
+
+/** Collapse state for AI Command Bar panel. */
+export const aiConfigCollapsedStore = writable(false);
+
 /** Height (in px) of the browser tabs panel at the bottom of the UI. */
 export const tabPanelHeight = writable(DEFAULT_TAB_PANEL_HEIGHT);
 
@@ -203,6 +221,24 @@ export async function loadPreferences(): Promise<void> {
     if (typeof savedLocale === "string" && (savedLocale === "en" || savedLocale === "es" || savedLocale === "auto")) {
       localePreference.set(savedLocale as LocaleCode);
     }
+
+    const savedProfilesCollapsed = await store.get("profilesCollapsed");
+    if (typeof savedProfilesCollapsed === "boolean") profilesCollapsedStore.set(savedProfilesCollapsed);
+
+    const savedMainTableCollapsed = await store.get("mainTableCollapsed");
+    if (typeof savedMainTableCollapsed === "boolean") mainTableCollapsedStore.set(savedMainTableCollapsed);
+
+    const savedNetworkMapCollapsed = await store.get("networkMapCollapsed");
+    if (typeof savedNetworkMapCollapsed === "boolean") networkMapCollapsedStore.set(savedNetworkMapCollapsed);
+
+    const savedBrowserTabsCollapsed = await store.get("browserTabsCollapsed");
+    if (typeof savedBrowserTabsCollapsed === "boolean") browserTabsCollapsedStore.set(savedBrowserTabsCollapsed);
+
+    const savedAiChatCollapsed = await store.get("aiChatCollapsed");
+    if (typeof savedAiChatCollapsed === "boolean") aiChatCollapsedStore.set(savedAiChatCollapsed);
+
+    const savedAiConfigCollapsed = await store.get("aiConfigCollapsed");
+    if (typeof savedAiConfigCollapsed === "boolean") aiConfigCollapsedStore.set(savedAiConfigCollapsed);
   } catch {
     // Use defaults on any read error
   }
@@ -226,6 +262,14 @@ export async function savePreferences(): Promise<void> {
     await store.set("aiChatPanelHeight", get(aiChatPanelHeight));
     await store.set("locale", get(localePreference));
     await store.set("customTheme", get(customTheme));
+    
+    await store.set("profilesCollapsed", get(profilesCollapsedStore));
+    await store.set("mainTableCollapsed", get(mainTableCollapsedStore));
+    await store.set("networkMapCollapsed", get(networkMapCollapsedStore));
+    await store.set("browserTabsCollapsed", get(browserTabsCollapsedStore));
+    await store.set("aiChatCollapsed", get(aiChatCollapsedStore));
+    await store.set("aiConfigCollapsed", get(aiConfigCollapsedStore));
+
     await store.save();
   } catch {
     // Best-effort persistence
@@ -259,6 +303,12 @@ export function initPreferenceSubscriptions(): () => void {
       setCustomThemeOverrides(ct);
       debouncedSave();
     }),
+    profilesCollapsedStore.subscribe(() => debouncedSave()),
+    mainTableCollapsedStore.subscribe(() => debouncedSave()),
+    networkMapCollapsedStore.subscribe(() => debouncedSave()),
+    browserTabsCollapsedStore.subscribe(() => debouncedSave()),
+    aiChatCollapsedStore.subscribe(() => debouncedSave()),
+    aiConfigCollapsedStore.subscribe(() => debouncedSave()),
   ];
   return () => {
     unsubs.forEach((u) => u());

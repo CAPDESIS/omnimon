@@ -10,6 +10,7 @@
   import SmartAlerts from "./components/SmartAlerts.svelte";
   import AppToolbar from "./components/AppToolbar.svelte";
   import ProfilePanel from "./components/ProfilePanel.svelte";
+  import ConfirmDialog from "./components/ConfirmDialog.svelte";
   import SkeletonBlock from "./components/SkeletonBlock.svelte";
   import { totalFindings } from "./stores/security";
   import { initSecurityAlertListener } from "./stores/alerts";
@@ -60,6 +61,12 @@
     customTheme,
     userMode,
     type ThemeMode,
+    profilesCollapsedStore,
+    mainTableCollapsedStore,
+    networkMapCollapsedStore,
+    browserTabsCollapsedStore,
+    aiChatCollapsedStore,
+    aiConfigCollapsedStore,
   } from "./stores/preferences";
   import { ipcValidateApiKey, ipcCheckApiKey } from "./lib/ipc";
   import { listen } from "@tauri-apps/api/event";
@@ -73,7 +80,7 @@
   let searchValue = $state("");
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
-  // Dashboard collapse state
+  // Panel collapse states
   let dashboardCollapsed = $state(false);
   let showSecurityReport = $state(false);
   let showAutomations = $state(false);
@@ -593,71 +600,101 @@
     onincreasefont={increaseFontSize}
   />
 
-  <div class="profiles-shell">
-    <ProfilePanel />
+  <div class="section-header" role="button" tabindex="0"
+    onclick={() => $profilesCollapsedStore = !$profilesCollapsedStore}
+    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $profilesCollapsedStore = !$profilesCollapsedStore; } }}
+    aria-expanded={!$profilesCollapsedStore}
+  >
+    <span class="section-chevron" class:open={!$profilesCollapsedStore}>&#9654;</span>
+    <span class="section-label">{t("toolbar.aiProfile")}</span>
   </div>
+  {#if !$profilesCollapsedStore}
+    <div class="profiles-shell">
+      <ProfilePanel />
+    </div>
+  {/if}
 
   <!-- Dashboard with charts -->
   <SystemDashboard collapsed={dashboardCollapsed} mode={$userMode} onopenmetric={openMetricModal} />
 
   <!-- Browser Tabs Panel -->
-  <div class="tab-panel" style="height: {tabPanelHeight}px" bind:this={chromeTabsHost}>
-    {#if chromeTabManagerPromise}
-      {#await chromeTabManagerPromise then ChromeTabManagerModule}
-        <ChromeTabManagerModule.default filter={searchValue} />
-      {:catch}
+  <div class="section-header" role="button" tabindex="0"
+    onclick={() => $browserTabsCollapsedStore = !$browserTabsCollapsedStore}
+    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $browserTabsCollapsedStore = !$browserTabsCollapsedStore; } }}
+    aria-expanded={!$browserTabsCollapsedStore}
+  >
+    <span class="section-chevron" class:open={!$browserTabsCollapsedStore}>&#9654;</span>
+    <span class="section-label">{t("common.browserTabs", { default: "Browser Tabs" })}</span>
+  </div>
+  {#if !$browserTabsCollapsedStore}
+    <div class="tab-panel" style="height: {tabPanelHeight}px" bind:this={chromeTabsHost}>
+      {#if chromeTabManagerPromise}
+        {#await chromeTabManagerPromise then ChromeTabManagerModule}
+          <ChromeTabManagerModule.default filter={searchValue} />
+        {:catch}
+          <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
+            <SkeletonBlock width="100%" height="100%" rounded="12px" />
+          </div>
+        {/await}
+      {:else}
         <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
           <SkeletonBlock width="100%" height="100%" rounded="12px" />
         </div>
-      {/await}
-    {:else}
-      <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
-        <SkeletonBlock width="100%" height="100%" rounded="12px" />
-      </div>
-    {/if}
-  </div>
-  <button
-    type="button"
-    class="resize-divider"
-    class:active={dragging}
-    onmousedown={onDividerMousedown}
-    onkeydown={onDividerKeydown}
-    aria-label={t("common.resizeTabPanel")}
-  ></button>
+      {/if}
+    </div>
+    <button
+      type="button"
+      class="resize-divider"
+      class:active={dragging}
+      onmousedown={onDividerMousedown}
+      onkeydown={onDividerKeydown}
+      aria-label={t("common.resizeTabPanel")}
+    ></button>
+  {/if}
 
   <!-- Process Table -->
-  {#if $loading}
-    <div class="loading-shell" role="status" aria-busy="true" aria-label={t("common.loadingAria")}>
-      <div class="loading-toolbar-card">
-        <SkeletonBlock width="22%" height="14px" rounded="999px" />
-        <SkeletonBlock width="100%" height="42px" rounded="14px" />
-      </div>
-      <div class="loading-table-card">
-        <div class="loading-table-header">
-          <SkeletonBlock width="14%" height="12px" rounded="999px" />
-          <SkeletonBlock width="10%" height="12px" rounded="999px" />
-          <SkeletonBlock width="12%" height="12px" rounded="999px" />
-          <SkeletonBlock width="8%" height="12px" rounded="999px" />
+  <div class="section-header" role="button" tabindex="0"
+    onclick={() => $mainTableCollapsedStore = !$mainTableCollapsedStore}
+    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $mainTableCollapsedStore = !$mainTableCollapsedStore; } }}
+    aria-expanded={!$mainTableCollapsedStore}
+  >
+    <span class="section-chevron" class:open={!$mainTableCollapsedStore}>&#9654;</span>
+    <span class="section-label">{t("common.processes", { default: "Processes" })}</span>
+  </div>
+  {#if !$mainTableCollapsedStore}
+    {#if $loading}
+      <div class="loading-shell" role="status" aria-busy="true" aria-label={t("common.loadingAria")}>
+        <div class="loading-toolbar-card">
+          <SkeletonBlock width="22%" height="14px" rounded="999px" />
+          <SkeletonBlock width="100%" height="42px" rounded="14px" />
         </div>
-        {#each Array(7) as _, index}
-          <div class="loading-row" style={`animation-delay:${index * 50}ms`}>
-            <SkeletonBlock width="28px" height="28px" rounded="8px" />
-            <SkeletonBlock width="20%" height="12px" rounded="999px" />
-            <SkeletonBlock width="12%" height="12px" rounded="999px" />
-            <SkeletonBlock width="16%" height="12px" rounded="999px" />
+        <div class="loading-table-card">
+          <div class="loading-table-header">
+            <SkeletonBlock width="14%" height="12px" rounded="999px" />
             <SkeletonBlock width="10%" height="12px" rounded="999px" />
+            <SkeletonBlock width="12%" height="12px" rounded="999px" />
+            <SkeletonBlock width="8%" height="12px" rounded="999px" />
           </div>
-        {/each}
+          {#each Array(7) as _, index}
+            <div class="loading-row" style={`animation-delay:${index * 50}ms`}>
+              <SkeletonBlock width="28px" height="28px" rounded="8px" />
+              <SkeletonBlock width="20%" height="12px" rounded="999px" />
+              <SkeletonBlock width="12%" height="12px" rounded="999px" />
+              <SkeletonBlock width="16%" height="12px" rounded="999px" />
+              <SkeletonBlock width="10%" height="12px" rounded="999px" />
+            </div>
+          {/each}
+        </div>
       </div>
-    </div>
-  {:else}
-    <ProcessTable
-      processes={$filtered}
-      grouping={$grouping}
-      columns={visibleColumns}
-      columnOrder={$columnOrder}
-      oninspect={inspectProcess}
-    />
+    {:else}
+      <ProcessTable
+        processes={$filtered}
+        grouping={$grouping}
+        columns={visibleColumns}
+        columnOrder={$columnOrder}
+        oninspect={inspectProcess}
+      />
+    {/if}
   {/if}
 
   <!-- AI Suggestions Panel -->
@@ -691,60 +728,90 @@
   {/if}
 
   <!-- Network Connection Map -->
-  <div bind:this={networkMapHost}>
-    {#if networkMapPromise}
-      {#await networkMapPromise then NetworkMapModule}
-        <NetworkMapModule.default mode={$userMode} />
-      {:catch}
+  <div class="section-header" role="button" tabindex="0"
+    onclick={() => $networkMapCollapsedStore = !$networkMapCollapsedStore}
+    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $networkMapCollapsedStore = !$networkMapCollapsedStore; } }}
+    aria-expanded={!$networkMapCollapsedStore}
+  >
+    <span class="section-chevron" class:open={!$networkMapCollapsedStore}>&#9654;</span>
+    <span class="section-label">{t("common.networkMap", { default: "Network Map" })}</span>
+  </div>
+  {#if !$networkMapCollapsedStore}
+    <div bind:this={networkMapHost}>
+      {#if networkMapPromise}
+        {#await networkMapPromise then NetworkMapModule}
+          <NetworkMapModule.default mode={$userMode} />
+        {:catch}
+          <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
+            <SkeletonBlock width="100%" height="140px" rounded="14px" />
+          </div>
+        {/await}
+      {:else}
         <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
           <SkeletonBlock width="100%" height="140px" rounded="14px" />
         </div>
-      {/await}
-    {:else}
-      <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
-        <SkeletonBlock width="100%" height="140px" rounded="14px" />
+      {/if}
+    </div>
+    {#if basicModeNetworkHint}
+      <div class="mode-hint-card" role="note">
+        <span class="mode-hint-label">{t("common.userView")}</span>
+        <span>{t("profiles.proHint")}</span>
       </div>
     {/if}
-  </div>
-  {#if basicModeNetworkHint}
-    <div class="mode-hint-card" role="note">
-      <span class="mode-hint-label">{t("common.userView")}</span>
-      <span>{t("profiles.proHint")}</span>
-    </div>
   {/if}
 
   <!-- AI Interactive Chat (Tool Calling) -->
-  <div class="ai-chat-panel" style="height: {aiChatPanelHeight}px" bind:this={aiChatHost}>
-    {#if aiChatPromise}
-      {#await aiChatPromise then AIChatModule}
-        <AIChatModule.default />
-      {:catch}
+  <div class="section-header" role="button" tabindex="0"
+    onclick={() => $aiChatCollapsedStore = !$aiChatCollapsedStore}
+    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $aiChatCollapsedStore = !$aiChatCollapsedStore; } }}
+    aria-expanded={!$aiChatCollapsedStore}
+  >
+    <span class="section-chevron" class:open={!$aiChatCollapsedStore}>&#9654;</span>
+    <span class="section-label">{t("aiChat.title")}</span>
+  </div>
+  {#if !$aiChatCollapsedStore}
+    <div class="ai-chat-panel" style="height: {aiChatPanelHeight}px" bind:this={aiChatHost}>
+      {#if aiChatPromise}
+        {#await aiChatPromise then AIChatModule}
+          <AIChatModule.default />
+        {:catch}
+          <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
+            <SkeletonBlock width="100%" height="100%" rounded="12px" />
+          </div>
+        {/await}
+      {:else}
         <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
           <SkeletonBlock width="100%" height="100%" rounded="12px" />
         </div>
-      {/await}
-    {:else}
-      <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
-        <SkeletonBlock width="100%" height="100%" rounded="12px" />
-      </div>
-    {/if}
-  </div>
-  <button
-    type="button"
-    class="resize-divider"
-    class:active={aiChatDragging}
-    onmousedown={onAiChatDividerMousedown}
-    onkeydown={onAiChatDividerKeydown}
-    aria-label={t("common.expand")}
-  ></button>
+      {/if}
+    </div>
+    <button
+      type="button"
+      class="resize-divider"
+      class:active={aiChatDragging}
+      onmousedown={onAiChatDividerMousedown}
+      onkeydown={onAiChatDividerKeydown}
+      aria-label={t("common.expand")}
+    ></button>
+  {/if}
 
   <!-- AI Command Bar (Natural Language Config) -->
-  <AiCommandBar />
+  <div class="section-header" role="button" tabindex="0"
+    onclick={() => $aiConfigCollapsedStore = !$aiConfigCollapsedStore}
+    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $aiConfigCollapsedStore = !$aiConfigCollapsedStore; } }}
+    aria-expanded={!$aiConfigCollapsedStore}
+  >
+    <span class="section-chevron" class:open={!$aiConfigCollapsedStore}>&#9654;</span>
+    <span class="section-label">{t("aiConfig.title")}</span>
+  </div>
+  {#if !$aiConfigCollapsedStore}
+    <AiCommandBar />
+  {/if}
 
   <!-- Status Footer -->
   <footer class="statusline" aria-live="polite" aria-atomic="true">
     <span>
-      <span class="version-label" style="color: var(--accent); font-weight: 600;">OmniMon v5.2.0</span> &nbsp;&middot;&nbsp;
+      <span class="version-label" style="color: var(--accent); font-weight: 600;">OmniMon v6.0.0</span> &nbsp;&middot;&nbsp;
       {t("footer.processes", { count: $filtered.length })}{#if $filtered.length !== $processes.length}
         &nbsp;{t("footer.filteredFrom", { count: $processes.length })}{/if}
       {#if $selectedCount > 0}
@@ -1051,6 +1118,8 @@
   {/if}
 {/if}
 
+<ConfirmDialog />
+
 <style>
   /* ==============================
      GLOBAL RESET & BASE
@@ -1164,6 +1233,41 @@
   .btn:disabled { opacity: 0.4; cursor: default; }
   .btn-sm { padding: 2px 6px; height: auto; }
 
+  /* ==============================
+     COLLAPSIBLE SECTION HEADERS
+     ============================== */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: var(--bg-alt);
+    border-bottom: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
+    cursor: pointer;
+    user-select: none;
+    min-height: calc(var(--base-font-size) * 1.8);
+    flex-shrink: 0;
+  }
+  .section-header:hover {
+    background: var(--bg-hover);
+  }
+  .section-chevron {
+    font-size: calc(var(--base-font-size) * 0.6);
+    color: var(--fg-dim);
+    transition: transform 0.15s ease;
+    display: inline-block;
+  }
+  .section-chevron.open {
+    transform: rotate(90deg);
+  }
+  .section-label {
+    font-size: calc(var(--base-font-size) * 0.75);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--fg-dim);
+  }
+
   .btn-kill {
     background: var(--danger);
     color: white;
@@ -1190,10 +1294,11 @@
      PANELS
      ============================== */
   .tab-panel {
-    flex-shrink: 0;
-    overflow: hidden;
+    flex: 1 1 auto;
+    overflow: auto;
     display: flex;
     flex-direction: column;
+    min-height: 0;
     min-width: 0;
   }
 
@@ -1290,8 +1395,8 @@
   }
 
   .ai-chat-panel {
-    flex-shrink: 0;
-    overflow: hidden;
+    flex: 1 1 auto;
+    overflow: auto;
     min-height: 0;
   }
 
