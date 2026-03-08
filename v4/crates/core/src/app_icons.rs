@@ -1,7 +1,9 @@
 use base64::Engine;
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(target_os = "macos")]
+use std::path::PathBuf;
 use std::sync::{OnceLock, RwLock};
 
 static ICON_CACHE: OnceLock<RwLock<HashMap<String, Option<String>>>> = OnceLock::new();
