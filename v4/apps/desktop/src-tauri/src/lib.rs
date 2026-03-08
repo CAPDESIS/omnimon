@@ -673,10 +673,13 @@ pub fn run() {
                 copyright: Some("© 2024-2026 Jorge Salgado Miranda".into()),
                 website: Some("https://github.com/chochy2001/omnimon".into()),
                 website_label: Some("Más información".into()),
-                comments: Some("System Monitor — monitoreo avanzado de procesos, pestañas y red.".into()),
+                comments: Some(
+                    "System Monitor — monitoreo avanzado de procesos, pestañas y red.".into(),
+                ),
                 ..Default::default()
             };
-            let about_item = PredefinedMenuItem::about(app, Some("Acerca de OmniMon"), Some(about_metadata))?;
+            let about_item =
+                PredefinedMenuItem::about(app, Some("Acerca de OmniMon"), Some(about_metadata))?;
             let hide = PredefinedMenuItem::hide(app, None)?;
             let hide_others = PredefinedMenuItem::hide_others(app, None)?;
             let show_all = PredefinedMenuItem::show_all(app, None)?;
@@ -689,7 +692,16 @@ pub fn run() {
                 app,
                 "OmniMon",
                 true,
-                &[&about_item, &sep1, &hide, &hide_others, &show_all, &sep2, &sep3, &quit_item],
+                &[
+                    &about_item,
+                    &sep1,
+                    &hide,
+                    &hide_others,
+                    &show_all,
+                    &sep2,
+                    &sep3,
+                    &quit_item,
+                ],
             )?;
             let app_menu = Menu::with_items(app, &[&app_submenu])?;
             app.set_menu(app_menu)?;

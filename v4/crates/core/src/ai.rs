@@ -702,9 +702,7 @@ pub fn execute_tool_call(
             // Verify PID exists in current state — but do NOT kill it here.
             // The frontend must confirm and dispatch the IPC kill command.
             let proc_info = state.cached_process_info.iter().find(|p| p.pid == pid);
-            let proc_name = proc_info
-                .map(|p| p.name.as_str())
-                .unwrap_or("unknown");
+            let proc_name = proc_info.map(|p| p.name.as_str()).unwrap_or("unknown");
 
             if proc_info.is_none() {
                 return ToolResult {
