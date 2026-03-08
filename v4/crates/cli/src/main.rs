@@ -88,6 +88,8 @@ enum Commands {
     },
     /// Run system health and native driver checks
     Doctor,
+    /// Launch the real-time terminal UI (htop-style)
+    Tui,
 }
 
 #[derive(Subcommand)]
@@ -691,6 +693,12 @@ fn main() {
             {
                 Ok(_) => println!("Encrypted report saved to: {}", report_path.display()),
                 Err(e) => eprintln!("Failed to save encrypted report: {}", e),
+            }
+        }
+        Commands::Tui => {
+            if let Err(e) = omnimon_tui::run() {
+                eprintln!("TUI error: {}", e);
+                std::process::exit(1);
             }
         }
         Commands::Doctor => {

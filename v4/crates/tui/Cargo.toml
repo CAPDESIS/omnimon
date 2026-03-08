@@ -1,0 +1,12 @@
+[package]
+name = "omnimon-tui"
+version = "6.0.0"
+edition = "2021"
+description = "OmniMon real-time terminal interface (ratatui + crossterm)"
+
+[dependencies]
+core = { path = "../core", features = ["network-capture"] }
+ratatui = "0.29"
+crossterm = "0.28"
+tokio = { version = "1", features = ["rt", "time", "sync", "macros"] }
+unicode-width = "0.2"
