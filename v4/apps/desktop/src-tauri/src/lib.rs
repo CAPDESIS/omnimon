@@ -485,9 +485,26 @@ async fn ai_chat(
         String::new()
     };
 
-    // Build system prompt with live OS state
+    // Build system prompt with live OS state + open browser tabs
     let sys_state = macmon_core::watcher::get_cached_state();
-    let system_prompt = macmon_core::ai::build_chat_system_prompt(&sys_state);
+    let mut system_prompt = macmon_core::ai::build_chat_system_prompt(&sys_state);
+
+    // Append browser tabs context so AI can make informed close_tabs decisions
+    if let Ok(tabs) = get_browser_tabs() {
+        if !tabs.is_empty() {
+            system_prompt.push_str("\n\n## Open Browser Tabs\n");
+            for tab in tabs.iter().take(80) {
+                system_prompt.push_str(&format!(
+                    "- [{:?}] {} | {}\n",
+                    tab.browser, tab.title, tab.url
+                ));
+            }
+            if tabs.len() > 80 {
+                system_prompt.push_str(&format!("... and {} more tabs\n", tabs.len() - 80));
+            }
+            system_prompt.push_str("\nWhen using close_tabs, the pattern matches against tab URLs and titles. Use pipe (|) to separate multiple patterns. To close all EXCEPT certain tabs, use close_tabs with patterns matching the tabs TO CLOSE (not the ones to keep).");
+        }
+    }
 
     // Send to LLM
     let (ai_text, tool_call) =

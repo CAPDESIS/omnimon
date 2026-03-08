@@ -1,7 +1,7 @@
 <script lang="ts">
   import { get } from "svelte/store";
   import { slide } from "svelte/transition";
-  import { ipcAiChat } from "../lib/ipc";
+  import { ipcAiChat, ipcGetBrowserTabs, ipcCloseBrowserTab } from "../lib/ipc";
   import { aiProviderConfig } from "../stores/preferences";
   import { toast } from "../stores/toasts";
   import { detectPromptInjection } from "../lib/aiConfigBridge";
@@ -17,6 +17,7 @@
   let loading = $state(false);
   let messages = $state<ChatMessage[]>([]);
   let chatContainer: HTMLDivElement | undefined = $state();
+  let pendingAction = $state<{ tool: string; details: string; result: ToolResult } | null>(null);
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -48,19 +49,21 @@
 
       if (response.tool_call) {
         const result = response.tool_call;
-        messages = [
-          ...messages,
-          {
-            role: "tool",
-            text: result.details,
-            toolResult: result,
-          },
-        ];
 
-        if (result.success) {
-          toast.success("Action", result.details);
+        // For destructive actions, require confirmation
+        if (result.tool === "close_tabs" || result.tool === "kill_process" || result.tool === "kill_by_name") {
+          pendingAction = { tool: result.tool, details: result.details, result };
+          // Don't execute yet - wait for user confirmation
         } else {
-          toast.error("Action Failed", result.details);
+          messages = [
+            ...messages,
+            { role: "tool", text: result.details, toolResult: result },
+          ];
+          if (result.success) {
+            toast.success("Action", result.details);
+          } else {
+            toast.error("Action Failed", result.details);
+          }
         }
       }
     } catch (e) {
@@ -74,6 +77,84 @@
       loading = false;
       scrollToBottom();
     }
+  }
+
+  async function executeCloseTabs(details: string): Promise<{ closed: number; message: string }> {
+    // details format: "close_tabs:<pattern>"
+    const pattern = details.replace(/^close_tabs:/, "").trim();
+    if (!pattern) return { closed: 0, message: "No pattern provided" };
+
+    try {
+      const allTabs = await ipcGetBrowserTabs();
+      const patterns = pattern.split("|").map(p => p.trim().toLowerCase());
+
+      // Match tabs whose URL or title contains any of the patterns
+      const toClose = allTabs.filter(tab => {
+        const url = tab.url.toLowerCase();
+        const title = tab.title.toLowerCase();
+        return patterns.some(p => url.includes(p) || title.includes(p));
+      });
+
+      if (toClose.length === 0) {
+        return { closed: 0, message: `No tabs matched pattern "${pattern}"` };
+      }
+
+      let closed = 0;
+      const failed: string[] = [];
+      for (const tab of toClose) {
+        try {
+          await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
+          closed++;
+        } catch {
+          failed.push(tab.title || tab.url);
+        }
+      }
+
+      const msg = closed > 0
+        ? `Closed ${closed} tab(s)${failed.length > 0 ? `, ${failed.length} failed` : ""}`
+        : `Failed to close ${failed.length} tab(s)`;
+      return { closed, message: msg };
+    } catch (e) {
+      return { closed: 0, message: `Error: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }
+
+  async function confirmAction() {
+    if (!pendingAction) return;
+    loading = true;
+    const { result } = pendingAction;
+
+    if (result.tool === "close_tabs" && result.success) {
+      const executed = await executeCloseTabs(result.details);
+      result.details = executed.message;
+      result.success = executed.closed > 0;
+    }
+    // kill_process and kill_by_name are already executed by backend
+
+    messages = [
+      ...messages,
+      { role: "tool", text: result.details, toolResult: result },
+    ];
+
+    if (result.success) {
+      toast.success("Action", result.details);
+    } else {
+      toast.error("Action Failed", result.details);
+    }
+
+    pendingAction = null;
+    loading = false;
+    scrollToBottom();
+  }
+
+  function rejectAction() {
+    if (!pendingAction) return;
+    messages = [
+      ...messages,
+      { role: "system", text: "Action cancelled by user." },
+    ];
+    pendingAction = null;
+    scrollToBottom();
   }
 
   function clearChat() {
@@ -119,7 +200,8 @@
 
 <div class="ai-chat" role="region" aria-label="AI Chat">
   <div class="chat-header">
-    <span class="chat-title">AI Assistant</span>
+    <span class="chat-title">AI Actions</span>
+    <span class="chat-help" title="Execute system actions: kill processes, close browser tabs, analyze resource usage. Uses AI tool-calling to perform real actions on your system.">&#9432;</span>
     <span class="chat-provider">{get(aiProviderConfig).provider}</span>
     {#if messages.length > 0}
       <button class="clear-btn" onclick={clearChat}>Clear</button>
@@ -156,7 +238,20 @@
       {#if loading}
         <div class="chat-msg chat-assistant">
           <span class="chat-role">AI</span>
-          <span class="chat-text typing">Thinking...</span>
+          <span class="chat-text typing">Thinking<span class="dots"><span>.</span><span>.</span><span>.</span></span></span>
+        </div>
+      {/if}
+      {#if pendingAction}
+        <div class="action-preview">
+          <div class="action-header">
+            <span class="action-icon">⚠</span>
+            <strong>Pending Action: {pendingAction.tool}</strong>
+          </div>
+          <div class="action-details">{pendingAction.details}</div>
+          <div class="action-buttons">
+            <button class="confirm-btn" onclick={confirmAction}>Confirm</button>
+            <button class="reject-btn" onclick={rejectAction}>Cancel</button>
+          </div>
         </div>
       {/if}
     </div>
@@ -184,7 +279,7 @@
     <input
       class="chat-input"
       type="text"
-      placeholder="Type a command... (e.g. 'Kill all Chrome processes')"
+      placeholder="Ask AI to act: 'Kill Chrome', 'Close YouTube tabs', 'What uses most RAM?'"
       bind:value={input}
       onkeydown={(e) => { if (e.key === "Enter") handleSubmit(); }}
       disabled={loading}
@@ -325,9 +420,30 @@
     white-space: pre;
   }
 
+  .chat-help {
+    cursor: help;
+    color: var(--fg-dim);
+    font-size: calc(var(--base-font-size, 12px) * 1.1);
+    opacity: 0.7;
+    transition: opacity 0.15s;
+  }
+  .chat-help:hover { opacity: 1; color: var(--accent); }
+
   .typing {
     color: var(--fg-dim);
     font-style: italic;
+  }
+
+  .typing .dots span {
+    animation: blink 1.4s infinite both;
+    display: inline-block;
+  }
+  .typing .dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing .dots span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes blink {
+    0%, 80%, 100% { opacity: 0; }
+    40% { opacity: 1; }
   }
 
   .tool-badge {
@@ -343,6 +459,72 @@
   }
   .tool-badge.success { background: rgba(34, 197, 94, 0.15); color: var(--green); }
   .tool-badge.fail { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+
+  .action-preview {
+    margin: 8px 0;
+    padding: 10px 12px;
+    border: 1px solid var(--yellow, #eab308);
+    border-radius: var(--radius, 6px);
+    background: rgba(234, 179, 8, 0.08);
+  }
+
+  .action-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: calc(var(--base-font-size, 12px) * 0.917);
+    margin-bottom: 6px;
+    color: var(--yellow, #eab308);
+  }
+
+  .action-icon {
+    font-size: 1.1em;
+  }
+
+  .action-details {
+    font-size: calc(var(--base-font-size, 12px) * 0.833);
+    color: var(--fg);
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+    line-height: 1.5;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  }
+
+  .action-buttons {
+    display: flex;
+    gap: 8px;
+  }
+
+  .confirm-btn {
+    padding: 4px 16px;
+    border: none;
+    border-radius: 4px;
+    background: var(--green, #22c55e);
+    color: white;
+    font-weight: 700;
+    font-size: calc(var(--base-font-size, 12px) * 0.833);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .confirm-btn:hover { opacity: 0.85; }
+
+  .reject-btn {
+    padding: 4px 16px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--fg-dim);
+    font-weight: 700;
+    font-size: calc(var(--base-font-size, 12px) * 0.833);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .reject-btn:hover { color: var(--danger); border-color: var(--danger); }
 
   .chat-empty {
     padding: 20px 12px;

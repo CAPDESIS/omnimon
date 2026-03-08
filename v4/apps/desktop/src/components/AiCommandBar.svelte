@@ -278,7 +278,11 @@
   }
 </script>
 
-<div class="command-bar" role="region" aria-label="AI Command">
+<div class="command-bar" role="region" aria-label="AI Configuration">
+  <div class="bar-header">
+    <span class="bar-label">AI Config</span>
+    <span class="bar-help" title="Configure OmniMon with natural language: create alert rules, change theme, adjust settings. Does NOT execute system actions.">&#9432;</span>
+  </div>
   {#if messages.length > 0}
     <div class="chat-messages" bind:this={chatContainer} transition:slide={{ duration: 200 }}>
       {#each messages as msg}
@@ -418,6 +422,30 @@
     border-top: 1px solid var(--border);
     background: var(--bg-alt);
   }
+
+  .bar-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px 0;
+  }
+
+  .bar-label {
+    font-size: calc(var(--base-font-size, 12px) * 0.75);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--fg-dim);
+  }
+
+  .bar-help {
+    cursor: help;
+    color: var(--fg-dim);
+    font-size: calc(var(--base-font-size, 12px) * 1.0);
+    opacity: 0.7;
+    transition: opacity 0.15s;
+  }
+  .bar-help:hover { opacity: 1; color: var(--accent); }
 
   .chat-messages {
     max-height: 180px;

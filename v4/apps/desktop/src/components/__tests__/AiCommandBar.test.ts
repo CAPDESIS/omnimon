@@ -229,6 +229,6 @@ describe("AiCommandBar", () => {
 
   it("has aria-label for accessibility", () => {
     render(AiCommandBar);
-    expect(screen.getByRole("region", { name: "AI Command" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "AI Configuration" })).toBeInTheDocument();
   });
 });

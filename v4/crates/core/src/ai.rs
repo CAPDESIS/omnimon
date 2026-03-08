@@ -478,33 +478,39 @@ pub fn build_chat_system_prompt(state: &crate::watcher::SystemState) -> String {
         .collect();
 
     format!(
-        r#"You are OmniMon, an intelligent macOS system monitor assistant.
-You can analyze system state AND execute actions via tool calls.
+        r#"You are OmniMon, a system monitor assistant running on {os}.
 
-## Current System State
-- RAM: {ram_used_gb:.1}GB / {ram_total_gb:.1}GB ({ram_pct}% used)
-- CPU: {cpu:.1}%
-- Swap: {swap}MB used
-- Network: RX {rx} bytes/s, TX {tx} bytes/s
+## System State
+- CPU: {cpu:.1}% | RAM: {ram_used_gb:.1}/{ram_total_gb:.1} GB ({ram_pct}%) | Swap: {swap} MB | Net: RX {rx} B/s, TX {tx} B/s
 - Top processes:
 {procs}
 
-## Available Tools
-When the user asks you to perform an action, respond with ONLY a JSON object:
-{{"tool": "<name>", "args": {{...}}, "reason": "why this action"}}
+## Tools
+Respond with a JSON object ONLY when performing an action:
+{{"tool": "<name>", "args": {{...}}, "reason": "brief explanation"}}
 
-Tools:
-- kill_process: Kill a process. Args: {{"pid": <number>}}
-- kill_by_name: Kill all processes matching a name. Args: {{"name": "<string>"}}
-- close_tabs: Close browser tabs matching a URL pattern. Args: {{"pattern": "<string>"}}
-- add_automation_rule: Automatically kill/alert when a process uses too much CPU/RAM. Args: {{"id": "<unique_string>", "process_pattern": "<string>", "metric": "<cpu|ram>", "threshold": <number>, "duration_secs": <number>, "action": "<kill|alert>"}}
-- remove_automation_rule: Remove an existing automation rule. Args: {{"id": "<string>"}}
+Available tools:
+1. **kill_process** - Kill one process by PID. Args: {{"pid": <number>}}
+2. **kill_by_name** - Kill ALL processes matching a name. Args: {{"name": "<string>"}}
+3. **close_tabs** - Close browser tabs by URL/title pattern. Args: {{"pattern": "<url_or_title_substring>"}}
+   - Pattern matches against tab URL and title (case-insensitive substring).
+   - Use pipe `|` to match multiple patterns: "youtube.com|reddit.com"
+   - To close all tabs EXCEPT certain ones, list patterns for the tabs you WANT TO CLOSE.
+4. **add_automation_rule** - Auto-monitor a process. Args: {{"id": "<string>", "process_pattern": "<string>", "metric": "cpu|ram", "threshold": <number>, "duration_secs": <number>, "action": "kill|alert"}}
+5. **remove_automation_rule** - Remove a rule. Args: {{"id": "<string>"}}
 
 ## Rules
-- If no action is needed, respond with plain text analysis.
-- NEVER kill system-critical processes (kernel_task, launchd, WindowServer).
-- Always explain your reasoning.
-- For kill actions, prefer targeting by name when the user uses a name."#,
+1. If no action needed, respond with plain text analysis.
+2. NEVER kill system-critical processes (kernel_task, launchd, WindowServer, loginwindow).
+3. **Before ANY destructive action** (killing processes or closing tabs), you MUST:
+   a. List EXACTLY what you will close/kill (names, URLs, PIDs).
+   b. List what you will KEEP (if user specified exceptions).
+   c. Ask for confirmation: "Should I proceed?"
+   d. Only output the tool JSON AFTER the user confirms.
+4. For close_tabs: ALWAYS list each tab you plan to close with its title and URL, and each tab you will keep.
+5. Prefer kill_by_name over kill_process when the user references a process name.
+6. Respond in the same language the user writes in."#,
+        os = std::env::consts::OS,
         cpu = state.cpu_usage_percent,
         swap = state.swap_used_mb,
         rx = state.net_rx_bytes_per_sec,
@@ -752,10 +758,14 @@ pub async fn chat_with_tools(
                 .json(&body)
         })
         .await?;
-        if resp.status().is_client_error() {
-            return Err(format!("AI request failed (status {})", resp.status().as_u16()).into());
+        let status = resp.status();
+        if !status.is_success() {
+            let body_text = resp.text().await.unwrap_or_default();
+            return Err(format!("AI request failed (status {}): {}", status.as_u16(), body_text.chars().take(200).collect::<String>()).into());
         }
-        let resp_json: serde_json::Value = resp.json().await?;
+        let resp_text = resp.text().await?;
+        let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
+            .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
         resp_json["content"][0]["text"]
             .as_str()
             .unwrap_or("")
@@ -782,10 +792,14 @@ pub async fn chat_with_tools(
             req.json(&body)
         })
         .await?;
-        if resp.status().is_client_error() {
-            return Err(format!("AI request failed (status {})", resp.status().as_u16()).into());
+        let status = resp.status();
+        if !status.is_success() {
+            let body_text = resp.text().await.unwrap_or_default();
+            return Err(format!("AI request failed (status {}): {}", status.as_u16(), body_text.chars().take(200).collect::<String>()).into());
         }
-        let resp_json: serde_json::Value = resp.json().await?;
+        let resp_text = resp.text().await?;
+        let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
+            .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
         resp_json["choices"][0]["message"]["content"]
             .as_str()
             .unwrap_or("")
