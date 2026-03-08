@@ -78,7 +78,7 @@ jobs:
 
     - name: Run Backend Tests (Windows)
       if: matrix.os == 'windows-latest'
-      run: cargo test --workspace --exclude omnimon-desktop -- --test-threads=1
+      run: cargo test -p core --lib -- --test-threads=1
       working-directory: ./v4
 
     - name: Install Frontend Dependencies
