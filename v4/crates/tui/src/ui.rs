@@ -142,12 +142,36 @@ fn draw_process_table(f: &mut Frame, app: &mut App, area: Rect) {
     );
 
     let header = Row::new(vec![
-        Cell::from("PID").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Cell::from("NAME").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Cell::from("CPU%").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Cell::from("MEMORY").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Cell::from("NET ↓↑").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Cell::from("ENERGY").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Cell::from("PID").style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Cell::from("NAME").style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Cell::from("CPU%").style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Cell::from("MEMORY").style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Cell::from("NET ↓↑").style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Cell::from("ENERGY").style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
     ])
     .height(1);
 
@@ -183,10 +207,7 @@ fn draw_process_table(f: &mut Frame, app: &mut App, area: Rect) {
                 Cell::from(format!("{:>6.1}", p.cpu_pct)).style(cpu_style),
                 Cell::from(format_bytes(p.memory_bytes)),
                 Cell::from(format!("{}/s", format_bytes(net_total))),
-                Cell::from(format!(
-                    "{:.1}",
-                    p.energy_impact_score.unwrap_or(0.0)
-                )),
+                Cell::from(format!("{:.1}", p.energy_impact_score.unwrap_or(0.0))),
             ])
             .style(style)
         })

@@ -202,11 +202,7 @@ pub fn poll_ai_response(app: &mut App) {
 fn resolve_ai_config() -> (core::ai::AiProvider, String, String) {
     // Prefer Ollama (local, no key required).
     if let Ok(key) = core::ai::get_api_key(core::ai::AiProvider::Ollama) {
-        return (
-            core::ai::AiProvider::Ollama,
-            "llama3.2".into(),
-            key,
-        );
+        return (core::ai::AiProvider::Ollama, "llama3.2".into(), key);
     }
     // Then Anthropic.
     if let Ok(key) = core::ai::get_api_key(core::ai::AiProvider::Anthropic) {
@@ -226,11 +222,7 @@ fn resolve_ai_config() -> (core::ai::AiProvider, String, String) {
     }
     // Then OpenAI.
     if let Ok(key) = core::ai::get_api_key(core::ai::AiProvider::OpenAI) {
-        return (
-            core::ai::AiProvider::OpenAI,
-            "gpt-4o-mini".into(),
-            key,
-        );
+        return (core::ai::AiProvider::OpenAI, "gpt-4o-mini".into(), key);
     }
     // Fallback: Ollama with empty key (works for local deployments).
     (

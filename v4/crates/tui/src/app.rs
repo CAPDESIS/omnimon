@@ -93,22 +93,41 @@ impl App {
         let asc = self.sort_asc;
         match self.sort_col {
             SortColumn::Cpu => self.sorted_processes.sort_by(|a, b| {
-                let cmp = a.cpu_pct.partial_cmp(&b.cpu_pct).unwrap_or(std::cmp::Ordering::Equal);
-                if asc { cmp } else { cmp.reverse() }
+                let cmp = a
+                    .cpu_pct
+                    .partial_cmp(&b.cpu_pct)
+                    .unwrap_or(std::cmp::Ordering::Equal);
+                if asc {
+                    cmp
+                } else {
+                    cmp.reverse()
+                }
             }),
             SortColumn::Memory => self.sorted_processes.sort_by(|a, b| {
                 let cmp = a.memory_bytes.cmp(&b.memory_bytes);
-                if asc { cmp } else { cmp.reverse() }
+                if asc {
+                    cmp
+                } else {
+                    cmp.reverse()
+                }
             }),
             SortColumn::Name => self.sorted_processes.sort_by(|a, b| {
                 let cmp = a.name.to_lowercase().cmp(&b.name.to_lowercase());
-                if asc { cmp } else { cmp.reverse() }
+                if asc {
+                    cmp
+                } else {
+                    cmp.reverse()
+                }
             }),
             SortColumn::Net => self.sorted_processes.sort_by(|a, b| {
                 let a_net = a.net_rx_bytes_per_sec + a.net_tx_bytes_per_sec;
                 let b_net = b.net_rx_bytes_per_sec + b.net_tx_bytes_per_sec;
                 let cmp = a_net.cmp(&b_net);
-                if asc { cmp } else { cmp.reverse() }
+                if asc {
+                    cmp
+                } else {
+                    cmp.reverse()
+                }
             }),
             SortColumn::Energy => self.sorted_processes.sort_by(|a, b| {
                 let cmp = a
@@ -116,7 +135,11 @@ impl App {
                     .unwrap_or(0.0)
                     .partial_cmp(&b.energy_impact_score.unwrap_or(0.0))
                     .unwrap_or(std::cmp::Ordering::Equal);
-                if asc { cmp } else { cmp.reverse() }
+                if asc {
+                    cmp
+                } else {
+                    cmp.reverse()
+                }
             }),
         }
 
