@@ -128,7 +128,8 @@ fn collect_state(system: &mut System, buf: &mut WatcherBuffers) -> SystemState {
     // Reuse the process_info buffer: clear retains heap capacity from prior ticks.
     buf.process_info.clear();
     if buf.process_info.capacity() < buf.last_process_count {
-        buf.process_info.reserve(buf.last_process_count - buf.process_info.capacity());
+        buf.process_info
+            .reserve(buf.last_process_count - buf.process_info.capacity());
     }
 
     for (pid, process) in system.processes().iter() {
@@ -313,8 +314,7 @@ pub fn start_watcher() {
                         if let Ok(mut guard) = cache.write() {
                             // Recover the old state's process_info Vec so its heap
                             // capacity is reused on the next tick instead of freed.
-                            buffers.process_info =
-                                std::mem::take(&mut guard.cached_process_info);
+                            buffers.process_info = std::mem::take(&mut guard.cached_process_info);
                             *guard = snapshot;
                         }
                     }

@@ -3,14 +3,14 @@
 use keyring::Entry;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::error::Error;
 use std::future::Future;
-use std::time::Duration;
+use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 use std::sync::RwLock;
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
+use std::time::Duration;
 
 static AI_CACHE: OnceLock<RwLock<HashMap<u64, String>>> = OnceLock::new();
 
@@ -499,7 +499,8 @@ pub async fn analyze_context_key(
         let resp_text = check_response_status(resp).await?;
         let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
             .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
-        let text_res: Result<String, Box<dyn Error + Send + Sync>> = resp_json["content"][0]["text"]
+        let text_res: Result<String, Box<dyn Error + Send + Sync>> = resp_json["content"][0]
+            ["text"]
             .as_str()
             .map(|s| s.to_string())
             .ok_or_else(|| "Invalid Anthropic response format".into());
@@ -526,7 +527,8 @@ pub async fn analyze_context_key(
         let resp_text = check_response_status(resp).await?;
         let resp_json: serde_json::Value = serde_json::from_str(&resp_text)
             .map_err(|e| format!("Invalid JSON from AI provider: {e}"))?;
-        let text_res: Result<String, Box<dyn Error + Send + Sync>> = resp_json["choices"][0]["message"]["content"]
+        let text_res: Result<String, Box<dyn Error + Send + Sync>> = resp_json["choices"][0]
+            ["message"]["content"]
             .as_str()
             .map(|s| s.to_string())
             .ok_or_else(|| "Invalid response format".into());
