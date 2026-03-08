@@ -19,6 +19,16 @@
   let { process, onclose }: Props = $props();
   let modalEl: HTMLDivElement | undefined = $state();
 
+  function closeWhenBackdropMatches(event: MouseEvent) {
+    if (event.target === event.currentTarget) {
+      onclose();
+    }
+  }
+
+  function stopMouseEventPropagation(event: MouseEvent) {
+    event.stopPropagation();
+  }
+
   // Tab management state
   let selectedTabIds = $state<Set<string>>(new Set());
   let closingTabs = $state<Set<string>>(new Set());
@@ -185,19 +195,16 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="backdrop"
-  onclick={onclose}
+  onclick={closeWhenBackdropMatches}
   onkeydown={handleBackdropKeydown}
   role="presentation"
 >
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
     class="modal"
     bind:this={modalEl}
-    onclick={(e: MouseEvent) => e.stopPropagation()}
+    onmousedown={stopMouseEventPropagation}
     role="dialog"
     aria-modal="true"
     aria-labelledby="modal-title"

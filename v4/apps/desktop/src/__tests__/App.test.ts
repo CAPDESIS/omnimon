@@ -198,14 +198,18 @@ describe("App AI Command Bar", () => {
   it("opens the help center from the toolbar", async () => {
     render(App);
     await fireEvent.click(screen.getByRole("button", { name: /Help Center/i }));
-    expect(screen.getByText("How OmniMon works")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("How OmniMon works")).toBeInTheDocument();
+    });
   });
 
   it("opens deep-dive modal from dashboard cards", async () => {
     render(App);
     const dashboardButtons = Array.from(document.querySelectorAll(".dashboard .metric-button"));
     await fireEvent.click(dashboardButtons[2] as HTMLButtonElement);
-    expect(screen.getByText("Deep Dive")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Deep Dive")).toBeInTheDocument();
+    });
   });
 
   it("shows workspace mode selector in settings", async () => {

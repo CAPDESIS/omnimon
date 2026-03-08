@@ -191,7 +191,9 @@ Genera una explicación muy breve (1-2 oraciones) usando términos coloquiales (
   
   const ctxStr = JSON.stringify({
     stats: {
-       cpu_user: stats.cpu_user_pct,
+       cpu_user: processes.length > 0
+         ? Number((processes.reduce((sum, proc) => sum + proc.cpu_pct, 0) / processes.length).toFixed(2))
+         : 0,
        ram_used: stats.ram_used_pct,
     },
     target_process: {
@@ -255,7 +257,7 @@ const MAX_DYNAMIC = 50;
  */
 export async function initSecurityAlertListener(): Promise<() => void> {
   try {
-    const unlisten = await listen<DynamicAlert>("security-alert", (event) => {
+    const unlisten = await listen<DynamicAlert>("security-alert", (event: { payload: DynamicAlert }) => {
       const alert = event.payload;
       dynamicAlerts.update((list) => {
         const next = [...list, alert];

@@ -113,6 +113,16 @@
   let expandedIds = $state(new Set<string>());
   let generatedAt = $state("");
 
+  function closeWhenBackdropMatches(event: MouseEvent) {
+    if (event.target === event.currentTarget) {
+      onclose();
+    }
+  }
+
+  function stopMouseEventPropagation(event: MouseEvent) {
+    event.stopPropagation();
+  }
+
   function toggleExpand(id: string) {
     const next = new Set(expandedIds);
     if (next.has(id)) next.delete(id);
@@ -166,11 +176,8 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<div class="report-backdrop" onclick={onclose} onkeydown={handleDialogKeydown} role="presentation">
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <div class="report-modal" bind:this={modalEl} onclick={(e: MouseEvent) => e.stopPropagation()} role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="report-title">
+<div class="report-backdrop" onclick={closeWhenBackdropMatches} role="presentation">
+  <div class="report-modal" bind:this={modalEl} onmousedown={stopMouseEventPropagation} onkeydown={handleDialogKeydown} role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="report-title">
     <div class="report-header">
       <div class="report-title-row">
         <h2 id="report-title" class="report-title">{t("securityReport.title")}</h2>

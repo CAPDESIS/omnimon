@@ -75,6 +75,16 @@ describe("NetworkMap", () => {
     expect(screen.getByText("Network Map")).toBeInTheDocument();
   });
 
+  it("uses unique process count in collapsed summary", () => {
+    mockNetworkConnections.set([
+      makeConn({ process_name: "Chrome", pid: 1, remote_addr: "google.com" }),
+      makeConn({ process_name: "Chrome", pid: 1, remote_addr: "youtube.com" }),
+      makeConn({ process_name: "Firefox", pid: 2, remote_addr: "mozilla.org" }),
+    ]);
+    render(NetworkMap);
+    expect(screen.getByText("3 connections / 2 processes")).toBeInTheDocument();
+  });
+
   it("displays connection count and process count", () => {
     mockNetworkConnections.set([
       makeConn({ process_name: "Chrome", remote_addr: "google.com" }),
@@ -133,7 +143,7 @@ describe("NetworkMap", () => {
     ]);
     render(NetworkMap);
     await fireEvent.click(screen.getByText("Network Map").closest("button")!);
-    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(document.querySelector(".netmap-list .proc-count")?.textContent).toBe("2");
   });
 
   it("shows +N when more than 5 domains", async () => {
@@ -176,7 +186,7 @@ describe("NetworkMap", () => {
       captureBackend: "watcher",
       dpiActive: false,
       usingFallback: false,
-      lastUpdated: Date.now(),
+      lastUpdated: null,
       totalRxBytesPerSec: 4096,
       totalTxBytesPerSec: 2048,
     });
@@ -204,11 +214,4 @@ describe("NetworkMap", () => {
     expect(screen.getByText(/focused on the map/i)).toBeInTheDocument();
   });
 
-  it("renders skeleton while switching tabs", async () => {
-    mockNetworkConnections.set([makeConn()]);
-    render(NetworkMap);
-    await fireEvent.click(screen.getByText("Network Map").closest("button")!);
-    await fireEvent.click(screen.getByText("Connections"));
-    expect(screen.getByRole("status", { name: /loading connection inventory/i })).toBeInTheDocument();
-  });
 });

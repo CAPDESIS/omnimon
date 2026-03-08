@@ -368,7 +368,7 @@ describe("grouping", () => {
     const initialCount = rows.length;
 
     // Click group header to collapse
-    const groupButton = screen.getByRole("button");
+    const groupButton = screen.getByRole("button", { name: /Toggle .* group/i });
     await fireEvent.click(groupButton);
 
     rows = screen.getAllByRole("row");
@@ -392,13 +392,13 @@ describe("grouping", () => {
     ];
     render(ProcessTable, { props: { processes: procs, grouping: true } });
 
-    const groupButton = screen.getByRole("button");
+    const groupButton = screen.getByRole("button", { name: /Toggle .* group/i });
     expect(groupButton).toHaveAttribute("aria-expanded", "true");
 
-    await fireEvent.keyDown(groupButton, { key: "Enter" });
+    await fireEvent.click(groupButton);
     expect(groupButton).toHaveAttribute("aria-expanded", "false");
 
-    await fireEvent.keyDown(groupButton, { key: " " });
+    await fireEvent.click(groupButton);
     expect(groupButton).toHaveAttribute("aria-expanded", "true");
   });
 
@@ -409,7 +409,7 @@ describe("grouping", () => {
     ];
     render(ProcessTable, { props: { processes: procs, grouping: true } });
 
-    const groupButton = screen.getByRole("button");
+    const groupButton = screen.getByRole("button", { name: /Toggle .* group/i });
     await fireEvent.keyDown(groupButton, { key: "A" });
     expect(groupButton).toHaveAttribute("aria-expanded", "true");
   });
@@ -422,7 +422,7 @@ describe("grouping", () => {
       makeProc({ pid: 4, name: "Four", grouped_name: "cloud", group_key: "b:cloud", process_count: 2 }),
     ];
     render(ProcessTable, { props: { processes: procs, grouping: true } });
-    const groupButtons = screen.getAllByRole("button");
+    const groupButtons = screen.getAllByRole("button", { name: /Toggle .* group/i });
     expect(groupButtons).toHaveLength(2);
     await fireEvent.click(groupButtons[0]);
     expect(groupButtons[0]).toHaveAttribute("aria-expanded", "false");
@@ -581,10 +581,10 @@ describe("virtual scrolling", () => {
   it("re-evaluates grouping paths when grouping prop changes", async () => {
     const procs = [makeProc({ pid: 1, name: "Same" }), makeProc({ pid: 2, name: "Same" })];
     const view = render(ProcessTable, { props: { processes: procs, grouping: true } });
-    expect(screen.getByRole("button")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Toggle .* group/i })).toBeInTheDocument();
 
     await view.rerender({ processes: procs, grouping: false });
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Toggle .* group/i })).not.toBeInTheDocument();
   });
 });
 

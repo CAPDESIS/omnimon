@@ -37,7 +37,6 @@
   let dragStartWidth = NETWORK_SIDE_PANEL_DEFAULT_WIDTH;
   let chartLoadFailed = $state(false);
   let pendingChartInit = 0;
-  let viewLoading = $state(false);
   let proMode = $derived(mode === "pro");
 
   // Group connections by process, then by domain
@@ -58,6 +57,7 @@
   }
 
   let processNodes = $derived.by((): ProcessNode[] => {
+    if (collapsed) return [];
     const byProc = new Map<string, { pid: number; bytesRecv: number; domains: Map<string, DomainNode> }>();
 
     for (const conn of $networkConnections) {
@@ -99,29 +99,23 @@
   let networkAlertsEnabled = $state(true);
 
   let totalConnections = $derived($networkConnections.length);
+  let processCount = $derived(new Set($networkConnections.map((conn) => `${conn.process_name}:${conn.pid}`)).size);
   let hasTrafficData = $derived($metricsHistory.length > 0 || $networkTelemetryStatus.totalRxBytesPerSec > 0 || $networkTelemetryStatus.totalTxBytesPerSec > 0);
   let hasAnyNetworkData = $derived(totalConnections > 0 || hasTrafficData);
-  let summaryCards = $derived([
-    { label: t("network.throughput"), value: formatRate($networkTelemetryStatus.totalRxBytesPerSec + $networkTelemetryStatus.totalTxBytesPerSec) },
-    { label: t("network.hosts"), value: String(new Set($networkConnections.map((conn) => conn.remote_addr)).size) },
-    { label: t("network.mapReady"), value: String(processNodes.length) },
-  ]);
+  let summaryCards = $derived(
+    collapsed
+      ? []
+      : [
+          { label: t("network.throughput"), value: formatRate($networkTelemetryStatus.totalRxBytesPerSec + $networkTelemetryStatus.totalTxBytesPerSec) },
+          { label: t("network.hosts"), value: String(new Set($networkConnections.map((conn) => conn.remote_addr)).size) },
+          { label: t("network.mapReady"), value: String(processCount) },
+        ],
+  );
 
   $effect(() => {
     if (!proMode && activeTab !== "map") {
       activeTab = "map";
     }
-  });
-
-  $effect(() => {
-    if (collapsed) return;
-    activeTab;
-    totalConnections;
-    hasTrafficData;
-    viewLoading = true;
-    setTimeout(() => {
-      viewLoading = false;
-    }, 0);
   });
 
   // --- Canvas-based connection map ---
@@ -425,6 +419,7 @@
   let tableSortAsc = $state(true);
 
   let sortedConnections = $derived.by(() => {
+    if (collapsed || activeTab !== "table") return [];
     const conns = [...$networkConnections];
     conns.sort((a, b) => {
       let va: string | number = "", vb: string | number = "";
@@ -494,6 +489,17 @@
     window.removeEventListener("mouseup", stopSideResize);
   }
 
+  function onSideResizeKeydown(event: KeyboardEvent) {
+    const step = event.shiftKey ? 32 : 16;
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      sidePanelWidth = Math.min(sidePanelWidth + step, 520);
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      sidePanelWidth = Math.max(sidePanelWidth - step, 260);
+    }
+  }
+
   function onResizeMove(event: MouseEvent) {
     if (!dragMode) return;
     panelHeight = clampPanelHeight(dragStartHeight + (event.clientY - dragStartY));
@@ -503,6 +509,17 @@
     dragMode = null;
     window.removeEventListener("mousemove", onResizeMove);
     window.removeEventListener("mouseup", stopResize);
+  }
+
+  function onResizeKeydown(event: KeyboardEvent) {
+    const step = event.shiftKey ? 40 : 20;
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      panelHeight = clampPanelHeight(panelHeight - step);
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      panelHeight = clampPanelHeight(panelHeight + step);
+    }
   }
 
   function summarizeConnections(connections: NetworkConnection[]): Array<Record<string, unknown>> {
@@ -528,7 +545,7 @@
       active_tab: activeTab,
       summary: {
         total_connections: totalConnections,
-        visible_processes: processNodes.length,
+        visible_processes: processCount,
         panel_height: panelHeight,
         capture_backend: $networkTelemetryStatus.captureBackend,
         using_fallback: $networkTelemetryStatus.usingFallback,
@@ -561,6 +578,21 @@
     link.click();
   }
 
+  function setActiveTab(tab: "map" | "table" | "traffic") {
+    activeTab = tab;
+  }
+
+  function sortHeaderLabel(key: typeof tableSortKey): string {
+    const direction = tableSortKey === key ? (tableSortAsc ? "ascending" : "descending") : "sortable";
+    return `${key} ${direction}`;
+  }
+
+  function mapCanvasDescription(): string {
+    if (processNodes.length === 0) return t("network.waiting");
+    const topNode = processNodes[0];
+    return `${t("network.summary", { connections: String(totalConnections), processes: String(processCount) })}. ${topNode.name}: ${topNode.totalConns}.`;
+  }
+
 </script>
 
 {#if hasAnyNetworkData}
@@ -574,7 +606,7 @@
       >
       <span class="chevron" class:open={!collapsed}>&#9654;</span>
       <span class="netmap-title">{t("network.title")}</span>
-      <span class="netmap-count">{t("network.summary", { connections: String(totalConnections), processes: String(processNodes.length) })}</span>
+      <span class="netmap-count">{t("network.summary", { connections: String(totalConnections), processes: String(processCount) })}</span>
       </button>
       <span class="netmap-actions">
         <button class="size-btn" type="button" onclick={exportMapSnapshot} title={t("network.exportMap")} aria-label={t("network.exportMap")}>⇩</button>
@@ -599,24 +631,33 @@
           <button
             class="tab-btn"
             class:active={activeTab === "map"}
-            onclick={() => activeTab = "map"}
+            onclick={() => setActiveTab("map")}
             role="tab"
             aria-selected={activeTab === "map"}
+            id="network-tab-map"
+            aria-controls="network-panel-map"
+            tabindex={activeTab === "map" ? 0 : -1}
           >{t("network.map")}</button>
           {#if proMode}
             <button
               class="tab-btn"
               class:active={activeTab === "table"}
-              onclick={() => activeTab = "table"}
+              onclick={() => setActiveTab("table")}
               role="tab"
               aria-selected={activeTab === "table"}
+              id="network-tab-table"
+              aria-controls="network-panel-table"
+              tabindex={activeTab === "table" ? 0 : -1}
             >{t("network.connections")}</button>
             <button
               class="tab-btn"
               class:active={activeTab === "traffic"}
-              onclick={() => activeTab = "traffic"}
+              onclick={() => setActiveTab("traffic")}
               role="tab"
               aria-selected={activeTab === "traffic"}
+              id="network-tab-traffic"
+              aria-controls="network-panel-traffic"
+              tabindex={activeTab === "traffic" ? 0 : -1}
             >{t("network.traffic")}</button>
           {/if}
         </div>
@@ -627,30 +668,23 @@
 
         <div class="tab-grid" style={`grid-template-columns:${proMode ? `minmax(0,1fr) 6px minmax(260px, ${sidePanelWidth}px)` : "minmax(0,1fr)"}`}>
           <div class="tab-main">
-            {#if viewLoading}
-              <div class="network-skeleton" role="status" aria-label={activeTab === "traffic" ? t("network.loadingTraffic") : activeTab === "table" ? t("network.loadingTable") : t("network.loadingMap")}>
-                <SkeletonBlock width="30%" height="12px" rounded="999px" />
-                <div class="network-skeleton-grid">
-                  <SkeletonBlock width="100%" height="180px" rounded="18px" />
-                  <SkeletonBlock width="100%" height="180px" rounded="18px" />
-                </div>
-              </div>
-            {:else}
-              {#if totalConnections === 0 && activeTab !== "traffic"}
-                <div class="empty-state">{t("network.waiting")}</div>
-              {/if}
+            {#if totalConnections === 0 && activeTab !== "traffic"}
+              <div class="empty-state">{t("network.waiting")}</div>
+            {/if}
 
-              <!-- Map Tab -->
-              {#if activeTab === "map"}
-                <div class="tab-content map-content">
-                  {#if totalConnections === 0}
-                    <div class="empty-state">{t("network.waiting")}</div>
-                  {:else}
+            <!-- Map Tab -->
+            {#if activeTab === "map"}
+              <div class="tab-content map-content" id="network-panel-map" role="tabpanel" aria-labelledby="network-tab-map">
+                {#if totalConnections === 0}
+                  <div class="empty-state">{t("network.waiting")}</div>
+                {:else}
                   <canvas
                     bind:this={canvas}
                     class="netmap-canvas"
                     height={Math.min(processNodes.length * 40 + 20, Math.max(panelHeight - 120, 220))}
+                    aria-label={mapCanvasDescription()}
                   ></canvas>
+                  <p class="sr-only">{mapCanvasDescription()}</p>
                   <div class="netmap-list">
                     {#each processNodes as node (node.name)}
                       <div class="netmap-proc">
@@ -669,27 +703,27 @@
                       </div>
                     {/each}
                   </div>
-                  {/if}
-                </div>
-              {/if}
+                {/if}
+              </div>
+            {/if}
 
-              <!-- Connections Table Tab -->
-              {#if activeTab === "table"}
-                <div class="tab-content table-content">
-                  <div class="network-help">{t("network.connectionsHelp")}</div>
-                  {#if totalConnections === 0}
-                    <div class="empty-state">{t("network.waiting")}</div>
-                  {:else}
+            <!-- Connections Table Tab -->
+            {#if activeTab === "table"}
+              <div class="tab-content table-content" id="network-panel-table" role="tabpanel" aria-labelledby="network-tab-table">
+                <div class="network-help">{t("network.connectionsHelp")}</div>
+                {#if totalConnections === 0}
+                  <div class="empty-state">{t("network.waiting")}</div>
+                {:else}
                   <table class="conn-table" aria-label="Active connections">
                   <thead>
                     <tr>
-                      <th class="sortable" onclick={() => setTableSort("process")}>{t("network.process")}{sortArrow("process")}</th>
-                      <th class="sortable" onclick={() => setTableSort("addr")}>{t("network.destination")}{sortArrow("addr")}</th>
-                      <th class="sortable" onclick={() => setTableSort("port")}>{t("network.port")}{sortArrow("port")}</th>
-                      <th class="sortable" onclick={() => setTableSort("direction")}>{t("network.direction")}{sortArrow("direction")}</th>
-                      <th class="sortable" onclick={() => setTableSort("proto")}>{t("network.protocol")}{sortArrow("proto")}</th>
-                      <th class="sortable" onclick={() => setTableSort("bytes")}>{t("network.bytes")}{sortArrow("bytes")}</th>
-                      <th class="sortable" onclick={() => setTableSort("state")}>{t("network.state")}{sortArrow("state")}</th>
+                      <th class="sortable" scope="col"><button type="button" class="sort-button" onclick={() => setTableSort("process")} aria-label={sortHeaderLabel("process")}>{t("network.process")}<span aria-hidden="true">{sortArrow("process")}</span></button></th>
+                      <th class="sortable" scope="col"><button type="button" class="sort-button" onclick={() => setTableSort("addr")} aria-label={sortHeaderLabel("addr")}>{t("network.destination")}<span aria-hidden="true">{sortArrow("addr")}</span></button></th>
+                      <th class="sortable" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => setTableSort("port")} aria-label={sortHeaderLabel("port")}>{t("network.port")}<span aria-hidden="true">{sortArrow("port")}</span></button></th>
+                      <th class="sortable" scope="col"><button type="button" class="sort-button" onclick={() => setTableSort("direction")} aria-label={sortHeaderLabel("direction")}>{t("network.direction")}<span aria-hidden="true">{sortArrow("direction")}</span></button></th>
+                      <th class="sortable" scope="col"><button type="button" class="sort-button" onclick={() => setTableSort("proto")} aria-label={sortHeaderLabel("proto")}>{t("network.protocol")}<span aria-hidden="true">{sortArrow("proto")}</span></button></th>
+                      <th class="sortable" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => setTableSort("bytes")} aria-label={sortHeaderLabel("bytes")}>{t("network.bytes")}<span aria-hidden="true">{sortArrow("bytes")}</span></button></th>
+                      <th class="sortable" scope="col"><button type="button" class="sort-button" onclick={() => setTableSort("state")} aria-label={sortHeaderLabel("state")}>{t("network.state")}<span aria-hidden="true">{sortArrow("state")}</span></button></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -709,13 +743,13 @@
                 {#if sortedConnections.length > 50}
                   <div class="table-overflow">{t("network.showingCount", { visible: String(visibleConnections.length), total: String(sortedConnections.length) })}</div>
                 {/if}
-                  {/if}
-                </div>
-              {/if}
+                {/if}
+              </div>
+            {/if}
 
-              <!-- Traffic Chart Tab -->
-              {#if activeTab === "traffic"}
-                <div class="tab-content traffic-content">
+            <!-- Traffic Chart Tab -->
+            {#if activeTab === "traffic"}
+              <div class="tab-content traffic-content" id="network-panel-traffic" role="tabpanel" aria-labelledby="network-tab-traffic">
                   <div class="network-help">{t("network.trafficHelp")}</div>
                   <div class="traffic-topline">
                     <div class="traffic-stat"><span>RX</span><strong>{formatRate($networkTelemetryStatus.totalRxBytesPerSec)}</strong></div>
@@ -731,15 +765,13 @@
                   {:else if !hasTrafficData}
                     <div class="traffic-fallback">{t("network.waiting")}</div>
                   {/if}
-                  <div class="traffic-chart" class:hidden={chartLoadFailed || !hasTrafficData} bind:this={trafficChartEl}></div>
+                  <div class="traffic-chart" class:hidden={chartLoadFailed || !hasTrafficData} bind:this={trafficChartEl} role="img" aria-label={t("network.trafficHelp")}></div>
                 </div>
-              {/if}
             {/if}
           </div>
 
           {#if proMode}
-            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-            <div class="side-resize-divider" class:active={sideDragMode === "sidebar"} onmousedown={startSideResize} role="separator" aria-orientation="vertical" aria-label={t("common.expand")}></div>
+            <button type="button" class="side-resize-divider" class:active={sideDragMode === "sidebar"} onmousedown={startSideResize} onkeydown={onSideResizeKeydown} aria-label={t("common.expand")}></button>
           {/if}
 
           {#if proMode}
@@ -778,16 +810,14 @@
           {/if}
         </div>
 
-        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-        <div
+        <button
+          type="button"
           class="netmap-resize-divider"
           class:active={dragMode === "content"}
           onmousedown={startResize}
-          role="separator"
-          aria-orientation="horizontal"
+          onkeydown={onResizeKeydown}
           aria-label={t("common.expand")}
-          tabindex="-1"
-        ></div>
+        ></button>
       </div>
     {/if}
   </div>
@@ -912,19 +942,6 @@
     font-size: calc(var(--base-font-size, 12px) * 0.78);
   }
 
-  .network-skeleton {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 12px 10px;
-  }
-
-  .network-skeleton-grid {
-    display: grid;
-    grid-template-columns: 1.6fr 1fr;
-    gap: 12px;
-  }
-
   .tab-grid {
     display: grid;
     min-height: 0;
@@ -964,6 +981,8 @@
 
   .side-resize-divider {
     width: 6px;
+    padding: 0;
+    border: none;
     cursor: ew-resize;
     background: var(--border);
     transition: background 0.15s ease;
@@ -983,6 +1002,9 @@
 
   .netmap-resize-divider {
     height: 4px;
+    width: 100%;
+    padding: 0;
+    border: none;
     background: var(--border);
     cursor: ns-resize;
     transition: background 0.15s ease;
@@ -1129,7 +1151,6 @@
 
   .conn-table th {
     padding: 4px 8px;
-    text-align: left;
     background: var(--bg-alt);
     border-bottom: 1px solid var(--border);
     color: var(--fg-dim);
@@ -1140,8 +1161,27 @@
     white-space: nowrap;
     user-select: none;
   }
-  .conn-table th.sortable { cursor: pointer; }
-  .conn-table th.sortable:hover { color: var(--fg); }
+  .sort-button {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    text-align: left;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .sort-button-num {
+    text-align: right;
+  }
+
+  .sort-button:hover,
+  .sort-button:focus-visible {
+    color: var(--fg);
+  }
 
   .conn-table td {
     padding: 3px 8px;
@@ -1250,10 +1290,6 @@
   }
 
   @media (max-width: 960px) {
-    .network-skeleton-grid {
-      grid-template-columns: 1fr;
-    }
-
     .tab-grid {
       grid-template-columns: 1fr !important;
     }
@@ -1266,5 +1302,17 @@
       border-left: none;
       border-top: 1px solid var(--border);
     }
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 </style>

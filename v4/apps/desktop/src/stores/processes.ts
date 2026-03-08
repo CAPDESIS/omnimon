@@ -301,16 +301,49 @@ const ERROR_TOAST_THRESHOLD = 3;
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let tabIntervalId: ReturnType<typeof setInterval> | null = null;
 let networkIntervalId: ReturnType<typeof setInterval> | null = null;
+let pollingIntervalMs = 2000;
+
+const pollingTargets = {
+  browserTabs: true,
+  network: false,
+};
+
+function syncBrowserTabsPolling(): void {
+  if (tabIntervalId !== null) {
+    clearInterval(tabIntervalId);
+    tabIntervalId = null;
+  }
+  if (!pollingTargets.browserTabs) return;
+  fetchBrowserTabs();
+  tabIntervalId = setInterval(fetchBrowserTabs, 5000);
+}
+
+function syncNetworkPolling(): void {
+  if (networkIntervalId !== null) {
+    clearInterval(networkIntervalId);
+    networkIntervalId = null;
+  }
+  if (!pollingTargets.network) return;
+  fetchNetworkConnections();
+  networkIntervalId = setInterval(fetchNetworkConnections, pollingIntervalMs);
+}
+
+export function setPollingTarget(target: "browserTabs" | "network", active: boolean): void {
+  if (pollingTargets[target] === active) return;
+  pollingTargets[target] = active;
+  if (intervalId === null) return;
+  if (target === "browserTabs") syncBrowserTabsPolling();
+  else syncNetworkPolling();
+}
 
 /** Starts periodic polling for metrics (every intervalMs) and browser tabs (every 5s). */
 export function startPolling(intervalMs = 2000): void {
+  pollingIntervalMs = intervalMs;
   stopPolling();
   fetchMetrics();
-  fetchBrowserTabs();
-   fetchNetworkConnections();
   intervalId = setInterval(fetchMetrics, intervalMs);
-  tabIntervalId = setInterval(fetchBrowserTabs, 5000); // tabs every 5s, not 2s
-  networkIntervalId = setInterval(fetchNetworkConnections, intervalMs);
+  syncBrowserTabsPolling();
+  syncNetworkPolling();
 }
 
 /** Stops all active polling intervals for metrics and browser tabs. */
