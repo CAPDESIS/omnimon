@@ -126,6 +126,20 @@ describe("Plugins", () => {
     });
   });
 
+  it("muestra error cuando togglePlugin falla", async () => {
+    mockListPlugins.mockResolvedValueOnce([makePlugin({ enabled: true })]);
+    mockSetPluginEnabled.mockRejectedValueOnce(new Error("toggle failed"));
+
+    render(Plugins, { props: { onclose: vi.fn() } });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Disable" }));
+
+    await waitFor(() => {
+      expect(mockSetPluginEnabled).toHaveBeenCalledWith("docker-monitor", false);
+      expect(screen.getByText("toggle failed")).toBeInTheDocument();
+    });
+  });
+
   it("permite eliminar plugins", async () => {
     mockListPlugins
       .mockResolvedValueOnce([makePlugin()])
@@ -139,6 +153,51 @@ describe("Plugins", () => {
       expect(mockRemovePlugin).toHaveBeenCalledWith("docker-monitor");
       expect(screen.getByText("No plugins installed")).toBeInTheDocument();
     });
+  });
+
+  it("muestra error cuando removePlugin falla", async () => {
+    mockListPlugins.mockResolvedValueOnce([makePlugin()]);
+    mockRemovePlugin.mockRejectedValueOnce(new Error("remove failed"));
+
+    render(Plugins, { props: { onclose: vi.fn() } });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Remove" }));
+
+    await waitFor(() => {
+      expect(mockRemovePlugin).toHaveBeenCalledWith("docker-monitor");
+      expect(screen.getByText("remove failed")).toBeInTheDocument();
+    });
+  });
+
+  it("muestra indicador de refreshing mientras recarga plugins", async () => {
+    vi.useFakeTimers();
+    let resolveRefresh!: (value: PluginDescriptor[]) => void;
+    const refreshDeferred = new Promise<PluginDescriptor[]>((resolve) => {
+      resolveRefresh = resolve;
+    });
+
+    mockListPlugins
+      .mockResolvedValueOnce([makePlugin()])
+      .mockReturnValueOnce(refreshDeferred);
+
+    render(Plugins, { props: { onclose: vi.fn() } });
+
+    await screen.findByText("Docker Monitor");
+
+    await vi.advanceTimersByTimeAsync(4000);
+
+    await waitFor(() => {
+      expect(screen.getByText("Refreshing...")).toBeInTheDocument();
+    });
+
+    resolveRefresh([makePlugin({ name: "Docker Monitor reloaded" })]);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Refreshing...")).not.toBeInTheDocument();
+      expect(screen.getByText("Docker Monitor reloaded")).toBeInTheDocument();
+    });
+
+    vi.useRealTimers();
   });
 
   it("sube un plugin y muestra estado success", async () => {
@@ -207,6 +266,45 @@ describe("Plugins", () => {
       expect(screen.getByText(/Last run: Never/)).toBeInTheDocument();
       expect(screen.getByText("This plugin has not emitted metrics yet.")).toBeInTheDocument();
       expect(screen.getByText("collector failed")).toBeInTheDocument();
+    });
+  });
+
+  it("no renderiza tags cuando metric.tags esta vacio", async () => {
+    mockListPlugins.mockResolvedValueOnce([
+      makePlugin({
+        metrics: [
+          {
+            name: "docker.containers.running",
+            label: "Running containers",
+            kind: "gauge",
+            value: 3,
+            unit: "count",
+            tags: {},
+          },
+        ],
+      }),
+    ]);
+
+    render(Plugins, { props: { onclose: vi.fn() } });
+
+    await screen.findByText("Running containers");
+
+    expect(document.querySelector(".metric-tags")).toBeNull();
+  });
+
+  it("muestra fallbacks cuando un plugin no tiene descripcion ni version", async () => {
+    mockListPlugins.mockResolvedValueOnce([
+      makePlugin({
+        description: null,
+        version: null,
+      }),
+    ]);
+
+    render(Plugins, { props: { onclose: vi.fn() } });
+
+    await waitFor(() => {
+      expect(screen.getByText("No plugin description provided.")).toBeInTheDocument();
+      expect(screen.getByText("No version")).toBeInTheDocument();
     });
   });
 });

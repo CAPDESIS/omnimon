@@ -6,12 +6,19 @@
   import { filtered, stats } from "../stores/processes";
   import type { UserMode } from "../stores/preferences";
   import { t } from "../lib/i18n";
-  import type { MetricPoint } from "../stores/metricsHistory";
   import type { ProcessEntry } from "../lib/types";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
+  import {
+    activeSeriesForMetric,
+    defaultSortKey,
+    getSparklineColor,
+    loadNetworkMap,
+    metricSummaryLabel,
+    sparklinePath,
+  } from "../lib/systemMetricModal";
 
-  type MetricKind = "cpu" | "ram" | "network" | "swap" | "processes";
-  type SortKey = "name" | "pid" | "cpu" | "ram" | "net" | "state" | "uptime";
+  type MetricKind = import("../lib/systemMetricModal").MetricKind;
+  type SortKey = import("../lib/systemMetricModal").SortKey;
 
   interface Props {
     metric: MetricKind;
@@ -21,12 +28,6 @@
 
   let { metric, mode = "pro", onclose }: Props = $props();
   let modalEl: HTMLDivElement | undefined = $state();
-  function defaultSortKey(kind: MetricKind): SortKey {
-    if (kind === "cpu") return "cpu";
-    if (kind === "ram" || kind === "swap") return "ram";
-    if (kind === "network") return "net";
-    return "ram";
-  }
   let sortKey = $state<SortKey>("ram");
   let sortAsc = $state(false);
   let processLimit = $state(30);
@@ -50,7 +51,7 @@
 
   $effect(() => {
     if (metric === "network") {
-      networkMapPromise ??= import("./NetworkMap.svelte");
+      networkMapPromise ??= loadNetworkMap();
     }
   });
 
@@ -74,14 +75,6 @@
       case "swap": return t("status.swap");
       case "processes": return t("status.procs");
     }
-  }
-
-  function formatSeries(series: MetricPoint[], suffix = ""): string {
-    if (series.length === 0) return "—";
-    const last = series[series.length - 1]?.value ?? 0;
-    const max = Math.max(...series.map((point) => point.value), 0);
-    const avg = series.reduce((sum, point) => sum + point.value, 0) / Math.max(series.length, 1);
-    return `Now ${last.toFixed(1)}${suffix} · Avg ${avg.toFixed(1)}${suffix} · Max ${max.toFixed(1)}${suffix}`;
   }
 
   function formatRate(bytesPerSec: number): string {
@@ -128,43 +121,22 @@
     return list.slice(0, processLimit);
   });
 
-  /** Build a mini sparkline SVG path from a series of points */
-
-  function getSparklineColor(m: string, series: {value: number}[]): string {
-    if (m !== "cpu" && m !== "ram") return "var(--accent)";
-    if (series.length === 0) return "var(--accent)";
-    const latest = series[series.length - 1].value;
-    if (latest >= 80) return "var(--danger)";
-    if (latest >= 60) return "var(--yellow)";
-    return "var(--green)";
-  }
-
-  function sparklinePath(series: MetricPoint[], width = 200, height = 32): string {
-    if (series.length < 2) return "";
-    const max = Math.max(...series.map((p) => p.value), 1);
-    const step = width / (series.length - 1);
-    return series.map((p, i) => {
-      const x = i * step;
-      const y = height - (p.value / max) * height;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    }).join(" ");
-  }
-
   const activeSeries = $derived.by(() => {
-    switch (metric) {
-      case "cpu": return $cpuSeries;
-      case "ram": return $ramSeries;
-      case "swap": return $swapSeries;
-      default: return [];
-    }
+    return activeSeriesForMetric(metric, {
+      cpuSeries: $cpuSeries,
+      ramSeries: $ramSeries,
+      swapSeries: $swapSeries,
+    });
   });
 
-  function metricSummaryLabel(kind: MetricKind): string {
-    if (kind === "cpu") return formatSeries($cpuSeries, "%");
-    if (kind === "ram") return formatSeries($ramSeries, "%");
-    if (kind === "swap") return formatSeries($swapSeries, " MB");
-    return `${$stats?.total_processes ?? 0} visible`;
-  }
+  const summaryLabel = $derived.by(() =>
+    metricSummaryLabel(metric, {
+      cpuSeries: $cpuSeries,
+      ramSeries: $ramSeries,
+      swapSeries: $swapSeries,
+      totalProcesses: $stats?.total_processes,
+    }),
+  );
 </script>
 
 <div class="backdrop" onmousedown={closeWhenBackdropMatches} role="presentation" transition:fade={fadeConfig}>
@@ -189,6 +161,8 @@
           {#if networkMapPromise}
             {#await networkMapPromise then NetworkMapModule}
               <NetworkMapModule.default mode={mode} />
+            {:catch}
+              <div class="network-map-error">Failed to load network map.</div>
             {/await}
           {/if}
         </div>
@@ -198,7 +172,7 @@
           <div class="summary-card wide">
               <span class="card-label">{metricTitle(metric)}</span>
               <span class="card-value">
-                {metricSummaryLabel(metric)}
+                {summaryLabel}
               </span>
             </div>
           <div class="summary-card"><span class="card-label">History</span><span class="card-value">{$metricsHistory.length} samples</span></div>
@@ -208,7 +182,7 @@
         <!-- Sparkline chart -->
         {#if activeSeries.length > 1}
           <div class="sparkline-container">
-            <svg viewBox="0 0 200 32" preserveAspectRatio="none" class="sparkline-svg" role="img" aria-label={metricSummaryLabel(metric)}>
+            <svg viewBox="0 0 200 32" preserveAspectRatio="none" class="sparkline-svg" role="img" aria-label={summaryLabel}>
               <path d={sparklinePath(activeSeries)} fill="none" stroke={getSparklineColor(metric, activeSeries)} stroke-width="1.5" />
             </svg>
           </div>
