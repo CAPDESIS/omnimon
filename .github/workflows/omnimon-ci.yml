@@ -316,7 +316,7 @@ jobs:
           args: ${{ matrix.args }}
 
   sign-release:
-    name: Sign Release Artifacts
+    name: Sign Release Artifacts (SHA-256 + Ed25519)
     needs: [release]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -325,25 +325,54 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Generate SHA-256 checksums
+      - name: Download release artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           REPO="${{ github.repository }}"
           sleep 15
-          TMPDIR=$(mktemp -d)
-          gh release download "$TAG" --repo "$REPO" --dir "$TMPDIR" || true
-          CHECKSUM_FILE="$TMPDIR/SHA256SUMS.txt"
-          cd "$TMPDIR"
+          mkdir -p /tmp/release-artifacts
+          gh release download "$TAG" --repo "$REPO" --dir /tmp/release-artifacts || true
+
+      - name: Generate SHA-256 checksums
+        run: |
+          cd /tmp/release-artifacts
           for f in *; do
             [ -f "$f" ] || continue
             sha256sum "$f" >> SHA256SUMS.txt
           done
           echo "Generated checksums:"
           cat SHA256SUMS.txt
-          gh release upload "$TAG" "$CHECKSUM_FILE" --repo "$REPO" --clobber
-          echo "SHA-256 checksums uploaded to release $TAG"
+
+      - name: Sign artifacts with Ed25519
+        if: env.ED25519_SIGNING_KEY != ''
+        env:
+          ED25519_SIGNING_KEY: ${{ secrets.ED25519_SIGNING_KEY }}
+        run: |
+          cd /tmp/release-artifacts
+          for f in *; do
+            [ -f "$f" ] || continue
+            [ "$f" = "SHA256SUMS.txt" ] && continue
+            echo "$f" | grep -qE '\.(sig\.json|sha256)$' && continue
+            echo "Signing: $f"
+            bash "$GITHUB_WORKSPACE/scripts/sign-release.sh" "$f" "${{ inputs.tag || github.ref_name }}"
+          done
+          echo "All artifacts signed."
+
+      - name: Upload checksums and signatures
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          REPO="${{ github.repository }}"
+          cd /tmp/release-artifacts
+          gh release upload "$TAG" SHA256SUMS.txt --repo "$REPO" --clobber
+          for sig in *.sig.json; do
+            [ -f "$sig" ] || continue
+            gh release upload "$TAG" "$sig" --repo "$REPO" --clobber
+          done
+          echo "Checksums and signatures uploaded to release $TAG"
 
   rename-assets:
     name: Rename Release Assets
