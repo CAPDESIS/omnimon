@@ -54,10 +54,66 @@ error.
 ### Audit Output
 ```
 $ cargo audit
-RUSTSEC-XXXX-XXXX: time 0.3.45
+RUSTSEC-2026-0009: time 0.3.45
+  → Title: Denial of Service via Stack Exhaustion
+  → Severity: 6.8 (medium)
   → Advisory: CVE-2026-25727
-  → Status: unfixed (blocked by mac-notification-sys pin)
+  → Solution: Upgrade to >=0.3.47
+  → Status: unfixed (blocked by mac-notification-sys =0.3.45 pin)
 ```
+
+---
+
+## GHSA-5c6j-r48x-rmvq — serialize-javascript <=7.0.2
+
+### Status: **Dev dependency only — bajo riesgo**
+
+### Summary
+- **Affected dependency:** `serialize-javascript <= 7.0.2`
+- **Severity:** High (RCE via RegExp.flags y Date.prototype.toISOString)
+- **Source:** https://github.com/advisories/GHSA-5c6j-r48x-rmvq
+
+### Dependency Chain
+```
+@wdio/mocha-framework
+  └── mocha
+       └── serialize-javascript <= 7.0.2
+```
+
+### Mitigation
+1. **Solo dev dependency:** `serialize-javascript` se usa exclusivamente a través
+   de `@wdio/mocha-framework` (framework de testing E2E). No se incluye en el
+   binario de producción.
+2. **Sin exposición a usuarios finales:** El código vulnerable solo se ejecuta
+   durante el desarrollo/CI en el runner de tests.
+3. **Resolución:** Esperar actualización de `@wdio/mocha-framework` con versión
+   parcheada de `serialize-javascript > 7.0.2`.
+
+### Audit Output
+```
+$ bun audit
+serialize-javascript  <=7.0.2
+  @wdio/mocha-framework › mocha › serialize-javascript
+  high: RCE via RegExp.flags and Date.prototype.toISOString()
+1 vulnerabilities (1 high)
+```
+
+---
+
+## Dependencias sin mantenimiento (warnings)
+
+Los siguientes crates reportan `unmaintained` pero son dependencias transitivas
+de Tauri/GTK3 y no tienen fix disponible actualmente:
+
+| Crate | RUSTSEC | Notas |
+|-------|---------|-------|
+| `atk 0.18.2` | RUSTSEC-2024-0413 | GTK3 bindings (solo Linux) |
+| `atk-sys 0.18.2` | RUSTSEC-2024-0416 | GTK3 sys bindings (solo Linux) |
+| `fxhash 0.2.1` | — | Usado por GTK (solo Linux) |
+| `unic-*` | RUSTSEC-2025-0080/0098/0100 | Usado por `urlpattern` → `tauri-utils` |
+
+Estas dependencias se resolverán cuando Tauri migre a GTK4 y actualice
+`urlpattern`. No hay CVEs de seguridad asociados, solo estado de mantenimiento.
 
 ---
 
