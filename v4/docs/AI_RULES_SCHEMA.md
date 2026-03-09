@@ -93,7 +93,7 @@ This document defines the JSON contract consumed by:
       "destination_port": null,
       "protocol": "any",
       "process_memory_mb_gt": null,
-      "mitre_technique_id": "T1043"
+      "mitre_technique_id": "T1071"
     }
   ]
 }

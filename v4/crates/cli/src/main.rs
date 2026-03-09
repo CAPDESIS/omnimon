@@ -686,9 +686,53 @@ fn main() {
                 }
             }
 
-            // Save to temp encrypted report
+            // Save to temp encrypted report using a key from the OS keyring.
+            // If no key exists yet, generate one and store it securely.
             let report_path = std::env::temp_dir().join("omnimon_scan_report.enc");
-            let key = [42u8; 32]; // Fixed key for demo
+            let key: [u8; 32] = match keyring::Entry::new("omnimon_security", "scan_encryption_key")
+            {
+                Ok(entry) => match entry.get_password() {
+                    Ok(stored) => {
+                        use base64::Engine;
+                        let decoded = base64::engine::general_purpose::STANDARD
+                            .decode(&stored)
+                            .unwrap_or_else(|_| {
+                                eprintln!("Warning: corrupted scan key in keyring, regenerating");
+                                Vec::new()
+                            });
+                        if decoded.len() == 32 {
+                            let mut k = [0u8; 32];
+                            k.copy_from_slice(&decoded);
+                            k
+                        } else {
+                            // Generate fresh key
+                            let mut k = [0u8; 32];
+                            use rand::RngCore;
+                            rand::thread_rng().fill_bytes(&mut k);
+                            use base64::Engine as _;
+                            let encoded = base64::engine::general_purpose::STANDARD.encode(k);
+                            let _ = entry.set_password(&encoded);
+                            k
+                        }
+                    }
+                    Err(_) => {
+                        // First run: generate and store
+                        let mut k = [0u8; 32];
+                        use rand::RngCore;
+                        rand::thread_rng().fill_bytes(&mut k);
+                        use base64::Engine;
+                        let encoded = base64::engine::general_purpose::STANDARD.encode(k);
+                        let _ = entry.set_password(&encoded);
+                        println!("Generated new scan encryption key (stored in OS keyring).");
+                        k
+                    }
+                },
+                Err(e) => {
+                    eprintln!("Error: cannot access OS keyring for encryption key: {}", e);
+                    eprintln!("Hint: ensure your OS keyring service is running.");
+                    std::process::exit(1);
+                }
+            };
             match core::audit::persist_encrypted_security_heartbeat(&report_path, &key, &heartbeat)
             {
                 Ok(_) => println!("Encrypted report saved to: {}", report_path.display()),
