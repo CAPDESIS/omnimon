@@ -221,6 +221,66 @@ export interface DynamicAlert {
   message: string;
 }
 
+export type NetworkAlertSeverity = "info" | "warning" | "critical";
+export type NetworkAlertDirection = "upload" | "download" | "both";
+
+export type NetworkAlertCondition =
+  | {
+      kind: "high_bandwidth";
+      threshold_mbps: number;
+      direction: NetworkAlertDirection;
+      process: string | null;
+    }
+  | {
+      kind: "new_external_connection";
+      exclude_known: boolean;
+    }
+  | {
+      kind: "unusual_port";
+      suspicious_ports: number[];
+    }
+  | {
+      kind: "process_network_spike";
+      process_name: string;
+      multiplier: number;
+    }
+  | {
+      kind: "connection_count_exceeded";
+      max_connections: number;
+      process: string | null;
+    }
+  | {
+      kind: "suspicious_destination";
+      patterns: string[];
+    };
+
+export interface NetworkAlertRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  condition: NetworkAlertCondition;
+  severity: NetworkAlertSeverity;
+  cooldown_seconds: number;
+  notify_ai: boolean;
+}
+
+export interface NetworkAlert {
+  id: string;
+  rule_id: string;
+  rule_name: string;
+  severity: NetworkAlertSeverity;
+  condition_kind: string;
+  message: string;
+  triggered_at_unix_ms: number;
+  notify_ai: boolean;
+  process_name: string | null;
+  pid: number | null;
+  destination: string | null;
+  bandwidth_mbps: number | null;
+  connection_count: number | null;
+  details: string[];
+}
+
 // --- AI Rules Engine Schema v1 ---
 
 export type AiRuleKind = "process_country" | "process_ip" | "process_cidr" | "process_port" | "process_memory";

@@ -18,11 +18,30 @@ type FiredAlertMock = {
   rule: { metric: string; operator: string; threshold: number };
 };
 
-const { mockAlertRules, mockFiredAlerts, mockClearFired, mockRemoveRule } = vi.hoisted(() => {
+type NetworkAlertMock = {
+  id: string;
+  rule_id: string;
+  rule_name: string;
+  severity: "info" | "warning" | "critical";
+  condition_kind: string;
+  message: string;
+  triggered_at_unix_ms: number;
+  notify_ai: boolean;
+  process_name: string | null;
+  pid: number | null;
+  destination: string | null;
+  bandwidth_mbps: number | null;
+  connection_count: number | null;
+  details: string[];
+};
+
+const { mockAlertRules, mockFiredAlerts, mockNetworkAlerts, mockNetworkAlertFilter, mockClearFired, mockRemoveRule } = vi.hoisted(() => {
   const { writable } = require("svelte/store") as typeof import("svelte/store");
   return {
     mockAlertRules: writable<AlertRuleMock[]>([]),
     mockFiredAlerts: writable<FiredAlertMock[]>([]),
+    mockNetworkAlerts: writable<NetworkAlertMock[]>([]),
+    mockNetworkAlertFilter: writable({ severity: "all", query: "" }),
     mockClearFired: vi.fn(),
     mockRemoveRule: vi.fn(),
   };
@@ -31,8 +50,14 @@ const { mockAlertRules, mockFiredAlerts, mockClearFired, mockRemoveRule } = vi.h
 vi.mock("../../stores/alerts", () => ({
   alertRules: mockAlertRules,
   firedAlerts: mockFiredAlerts,
+  networkAlerts: mockNetworkAlerts,
+  networkAlertFilter: mockNetworkAlertFilter,
   clearFiredAlerts: mockClearFired,
+  clearNetworkAlerts: vi.fn(),
   removeAlertRule: mockRemoveRule,
+  investigateNetworkAlert: vi.fn(),
+  askAiAboutNetworkAlert: vi.fn(),
+  matchesNetworkAlertFilter: vi.fn(() => true),
 }));
 
 describe("AlertPanel", () => {
@@ -43,6 +68,8 @@ describe("AlertPanel", () => {
   beforeEach(() => {
     mockAlertRules.set([]);
     mockFiredAlerts.set([]);
+    mockNetworkAlerts.set([]);
+    mockNetworkAlertFilter.set({ severity: "all", query: "" });
     mockClearFired.mockClear();
     mockRemoveRule.mockClear();
   });

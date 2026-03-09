@@ -384,6 +384,7 @@ mod tests {
     fn super_processes_absorb_network_throughput() {
         let network = vec![crate::network::ProcessNetworkThroughput {
             pid: std::process::id(),
+            process_name: Some("self".to_string()),
             rx_bytes_per_sec: 1024,
             tx_bytes_per_sec: 2048,
             tcp_packets_per_sec: 2,

@@ -1,6 +1,7 @@
 function isFocusable(element: HTMLElement): boolean {
   if (element.hasAttribute("disabled")) return false;
   if (element.getAttribute("aria-hidden") === "true") return false;
+  if (element.tabIndex < 0) return false;
   return element.tabIndex >= 0;
 }
 

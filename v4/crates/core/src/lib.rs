@@ -10,6 +10,7 @@ pub mod crypto;
 pub mod killer;
 pub mod metrics;
 pub mod network;
+pub mod network_alerts;
 pub mod network_analysis;
 mod os_native;
 pub mod process_identity;

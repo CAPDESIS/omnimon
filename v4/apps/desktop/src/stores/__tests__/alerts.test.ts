@@ -9,11 +9,18 @@ import {
   evaluateAlerts,
   clearFiredAlerts,
   dismissAllSmartAlerts,
+  clearNetworkAlerts,
+  askAiAboutNetworkAlert,
+  investigateNetworkAlert,
+  matchesNetworkAlertFilter,
+  networkAlerts,
+  networkAlertFilter,
   _resetAlerts,
 } from "../alerts";
 import type { ProcessEntry, SystemStats } from "../../lib/types";
 import { _resetToasts } from "../toasts";
 import * as ipcModule from "../../lib/ipc";
+import { askAiRequest, focusNetworkRequest } from "../uiActions";
 
 function makeStats(overrides?: Partial<SystemStats>): SystemStats {
   return {
@@ -157,6 +164,39 @@ describe("alerts store", () => {
     addAlertRule({ metric: "ram", operator: ">", threshold: 400, processName: "Chrome", action: "highlight" });
     evaluateAlerts(makeStats(), [makeProc({ ram_mb: 600 })]);
     expect(get(firedAlerts)).toHaveLength(1);
+  });
+
+  it("filters and routes network alerts", () => {
+    networkAlerts.set([
+      {
+        id: "n1",
+        rule_id: "r1",
+        rule_name: "Bandwidth",
+        severity: "warning",
+        condition_kind: "high_bandwidth",
+        message: "Chrome supero threshold",
+        triggered_at_unix_ms: Date.now(),
+        notify_ai: true,
+        process_name: "Chrome",
+        pid: 10,
+        destination: "8.8.8.8:443",
+        bandwidth_mbps: 22.4,
+        connection_count: null,
+        details: ["Threshold: 10 Mbps"],
+      },
+    ]);
+    networkAlertFilter.set({ severity: "warning", query: "chrome" });
+
+    const alert = get(networkAlerts)[0];
+    expect(matchesNetworkAlertFilter(alert, get(networkAlertFilter))).toBe(true);
+
+    investigateNetworkAlert(alert);
+    askAiAboutNetworkAlert(alert);
+    expect(get(focusNetworkRequest)).toBe("Chrome");
+    expect(get(askAiRequest)).toContain("Bandwidth");
+
+    clearNetworkAlerts();
+    expect(get(networkAlerts)).toHaveLength(0);
   });
 });
 
@@ -320,4 +360,3 @@ describe("Smart Health Alerts", () => {
     expect(alerts[0].problem).not.toContain("cores");
   });
 });
-

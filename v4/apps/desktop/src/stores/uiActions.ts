@@ -9,3 +9,6 @@ export const showTabManagerRequest = writable<boolean>(false);
 
 /** Request to send a prompt to the AI chat */
 export const askAiRequest = writable<string | null>(null);
+
+/** Request to focus/open the network dashboard with an optional process filter. */
+export const focusNetworkRequest = writable<string | null>(null);

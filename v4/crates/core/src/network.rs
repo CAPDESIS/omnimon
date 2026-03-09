@@ -58,6 +58,7 @@ pub struct ProcessConnectionEvent {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProcessNetworkThroughput {
     pub pid: u32,
+    pub process_name: Option<String>,
     pub rx_bytes_per_sec: u64,
     pub tx_bytes_per_sec: u64,
     pub tcp_packets_per_sec: u64,
@@ -124,6 +125,7 @@ impl CollectorWindow {
             .into_iter()
             .map(|(pid, acc)| ProcessNetworkThroughput {
                 pid,
+                process_name: None,
                 rx_bytes_per_sec: scale_to_per_sec(acc.rx_bytes, interval_ms),
                 tx_bytes_per_sec: scale_to_per_sec(acc.tx_bytes, interval_ms),
                 tcp_packets_per_sec: scale_to_per_sec(acc.tcp_packets, interval_ms),

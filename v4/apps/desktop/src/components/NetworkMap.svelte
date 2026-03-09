@@ -1,5 +1,6 @@
 <script lang="ts">
   import ContextAiChat from "./ContextAiChat.svelte";
+  import NetworkAlertConfig from "./NetworkAlertConfig.svelte";
   import Skeleton from "./Skeleton.svelte";
   import { tick } from "svelte";
   import { networkConnections, networkTelemetryStatus } from "../stores/security";
@@ -22,9 +23,10 @@
   interface Props {
     mode?: "basic" | "pro";
     extraHeight?: number;
+    filter?: string;
   }
 
-  let { mode = "pro", extraHeight = 0 }: Props = $props();
+  let { mode = "pro", extraHeight = 0, filter = "" }: Props = $props();
 
   let collapsed = $state(false);
   let activeTab = $state<"map" | "table" | "traffic">("map");
@@ -460,7 +462,17 @@
     return conns;
   });
 
-  let visibleConnections = $derived(sortedConnections.slice(0, 100));
+  let visibleConnections = $derived.by(() => {
+    const query = filter.trim().toLowerCase();
+    const scoped = !query
+      ? sortedConnections
+      : sortedConnections.filter((conn) =>
+          conn.process_name.toLowerCase().includes(query)
+          || conn.remote_addr.toLowerCase().includes(query)
+          || String(conn.remote_port).includes(query),
+        );
+    return scoped.slice(0, 100);
+  });
 
   function setTableSort(key: typeof tableSortKey) {
     if (tableSortKey === key) tableSortAsc = !tableSortAsc;
@@ -797,6 +809,7 @@
               {#if $networkTelemetryStatus.usingFallback}
                 <div class="network-warning">{t("network.fallbackNotice")}</div>
               {/if}
+              <NetworkAlertConfig />
               <ContextAiChat
                 title={t("network.aiTitle")}
                 placeholder={t("network.aiPlaceholder")}

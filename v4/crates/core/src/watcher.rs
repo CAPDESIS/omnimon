@@ -8,6 +8,7 @@
 //! via `clear()` + refill, preserving their backing capacity.
 
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock, RwLock};
@@ -110,6 +111,7 @@ pub struct SystemState {
     pub recent_network_connections: Vec<crate::network::ProcessConnectionEvent>,
     pub mitre_network_alerts: Vec<crate::security::ProcessThreatLabel>,
     pub dynamic_rule_alerts: Vec<crate::rules_engine::DynamicAlert>,
+    pub network_alerts: Vec<crate::network_alerts::NetworkAlert>,
     pub security_heartbeat: Option<crate::audit::SecurityHeartbeat>,
     pub cached_process_info: Vec<CachedProcessInfo>,
     pub network_snapshot: Option<crate::network_analysis::NetworkSnapshot>,
@@ -219,6 +221,7 @@ fn collect_state(system: &mut System, buf: &mut WatcherBuffers) -> SystemState {
         recent_network_connections: Vec::new(),
         mitre_network_alerts: Vec::new(),
         dynamic_rule_alerts: Vec::new(),
+        network_alerts: Vec::new(),
         security_heartbeat: None,
         cached_process_info,
         network_snapshot: None,
@@ -256,6 +259,10 @@ pub fn start_watcher() {
             let net_history = network_history_handle();
             let mut prev_net_snapshot: Option<crate::network_analysis::NetworkSnapshot> = None;
             let mut net_tick_counter: u32 = 0;
+            let mut network_history: VecDeque<crate::network_alerts::NetworkSnapshot> =
+                VecDeque::with_capacity(12);
+            let mut previous_network_snapshot: Option<crate::network_alerts::NetworkSnapshot> =
+                None;
 
             let initial = collect_state(&mut system, &mut buffers);
             if let Ok(mut guard) = cache.write() {
@@ -283,25 +290,42 @@ pub fn start_watcher() {
 
                     let mut snapshot = collect_state(&mut system, &mut buffers);
 
+                    let process_name_by_pid = snapshot
+                        .cached_process_info
+                        .iter()
+                        .map(|process| (process.pid, process.name.clone()))
+                        .collect::<HashMap<u32, String>>();
+
+                    let mut network_snapshot = sample.clone();
+                    for item in &mut network_snapshot.process_throughput {
+                        item.process_name = process_name_by_pid.get(&item.pid).cloned();
+                    }
+
                     let dynamic_alerts = crate::rules_engine::evaluate_events_generic(
                         &sample.recent_connections,
                         &snapshot.cached_process_info,
                     );
+                    let history_slice = network_history.make_contiguous();
+                    let network_alerts = crate::network_alerts::evaluate_active_network_alerts(
+                        &network_snapshot,
+                        previous_network_snapshot.as_ref(),
+                        history_slice,
+                    );
                     let heartbeat = crate::audit::build_security_heartbeat(
-                        sample.process_throughput.len(),
+                        network_snapshot.process_throughput.len(),
                         0,
-                        sample.deep_packet_inspection_active,
+                        network_snapshot.deep_packet_inspection_active,
                         network_observations.len() + dynamic_alerts.len(),
-                        mitre_labels.len() + dynamic_alerts.len(),
+                        mitre_labels.len() + dynamic_alerts.len() + network_alerts.len(),
                         true,
                         "monitoring",
                     );
 
-                    snapshot.net_rx_bytes_per_sec = sample.net_rx_bytes_per_sec;
-                    snapshot.net_tx_bytes_per_sec = sample.net_tx_bytes_per_sec;
-                    snapshot.net_capture_backend = sample.backend_label;
-                    snapshot.net_dpi_active = sample.deep_packet_inspection_active;
-                    let process_throughput = sample.process_throughput;
+                    snapshot.net_rx_bytes_per_sec = network_snapshot.net_rx_bytes_per_sec;
+                    snapshot.net_tx_bytes_per_sec = network_snapshot.net_tx_bytes_per_sec;
+                    snapshot.net_capture_backend = network_snapshot.backend_label.clone();
+                    snapshot.net_dpi_active = network_snapshot.deep_packet_inspection_active;
+                    let process_throughput = network_snapshot.process_throughput.clone();
 
                     // Reuse the throughput map: clear retains capacity.
                     buffers.throughput_map.clear();
@@ -328,9 +352,10 @@ pub fn start_watcher() {
                         );
                     }
                     snapshot.top_network_processes = process_throughput;
-                    snapshot.recent_network_connections = sample.recent_connections;
+                    snapshot.recent_network_connections = network_snapshot.recent_connections.clone();
                     snapshot.mitre_network_alerts = mitre_labels;
                     snapshot.dynamic_rule_alerts = dynamic_alerts;
+                    snapshot.network_alerts = network_alerts;
                     snapshot.security_heartbeat = Some(heartbeat);
 
                     // Network analysis capture (every NET_ANALYSIS_TICK_INTERVAL ticks)
@@ -354,6 +379,12 @@ pub fn start_watcher() {
                         snapshot.network_snapshot = prev_net_snapshot.clone();
                     }
 
+                    // Maintain alert history window
+                    if network_history.len() >= 12 {
+                        network_history.pop_front();
+                    }
+                    network_history.push_back(network_snapshot.clone());
+                    previous_network_snapshot = Some(network_snapshot);
                     snapshot
                 }));
 

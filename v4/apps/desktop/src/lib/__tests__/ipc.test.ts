@@ -16,6 +16,7 @@ import {
   ipcAiChat,
   ipcGetAiRulesSchema,
   ipcGetNetworkData,
+  ipcSetNetworkAlertRules,
   ipcListPlugins,
   ipcInstallPlugin,
   ipcSetPluginEnabled,
@@ -559,6 +560,23 @@ describe("other IPC helpers", () => {
       dpi_active: false,
     });
     await expect(ipcGetNetworkData()).rejects.toThrow(IPCValidationError);
+  });
+
+  it("accepts network alert rules payloads", async () => {
+    mockInvoke.mockResolvedValue(4);
+    await expect(
+      ipcSetNetworkAlertRules([
+        {
+          id: "r1",
+          name: "High bandwidth",
+          enabled: true,
+          condition: { kind: "high_bandwidth", threshold_mbps: 10, direction: "upload", process: null },
+          severity: "warning",
+          cooldown_seconds: 30,
+          notify_ai: false,
+        },
+      ]),
+    ).resolves.toBe(4);
   });
 
   it("validates plugin payload helpers", async () => {

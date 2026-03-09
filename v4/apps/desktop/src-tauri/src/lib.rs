@@ -18,6 +18,7 @@ use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_store::StoreExt;
 
 const MAX_AI_RULES_PAYLOAD_BYTES: usize = 64 * 1024;
+const MAX_NETWORK_ALERT_RULES_PAYLOAD_BYTES: usize = 128 * 1024;
 const MAX_KILL_BATCH: usize = 50;
 
 #[derive(Debug, Clone, Serialize)]
@@ -526,6 +527,20 @@ async fn analyze_context(
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+#[tracing::instrument(skip_all)]
+fn set_network_alert_rules(payload_json: String) -> Result<usize, String> {
+    if payload_json.len() > MAX_NETWORK_ALERT_RULES_PAYLOAD_BYTES {
+        return Err("network alert rules payload too large".to_string());
+    }
+
+    let rules: Vec<macmon_core::network_alerts::NetworkAlertRule> = serde_json::from_str(&payload_json)
+        .map_err(|e| format!("invalid network alert rules JSON: {e}"))?;
+    let count = rules.len();
+    macmon_core::network_alerts::set_active_rules(rules);
+    Ok(count)
+}
+
 /// IPC: Return real network telemetry data (top processes by throughput + recent connections).
 ///
 /// Data comes from the background watcher's cached state — no expensive OS calls on the IPC thread.
@@ -834,6 +849,14 @@ pub fn run() {
                             dedupe.insert(key, now);
                             let _ = app_for_alerts.emit("security-alert", alert);
                         }
+
+                        for alert in state.network_alerts {
+                            if dedupe.contains_key(&alert.id) {
+                                continue;
+                            }
+                            dedupe.insert(alert.id.clone(), now);
+                            let _ = app_for_alerts.emit("network-alert", alert);
+                        }
                     }
                 });
 
@@ -919,6 +942,7 @@ pub fn run() {
             validate_api_key,
             analyze_processes,
             analyze_context,
+            set_network_alert_rules,
             ai_chat,
             clear_ai_cache,
             get_browser_tabs,
