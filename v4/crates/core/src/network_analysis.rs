@@ -685,7 +685,8 @@ fn get_connections_linux() -> Result<Vec<NetworkConnection>, String> {
     Ok(connections)
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
+#[cfg_attr(test, allow(dead_code))]
 fn build_pid_name_map() -> HashMap<u32, String> {
     let mut map = HashMap::new();
     if let Ok(entries) = std::fs::read_dir("/proc") {
@@ -703,16 +704,26 @@ fn build_pid_name_map() -> HashMap<u32, String> {
     map
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
+#[cfg_attr(test, allow(dead_code))]
 fn parse_proc_net(
     content: &str,
     protocol: Protocol,
     pid_names: &HashMap<u32, String>,
 ) -> Vec<NetworkConnection> {
-    let mut connections = Vec::new();
-
-    // Build inode→PID map
     let inode_pid = build_inode_pid_map();
+
+    parse_proc_net_with_inode_map(content, protocol, pid_names, &inode_pid)
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn parse_proc_net_with_inode_map(
+    content: &str,
+    protocol: Protocol,
+    pid_names: &HashMap<u32, String>,
+    inode_pid: &HashMap<u64, u32>,
+) -> Vec<NetworkConnection> {
+    let mut connections = Vec::new();
 
     for line in content.lines().skip(1) {
         let cols: Vec<&str> = line.split_whitespace().collect();
@@ -767,7 +778,8 @@ fn parse_proc_net(
     connections
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
+#[cfg_attr(test, allow(dead_code))]
 fn build_inode_pid_map() -> HashMap<u64, u32> {
     let mut map = HashMap::new();
     if let Ok(entries) = std::fs::read_dir("/proc") {
@@ -797,7 +809,7 @@ fn build_inode_pid_map() -> HashMap<u64, u32> {
     map
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 fn parse_hex_addr_port(hex_str: &str) -> Option<(IpAddr, u16)> {
     let parts: Vec<&str> = hex_str.split(':').collect();
     if parts.len() != 2 {
@@ -825,7 +837,7 @@ fn parse_hex_addr_port(hex_str: &str) -> Option<(IpAddr, u16)> {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 fn parse_tcp_state_hex(hex: &str) -> ConnectionState {
     match hex {
         "01" => ConnectionState::Established,
@@ -887,7 +899,7 @@ fn build_pid_name_map_windows() -> HashMap<u32, String> {
     map
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", test))]
 fn parse_netstat_windows(
     text: &str,
     pid_names: &HashMap<u32, String>,
@@ -1259,6 +1271,52 @@ mod tests {
     }
 
     #[test]
+    fn filter_by_pid() {
+        let conns = vec![
+            make_test_conn(11, Protocol::TCP, 443),
+            make_test_conn(22, Protocol::TCP, 8443),
+        ];
+
+        let filter = NetworkFilter {
+            pids: Some(vec![22]),
+            ..Default::default()
+        };
+
+        let result = filter.apply(&conns);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].pid, 22);
+    }
+
+    #[test]
+    fn filter_by_remote_host_matches_ip_or_hostname() {
+        let mut conns = vec![
+            make_test_conn(1, Protocol::TCP, 443),
+            make_test_conn(2, Protocol::TCP, 443),
+        ];
+        conns[0].remote_addr = IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1));
+        conns[0].remote_hostname = Some("one.one.one.one".to_string());
+        conns[1].remote_addr = IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8));
+        conns[1].remote_hostname = Some("dns.google".to_string());
+
+        let hostname_filter = NetworkFilter {
+            remote_hosts: Some(vec!["google".to_string()]),
+            ..Default::default()
+        };
+        let ip_filter = NetworkFilter {
+            remote_hosts: Some(vec!["1.1.1".to_string()]),
+            ..Default::default()
+        };
+
+        let hostname_result = hostname_filter.apply(&conns);
+        let ip_result = ip_filter.apply(&conns);
+
+        assert_eq!(hostname_result.len(), 1);
+        assert_eq!(hostname_result[0].pid, 2);
+        assert_eq!(ip_result.len(), 1);
+        assert_eq!(ip_result[0].pid, 1);
+    }
+
+    #[test]
     fn filter_by_min_bytes() {
         let mut conns = vec![
             make_test_conn(1, Protocol::TCP, 443),
@@ -1297,6 +1355,40 @@ mod tests {
         let result = filter.apply(&conns);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].pid, 1);
+    }
+
+    #[test]
+    fn filter_can_combine_all_supported_criteria() {
+        let mut matching = make_test_conn(100, Protocol::TCP, 443);
+        matching.process_name = "Chrome Helper".to_string();
+        matching.local_port = 52_000;
+        matching.remote_addr = IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34));
+        matching.remote_hostname = Some("example.com".to_string());
+        matching.bytes_per_sec_up = 900.0;
+        matching.bytes_per_sec_down = 300.0;
+        matching.state = ConnectionState::Established;
+
+        let mut wrong_pid = matching.clone();
+        wrong_pid.pid = 200;
+
+        let mut localhost = matching.clone();
+        localhost.pid = 300;
+        localhost.local_addr = IpAddr::V4(Ipv4Addr::LOCALHOST);
+
+        let filter = NetworkFilter {
+            protocols: Some(vec![Protocol::TCP]),
+            ports: Some(vec![443]),
+            process_names: Some(vec!["chrome".to_string()]),
+            pids: Some(vec![100]),
+            remote_hosts: Some(vec!["example".to_string()]),
+            min_bytes_per_sec: Some(1_000.0),
+            exclude_localhost: true,
+            only_established: true,
+        };
+
+        let result = filter.apply(&[matching.clone(), wrong_pid, localhost]);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].pid, matching.pid);
     }
 
     #[test]
@@ -1436,6 +1528,157 @@ mod tests {
         assert_eq!(conn.state, ConnectionState::Listen);
     }
 
+    #[test]
+    fn parse_lsof_output_extracts_multiple_connections() {
+        let text = [
+            "p123",
+            "cchrome",
+            "tIPv4",
+            "PTCP",
+            "TST=ESTABLISHED",
+            "n10.0.0.1:54321->93.184.216.34:443",
+            "p321",
+            "cresolver",
+            "tIPv6",
+            "PUDP",
+            "n[::1]:5353->[2001:4860:4860::8888]:53",
+        ]
+        .join("\n");
+
+        let connections = parse_lsof_output(&text).expect("parse lsof output");
+        assert_eq!(connections.len(), 2);
+        assert_eq!(connections[0].pid, 123);
+        assert_eq!(connections[0].remote_port, 443);
+        assert_eq!(connections[1].protocol, Protocol::UDP);
+        assert_eq!(connections[1].local_addr, IpAddr::V6(Ipv6Addr::LOCALHOST));
+    }
+
+    #[test]
+    fn parse_proc_net_with_mock_inode_map() {
+        let content = concat!(
+            "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n",
+            "   0: 0100007F:1F90 08080808:0035 01 00000000:00000000 00:00000000 00000000  1000        0 12345 1 0000000000000000 100 0 0 10 0\n"
+        );
+        let pid_names = HashMap::from([(4242_u32, "dns-proxy".to_string())]);
+        let inode_pid = HashMap::from([(12345_u64, 4242_u32)]);
+
+        let connections =
+            parse_proc_net_with_inode_map(content, Protocol::TCP, &pid_names, &inode_pid);
+        assert_eq!(connections.len(), 1);
+        assert_eq!(connections[0].pid, 4242);
+        assert_eq!(connections[0].process_name, "dns-proxy");
+        assert_eq!(connections[0].local_addr, IpAddr::V4(Ipv4Addr::LOCALHOST));
+        assert_eq!(connections[0].remote_port, 53);
+        assert_eq!(connections[0].state, ConnectionState::Established);
+    }
+
+    #[test]
+    fn parse_hex_addr_port_and_state_hex() {
+        let (addr, port) = parse_hex_addr_port("0100007F:01BB").expect("parse hex addr");
+        assert_eq!(addr, IpAddr::V4(Ipv4Addr::LOCALHOST));
+        assert_eq!(port, 443);
+        assert_eq!(parse_tcp_state_hex("0A"), ConnectionState::Listen);
+        assert_eq!(parse_tcp_state_hex("08"), ConnectionState::CloseWait);
+    }
+
+    #[test]
+    fn parse_netstat_windows_parses_tcp_and_udp_rows() {
+        let text = concat!(
+            "Active Connections\n",
+            "  Proto  Local Address          Foreign Address        State           PID\n",
+            "  TCP    127.0.0.1:5050         93.184.216.34:443      ESTABLISHED     4242\n",
+            "  UDP    0.0.0.0:5353           *:*                                    5151\n"
+        );
+        let pid_names = HashMap::from([
+            (4242_u32, "browser.exe".to_string()),
+            (5151_u32, "mdns.exe".to_string()),
+        ]);
+
+        let connections = parse_netstat_windows(text, &pid_names).expect("parse netstat");
+        assert_eq!(connections.len(), 2);
+        assert_eq!(connections[0].protocol, Protocol::TCP);
+        assert_eq!(connections[0].process_name, "browser.exe");
+        assert_eq!(connections[0].state, ConnectionState::Established);
+        assert_eq!(connections[1].protocol, Protocol::UDP);
+        assert_eq!(connections[1].process_name, "mdns.exe");
+        assert_eq!(connections[1].remote_port, 0);
+    }
+
+    #[test]
+    fn dns_cache_lookup_returns_cached_entry_before_ttl() {
+        let ip = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 10));
+        clear_dns_cache();
+        dns_cache().insert(ip, Some("cached.example".to_string()));
+
+        assert_eq!(dns_cache().lookup(&ip), Some("cached.example".to_string()));
+        clear_dns_cache();
+    }
+
+    #[test]
+    fn dns_cache_eviction_removes_stale_entries() {
+        let ip = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 10));
+        clear_dns_cache();
+        if let Ok(mut entries) = dns_cache().entries.write() {
+            entries.insert(
+                ip,
+                DnsCacheEntry {
+                    hostname: Some("stale.example".to_string()),
+                    resolved_at: Instant::now() - (DNS_CACHE_TTL * 2 + Duration::from_secs(1)),
+                },
+            );
+        }
+
+        dns_cache().evict_expired();
+
+        let contains = dns_cache()
+            .entries
+            .read()
+            .map(|entries| entries.contains_key(&ip))
+            .unwrap_or(false);
+        assert!(!contains);
+        clear_dns_cache();
+    }
+
+    #[test]
+    fn resolve_and_cache_respects_concurrency_limit() {
+        let ip = IpAddr::V4(Ipv4Addr::new(192, 0, 2, 44));
+        clear_dns_cache();
+        DNS_ACTIVE_LOOKUPS.store(DNS_MAX_CONCURRENT, Ordering::SeqCst);
+
+        resolve_and_cache(ip);
+
+        let contains = dns_cache()
+            .entries
+            .read()
+            .map(|entries| entries.contains_key(&ip))
+            .unwrap_or(false);
+        assert!(!contains);
+        DNS_ACTIVE_LOOKUPS.store(0, Ordering::SeqCst);
+        clear_dns_cache();
+    }
+
+    #[test]
+    fn enqueue_dns_resolution_skips_loopback_and_cached_entries() {
+        let cached_ip = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 20));
+        clear_dns_cache();
+        dns_cache().insert(cached_ip, Some("preloaded.example".to_string()));
+
+        let mut cached_conn = make_test_conn(1, Protocol::TCP, 443);
+        cached_conn.remote_addr = cached_ip;
+        let mut loopback_conn = make_test_conn(2, Protocol::TCP, 80);
+        loopback_conn.remote_addr = IpAddr::V4(Ipv4Addr::LOCALHOST);
+
+        enqueue_dns_resolution(&[cached_conn, loopback_conn]);
+
+        let len = dns_cache()
+            .entries
+            .read()
+            .map(|entries| entries.len())
+            .unwrap_or_default();
+        assert_eq!(len, 1);
+        clear_dns_cache();
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn get_active_connections_returns_vec() {
@@ -1471,6 +1714,12 @@ mod tests {
         NetworkSnapshot {
             timestamp,
             ..Default::default()
+        }
+    }
+
+    fn clear_dns_cache() {
+        if let Ok(mut entries) = dns_cache().entries.write() {
+            entries.clear();
         }
     }
 }

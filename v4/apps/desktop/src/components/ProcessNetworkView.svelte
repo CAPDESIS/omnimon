@@ -1,10 +1,7 @@
 <script lang="ts">
   import {
-    getNetworkState,
-    perProcessSummary,
+    getPerProcessSummary,
   } from "../stores/network.svelte";
-
-  const state = getNetworkState();
 
   let expandedRow: string | null = $state(null);
 
@@ -31,7 +28,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each perProcessSummary as proc}
+          {#each getPerProcessSummary() as proc}
             <tr onclick={() => expandedRow = expandedRow === proc.name ? null : proc.name}>
               <td>{proc.name}</td>
               <td>{proc.connectionsCount}</td>

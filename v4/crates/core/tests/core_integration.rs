@@ -171,6 +171,121 @@ fn integration_network_flow_sample_serializes() {
     assert!(json.contains("observed_interval_ms"));
 }
 
+#[test]
+fn integration_network_snapshot_filter_alert_pipeline() {
+    use core::network_alerts::{
+        evaluate_network_alerts, AlertCondition, AlertSeverity, Direction, NetworkAlertRule,
+    };
+    use core::network_analysis::{
+        ConnectionState, NetworkConnection, NetworkFilter, NetworkSnapshot, ProcessNetworkSummary,
+        Protocol,
+    };
+    use std::net::{IpAddr, Ipv4Addr};
+
+    let connection = NetworkConnection {
+        pid: 4242,
+        process_name: "chrome".to_string(),
+        protocol: Protocol::TCP,
+        local_addr: IpAddr::V4(Ipv4Addr::new(10, 0, 0, 10)),
+        local_port: 51_234,
+        remote_addr: IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34)),
+        remote_port: 443,
+        remote_hostname: Some("example.com".to_string()),
+        state: ConnectionState::Established,
+        bytes_sent: 10_000,
+        bytes_received: 20_000,
+        bytes_per_sec_up: 2_000_000.0,
+        bytes_per_sec_down: 1_000_000.0,
+        established_at: 1,
+        country: Some("US".to_string()),
+        is_encrypted: Some(true),
+    };
+
+    let analysis_snapshot = NetworkSnapshot {
+        timestamp: 100,
+        connections: vec![connection.clone()],
+        total_bytes_up: connection.bytes_sent,
+        total_bytes_down: connection.bytes_received,
+        total_bytes_per_sec_up: connection.bytes_per_sec_up,
+        total_bytes_per_sec_down: connection.bytes_per_sec_down,
+        active_connections: 1,
+        per_process_summary: vec![ProcessNetworkSummary {
+            pid: 4242,
+            name: "chrome".to_string(),
+            connection_count: 1,
+            total_up: connection.bytes_per_sec_up,
+            total_down: connection.bytes_per_sec_down,
+            top_remote: Some("example.com".to_string()),
+            protocols: vec![Protocol::TCP],
+        }],
+    };
+
+    let filter = NetworkFilter {
+        protocols: Some(vec![Protocol::TCP]),
+        ports: Some(vec![443]),
+        process_names: Some(vec!["chrome".to_string()]),
+        remote_hosts: Some(vec!["example".to_string()]),
+        only_established: true,
+        ..Default::default()
+    };
+
+    let filtered = filter.apply(&analysis_snapshot.connections);
+    assert_eq!(filtered.len(), 1);
+
+    let mut flow_snapshot = network::NetworkFlowSample {
+        backend: network::NetworkCaptureBackend::Unsupported,
+        backend_label: "Unsupported".to_string(),
+        privileged_path_available: false,
+        deep_packet_inspection_active: false,
+        net_rx_bytes_per_sec: 1_000_000,
+        net_tx_bytes_per_sec: 2_000_000,
+        observed_interval_ms: 2_000,
+        process_throughput: vec![network::ProcessNetworkThroughput {
+            pid: 4242,
+            process_name: Some("chrome".to_string()),
+            rx_bytes_per_sec: 1_000_000,
+            tx_bytes_per_sec: 2_000_000,
+            tcp_packets_per_sec: 10,
+            udp_packets_per_sec: 0,
+        }],
+        recent_connections: vec![network::ProcessConnectionEvent {
+            pid: 4242,
+            protocol: network::TransportProtocol::Tcp,
+            direction: network::TrafficDirection::Outbound,
+            src_ip: "10.0.0.10".to_string(),
+            dst_ip: "93.184.216.34".to_string(),
+            src_port: 51_234,
+            dst_port: 443,
+            bytes: 4_096,
+        }],
+        capture_windows_dropped: 0,
+        captured_at_unix_ms: 10_000,
+    };
+
+    let rules = vec![NetworkAlertRule {
+        id: "pipeline-bandwidth".to_string(),
+        name: "Pipeline bandwidth".to_string(),
+        enabled: true,
+        condition: AlertCondition::HighBandwidth {
+            threshold_mbps: 10.0,
+            direction: Direction::Both,
+            process: Some("chrome".to_string()),
+        },
+        severity: AlertSeverity::Warning,
+        cooldown_seconds: 0,
+        notify_ai: false,
+    }];
+
+    assert!(evaluate_network_alerts(&flow_snapshot, None, &rules, &[]).is_empty());
+    flow_snapshot.captured_at_unix_ms += 2_000;
+    assert!(evaluate_network_alerts(&flow_snapshot, None, &rules, &[]).is_empty());
+    flow_snapshot.captured_at_unix_ms += 2_000;
+    let alerts = evaluate_network_alerts(&flow_snapshot, None, &rules, &[]);
+    assert_eq!(alerts.len(), 1);
+    assert_eq!(alerts[0].process_name.as_deref(), Some("chrome"));
+    assert!(alerts[0].message.contains("chrome"));
+}
+
 // ===========================================================================
 // Rules Engine
 // ===========================================================================
