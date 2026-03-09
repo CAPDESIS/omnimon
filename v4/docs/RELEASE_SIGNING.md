@@ -109,18 +109,58 @@ El pipeline de GitHub Actions firma automáticamente cuando:
 
 ### Configurar secretos en GitHub
 
+Se requieren **dos pares de secrets** independientes:
+
+#### 1. Firma del Tauri Updater (auto-update)
+
+La clave privada generada por `bunx @tauri-apps/cli signer generate` debe
+estar disponible como GitHub Secret para que `tauri-action` firme los
+binarios de actualización.
+
 ```bash
-# 1. Generar keypair localmente
+# Generar keypair (si no se ha hecho):
+bunx @tauri-apps/cli signer generate -w ~/.tauri/omnimon.key
+
+# La clave privada está en ~/.tauri/omnimon.key
+# La clave pública está en ~/.tauri/omnimon.key.pub (ya embebida en tauri.conf.json)
+
+# En GitHub → Settings → Secrets and variables → Actions → New repository secret:
+#   Nombre: TAURI_SIGNING_PRIVATE_KEY
+#   Valor:  (contenido completo de ~/.tauri/omnimon.key)
+#
+#   Nombre: TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+#   Valor:  (el password usado al generar, vacío si no se usó)
+```
+
+#### 2. Firma de releases Ed25519 (checksums + manifests)
+
+```bash
+# Generar keypair con el CLI de OmniMon:
 omnimon release generate-keypair
 # Copiar la clave pública (base64) impresa en stdout
 
-# 2. Exportar la clave privada para CI
-# La clave está en el keyring. Para extraerla y codificarla en base64:
-# (varía según el OS, consultar SECURITY_KEYS.md)
+# Exportar la clave privada para CI:
+# La clave está en el keyring nativo. Para extraerla, consultar SECURITY_KEYS.md
 
-# 3. En GitHub → Settings → Secrets → Actions:
-# - ED25519_SIGNING_KEY = base64 de la clave privada
+# En GitHub → Settings → Secrets and variables → Actions → New repository secret:
+#   Nombre: ED25519_SIGNING_KEY
+#   Valor:  base64 de la clave privada (32 bytes codificados)
 ```
+
+#### 3. Verificar en el workflow
+
+El workflow `.github/workflows/omnimon-ci.yml` referencia estos secrets en:
+- `release` job: `TAURI_SIGNING_PRIVATE_KEY` y `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+  (usados implícitamente por `tauri-action`)
+- `sign-release` job: `ED25519_SIGNING_KEY` (usado por `scripts/sign-release.sh`)
+
+#### 4. Rotación de claves
+
+- Para rotar: generar nuevo keypair, actualizar `pubkey` en `tauri.conf.json`,
+  actualizar el secret correspondiente en GitHub
+- Los usuarios con versiones antiguas recibirán error de verificación de firma
+  y deberán descargar manualmente la nueva versión
+- Documentar la rotación en el changelog del release
 
 ## Verificación por Usuarios Finales
 

@@ -49,3 +49,27 @@ con Ed25519 para verificación independiente. Consultar
 | Firma de releases Ed25519 | `ED25519_SIGNING_KEY` | Base64 (32 bytes) |
 
 Ambas claves son independientes y deben configurarse por separado.
+
+### Proceso completo de setup
+
+1. **Generar keypair del Tauri Updater:**
+   ```bash
+   bunx @tauri-apps/cli signer generate -w ~/.tauri/omnimon.key
+   ```
+   - Clave privada: `~/.tauri/omnimon.key`
+   - Clave pública: `~/.tauri/omnimon.key.pub` → copiar a `tauri.conf.json`
+
+2. **Generar keypair Ed25519 para releases:**
+   ```bash
+   omnimon release generate-keypair
+   ```
+   - Clave privada: almacenada en OS Keyring
+   - Clave pública: impresa en stdout
+
+3. **Configurar GitHub Secrets** (ver [RELEASE_SIGNING.md](./RELEASE_SIGNING.md)):
+   - `TAURI_SIGNING_PRIVATE_KEY` — contenido de `~/.tauri/omnimon.key`
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — password (puede ser vacío)
+   - `ED25519_SIGNING_KEY` — base64 de la clave privada Ed25519
+
+4. **Verificar** que `tauri.conf.json` tiene la pubkey correcta y que
+   el CI puede firmar ejecutando un `workflow_dispatch` de prueba.
