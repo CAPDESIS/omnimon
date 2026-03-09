@@ -3,6 +3,7 @@ use core::ai as core_ai;
 use core::browser::{BrowserKind, BrowserTab, NativeTabProvider, TabProvider};
 use core::killer;
 use core::metrics;
+use core::rules_engine;
 use core::watcher;
 
 #[global_allocator]
@@ -90,6 +91,20 @@ enum Commands {
     Doctor,
     /// Launch the real-time terminal UI (htop-style)
     Tui,
+    /// Show real-time network telemetry (throughput per process, connections)
+    Network {
+        /// Output format
+        #[arg(long, value_enum, default_value_t = Format::Text)]
+        format: Format,
+        /// Show recent connection events instead of throughput summary
+        #[arg(long)]
+        connections: bool,
+    },
+    /// Manage AI-driven security alert rules (MITRE ATT&CK)
+    Rules {
+        #[command(subcommand)]
+        command: RulesCommands,
+    },
 }
 
 #[derive(Subcommand)]
@@ -109,6 +124,24 @@ enum CloudCommands {
         #[arg(long)]
         report_path: String,
     },
+}
+
+#[derive(Subcommand)]
+enum RulesCommands {
+    /// List all active security alert rules
+    List,
+    /// Load rules from a JSON file (schema_version 1)
+    Load {
+        /// Path to the JSON rules file
+        path: String,
+    },
+    /// Remove a rule by ID
+    Remove {
+        /// Rule ID to remove
+        id: String,
+    },
+    /// Print the expected JSON schema for AI rules payloads
+    Schema,
 }
 
 #[derive(Subcommand)]
@@ -786,5 +819,158 @@ fn main() {
 
             println!("\nHealth check complete.");
         }
+        Commands::Network {
+            format,
+            connections,
+        } => {
+            watcher::start_watcher();
+            std::thread::sleep(std::time::Duration::from_millis(2500));
+
+            let state = watcher::get_cached_state();
+
+            match format {
+                Format::Json => {
+                    let output = serde_json::json!({
+                        "net_rx_bytes_per_sec": state.net_rx_bytes_per_sec,
+                        "net_tx_bytes_per_sec": state.net_tx_bytes_per_sec,
+                        "capture_backend": state.net_capture_backend,
+                        "dpi_active": state.net_dpi_active,
+                        "top_processes": state.top_network_processes,
+                        "recent_connections": state.recent_network_connections,
+                    });
+                    println!("{}", serde_json::to_string_pretty(&output).unwrap());
+                }
+                Format::Text => {
+                    println!("OmniMon Network Telemetry");
+                    println!();
+                    println!(
+                        "  Backend:   {} (DPI: {})",
+                        state.net_capture_backend,
+                        if state.net_dpi_active {
+                            "active"
+                        } else {
+                            "inactive"
+                        }
+                    );
+                    println!(
+                        "  Global:    rx {} /s   tx {} /s",
+                        format_memory(state.net_rx_bytes_per_sec),
+                        format_memory(state.net_tx_bytes_per_sec)
+                    );
+
+                    if *connections {
+                        println!();
+                        println!("  Recent connections:");
+                        println!(
+                            "  {:>6}  {:>5}  {:<15}  {:>5}  -->  {:<15}  {:>5}  {:>10}",
+                            "PID", "PROTO", "SRC IP", "PORT", "DST IP", "PORT", "BYTES"
+                        );
+                        println!("  {}", "-".repeat(80));
+                        for conn in &state.recent_network_connections {
+                            let proto = match conn.protocol {
+                                core::network::TransportProtocol::Tcp => "TCP",
+                                core::network::TransportProtocol::Udp => "UDP",
+                            };
+                            println!(
+                                "  {:>6}  {:>5}  {:<15}  {:>5}  -->  {:<15}  {:>5}  {:>10}",
+                                conn.pid,
+                                proto,
+                                conn.src_ip,
+                                conn.src_port,
+                                conn.dst_ip,
+                                conn.dst_port,
+                                format_memory(conn.bytes)
+                            );
+                        }
+                        if state.recent_network_connections.is_empty() {
+                            println!("  (no connections captured yet)");
+                        }
+                    } else {
+                        println!();
+                        println!("  Top processes by throughput:");
+                        println!(
+                            "  {:>6}  {:>12}  {:>12}  {:>8}  {:>8}",
+                            "PID", "RX/s", "TX/s", "TCP/s", "UDP/s"
+                        );
+                        println!("  {}", "-".repeat(56));
+                        for p in &state.top_network_processes {
+                            println!(
+                                "  {:>6}  {:>12}  {:>12}  {:>8}  {:>8}",
+                                p.pid,
+                                format_memory(p.rx_bytes_per_sec),
+                                format_memory(p.tx_bytes_per_sec),
+                                p.tcp_packets_per_sec,
+                                p.udp_packets_per_sec
+                            );
+                        }
+                        if state.top_network_processes.is_empty() {
+                            println!("  (no network activity captured yet)");
+                        }
+                    }
+                }
+            }
+        }
+        Commands::Rules { command } => match command {
+            RulesCommands::List => {
+                let rules = rules_engine::active_rules();
+                if rules.is_empty() {
+                    println!("No active security rules.");
+                } else {
+                    println!("Active security rules ({}):", rules.len());
+                    println!(
+                        "  {:<12}  {:<30}  {:<16}  {:>7}",
+                        "ID", "NAME", "KIND", "ENABLED"
+                    );
+                    println!("  {}", "-".repeat(72));
+                    for rule in &rules {
+                        println!(
+                            "  {:<12}  {:<30}  {:<16}  {:>7}",
+                            if rule.id.len() > 12 {
+                                &rule.id[..12]
+                            } else {
+                                &rule.id
+                            },
+                            if rule.name.len() > 30 {
+                                &rule.name[..30]
+                            } else {
+                                &rule.name
+                            },
+                            format!("{:?}", rule.kind),
+                            if rule.enabled { "yes" } else { "no" }
+                        );
+                    }
+                }
+            }
+            RulesCommands::Load { path } => {
+                let content = match std::fs::read_to_string(path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("Error reading rules file '{}': {}", path, e);
+                        std::process::exit(1);
+                    }
+                };
+                match rules_engine::upsert_rules_from_ai_json(&content) {
+                    Ok(count) => println!("Successfully loaded {} security rules.", count),
+                    Err(e) => {
+                        eprintln!("Error loading rules: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            RulesCommands::Remove { id } => match rules_engine::remove_rule_by_id(id) {
+                Ok(true) => println!("Rule '{}' removed.", id),
+                Ok(false) => {
+                    eprintln!("Rule '{}' not found.", id);
+                    std::process::exit(1);
+                }
+                Err(e) => {
+                    eprintln!("Error removing rule: {}", e);
+                    std::process::exit(1);
+                }
+            },
+            RulesCommands::Schema => {
+                println!("{}", rules_engine::ai_rules_schema_json());
+            }
+        },
     }
 }
