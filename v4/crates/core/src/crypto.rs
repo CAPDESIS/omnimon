@@ -6,7 +6,8 @@ use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, Verifier};
+pub use ed25519_dalek::{SigningKey, VerifyingKey};
 use hkdf::Hkdf;
 use rand::RngCore;
 use serde::de::DeserializeOwned;
@@ -231,6 +232,190 @@ pub fn verify_update(
 }
 
 // ---------------------------------------------------------------------------
+// Release Manifest (structured release metadata with per-artifact signatures)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReleaseManifest {
+    pub version: String,
+    pub date: String,
+    pub artifacts: Vec<ReleaseArtifact>,
+    pub manifest_signature: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReleaseArtifact {
+    pub filename: String,
+    pub platform: String,
+    pub arch: String,
+    pub sha256: String,
+    pub signature_b64: String,
+    pub size_bytes: u64,
+}
+
+/// Builds the canonical bytes used for signing a [`ReleaseManifest`].
+/// The signature covers version + date + every artifact hash/signature so that
+/// any modification to the manifest is detectable.
+fn manifest_signing_payload(version: &str, date: &str, artifacts: &[ReleaseArtifact]) -> Vec<u8> {
+    let mut payload = format!("omnimon-manifest:{}:{}", version, date);
+    for a in artifacts {
+        payload.push_str(&format!(
+            "\n{}:{}:{}:{}",
+            a.filename, a.sha256, a.signature_b64, a.size_bytes
+        ));
+    }
+    payload.into_bytes()
+}
+
+/// Creates a [`ReleaseManifest`] from a list of artifacts, signing the whole
+/// manifest with the provided Ed25519 key.
+pub fn build_release_manifest(
+    signing_key: &SigningKey,
+    version: &str,
+    date: &str,
+    artifacts: Vec<ReleaseArtifact>,
+) -> ReleaseManifest {
+    let payload = manifest_signing_payload(version, date, &artifacts);
+    let sig = signing_key.sign(&payload);
+    ReleaseManifest {
+        version: version.to_string(),
+        date: date.to_string(),
+        artifacts,
+        manifest_signature: STANDARD.encode(sig.to_bytes()),
+    }
+}
+
+/// Verifies the top-level signature of a [`ReleaseManifest`].
+pub fn verify_release_manifest(
+    manifest: &ReleaseManifest,
+    trusted_public_key: &VerifyingKey,
+) -> Result<(), String> {
+    let payload = manifest_signing_payload(&manifest.version, &manifest.date, &manifest.artifacts);
+    let sig_bytes = STANDARD
+        .decode(&manifest.manifest_signature)
+        .map_err(|e| format!("invalid manifest signature base64: {e}"))?;
+    let sig_array: [u8; 64] = sig_bytes
+        .try_into()
+        .map_err(|_| "manifest signature must be 64 bytes".to_string())?;
+    let signature = Signature::from_bytes(&sig_array);
+    trusted_public_key
+        .verify(&payload, &signature)
+        .map_err(|_| "manifest signature verification failed".to_string())
+}
+
+/// Signs a single file's bytes and returns a [`ReleaseArtifact`].
+pub fn sign_artifact(
+    signing_key: &SigningKey,
+    data: &[u8],
+    filename: &str,
+    platform: &str,
+    arch: &str,
+) -> ReleaseArtifact {
+    let hash = sha256_hex(data);
+    let sig = signing_key.sign(data);
+    ReleaseArtifact {
+        filename: filename.to_string(),
+        platform: platform.to_string(),
+        arch: arch.to_string(),
+        sha256: hash,
+        signature_b64: STANDARD.encode(sig.to_bytes()),
+        size_bytes: data.len() as u64,
+    }
+}
+
+/// Verifies a single [`ReleaseArtifact`] against file bytes.
+pub fn verify_artifact(
+    data: &[u8],
+    artifact: &ReleaseArtifact,
+    trusted_public_key: &VerifyingKey,
+) -> Result<(), String> {
+    let computed_hash = sha256_hex(data);
+    if computed_hash != artifact.sha256 {
+        return Err(format!(
+            "SHA-256 mismatch for {}: expected {}, got {}",
+            artifact.filename, artifact.sha256, computed_hash
+        ));
+    }
+    let sig_bytes = STANDARD
+        .decode(&artifact.signature_b64)
+        .map_err(|e| format!("invalid artifact signature base64: {e}"))?;
+    let sig_array: [u8; 64] = sig_bytes
+        .try_into()
+        .map_err(|_| "artifact signature must be 64 bytes".to_string())?;
+    let signature = Signature::from_bytes(&sig_array);
+    trusted_public_key.verify(data, &signature).map_err(|e| {
+        format!(
+            "artifact signature verification failed for {}: {e}",
+            artifact.filename
+        )
+    })
+}
+
+/// Exports an Ed25519 signing key as base64 (for secure storage).
+pub fn export_signing_key(signing_key: &SigningKey) -> String {
+    STANDARD.encode(signing_key.to_bytes())
+}
+
+/// Imports an Ed25519 signing key from base64.
+pub fn import_signing_key(b64: &str) -> Result<SigningKey, String> {
+    let bytes = STANDARD
+        .decode(b64)
+        .map_err(|e| format!("invalid signing key base64: {e}"))?;
+    let key_bytes: [u8; 32] = bytes
+        .try_into()
+        .map_err(|_| "signing key must be 32 bytes".to_string())?;
+    Ok(SigningKey::from_bytes(&key_bytes))
+}
+
+// ---------------------------------------------------------------------------
+// Integrity Verification (NIST SI-7)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntegrityCheck {
+    pub binary_path: String,
+    pub expected_hash: String,
+    pub actual_hash: String,
+    pub signature_valid: bool,
+    pub passed: bool,
+}
+
+/// Verifies the integrity of a file by checking its SHA-256 hash and Ed25519
+/// signature against a trusted public key. Implements NIST SI-7 requirements.
+pub fn verify_binary_integrity(
+    data: &[u8],
+    binary_path: &str,
+    expected_hash: &str,
+    signature_b64: &str,
+    trusted_public_key: &VerifyingKey,
+) -> IntegrityCheck {
+    let actual_hash = sha256_hex(data);
+    let hash_matches = actual_hash == expected_hash;
+
+    let sig_valid = (|| -> Result<(), String> {
+        let sig_bytes = STANDARD
+            .decode(signature_b64)
+            .map_err(|e| format!("invalid base64: {e}"))?;
+        let sig_array: [u8; 64] = sig_bytes
+            .try_into()
+            .map_err(|_| "signature must be 64 bytes".to_string())?;
+        let signature = Signature::from_bytes(&sig_array);
+        trusted_public_key
+            .verify(data, &signature)
+            .map_err(|_| "signature verification failed".to_string())
+    })()
+    .is_ok();
+
+    IntegrityCheck {
+        binary_path: binary_path.to_string(),
+        expected_hash: expected_hash.to_string(),
+        actual_hash,
+        signature_valid: sig_valid,
+        passed: hash_matches && sig_valid,
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Key Rotation (NIST SC-12)
 // ---------------------------------------------------------------------------
 
@@ -447,5 +632,180 @@ mod tests {
         let k1 = generate_encryption_key();
         let k2 = generate_encryption_key();
         assert_ne!(k1, k2);
+    }
+
+    // --- Signing Key Import/Export Tests ---
+
+    #[test]
+    fn export_import_signing_key_round_trip() {
+        let (signing_key, _) = generate_ed25519_keypair();
+        let exported = export_signing_key(&signing_key);
+        let imported = import_signing_key(&exported).expect("import");
+        assert_eq!(signing_key.to_bytes(), imported.to_bytes());
+    }
+
+    #[test]
+    fn import_invalid_signing_key_fails() {
+        assert!(import_signing_key("not-valid!!!").is_err());
+        assert!(import_signing_key(&STANDARD.encode([0u8; 16])).is_err());
+    }
+
+    // --- Release Artifact Tests ---
+
+    #[test]
+    fn sign_and_verify_artifact() {
+        let (signing_key, verifying_key) = generate_ed25519_keypair();
+        let data = b"binary content for artifact test";
+        let artifact = sign_artifact(&signing_key, data, "omnimon-linux", "linux", "x86_64");
+
+        assert_eq!(artifact.filename, "omnimon-linux");
+        assert_eq!(artifact.platform, "linux");
+        assert_eq!(artifact.size_bytes, data.len() as u64);
+
+        assert!(verify_artifact(data, &artifact, &verifying_key).is_ok());
+    }
+
+    #[test]
+    fn tampered_artifact_fails_verification() {
+        let (signing_key, verifying_key) = generate_ed25519_keypair();
+        let data = b"original binary";
+        let artifact = sign_artifact(&signing_key, data, "app.dmg", "macos", "aarch64");
+
+        let tampered = b"tampered binary";
+        let result = verify_artifact(tampered, &artifact, &verifying_key);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("SHA-256 mismatch"));
+    }
+
+    #[test]
+    fn artifact_wrong_key_fails() {
+        let (signing_key, _) = generate_ed25519_keypair();
+        let (_, wrong_key) = generate_ed25519_keypair();
+        let data = b"binary content";
+        let artifact = sign_artifact(&signing_key, data, "app.exe", "windows", "x86_64");
+
+        let result = verify_artifact(data, &artifact, &wrong_key);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .contains("signature verification failed"));
+    }
+
+    // --- Release Manifest Tests ---
+
+    #[test]
+    fn build_and_verify_manifest() {
+        let (signing_key, verifying_key) = generate_ed25519_keypair();
+        let data1 = b"binary-linux";
+        let data2 = b"binary-macos";
+
+        let artifacts = vec![
+            sign_artifact(&signing_key, data1, "omnimon-linux", "linux", "x86_64"),
+            sign_artifact(&signing_key, data2, "omnimon-macos", "macos", "aarch64"),
+        ];
+
+        let manifest = build_release_manifest(&signing_key, "6.0.1", "2026-03-08", artifacts);
+        assert_eq!(manifest.version, "6.0.1");
+        assert_eq!(manifest.artifacts.len(), 2);
+
+        assert!(verify_release_manifest(&manifest, &verifying_key).is_ok());
+    }
+
+    #[test]
+    fn manifest_tampered_signature_fails() {
+        let (signing_key, verifying_key) = generate_ed25519_keypair();
+        let artifacts = vec![sign_artifact(
+            &signing_key,
+            b"binary",
+            "app",
+            "linux",
+            "x86_64",
+        )];
+
+        let mut manifest = build_release_manifest(&signing_key, "6.0.1", "2026-03-08", artifacts);
+        // Tamper with version after signing
+        manifest.version = "6.0.2".to_string();
+
+        let result = verify_release_manifest(&manifest, &verifying_key);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn manifest_tampered_artifact_fails() {
+        let (signing_key, verifying_key) = generate_ed25519_keypair();
+        let artifacts = vec![sign_artifact(
+            &signing_key,
+            b"binary",
+            "app",
+            "linux",
+            "x86_64",
+        )];
+
+        let mut manifest = build_release_manifest(&signing_key, "6.0.1", "2026-03-08", artifacts);
+        // Tamper with artifact hash after signing
+        manifest.artifacts[0].sha256 =
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+
+        let result = verify_release_manifest(&manifest, &verifying_key);
+        assert!(result.is_err());
+    }
+
+    // --- Integrity Check Tests (NIST SI-7) ---
+
+    #[test]
+    fn integrity_check_passes_with_valid_data() {
+        let (signing_key, verifying_key) = generate_ed25519_keypair();
+        let data = b"valid binary content";
+        let hash = sha256_hex(data);
+        let sig = signing_key.sign(data);
+        let sig_b64 = STANDARD.encode(sig.to_bytes());
+
+        let check =
+            verify_binary_integrity(data, "/path/to/binary", &hash, &sig_b64, &verifying_key);
+        assert!(check.passed);
+        assert!(check.signature_valid);
+        assert_eq!(check.actual_hash, check.expected_hash);
+    }
+
+    #[test]
+    fn integrity_check_fails_with_wrong_hash() {
+        let (signing_key, verifying_key) = generate_ed25519_keypair();
+        let data = b"binary content";
+        let sig = signing_key.sign(data);
+        let sig_b64 = STANDARD.encode(sig.to_bytes());
+
+        let check =
+            verify_binary_integrity(data, "/path/to/binary", "badhash", &sig_b64, &verifying_key);
+        assert!(!check.passed);
+        assert_ne!(check.actual_hash, check.expected_hash);
+    }
+
+    #[test]
+    fn integrity_check_fails_with_wrong_signature() {
+        let (_, verifying_key) = generate_ed25519_keypair();
+        let (other_key, _) = generate_ed25519_keypair();
+        let data = b"binary content";
+        let hash = sha256_hex(data);
+        let bad_sig = other_key.sign(data);
+        let bad_sig_b64 = STANDARD.encode(bad_sig.to_bytes());
+
+        let check =
+            verify_binary_integrity(data, "/path/to/binary", &hash, &bad_sig_b64, &verifying_key);
+        assert!(!check.passed);
+        assert!(!check.signature_valid);
+    }
+
+    #[test]
+    fn integrity_check_fails_with_tampered_data() {
+        let (signing_key, verifying_key) = generate_ed25519_keypair();
+        let original = b"original binary";
+        let hash = sha256_hex(original);
+        let sig = signing_key.sign(original);
+        let sig_b64 = STANDARD.encode(sig.to_bytes());
+
+        let tampered = b"tampered binary";
+        let check =
+            verify_binary_integrity(tampered, "/path/to/binary", &hash, &sig_b64, &verifying_key);
+        assert!(!check.passed);
     }
 }
