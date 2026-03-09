@@ -534,8 +534,9 @@ fn set_network_alert_rules(payload_json: String) -> Result<usize, String> {
         return Err("network alert rules payload too large".to_string());
     }
 
-    let rules: Vec<macmon_core::network_alerts::NetworkAlertRule> = serde_json::from_str(&payload_json)
-        .map_err(|e| format!("invalid network alert rules JSON: {e}"))?;
+    let rules: Vec<macmon_core::network_alerts::NetworkAlertRule> =
+        serde_json::from_str(&payload_json)
+            .map_err(|e| format!("invalid network alert rules JSON: {e}"))?;
     let count = rules.len();
     macmon_core::network_alerts::set_active_rules(rules);
     Ok(count)
