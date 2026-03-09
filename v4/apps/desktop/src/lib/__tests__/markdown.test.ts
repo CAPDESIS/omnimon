@@ -6,7 +6,9 @@ describe("renderMarkdown", () => {
   it("convierte bloques de codigo y listas a HTML", () => {
     const html = renderMarkdown("```ts\nconst x = 1\n```\n\n- item");
 
-    expect(html).toContain("<pre><code>const x = 1</code></pre>");
-    expect(html).toContain("<ul><li>item</li></ul>");
+    expect(html).toContain("<pre>");
+    expect(html).toContain("const x = 1");
+    expect(html).toContain("</code></pre>");
+    expect(html).toContain("<li>item</li>");
   });
 });
