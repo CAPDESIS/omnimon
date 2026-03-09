@@ -3,6 +3,7 @@
   import { securityMap, severityColor } from "../stores/security";
   import { processes } from "../stores/processes";
   import { dynamicAlerts } from "../stores/alerts";
+  import { renderMarkdown } from "../lib/markdown";
   import type { ProcessSecurityInfo, ProcessThreatLabel, CveMatch, DynamicAlert } from "../lib/types";
 
   let insights = $derived.by((): InsightItem[] => {
@@ -202,7 +203,7 @@
                 <span class="detail-icon">&#128269;</span>
                 <div class="detail-content">
                   <span class="detail-label">What was detected</span>
-                  <p class="detail-text">{insight.explanation}</p>
+                  <div class="detail-text prose">{@html renderMarkdown(insight.explanation)}</div>
                 </div>
               </div>
 
@@ -210,7 +211,7 @@
                 <span class="detail-icon">&#128736;</span>
                 <div class="detail-content">
                   <span class="detail-label">Recommended action</span>
-                  <p class="detail-text action-text">{insight.action}</p>
+                  <div class="detail-text action-text prose">{@html renderMarkdown(insight.action)}</div>
                 </div>
               </div>
 
@@ -371,6 +372,14 @@
     color: var(--fg);
     line-height: 1.5;
   }
+
+  .detail-text :global(p) { margin: 0 0 4px; }
+  .detail-text :global(p:last-child) { margin-bottom: 0; }
+  .detail-text :global(strong) { color: var(--fg); font-weight: 700; }
+  .detail-text :global(em) { font-style: italic; color: var(--fg-dim); }
+  .detail-text :global(ul) { margin: 4px 0; padding-left: 18px; list-style: disc; }
+  .detail-text :global(li) { margin: 2px 0; }
+  .detail-text :global(pre), .detail-text :global(code) { background: var(--bg-hover); padding: 2px 4px; border-radius: 4px; font-family: monospace; }
 
   .action-text {
     color: var(--green);

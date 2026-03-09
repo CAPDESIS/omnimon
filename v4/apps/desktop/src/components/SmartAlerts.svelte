@@ -3,6 +3,7 @@
   import { smartAlerts, dismissSmartAlert } from "../stores/alerts";
   import { killSingle } from "../stores/processes";
   import { t } from "../lib/i18n";
+  import { renderMarkdown } from "../lib/markdown";
 
   function handleIgnore(id: string) {
     dismissSmartAlert(id);
@@ -27,8 +28,8 @@
         </div>
         
         <div class="alert-body">
-          <p class="problem">{alert.problem}</p>
-          <p class="explanation">{alert.explanation}</p>
+          <div class="problem">{@html renderMarkdown(alert.problem)}</div>
+          <div class="explanation">{@html renderMarkdown(alert.explanation)}</div>
         </div>
 
         <div class="alert-actions">
@@ -126,6 +127,15 @@
     color: var(--fg-dim);
     margin: 0;
   }
+
+  .explanation :global(p) { margin: 0 0 4px; }
+  .explanation :global(p:last-child) { margin-bottom: 0; }
+  .explanation :global(strong) { color: var(--fg); font-weight: 700; }
+  .explanation :global(em) { font-style: italic; color: var(--fg-dim); }
+  .explanation :global(ul) { margin: 4px 0; padding-left: 18px; list-style: disc; }
+  .explanation :global(li) { margin: 2px 0; }
+  .explanation :global(pre), .explanation :global(code) { background: var(--bg-hover); padding: 2px 4px; border-radius: 4px; font-family: monospace; }
+  .problem :global(strong) { color: var(--fg); font-weight: 700; }
 
   .alert-actions {
     display: flex;
