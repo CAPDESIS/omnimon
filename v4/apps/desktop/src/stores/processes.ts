@@ -306,7 +306,7 @@ export const aiProfile = writable("general");
 export const focusedPid = writable<number | null>(null);
 
 /** Whether the process table is displayed in grouped-by-category mode. */
-export const grouping = writable(false);
+export const grouping = writable(true);
 
 /** Triggers AI-powered process analysis using the selected profile and provider. Updates aiSuggestions/aiError stores. */
 export async function analyzeWithAi(provider?: string, model?: string): Promise<void> {

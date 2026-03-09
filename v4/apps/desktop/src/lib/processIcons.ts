@@ -83,6 +83,34 @@ export function iconForProcess(name: string, group?: string): string {
   return getProcessIconPath(getProcessCategory(name, group));
 }
 
+const PROCESS_ICONS: Record<string, string> = {
+  "Google Chrome": "🌐",
+  "chrome": "🌐",
+  "Firefox": "🦊",
+  "Safari": "🧭",
+  "Visual Studio Code": "💻",
+  "code": "💻",
+  "Terminal": "⬛",
+  "Finder": "📁",
+  "Spotify": "🎵",
+  "Slack": "💬",
+  "Discord": "🎮",
+  "docker": "🐳",
+  "node": "💚",
+  "python": "🐍",
+  "rust": "🦀",
+  "opencode": "🤖",
+  "claude": "🟣",
+};
+
+export function getProcessIcon(name: string): string {
+  const baseName = name.toLowerCase();
+  for (const [key, icon] of Object.entries(PROCESS_ICONS)) {
+    if (baseName.includes(key.toLowerCase())) return icon;
+  }
+  return "⚙️";
+}
+
 export function isNativeIconDataUrl(value?: string | null): value is string {
   return typeof value === "string" && value.startsWith("data:image/");
 }

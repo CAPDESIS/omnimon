@@ -6,3 +6,6 @@ export const inspectProcessRequest = writable<ProcessEntry | null>(null);
 
 /** Request to show the Chrome tab manager */
 export const showTabManagerRequest = writable<boolean>(false);
+
+/** Request to send a prompt to the AI chat */
+export const askAiRequest = writable<string | null>(null);
