@@ -930,4 +930,31 @@ mod tests {
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("disallowed scheme"));
     }
+
+    #[test]
+    fn cdp_activate_tab_handles_success_failure_and_validation() {
+        let mut server = Server::new();
+        let _activate_ok = server
+            .mock("GET", "/json/activate/tab-ok")
+            .with_status(200)
+            .create();
+        let _activate_missing = server
+            .mock("GET", "/json/activate/tab-missing")
+            .with_status(404)
+            .create();
+
+        let ok = cdp_activate_tab(&server.url(), "tab-ok").expect("activate should not error");
+        let missing =
+            cdp_activate_tab(&server.url(), "tab-missing").expect("activate should not error");
+        let refused =
+            cdp_activate_tab("http://127.0.0.1:9", "tab-any").expect("connection failures map false");
+
+        assert!(ok);
+        assert!(!missing);
+        assert!(!refused);
+
+        assert!(!cdp_activate_tab("http://127.0.0.1:9", "   ").unwrap());
+        assert_eq!(cdp_activate_tab("http://127.0.0.1:9", "tab?id").unwrap_err(), "Invalid tab ID");
+        assert_eq!(cdp_activate_tab("http://127.0.0.1:9", "tab#id").unwrap_err(), "Invalid tab ID");
+    }
 }
