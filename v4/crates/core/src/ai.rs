@@ -1436,7 +1436,7 @@ fn validate_tool_call(call: RawToolCall) -> Result<RawToolCall, String> {
         }
         "run_security_scan" | "get_system_summary" => {
             if !call.args.is_object() {
-                return Err(format!("{} requires object args", call.tool).into());
+                return Err(format!("{} requires object args", call.tool));
             }
         }
         "explain_process" => {
