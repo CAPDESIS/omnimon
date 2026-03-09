@@ -167,7 +167,14 @@
       <Button class="toolbar-action-button" variant="secondary" onclick={onopenhelp} title={t("toolbar.helpCenter")}><span class="btn-icon-glyph">?</span><span>{t("toolbar.helpCenter")}</span></Button>
       <div class="font-controls">
         <Button variant="ghost" size="icon" onclick={ondecreasefont} title={t("toolbar.decreaseFont")} aria-label={t("toolbar.decreaseFontLabel")}>A-</Button>
-        <span class="font-size-display">{fontSize}</span>
+        <input
+          type="number"
+          bind:value={fontSize}
+          min="8"
+          max="32"
+          class="font-size-input"
+          aria-label={t("toolbar.fontSize")}
+        />
         <Button variant="ghost" size="icon" onclick={onincreasefont} title={t("toolbar.increaseFont")} aria-label={t("toolbar.increaseFontLabel")}>A+</Button>
       </div>
     </div>
@@ -320,5 +327,20 @@
       max-width: 100%;
       width: 100%;
     }
+  }
+  .font-size-input {
+    width: 48px;
+    height: 28px;
+    text-align: center;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--bg-surface, var(--bg-alt)) 92%, white 3%);
+    color: var(--fg);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .font-size-input::-webkit-inner-spin-button,
+  .font-size-input::-webkit-outer-spin-button {
+    opacity: 1;
   }
 </style>
