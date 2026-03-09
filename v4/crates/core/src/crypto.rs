@@ -1,17 +1,51 @@
 //! Cryptographic utilities. Provides AES-256-GCM encryption, Ed25519 digital signatures,
-//! SHA-256 hashing, and secure payload handling for release integrity verification.
+//! SHA-256 hashing, HKDF key derivation, and secure payload handling for release integrity
+//! verification. All key material is zeroized on drop to prevent memory-resident secrets.
 
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use hkdf::Hkdf;
 use rand::RngCore;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 const NONCE_LEN: usize = 12;
+
+// ---------------------------------------------------------------------------
+// HKDF Key Derivation (NIST SP 800-56C)
+// ---------------------------------------------------------------------------
+
+/// Domain separation contexts for HKDF key derivation.
+pub mod kdf_context {
+    pub const DATA_ENCRYPTION: &[u8] = b"omnimon-data-encryption";
+    pub const API_KEY_STORAGE: &[u8] = b"omnimon-api-key-storage";
+    pub const CONFIG_ENCRYPTION: &[u8] = b"omnimon-config-encryption";
+}
+
+/// A 256-bit key that is automatically zeroized when dropped.
+#[derive(Zeroize, ZeroizeOnDrop)]
+pub struct DerivedKey([u8; 32]);
+
+impl DerivedKey {
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+/// Derives a 256-bit key from `master_key` using HKDF-SHA256 with the given `context`.
+/// Different contexts produce cryptographically independent keys from the same master.
+pub fn derive_key(master_key: &[u8], context: &[u8]) -> DerivedKey {
+    let hk = Hkdf::<Sha256>::new(None, master_key);
+    let mut okm = [0u8; 32];
+    hk.expand(context, &mut okm)
+        .expect("32 bytes is a valid length for HKDF-SHA256");
+    DerivedKey(okm)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptedPayload {
@@ -35,6 +69,22 @@ pub fn encrypt_bytes(key: &[u8; 32], plaintext: &[u8]) -> Result<EncryptedPayloa
         nonce_b64: STANDARD.encode(nonce),
         ciphertext_b64: STANDARD.encode(ciphertext),
     })
+}
+
+/// Encrypts bytes using a [`DerivedKey`] (HKDF-derived, zeroized on drop).
+pub fn encrypt_bytes_derived(
+    key: &DerivedKey,
+    plaintext: &[u8],
+) -> Result<EncryptedPayload, String> {
+    encrypt_bytes(key.as_bytes(), plaintext)
+}
+
+/// Decrypts bytes using a [`DerivedKey`].
+pub fn decrypt_bytes_derived(
+    key: &DerivedKey,
+    encrypted: &EncryptedPayload,
+) -> Result<Vec<u8>, String> {
+    decrypt_bytes(key.as_bytes(), encrypted)
 }
 
 pub fn decrypt_bytes(key: &[u8; 32], encrypted: &EncryptedPayload) -> Result<Vec<u8>, String> {
@@ -286,5 +336,61 @@ mod tests {
         };
 
         assert!(verify_update(payload, &manifest, &verifying_key).is_ok());
+    }
+
+    // --- HKDF Key Derivation Tests ---
+
+    #[test]
+    fn derive_key_is_deterministic() {
+        let master = [42u8; 32];
+        let k1 = derive_key(&master, kdf_context::DATA_ENCRYPTION);
+        let k2 = derive_key(&master, kdf_context::DATA_ENCRYPTION);
+        assert_eq!(k1.as_bytes(), k2.as_bytes());
+    }
+
+    #[test]
+    fn derive_key_different_contexts_produce_different_keys() {
+        let master = [42u8; 32];
+        let k_data = derive_key(&master, kdf_context::DATA_ENCRYPTION);
+        let k_api = derive_key(&master, kdf_context::API_KEY_STORAGE);
+        let k_cfg = derive_key(&master, kdf_context::CONFIG_ENCRYPTION);
+        assert_ne!(k_data.as_bytes(), k_api.as_bytes());
+        assert_ne!(k_data.as_bytes(), k_cfg.as_bytes());
+        assert_ne!(k_api.as_bytes(), k_cfg.as_bytes());
+    }
+
+    #[test]
+    fn derive_key_output_is_32_bytes() {
+        let master = [1u8; 16];
+        let derived = derive_key(&master, b"test-context");
+        assert_eq!(derived.as_bytes().len(), 32);
+    }
+
+    #[test]
+    fn derived_key_encrypt_decrypt_round_trip() {
+        let master = [99u8; 32];
+        let key = derive_key(&master, kdf_context::DATA_ENCRYPTION);
+        let plaintext = b"sensitive data for derived key test";
+        let encrypted = encrypt_bytes_derived(&key, plaintext).expect("encrypt");
+        let decrypted = decrypt_bytes_derived(&key, &encrypted).expect("decrypt");
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn derived_key_wrong_context_fails_decryption() {
+        let master = [99u8; 32];
+        let key_enc = derive_key(&master, kdf_context::DATA_ENCRYPTION);
+        let key_dec = derive_key(&master, kdf_context::CONFIG_ENCRYPTION);
+        let encrypted = encrypt_bytes_derived(&key_enc, b"secret").expect("encrypt");
+        assert!(decrypt_bytes_derived(&key_dec, &encrypted).is_err());
+    }
+
+    #[test]
+    fn derived_key_compiles_with_zeroize() {
+        let master = [0u8; 32];
+        let mut key = derive_key(&master, b"zeroize-test");
+        // Verify manual zeroize works
+        key.zeroize();
+        assert_eq!(key.as_bytes(), &[0u8; 32]);
     }
 }
