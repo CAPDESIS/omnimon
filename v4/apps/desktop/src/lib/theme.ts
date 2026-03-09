@@ -6,11 +6,16 @@
 export type ThemeId = "auto" | "light" | "dark" | "cyberpunk" | "custom";
 
 export interface ThemeTokens {
+  "--bg-primary": string;
+  "--bg-secondary": string;
+  "--bg-card": string;
   "--bg": string;
   "--bg-alt": string;
   "--bg-hover": string;
   "--bg-selected": string;
   "--bg-surface": string;
+  "--text-primary": string;
+  "--text-secondary": string;
   "--fg": string;
   "--fg-dim": string;
   "--border": string;
@@ -20,6 +25,9 @@ export interface ThemeTokens {
   "--accent-dim": string;
   "--danger": string;
   "--danger-hover": string;
+  "--success": string;
+  "--warning": string;
+  "--fg-muted": string;
   "--green": string;
   "--yellow": string;
   "--chart-cpu": string;
@@ -41,11 +49,16 @@ export interface ThemeTokens {
 }
 
 const dark: ThemeTokens = {
+  "--bg-primary": "#0a0a0b",
+  "--bg-secondary": "#121214",
+  "--bg-card": "#161618",
   "--bg": "#0a0a0b",
   "--bg-alt": "#111113",
   "--bg-hover": "#1a1a1e",
   "--bg-selected": "#0d2847",
   "--bg-surface": "#161618",
+  "--text-primary": "#ededef",
+  "--text-secondary": "#a1a1aa",
   "--fg": "#ededef",
   "--fg-dim": "#a1a1aa",
   "--border": "#27272a",
@@ -55,6 +68,9 @@ const dark: ThemeTokens = {
   "--accent-dim": "rgba(59,130,246,0.15)",
   "--danger": "#ef4444",
   "--danger-hover": "#dc2626",
+  "--success": "#22c55e",
+  "--warning": "#eab308",
+  "--fg-muted": "#71717a",
   "--green": "#22c55e",
   "--yellow": "#eab308",
   "--chart-cpu": "#3b82f6",
@@ -76,11 +92,16 @@ const dark: ThemeTokens = {
 };
 
 const light: ThemeTokens = {
+  "--bg-primary": "#fafafa",
+  "--bg-secondary": "#f4f4f5",
+  "--bg-card": "#ffffff",
   "--bg": "#fafafa",
   "--bg-alt": "#f4f4f5",
   "--bg-hover": "#e4e4e7",
   "--bg-selected": "#dbeafe",
   "--bg-surface": "#ffffff",
+  "--text-primary": "#09090b",
+  "--text-secondary": "#71717a",
   "--fg": "#09090b",
   "--fg-dim": "#71717a",
   "--border": "#e4e4e7",
@@ -90,6 +111,9 @@ const light: ThemeTokens = {
   "--accent-dim": "rgba(37,99,235,0.1)",
   "--danger": "#dc2626",
   "--danger-hover": "#b91c1c",
+  "--success": "#16a34a",
+  "--warning": "#ca8a04",
+  "--fg-muted": "#71717a",
   "--green": "#16a34a",
   "--yellow": "#ca8a04",
   "--chart-cpu": "#2563eb",
@@ -111,11 +135,16 @@ const light: ThemeTokens = {
 };
 
 const cyberpunk: ThemeTokens = {
+  "--bg-primary": "#0b0014",
+  "--bg-secondary": "#120020",
+  "--bg-card": "#0f001a",
   "--bg": "#0b0014",
   "--bg-alt": "#120020",
   "--bg-hover": "#1a0033",
   "--bg-selected": "#1a0040",
   "--bg-surface": "#0f001a",
+  "--text-primary": "#e0d4ff",
+  "--text-secondary": "#c4b5fd",
   "--fg": "#e0d4ff",
   "--fg-dim": "#c4b5fd",
   "--border": "#2d1b4e",
@@ -125,6 +154,9 @@ const cyberpunk: ThemeTokens = {
   "--accent-dim": "rgba(192,38,211,0.2)",
   "--danger": "#f43f5e",
   "--danger-hover": "#e11d48",
+  "--success": "#4ade80",
+  "--warning": "#facc15",
+  "--fg-muted": "#c4b5fd",
   "--green": "#4ade80",
   "--yellow": "#facc15",
   "--chart-cpu": "#c026d3",

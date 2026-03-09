@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core';
-  import { onMount } from 'svelte';
-  import Button from './Button.svelte';
+  import { invoke } from "@tauri-apps/api/core";
+  import { onMount } from "svelte";
 
-  let key = $state('');
-  let status = $state('');
+  import Button from "./Button.svelte";
+
+  let key = $state("");
+  let status = $state("");
   let loadingKey = $state(false);
   let savingKey = $state(false);
 
@@ -40,23 +41,23 @@
     status = '';
     try {
       await invoke<void>('save_cloud_key', { key });
-      status = 'Key saved successfully!';
-    } catch (e) {
-      status = `Error: ${e}`;
+       status = "Key saved successfully!";
+     } catch (e) {
+       status = `Error: ${e}`;
     } finally {
       savingKey = false;
     }
   }
 
   function syncNow() {
-    status = 'Sync not implemented yet.';
+     status = "Sync not implemented yet.";
   }
 </script>
 
 <div class="cloud-sync">
   <h3>CrabNebula Cloud Settings</h3>
   <div class="input-group">
-    <label for="cloud-key">API Key:</label>
+     <label for="cloud-key">API Key:</label>
     <input
       type="password"
       id="cloud-key"
@@ -67,9 +68,9 @@
   </div>
   <div class="actions">
     <Button variant="primary" onclick={saveKey} disabled={loadingKey || savingKey || !key.trim()}>
-      {savingKey ? 'Saving...' : 'Save Key'}
-    </Button>
-    <Button variant="secondary" onclick={syncNow} disabled={loadingKey || savingKey}>Sync Now</Button>
+       {savingKey ? "Saving..." : "Save Key"}
+     </Button>
+     <Button variant="secondary" onclick={syncNow} disabled={loadingKey || savingKey}>Sync Now</Button>
   </div>
   {#if status}
     <p class="status">{status}</p>
@@ -80,9 +81,9 @@
   .cloud-sync {
     padding: 1rem;
     border: 1px solid var(--border, #333);
-    border-radius: 4px;
+    border-radius: var(--radius-md, 8px);
     margin-top: 1rem;
-    background: var(--bg-alt, #1a1a1a);
+    background: var(--bg-surface, var(--bg-alt, #1a1a1a));
   }
   .cloud-sync h3 {
     margin-top: 0;
@@ -95,9 +96,9 @@
     gap: 0.5rem;
   }
   .input-group input {
-    padding: 0.5rem;
+    padding: 0.625rem 0.75rem;
     border: 1px solid var(--border, #333);
-    border-radius: 4px;
+    border-radius: var(--radius-md, 8px);
     background: var(--bg, #000);
     color: var(--fg, #fff);
   }

@@ -8,6 +8,9 @@
   import { t } from "../lib/i18n";
   import type { ProcessEntry } from "../lib/types";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
+  import Button from "./Button.svelte";
+  import IconButton from "./IconButton.svelte";
+  import ModalShell from "./ModalShell.svelte";
   import {
     activeSeriesForMetric,
     defaultSortKey,
@@ -139,14 +142,15 @@
   );
 </script>
 
-<div class="backdrop" onmousedown={closeWhenBackdropMatches} role="presentation" transition:fade={fadeConfig}>
-  <div class="modal" bind:this={modalEl} onmousedown={stopMouseEventPropagation} onkeydown={closeOnEscape} role="dialog" aria-modal="true" aria-labelledby="metric-modal-title" tabindex="-1" transition:scale={scaleConfig}>
+<div transition:fade={fadeConfig}>
+  <ModalShell titleId="metric-modal-title" backdropClass="backdrop" panelClass="modal" onclose={onclose}>
+  <div bind:this={modalEl} onkeydown={closeOnEscape} transition:scale={scaleConfig}>
     <div class="header">
       <div>
         <div class="eyebrow">{t("status.deepDive")}</div>
         <h2 id="metric-modal-title">{metricTitle(metric)}</h2>
       </div>
-      <button class="close-btn" onclick={onclose} aria-label={t("common.close")}>×</button>
+      <IconButton class="close-btn" onclick={onclose} ariaLabel={t("common.close")} title={t("common.close")}>×</IconButton>
     </div>
 
     <div class="body">
@@ -220,37 +224,18 @@
             </table>
           </div>
           {#if $filtered.length > processLimit}
-            <button class="show-more-btn" onclick={() => processLimit += 20}>
+            <Button class="show-more-btn" variant="secondary" size="sm" onclick={() => processLimit += 20}>
               Show more ({$filtered.length - processLimit} remaining)
-            </button>
+            </Button>
           {/if}
         </div>
       {/if}
     </div>
   </div>
+  </ModalShell>
 </div>
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 230;
-    background: rgba(0, 0, 0, 0.62);
-    backdrop-filter: blur(8px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .modal {
-    width: min(1120px, calc(100vw - 28px));
-    max-height: calc(100vh - 36px);
-    overflow: auto;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    background: var(--bg-surface, var(--bg-alt));
-  }
-
   .header {
     display: flex;
     align-items: flex-start;
@@ -269,13 +254,6 @@
   }
 
   .close-btn {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--fg-dim);
-    cursor: pointer;
     font-size: 18px;
   }
 
@@ -430,17 +408,6 @@
 
   .show-more-btn {
     align-self: center;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: transparent;
-    color: var(--accent);
-    padding: 6px 16px;
-    cursor: pointer;
-    font-size: calc(var(--base-font-size, 12px) * 0.833);
-  }
-
-  .show-more-btn:hover {
-    background: var(--bg-hover);
   }
 
   @media (max-width: 800px) {

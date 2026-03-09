@@ -8,6 +8,9 @@
   import type { ProcessSecurityInfo, NistFinding, NistSeverity } from "../lib/types";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
   import EmptyState from "./EmptyState.svelte";
+  import Button from "./Button.svelte";
+  import IconButton from "./IconButton.svelte";
+  import ModalShell from "./ModalShell.svelte";
 
 
   interface Props {
@@ -182,21 +185,21 @@
   }
 </script>
 
-<div class="report-backdrop" onclick={closeWhenBackdropMatches} role="presentation">
-  <div class="report-modal" bind:this={modalEl} onmousedown={stopMouseEventPropagation} onkeydown={handleDialogKeydown} role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="report-title">
+<ModalShell titleId="report-title" backdropClass="report-backdrop" panelClass="report-modal" onclose={onclose} width="560px" maxHeight="85vh">
+  <div bind:this={modalEl} onkeydown={handleDialogKeydown} role="document">
     <div class="report-header">
       <div class="report-title-row">
         <h2 id="report-title" class="report-title">{t("securityReport.title")}</h2>
         <span class="report-subtitle">{t("securityReport.subtitle")}</span>
       </div>
-      <button class="report-close" onclick={onclose} aria-label={t("common.close")}>×</button>
+      <IconButton class="report-close" onclick={onclose} ariaLabel={t("common.close")} title={t("common.close")}>×</IconButton>
     </div>
 
     <div class="report-body">
       <div class="quick-scan-bar">
-        <button class="quick-scan-btn" onclick={runQuickScan} disabled={quickScanning}>
+        <Button class="quick-scan-btn" variant="primary" size="sm" onclick={runQuickScan} disabled={quickScanning}>
           {quickScanning ? t("securityReport.scanning") : t("securityReport.quickScan")}
-        </button>
+        </Button>
         {#if quickScanAt}
           <span class="quick-scan-meta">{t("securityReport.lastQuickScan", { time: quickScanAt })}</span>
         {/if}
@@ -315,32 +318,9 @@
       </div>
     </div>
   </div>
-</div>
+</ModalShell>
 
 <style>
-  .report-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 300;
-  }
-
-  .report-modal {
-    background: var(--bg-surface, var(--bg-alt));
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg, 12px);
-    width: 560px;
-    max-height: 85vh;
-    overflow-y: auto;
-    box-shadow: var(--shadow-lg, 0 8px 32px rgba(0,0,0,0.6));
-    animation: report-enter 180ms ease-out;
-  }
-
   .report-header {
     display: flex;
     align-items: flex-start;
@@ -371,19 +351,8 @@
   }
 
   .report-close {
-    width: 28px;
-    height: 28px;
-    border: none;
-    border-radius: var(--radius-sm, 4px);
-    background: transparent;
-    color: var(--fg-dim);
     font-size: 18px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
-  .report-close:hover { background: var(--bg-hover); color: var(--fg); }
 
   .report-body {
     padding: 16px 20px;

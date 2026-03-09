@@ -1,1 +1,68 @@
 @import "tailwindcss";
+
+:root {
+	color-scheme: dark;
+	--bg-base: #07111f;
+	--bg-elevated: rgba(12, 22, 38, 0.78);
+	--surface-border: rgba(120, 152, 190, 0.18);
+	--surface-strong: rgba(148, 163, 184, 0.22);
+	--text-main: #e6eef8;
+	--text-soft: #9fb0c7;
+	--accent: #f97316;
+	--accent-soft: #22c55e;
+	--accent-alt: #38bdf8;
+	--shadow-glow: 0 24px 80px rgba(6, 24, 44, 0.45);
+	font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+}
+
+html {
+	background:
+		radial-gradient(circle at top, rgba(56, 189, 248, 0.16), transparent 32%),
+		radial-gradient(circle at 20% 20%, rgba(249, 115, 22, 0.18), transparent 24%),
+		linear-gradient(180deg, #08101b 0%, #07111f 48%, #040914 100%);
+	scroll-behavior: smooth;
+}
+
+body {
+	background: transparent;
+	color: var(--text-main);
+	min-height: 100vh;
+}
+
+a,
+button,
+summary {
+	-webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+	background: rgba(56, 189, 248, 0.28);
+}
+
+details > summary {
+	list-style: none;
+}
+
+details > summary::-webkit-details-marker {
+	display: none;
+}
+
+.glass-panel {
+	background: var(--bg-elevated);
+	backdrop-filter: blur(18px);
+	border: 1px solid var(--surface-border);
+	box-shadow: var(--shadow-glow);
+}
+
+.grid-noise {
+	background-image:
+		linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+	background-size: 36px 36px;
+	background-position: center;
+}
+
+.section-title {
+	letter-spacing: -0.03em;
+	text-wrap: balance;
+}

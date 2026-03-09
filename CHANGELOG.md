@@ -1,5 +1,71 @@
 # Changelog
 
+## 6.2.0 (2026-03-09)
+
+### Red Avanzada
+- Motor de captura de conexiones activas cross-platform (lsof macOS, /proc/net Linux, GetExtendedTcpTable Windows)
+- Modelo de datos `NetworkConnection` con protocolo, estado, throughput, hostname y GeoIP
+- `NetworkSnapshot` con historial circular de 60 snapshots (5 min)
+- DNS reverse lookup asíncrono con cache (TTL 5 min, max 10 lookups concurrentes)
+- Sistema de filtrado: protocolo, puerto, proceso, PID, host, throughput, localhost, established
+- Integración con watcher daemon: captura cada 6s, eventos push Tauri `network-update`
+- 3 comandos IPC: `get_network_connections`, `get_network_history`, `get_filtered_connections`
+
+### Alertas de Red
+- Modelo `NetworkAlertRule` con 6 tipos de condición: alto bandwidth, conexión externa, puerto sospechoso, spike de proceso, exceso de conexiones, destino sospechoso
+- Motor de evaluación con debounce (3 snapshots consecutivos) y cooldown configurable
+- 4 reglas de fábrica: alto bandwidth (>50 MB/s), puertos sospechosos, spike ×5, >200 conexiones
+- UI de configuración con toggle on/off, modal de creación, persistencia en preferencias
+- Notificaciones integradas con botones "Investigar" y "Preguntarle a IA"
+- Evento push Tauri `network-alert`
+
+### Dashboard de Red (Frontend)
+- `NetworkDashboard.svelte`: métricas en tiempo real (upload/download, conexiones activas, sparklines)
+- `ConnectionsTable.svelte`: tabla ordenable con filtros por protocolo, proceso, dominio, velocidad mínima
+- `ProcessNetworkView.svelte`: agrupación por proceso con distribución de bandwidth
+- `NetworkMap.svelte` refactorizado: grafo SVG interactivo con nodos remotos posicionados en círculo
+- `ConnectionDetail.svelte`: panel de detalle con IP, hostname, país, throughput, botones IA
+- Animaciones de tráfico: partículas SVG en líneas de conexión, pulso en nodos activos
+- Store reactivo `network.svelte.ts` con Svelte 5 ($state, $derived)
+
+### IA de Red
+- Preset "Analizar tráfico de red": top 10 conexiones, puertos abiertos, procesos con más tráfico
+- Preset "Anomalías de red": detección de IPs desconocidas, puertos inusuales, tráfico excesivo
+- Contexto de red inyectado en `build_chat_system_prompt` (ai.rs)
+- Botón "¿Qué es esto?" en ConnectionDetail → consulta IA contextual
+- Tool calling `close_connection` con confirmación en frontend
+- Traducciones EN/ES para herramientas de red
+
+### Cross-platform Hardening
+- Windows: `GetExtendedTcpTable`/`GetExtendedUdpTable` con fallback a netstat
+- Linux: parsing refactorizado de /proc/net/tcp|udp con inode→PID map, fallback a `ss`
+- Linux: fix IPv6 hex little-endian por grupos de 4 bytes
+- macOS: detección automática de ruta lsof, timeout 10s en comandos, timeout 3s en DNS
+- macOS: skip de IPs privadas en DNS reverse lookup
+
+### CLI
+- `omnimon network --connections`: tabla de conexiones activas
+- `omnimon network --filter tcp --port 443`: filtrado por protocolo y puerto
+- `omnimon network --alerts`: listar alertas activas
+- `omnimon network --top`: top 10 procesos por tráfico
+- `omnimon network --watch`: modo live con refresh configurable
+
+### Calidad
+- 941 tests (351 Rust + 590 Frontend)
+- +20 tests de parsing mock (lsof, /proc/net, netstat, ss)
+- Tests de NetworkFilter, DNS cache, evaluación de alertas
+- Tests frontend: NetworkDashboard, ConnectionsTable, ProcessNetworkView, NetworkAlertConfig, network store
+- Tests CLI: network subcommands
+
+### Documentación
+- `docs/NETWORK_ANALYSIS.md`: guía completa de análisis de red
+- `COMMANDS_REFERENCE.md` actualizado con comandos de red
+
+### CI
+- Fix Windows: `network-capture` feature solo en non-Windows (cli, tui)
+- Coverage Gates: depende de lint (no de test), evita bloqueo por plataforma
+- Rename script: manejo de assets duplicados al re-publicar tag
+
 ## 6.1.0 (2026-03-08)
 
 ### Seguridad

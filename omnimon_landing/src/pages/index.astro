@@ -1,142 +1,279 @@
 ---
 import Layout from '../layouts/Layout.astro';
+
+const releaseVersion = '6.1.0';
+const releaseDate = '8 Mar 2026';
+const releaseUrl = 'https://github.com/chochy2001/omnimon/releases/latest';
+const docsUrl = 'https://github.com/chochy2001/omnimon#readme';
+const sponsorUrl = 'https://github.com/sponsors/chochy2001';
+const installScriptUrl = 'https://raw.githubusercontent.com/chochy2001/omnimon/main/scripts/install-web.sh';
+
+const releaseHighlights = [
+	{
+		title: 'Distribucion verificable',
+		description: 'La 6.1.0 firma binarios con Ed25519 y publica checksums SHA-256 para reforzar la integridad de cada release.'
+	},
+	{
+		title: 'Observabilidad mas util',
+		description: 'Agrupacion de procesos, iconos nativos, dashboards clickeables y contexto de CPU corregido para diagnosticos reales.'
+	},
+	{
+		title: 'IA mas accionable',
+		description: 'Streaming de tokens, presets listos para usar y herramientas para inspeccionar procesos, red y resumen del sistema.'
+	},
+	{
+		title: 'Menos ruido, mas foco',
+		description: 'Alertas agrupadas por proceso, debounce de picos y mejoras visuales con temas, skeletons y estados vacios.'
+	}
+];
+
+const productPillars = [
+	{
+		title: 'Desktop nativo',
+		description: 'UI en Tauri + Svelte 5 con telemetria en tiempo real, paneles de seguridad y temas integrados.',
+		accent: 'text-sky-300'
+	},
+	{
+		title: 'CLI y TUI',
+		description: 'Mismas capacidades clave desde terminal para servidores, automatizacion y diagnosticos rapidos.',
+		accent: 'text-emerald-300'
+	},
+	{
+		title: 'Seguridad operativa',
+		description: 'Auditoria local, reglas, telemetria de red y controles para reducir errores y detectar anomalias antes.',
+		accent: 'text-orange-300'
+	}
+];
+
+const faqs = [
+	{
+		question: 'Que incluye la version 6.1.0?',
+		answer: 'Incluye firmas Ed25519 para releases, mejoras de seguridad en keyring y rate limiting, IA con streaming y tools, mejor agrupacion de alertas y una experiencia visual mas consistente.'
+	},
+	{
+		question: 'En que plataformas funciona OmniMon?',
+		answer: 'OmniMon esta pensado para macOS, Windows y Linux, con app de escritorio, CLI y TUI compartiendo la misma base de capacidades.'
+	},
+	{
+		question: 'La IA es obligatoria?',
+		answer: 'No. Puedes usar OmniMon como monitor y panel de seguridad sin IA, o activar proveedores locales y cloud cuando necesites analisis asistido.'
+	},
+	{
+		question: 'Como se instala?',
+		answer: 'Puedes descargar el ultimo release desde GitHub, usar Homebrew en macOS o ejecutar el instalador web para Linux.'
+	}
+];
 ---
 
-<Layout title="OmniMon | Monitoreo y Seguridad Avanzada">
-	<main class="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex flex-col gap-24">
-		
-		<!-- Hero Section -->
-		<section class="text-center space-y-8 animate-fade-in-up mt-12">
-			<h1 class="text-5xl md:text-7xl font-extrabold tracking-tight text-white drop-shadow-sm">
-				<span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">OmniMon</span>
-			</h1>
-			<p class="text-xl md:text-2xl text-slate-400 max-w-3xl mx-auto">
-				El sistema definitivo de monitoreo de sistema, seguridad, red e IA cross-platform.
-			</p>
-			<div class="flex items-center justify-center gap-4 pt-4">
-				<a href="#download" class="px-8 py-3 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition shadow-lg shadow-indigo-500/25">
-					Descargar Gratis
-				</a>
-				<a href="https://github.com/sponsors/chochy2001/dashboard" target="_blank" class="px-8 py-3 rounded-full bg-slate-800 hover:bg-slate-700 text-white font-medium transition ring-1 ring-slate-700">
-					❤️ Patrocinar
-				</a>
-			</div>
-		</section>
-
-		<!-- Features Section -->
-		<section class="grid md:grid-cols-3 gap-8">
-			<div class="p-6 rounded-2xl bg-slate-900/50 border border-slate-800 hover:border-indigo-500/50 transition duration-300">
-				<div class="text-indigo-400 mb-4 text-3xl">🔍</div>
-				<h3 class="text-xl font-bold text-white mb-2">Monitoreo Profundo</h3>
-				<p class="text-slate-400 text-sm leading-relaxed">Observabilidad completa de CPU, Memoria, I/O y procesos con métricas en tiempo real.</p>
-			</div>
-			<div class="p-6 rounded-2xl bg-slate-900/50 border border-slate-800 hover:border-cyan-500/50 transition duration-300">
-				<div class="text-cyan-400 mb-4 text-3xl">🛡️</div>
-				<h3 class="text-xl font-bold text-white mb-2">Seguridad Activa</h3>
-				<p class="text-slate-400 text-sm leading-relaxed">Auditoría en tiempo real, detección de amenazas y monitoreo de red integrado.</p>
-			</div>
-			<div class="p-6 rounded-2xl bg-slate-900/50 border border-slate-800 hover:border-purple-500/50 transition duration-300">
-				<div class="text-purple-400 mb-4 text-3xl">🤖</div>
-				<h3 class="text-xl font-bold text-white mb-2">Impulsado por IA</h3>
-				<p class="text-slate-400 text-sm leading-relaxed">Análisis de patrones, resúmenes arquitectónicos y predicción de anomalías impulsada por IA local y en la nube.</p>
-			</div>
-		</section>
-
-		<!-- Interactive Tutorial (Comandos) -->
-		<section class="bg-slate-900/30 rounded-3xl p-8 border border-slate-800/80">
-			<h2 class="text-3xl font-bold text-white mb-8 text-center">CLI Potente e Intuitiva</h2>
-			<div class="grid lg:grid-cols-2 gap-12 items-center">
-				<div class="space-y-6">
-					<div class="group cursor-pointer">
-						<h4 class="text-lg font-semibold text-indigo-400 mb-1 group-hover:text-indigo-300 transition">omnimon monitor</h4>
-						<p class="text-slate-400 text-sm">Abre el dashboard interactivo de TUI para monitorear procesos en tiempo real.</p>
+<Layout
+	title={`OmniMon ${releaseVersion} | Observabilidad, seguridad e IA para tu sistema`}
+	description="Landing oficial de OmniMon 6.1.0 con novedades del release, descargas, documentacion y accesos rapidos para macOS, Windows y Linux."
+>
+	<main class="mx-auto flex w-full max-w-7xl flex-col gap-24 px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+		<section class="grid-noise glass-panel relative overflow-hidden rounded-[2rem] px-6 py-12 sm:px-10 lg:px-12">
+			<div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/50 to-transparent"></div>
+			<div class="grid gap-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+				<div class="space-y-8">
+					<div class="inline-flex items-center gap-3 rounded-full border border-sky-300/20 bg-slate-950/60 px-4 py-2 text-sm text-sky-100">
+						<span class="rounded-full bg-orange-500/20 px-2 py-1 text-orange-200">Nuevo</span>
+						<span>Version {releaseVersion}</span>
+						<span class="text-slate-500">|</span>
+						<span class="text-slate-300">Release {releaseDate}</span>
 					</div>
-					<div class="group cursor-pointer">
-						<h4 class="text-lg font-semibold text-cyan-400 mb-1 group-hover:text-cyan-300 transition">omnimon audit --security</h4>
-						<p class="text-slate-400 text-sm">Realiza un escaneo profundo de vulnerabilidades locales y puertos abiertos.</p>
+
+					<div class="space-y-5">
+						<h1 class="section-title max-w-4xl text-5xl font-black tracking-tight text-white sm:text-6xl lg:text-7xl">
+							Observabilidad real, seguridad activa y asistencia IA en una sola consola.
+						</h1>
+						<p class="max-w-2xl text-lg leading-8 text-slate-300 sm:text-xl">
+							OmniMon {releaseVersion} une desktop nativo, CLI y TUI para monitorear procesos, red, alertas y automatizaciones sin perder rendimiento ni contexto operativo.
+						</p>
 					</div>
-					<div class="group cursor-pointer">
-						<h4 class="text-lg font-semibold text-purple-400 mb-1 group-hover:text-purple-300 transition">omnimon ai analyze</h4>
-						<p class="text-slate-400 text-sm">Analiza logs del sistema usando el agente de IA para encontrar la raíz de problemas de rendimiento.</p>
+
+					<div class="flex flex-col gap-4 sm:flex-row">
+						<a href="#download" class="inline-flex items-center justify-center rounded-full bg-orange-500 px-7 py-3.5 font-semibold text-slate-950 transition hover:bg-orange-400">
+							Descargar {releaseVersion}
+						</a>
+						<a href={docsUrl} target="_blank" rel="noreferrer" class="inline-flex items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 px-7 py-3.5 font-semibold text-white transition hover:border-sky-300/40 hover:bg-slate-900">
+							Ver documentacion
+						</a>
+					</div>
+
+					<div class="grid gap-3 text-sm text-slate-300 sm:grid-cols-3">
+						<div class="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4">
+							<p class="text-xs uppercase tracking-[0.24em] text-slate-500">Plataformas</p>
+							<p class="mt-2 font-semibold text-white">macOS, Windows y Linux</p>
+						</div>
+						<div class="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4">
+							<p class="text-xs uppercase tracking-[0.24em] text-slate-500">Seguridad</p>
+							<p class="mt-2 font-semibold text-white">Firmas Ed25519 + SHA-256</p>
+						</div>
+						<div class="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4">
+							<p class="text-xs uppercase tracking-[0.24em] text-slate-500">IA opcional</p>
+							<p class="mt-2 font-semibold text-white">Local o cloud segun tu flujo</p>
+						</div>
 					</div>
 				</div>
-				<div class="bg-black/80 rounded-xl p-4 font-mono text-sm text-green-400 border border-slate-700 shadow-2xl">
-					<div class="flex gap-2 mb-4">
-						<div class="w-3 h-3 rounded-full bg-red-500"></div>
-						<div class="w-3 h-3 rounded-full bg-yellow-500"></div>
-						<div class="w-3 h-3 rounded-full bg-green-500"></div>
+
+				<div class="glass-panel rounded-[1.75rem] border-slate-700/70 p-5">
+					<div class="mb-4 flex items-center justify-between">
+						<div>
+							<p class="text-xs uppercase tracking-[0.28em] text-slate-500">Release snapshot</p>
+							<h2 class="mt-2 text-2xl font-bold text-white">OmniMon {releaseVersion}</h2>
+						</div>
+						<a href={releaseUrl} target="_blank" rel="noreferrer" class="rounded-full border border-sky-300/20 px-3 py-1 text-sm text-sky-200 transition hover:border-sky-300/40 hover:text-white">Ver release</a>
 					</div>
-					<p class="text-slate-300">$ omnimon audit --security</p>
-					<p class="mt-2 text-cyan-400">[INFO] Iniciando auditoría de seguridad...</p>
-					<p class="text-slate-400">Escaneando puertos... OK</p>
-					<p class="text-slate-400">Verificando permisos... OK</p>
-					<p class="text-green-500 mt-2">✓ Auditoría completada. El sistema está seguro.</p>
+					<div class="space-y-4 rounded-2xl bg-slate-950/80 p-4 font-mono text-sm text-slate-300">
+						<p><span class="text-emerald-300">$</span> omnimon status --format json</p>
+						<p class="text-sky-300">desktop: ready</p>
+						<p class="text-slate-400">security: signed releases, native keyring only</p>
+						<p class="text-slate-400">ai: token streaming, 7 presets, tools enabled</p>
+						<p class="text-slate-400">alerts: grouped + debounced</p>
+						<p class="text-orange-300">version: {releaseVersion}</p>
+					</div>
+					<div class="mt-5 grid gap-3 text-sm text-slate-300 sm:grid-cols-2">
+						<div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+							<p class="text-white">857 tests</p>
+							<p class="mt-1 text-slate-400">Cobertura y validaciones reforzadas en CI.</p>
+						</div>
+						<div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+							<p class="text-white">CLI + GUI</p>
+							<p class="mt-1 text-slate-400">Paridad funcional para diagnostico local y remoto.</p>
+						</div>
+					</div>
 				</div>
 			</div>
 		</section>
 
-		<!-- FAQ -->
-		<section class="max-w-3xl mx-auto w-full">
-			<h2 class="text-3xl font-bold text-white mb-8 text-center">Preguntas Frecuentes</h2>
+		<section class="space-y-8">
+			<div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+				<div>
+					<p class="text-sm uppercase tracking-[0.24em] text-orange-200">Release 6.1.0</p>
+					<h2 class="section-title mt-2 text-3xl font-bold text-white sm:text-4xl">Lo mas importante que cambia en esta version</h2>
+				</div>
+				<p class="max-w-2xl text-slate-400">La landing ahora refleja el release actual y corrige enlaces rotos, acciones sin destino y contenido desactualizado.</p>
+			</div>
+
+			<div class="grid gap-5 lg:grid-cols-2 xl:grid-cols-4">
+				{releaseHighlights.map((item) => (
+					<article class="glass-panel rounded-3xl p-6 transition hover:-translate-y-1 hover:border-slate-500/40">
+						<h3 class="text-xl font-semibold text-white">{item.title}</h3>
+						<p class="mt-3 text-sm leading-7 text-slate-300">{item.description}</p>
+					</article>
+				))}
+			</div>
+		</section>
+
+		<section class="grid gap-6 lg:grid-cols-3">
+			{productPillars.map((pillar) => (
+				<article class="rounded-3xl border border-slate-800 bg-slate-900/40 p-7 transition hover:border-slate-600">
+					<p class={`text-sm uppercase tracking-[0.24em] ${pillar.accent}`}>{pillar.title}</p>
+					<p class="mt-4 text-lg leading-8 text-slate-300">{pillar.description}</p>
+				</article>
+			))}
+		</section>
+
+		<section class="glass-panel overflow-hidden rounded-[2rem]">
+			<div class="grid gap-0 lg:grid-cols-[0.95fr_1.05fr]">
+				<div class="border-b border-slate-800/80 px-6 py-8 lg:border-b-0 lg:border-r lg:px-8 lg:py-10">
+					<p class="text-sm uppercase tracking-[0.24em] text-emerald-200">Flujo rapido</p>
+					<h2 class="section-title mt-3 text-3xl font-bold text-white">Desde la terminal al panel visual sin cambiar de herramienta</h2>
+					<div class="mt-8 space-y-6 text-sm leading-7 text-slate-300">
+						<div>
+							<h3 class="font-semibold text-white">omnimon monitor</h3>
+							<p class="mt-1">Abre la vista interactiva para observar procesos, ranking y actividad del sistema en vivo.</p>
+						</div>
+						<div>
+							<h3 class="font-semibold text-white">omnimon audit --security</h3>
+							<p class="mt-1">Ejecuta validaciones locales y revisa superficie de riesgo con una salida pensada para operadores.</p>
+						</div>
+						<div>
+							<h3 class="font-semibold text-white">omnimon optimize --ai anthropic --target browsers</h3>
+							<p class="mt-1">Solicita analisis guiado por IA para detectar desperdicio de recursos y proponer acciones concretas.</p>
+						</div>
+					</div>
+				</div>
+
+				<div class="bg-slate-950/70 px-6 py-8 lg:px-8 lg:py-10">
+					<div class="mb-4 flex gap-2">
+						<div class="h-3 w-3 rounded-full bg-rose-400"></div>
+						<div class="h-3 w-3 rounded-full bg-amber-300"></div>
+						<div class="h-3 w-3 rounded-full bg-emerald-400"></div>
+					</div>
+					<pre class="overflow-x-auto rounded-2xl border border-slate-800 bg-black/60 p-5 text-sm leading-7 text-slate-300"><code>$ omnimon audit --security
+[INFO] Starting security audit...
+[OK] Release signature verification enabled
+[OK] Native keyring storage enforced
+[OK] AI rules rate limiting active
+[OK] Alerts grouped by process
+[DONE] OmniMon {releaseVersion} is ready</code></pre>
+				</div>
+			</div>
+		</section>
+
+		<section id="download" class="glass-panel rounded-[2rem] px-6 py-10 sm:px-8 lg:px-10">
+			<div class="flex flex-col gap-4 text-center">
+				<p class="text-sm uppercase tracking-[0.24em] text-sky-200">Descarga e instalacion</p>
+				<h2 class="section-title text-3xl font-bold text-white sm:text-4xl">Instala OmniMon {releaseVersion} en minutos</h2>
+				<p class="mx-auto max-w-3xl text-slate-300">Se corrigieron los botones de descarga para que apunten a destinos reales y no a acciones vacias. Usa el ultimo release, Homebrew o el instalador web segun tu plataforma.</p>
+			</div>
+
+			<div class="mt-8 grid gap-4 lg:grid-cols-3">
+				<a href={releaseUrl} target="_blank" rel="noreferrer" class="rounded-3xl border border-slate-700 bg-slate-950/60 p-6 text-left transition hover:border-orange-400/50 hover:bg-slate-950">
+					<p class="text-sm uppercase tracking-[0.24em] text-orange-200">macOS</p>
+					<h3 class="mt-3 text-xl font-semibold text-white">Universal DMG</h3>
+					<p class="mt-2 text-sm leading-7 text-slate-300">Descarga el release mas reciente para Apple Silicon e Intel desde GitHub Releases.</p>
+				</a>
+				<a href={releaseUrl} target="_blank" rel="noreferrer" class="rounded-3xl border border-slate-700 bg-slate-950/60 p-6 text-left transition hover:border-sky-400/50 hover:bg-slate-950">
+					<p class="text-sm uppercase tracking-[0.24em] text-sky-200">Windows</p>
+					<h3 class="mt-3 text-xl font-semibold text-white">MSI oficial</h3>
+					<p class="mt-2 text-sm leading-7 text-slate-300">Instala OmniMon desde el paquete MSI publicado en el ultimo release oficial.</p>
+				</a>
+				<a href={installScriptUrl} target="_blank" rel="noreferrer" class="rounded-3xl border border-slate-700 bg-slate-950/60 p-6 text-left transition hover:border-emerald-400/50 hover:bg-slate-950">
+					<p class="text-sm uppercase tracking-[0.24em] text-emerald-200">Linux</p>
+					<h3 class="mt-3 text-xl font-semibold text-white">Script + paquetes</h3>
+					<p class="mt-2 text-sm leading-7 text-slate-300">Usa el instalador web o descarga `.deb` y `.AppImage` desde el release mas reciente.</p>
+				</a>
+			</div>
+
+			<div class="mt-8 grid gap-4 lg:grid-cols-2">
+				<div class="rounded-3xl border border-slate-800 bg-slate-950/70 p-6">
+					<p class="text-sm uppercase tracking-[0.24em] text-slate-500">Homebrew</p>
+					<pre class="mt-4 overflow-x-auto rounded-2xl bg-black/60 p-4 text-sm leading-7 text-slate-300"><code>brew tap chochy2001/omnimon
+brew install --cask omnimon</code></pre>
+				</div>
+				<div class="rounded-3xl border border-slate-800 bg-slate-950/70 p-6">
+					<p class="text-sm uppercase tracking-[0.24em] text-slate-500">Linux one-liner</p>
+					<pre class="mt-4 overflow-x-auto rounded-2xl bg-black/60 p-4 text-sm leading-7 text-slate-300"><code>{`curl -fsSL ${installScriptUrl} | bash`}</code></pre>
+				</div>
+			</div>
+		</section>
+
+		<section class="mx-auto w-full max-w-4xl space-y-6">
+			<div class="text-center">
+				<p class="text-sm uppercase tracking-[0.24em] text-orange-200">FAQ</p>
+				<h2 class="section-title mt-2 text-3xl font-bold text-white">Preguntas frecuentes</h2>
+			</div>
 			<div class="space-y-4">
-				<details class="bg-slate-900/50 rounded-xl border border-slate-800 p-4 cursor-pointer group">
-					<summary class="font-medium text-white group-hover:text-indigo-400 transition">¿En qué plataformas funciona OmniMon?</summary>
-					<p class="mt-4 text-slate-400 text-sm">OmniMon está compilado nativamente para macOS, Windows y Linux, ofreciendo el mismo nivel de rendimiento y características en todas las plataformas.</p>
-				</details>
-				<details class="bg-slate-900/50 rounded-xl border border-slate-800 p-4 cursor-pointer group">
-					<summary class="font-medium text-white group-hover:text-indigo-400 transition">¿Es open-source?</summary>
-					<p class="mt-4 text-slate-400 text-sm">Sí, OmniMon es open-source bajo licencia MIT. Puedes ver todo el código, contribuir y realizar auditorías de seguridad tú mismo.</p>
-				</details>
-				<details class="bg-slate-900/50 rounded-xl border border-slate-800 p-4 cursor-pointer group">
-					<summary class="font-medium text-white group-hover:text-indigo-400 transition">¿Cómo apoya el uso de IA?</summary>
-					<p class="mt-4 text-slate-400 text-sm">OmniMon se integra de manera opcional con modelos locales y en la nube para ayudarte a interpretar logs, sugerir remediaciones de seguridad y resumir el estado del sistema.</p>
-				</details>
+				{faqs.map((item) => (
+					<details class="rounded-3xl border border-slate-800 bg-slate-900/45 p-5 transition open:border-slate-600">
+						<summary class="cursor-pointer font-medium text-white transition hover:text-sky-200">{item.question}</summary>
+						<p class="mt-4 text-sm leading-7 text-slate-300">{item.answer}</p>
+					</details>
+				))}
 			</div>
 		</section>
-
-		<!-- Download Section -->
-		<section id="download" class="text-center bg-gradient-to-b from-indigo-900/20 to-transparent py-16 rounded-3xl border border-indigo-500/10">
-			<h2 class="text-3xl font-bold text-white mb-4">Listo para empezar?</h2>
-			<p class="text-slate-400 mb-8 max-w-xl mx-auto">Descarga los binarios nativos para tu sistema operativo o instala vía Homebrew/Cargo.</p>
-			<div class="flex flex-wrap justify-center gap-4">
-				<button class="px-6 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium border border-slate-700 transition flex items-center gap-2">
-					🍏 macOS (Arm64/Intel)
-				</button>
-				<button class="px-6 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium border border-slate-700 transition flex items-center gap-2">
-					🪟 Windows (.exe)
-				</button>
-				<button class="px-6 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium border border-slate-700 transition flex items-center gap-2">
-					🐧 Linux (.deb / tar.gz)
-				</button>
-			</div>
-		</section>
-
 	</main>
 
-	<footer class="border-t border-slate-800/60 mt-20 py-8 text-center text-slate-500 text-sm">
-		<div class="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
-			<p>&copy; {new Date().getFullYear()} OmniMon. Open Source bajo MIT.</p>
-			<div class="flex gap-4">
-				<a href="https://github.com/chochy2001/omnimon" class="hover:text-white transition">GitHub Repo</a>
-				<a href="#" class="hover:text-white transition">Documentación</a>
-				<a href="https://github.com/sponsors/chochy2001/dashboard" class="hover:text-indigo-400 transition">Donar</a>
+	<footer class="mt-12 border-t border-slate-800/80 py-8 text-sm text-slate-400">
+		<div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+			<p>&copy; {new Date().getFullYear()} OmniMon. Open source bajo MIT.</p>
+			<div class="flex flex-wrap items-center gap-4">
+				<a href="https://github.com/chochy2001/omnimon" target="_blank" rel="noreferrer" class="transition hover:text-white">GitHub</a>
+				<a href={docsUrl} target="_blank" rel="noreferrer" class="transition hover:text-white">Documentacion</a>
+				<a href={releaseUrl} target="_blank" rel="noreferrer" class="transition hover:text-white">Releases</a>
+				<a href={sponsorUrl} target="_blank" rel="noreferrer" class="transition hover:text-orange-200">Patrocinar</a>
 			</div>
 		</div>
 	</footer>
 </Layout>
-
-<style>
-	@keyframes fadeInUp {
-		from { opacity: 0; transform: translateY(20px); }
-		to { opacity: 1; transform: translateY(0); }
-	}
-	.animate-fade-in-up {
-		animation: fadeInUp 0.8s ease-out forwards;
-	}
-	details > summary {
-		list-style: none;
-	}
-	details > summary::-webkit-details-marker {
-		display: none;
-	}
-</style>

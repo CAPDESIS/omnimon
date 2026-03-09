@@ -2,6 +2,8 @@
   import { toasts, dismissToast, type ToastLevel } from "../stores/toasts";
   import { fly, fade } from "svelte/transition";
 
+  import IconButton from "./IconButton.svelte";
+
   function levelIcon(level: ToastLevel): string {
     switch (level) {
       case "info": return "\u2139";     // i
@@ -27,11 +29,13 @@
           <span class="toast-message">{t.message}</span>
         {/if}
       </div>
-      <button
+      <IconButton
         class="toast-dismiss"
         onclick={() => dismissToast(t.id)}
-        aria-label="Dismiss"
-      >&times;</button>
+        ariaLabel="Dismiss"
+        title="Dismiss"
+        size="sm"
+      >&times;</IconButton>
     </div>
   {/each}
 </div>
@@ -104,22 +108,6 @@
 
   .toast-dismiss {
     flex-shrink: 0;
-    width: 18px;
-    height: 18px;
-    border: none;
-    background: transparent;
-    color: var(--fg-dim);
-    font-size: 14px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 3px;
-    padding: 0;
     line-height: 1;
-  }
-  .toast-dismiss:hover {
-    background: var(--bg-hover);
-    color: var(--fg);
   }
 </style>

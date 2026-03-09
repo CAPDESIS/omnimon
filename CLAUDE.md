@@ -13,3 +13,8 @@
 
 ## Comunicación
 - Responder en español al usuario
+
+## Landing / Releases
+- Cada release publico nuevo debe actualizar landing, enlaces de descarga y blog EN/ES
+- Los blogs de releases deben mantenerse sincronizados con el changelog real y los assets publicados
+- El listado del blog debe quedar siempre ordenado del release mas nuevo al mas viejo

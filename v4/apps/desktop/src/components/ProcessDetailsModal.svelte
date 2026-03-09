@@ -12,6 +12,8 @@
   import { aiProviderConfig, userMode } from "../stores/preferences";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
   import Button from "./Button.svelte";
+  import IconButton from "./IconButton.svelte";
+  import ModalShell from "./ModalShell.svelte";
 
   interface Props {
     process: ProcessEntry;
@@ -185,7 +187,15 @@
   }
 
   onMount(() => {
-    requestAnimationFrame(() => focusFirstFocusable(modalEl));
+    requestAnimationFrame(() => {
+      const focusables = modalEl ? Array.from(modalEl.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')) : [];
+      const preferredCloseButton = focusables.find((element) => element.getAttribute("aria-label") === t("common.close"));
+      if (preferredCloseButton) {
+        preferredCloseButton.focus();
+        return;
+      }
+      focusFirstFocusable(modalEl);
+    });
   });
 
   function handleBackdropKeydown(e: KeyboardEvent) {
@@ -197,27 +207,18 @@
   }
 </script>
 
-<div
-  class="backdrop"
-  onclick={closeWhenBackdropMatches}
-  onkeydown={handleBackdropKeydown}
-  role="presentation"
-  transition:fade={fadeConfig}
->
+<div transition:fade={fadeConfig}>
+  <ModalShell titleId="modal-title" backdropClass="backdrop" panelClass="modal" onclose={onclose} width="500px" maxHeight="85vh">
   <div
-    class="modal"
     bind:this={modalEl}
-    onmousedown={stopMouseEventPropagation}
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="modal-title"
-    tabindex="-1"
+    onkeydown={handleBackdropKeydown}
+    role="document"
     transition:scale={scaleConfig}
   >
     <div class="header">
       <h2 class="title" id="modal-title">{process.name}</h2>
       <span class="pid">{t("process.pidLabel", { pid: process.pid })}</span>
-      <button class="close-btn" onclick={onclose} aria-label={t("common.close")}>&times;</button>
+      <Button class="close-btn" variant="ghost" size="icon" onclick={onclose} aria-label={t("common.close")} title={t("common.close")} tabindex="-1">×</Button>
     </div>
     <div class="body">
       <div class="mode-banner" transition:fade={{ duration: 180 }}>
@@ -365,35 +366,14 @@
     </div>
     <div class="footer">
       <span class="hint">{t("process.escToClose")}</span>
+      <button class="focus-sentinel" type="button" tabindex="0" aria-hidden="true"></button>
     </div>
   </div>
+  </ModalShell>
 </div>
 
 <style>
   /* ── Backdrop ── */
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-  }
-
-  /* ── Modal shell ── */
-  .modal {
-    background: var(--bg-alt);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg, 14px);
-    width: 500px;
-    max-height: 85vh;
-    overflow-y: auto;
-    box-shadow: var(--shadow-lg, 0 12px 48px rgba(0, 0, 0, 0.5));
-  }
-
   /* ── Header ── */
   .header {
     display: flex;
@@ -424,25 +404,8 @@
   }
 
   .close-btn {
-    width: 24px;
-    height: 24px;
-    border: 1px solid var(--border-subtle, var(--border));
-    border-radius: var(--radius-sm, 6px);
-    background: transparent;
-    color: var(--fg-dim);
     font-size: calc(var(--base-font-size) * 1.2);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
     line-height: 1;
-    transition: all 0.15s ease;
-  }
-  .close-btn:hover {
-    background: var(--bg-hover);
-    border-color: var(--border);
-    color: var(--fg);
   }
 
   /* ── Body ── */
@@ -714,6 +677,15 @@
     padding: 6px 14px;
     border-top: 1px solid var(--border-subtle, var(--border));
     text-align: right;
+  }
+
+  .focus-sentinel {
+    width: 0;
+    height: 0;
+    opacity: 0;
+    padding: 0;
+    border: 0;
+    pointer-events: none;
   }
 
   .hint {

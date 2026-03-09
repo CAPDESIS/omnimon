@@ -3,19 +3,34 @@ import '../styles/global.css';
 
 interface Props {
 	title: string;
+	description?: string;
 }
 
-const { title } = Astro.props;
+const {
+	title,
+	description = 'OmniMon 6.1.0: observabilidad, seguridad activa y asistentes de IA para macOS, Windows y Linux.'
+} = Astro.props;
+const canonicalUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site).toString() : Astro.url.href;
 ---
 
 <!doctype html>
 <html lang="es" class="dark">
 	<head>
 		<meta charset="UTF-8" />
-		<meta name="description" content="OmniMon - Monitoreo Avanzado y Seguridad" />
-		<meta name="viewport" content="width=device-width" />
+		<meta name="description" content={description} />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="theme-color" content="#0b1220" />
+		<link rel="canonical" href={canonicalUrl} />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" sizes="any" />
 		<meta name="generator" content={Astro.generator} />
+		<meta property="og:type" content="website" />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		<meta property="og:url" content={canonicalUrl} />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={title} />
+		<meta name="twitter:description" content={description} />
 		<title>{title}</title>
 	</head>
 	<body class="bg-slate-950 text-slate-200 font-sans antialiased min-h-screen selection:bg-indigo-500/30">

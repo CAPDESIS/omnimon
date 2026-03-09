@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
 
+  import Button from "./Button.svelte";
+
   interface Props {
     icon: string;        // SVG string o emoji
     title: string;
@@ -23,7 +25,7 @@
     </div>
   {/if}
   {#if actionLabel && onAction}
-    <button class="empty-action" onclick={onAction}>{actionLabel}</button>
+    <Button class="empty-action" variant="primary" onclick={onAction}>{actionLabel}</Button>
   {/if}
 </div>
 
@@ -65,16 +67,6 @@
     justify-content: center;
   }
   .empty-action {
-    padding: 0.5rem 1.5rem;
-    background: var(--accent);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.85rem;
-    transition: all 0.15s ease;
-  }
-  .empty-action:hover {
-    background: var(--accent-hover);
+    margin-top: 0.25rem;
   }
 </style>

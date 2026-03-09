@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Button from "./Button.svelte";
+
   interface Props {
     label: string;
     content: string;
@@ -17,17 +19,18 @@
 </script>
 
 <div class="info-popover">
-  <button
+  <Button
     class="info-trigger"
-    type="button"
     aria-label={label}
     aria-expanded={open}
     title={label}
+    variant="ghost"
+    size="icon"
     onclick={toggle}
     onblur={() => setTimeout(close, 120)}
   >
-    i
-  </button>
+    <span class="info-trigger-glyph">i</span>
+  </Button>
   {#if open}
     <div class="info-panel" role="tooltip">
       {content}
@@ -42,25 +45,29 @@
     align-items: center;
   }
 
-  .info-trigger {
-    width: 18px;
-    height: 18px;
+  :global(.info-trigger) {
+    width: 20px;
+    min-width: 20px;
+    height: 20px;
     border-radius: 999px;
-    border: 1px solid var(--accent);
-    background: transparent;
     color: var(--accent);
     font-size: 11px;
     font-weight: 700;
-    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+  }
+
+  :global(.info-trigger:hover),
+  :global(.info-trigger:focus-visible) {
+    background: rgba(59, 130, 246, 0.08);
+  }
+
+  .info-trigger-glyph {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    line-height: 1;
-  }
-
-  .info-trigger:hover,
-  .info-trigger:focus-visible {
-    background: rgba(59, 130, 246, 0.08);
+    width: 100%;
+    height: 100%;
   }
 
   .info-panel {

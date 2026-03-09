@@ -1,5 +1,8 @@
 <script lang="ts">
   import { slide, fade } from "svelte/transition";
+
+  import Button from "./Button.svelte";
+  import IconButton from "./IconButton.svelte";
   import { smartAlerts, dismissSmartAlert, dismissAllSmartAlerts } from "../stores/alerts";
   import { killSingle } from "../stores/processes";
   import { t } from "../lib/i18n";
@@ -28,9 +31,9 @@
         {#if hiddenCount > 0}
           <span class="hidden-count">+{hiddenCount} alertas más</span>
         {/if}
-        <button class="close-all-btn" onclick={dismissAllSmartAlerts}>
+        <Button class="close-all-btn" variant="secondary" size="sm" onclick={dismissAllSmartAlerts}>
           ✕ Cerrar todas
-        </button>
+        </Button>
       </div>
     {/if}
 
@@ -42,7 +45,7 @@
           {#if alert.updateCount && alert.updateCount > 1}
             <span class="update-badge">Actualizada {alert.updateCount}x</span>
           {/if}
-          <button class="close-btn" onclick={() => handleIgnore(alert.id)} aria-label={t("common.dismiss")}>✕</button>
+          <IconButton class="close-btn" onclick={() => handleIgnore(alert.id)} ariaLabel={t("common.dismiss")} title={t("common.dismiss")} size="sm">✕</IconButton>
         </div>
         
         <div class="alert-body">
@@ -51,13 +54,13 @@
         </div>
 
         <div class="alert-actions">
-          <button class="action-btn ignore" onclick={() => handleIgnore(alert.id)}>
+          <Button class="action-btn ignore" variant="ghost" size="sm" onclick={() => handleIgnore(alert.id)}>
             {t("common.ignore")}
-          </button>
+          </Button>
           {#if alert.processPid}
-            <button class="action-btn force-quit" onclick={() => handleForceQuit(alert.id, alert.processPid)}>
+            <Button class="action-btn force-quit" variant="danger" size="sm" onclick={() => handleForceQuit(alert.id, alert.processPid)}>
               {t("process.forceQuit")}
-            </button>
+            </Button>
           {/if}
         </div>
       </div>
@@ -105,20 +108,8 @@
   }
 
   .close-all-btn {
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid var(--border);
-    color: var(--fg);
     font-size: 12px;
-    padding: 4px 8px;
-    border-radius: 4px;
-    cursor: pointer;
     backdrop-filter: blur(4px);
-    transition: all 0.2s;
-  }
-
-  .close-all-btn:hover {
-    background: var(--bg-hover);
-    color: #fff;
   }
 
   .alert-header {
@@ -152,18 +143,7 @@
   }
 
   .close-btn {
-    background: none;
-    border: none;
-    color: var(--fg-dim);
-    cursor: pointer;
     font-size: 14px;
-    padding: 2px 6px;
-    border-radius: 4px;
-  }
-
-  .close-btn:hover {
-    color: var(--fg);
-    background: var(--bg-hover);
   }
 
   .alert-body {
@@ -206,30 +186,6 @@
   }
 
   .action-btn {
-    padding: 6px 12px;
     font-size: 12px;
-    font-weight: 600;
-    border-radius: 4px;
-    cursor: pointer;
-    border: 1px solid transparent;
-  }
-
-  .action-btn.ignore {
-    background: transparent;
-    border-color: var(--border);
-    color: var(--fg);
-  }
-
-  .action-btn.ignore:hover {
-    background: var(--bg-hover);
-  }
-
-  .action-btn.force-quit {
-    background: var(--danger);
-    color: #fff;
-  }
-
-  .action-btn.force-quit:hover {
-    background: var(--danger-hover);
   }
 </style>
