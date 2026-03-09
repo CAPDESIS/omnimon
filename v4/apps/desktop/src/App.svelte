@@ -87,7 +87,7 @@
   import { ipcValidateApiKey, ipcCheckApiKey, ipcClearAiCache } from "./lib/ipc";
   import { listen } from "@tauri-apps/api/event";
   import { t, locale, initI18n } from "./lib/i18n";
-  import { inspectProcessRequest } from "./stores/uiActions";
+  import { focusNetworkRequest, inspectProcessRequest } from "./stores/uiActions";
   import type { LocaleCode } from "./lib/i18n";
   import { focusFirstFocusable, trapFocus, rememberActiveElement, restoreFocus } from "./lib/focusTrap";
 
@@ -230,6 +230,17 @@
       loadProcessDetailsModal();
       detailProcess = proc;
       inspectProcessRequest.set(null); // Reset after consuming
+    }
+  });
+
+  $effect(() => {
+    const request = $focusNetworkRequest;
+    if (request !== null) {
+      searchValue = request;
+      $search = request;
+      activeTab = "network";
+      loadNetworkMap();
+      focusNetworkRequest.set(null);
     }
   });
 

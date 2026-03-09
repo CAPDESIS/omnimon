@@ -1,10 +1,11 @@
 import { writable, get } from "svelte/store";
 import { listen } from "@tauri-apps/api/event";
 import type { AlertRule } from "../lib/aiConfigBridge";
-import type { ProcessEntry, SystemStats, DynamicAlert } from "../lib/types";
+import type { DynamicAlert, NetworkAlert, ProcessEntry, SystemStats } from "../lib/types";
 import { toast } from "./toasts";
 import { ipcAnalyzeContext } from "../lib/ipc";
 import { aiProviderConfig } from "./preferences";
+import { askAiRequest, focusNetworkRequest } from "./uiActions";
 
 export interface FiredAlert {
   id: string;
@@ -24,6 +25,13 @@ export interface SmartAlert {
   updateCount?: number;
 }
 
+export interface NetworkAlertHistoryFilter {
+  severity: "all" | "info" | "warning" | "critical";
+  query: string;
+}
+
+type NetworkAlertSeverityFilter = NetworkAlertHistoryFilter["severity"];
+
 /** Configured alert rules (user or AI-generated). */
 export const alertRules = writable<AlertRule[]>([]);
 
@@ -32,6 +40,8 @@ export const firedAlerts = writable<FiredAlert[]>([]);
 
 /** Smart AI Alerts */
 export const smartAlerts = writable<SmartAlert[]>([]);
+export const networkAlerts = writable<NetworkAlert[]>([]);
+export const networkAlertFilter = writable<NetworkAlertHistoryFilter>({ severity: "all", query: "" });
 
 /**
  * Sanitize browser helper process names to generic descriptions
@@ -333,6 +343,7 @@ export function clearFiredAlerts(): void {
 export const dynamicAlerts = writable<DynamicAlert[]>([]);
 
 const MAX_DYNAMIC = 50;
+const MAX_NETWORK_ALERTS = 100;
 
 /**
  * Subscribe to 'security-alert' Tauri events.
@@ -340,7 +351,8 @@ const MAX_DYNAMIC = 50;
  */
 export async function initSecurityAlertListener(): Promise<() => void> {
   try {
-    const unlisten = await listen<DynamicAlert>("security-alert", (event: { payload: DynamicAlert }) => {
+    const unlisteners: Array<() => void> = [];
+    const securityUnlisten = await listen<DynamicAlert>("security-alert", (event: { payload: DynamicAlert }) => {
       const alert = event.payload;
       dynamicAlerts.update((list) => {
         const next = [...list, alert];
@@ -351,8 +363,35 @@ export async function initSecurityAlertListener(): Promise<() => void> {
         alert.message || `${alert.process_name} (PID ${alert.pid}) triggered rule "${alert.rule_name}"`,
       );
     });
+
+    const networkUnlisten = await listen<NetworkAlert>("network-alert", (event: { payload: NetworkAlert }) => {
+      const alert = event.payload;
+      networkAlerts.update((list) => {
+        const next = [...list, alert];
+        return next.length > MAX_NETWORK_ALERTS ? next.slice(-MAX_NETWORK_ALERTS) : next;
+      });
+
+      const subject = alert.process_name ?? alert.destination ?? alert.rule_name;
+      const details = [
+        alert.bandwidth_mbps != null ? `${alert.bandwidth_mbps.toFixed(2)} Mbps` : null,
+        alert.connection_count != null ? `${alert.connection_count} conexiones` : null,
+        alert.destination,
+      ].filter(Boolean).join(" - ");
+
+      toast.warning(
+        `Red: ${alert.rule_name}`,
+        details ? `${subject} - ${details}` : alert.message,
+        7000,
+      );
+    });
+
+    unlisteners.push(securityUnlisten, networkUnlisten);
     console.debug("[DynamicAlerts] Initialized Tauri security-alert listener");
-    return unlisten;
+    return () => {
+      for (const unlisten of unlisteners) {
+        unlisten();
+      }
+    };
   } catch (err) {
     console.warn("[DynamicAlerts] Failed to initialize Tauri listener (likely SSR or test env):", err);
     // Not in Tauri context (tests, SSR), return no-op
@@ -364,10 +403,52 @@ export function clearDynamicAlerts(): void {
   dynamicAlerts.set([]);
 }
 
+export function clearNetworkAlerts(): void {
+  networkAlerts.set([]);
+}
+
+export function investigateNetworkAlert(alert: NetworkAlert): void {
+  focusNetworkRequest.set(alert.process_name ?? "");
+}
+
+export function askAiAboutNetworkAlert(alert: NetworkAlert): void {
+  const prompt = [
+    `Analiza esta alerta de red y explicala en espanol:`,
+    `Regla: ${alert.rule_name}`,
+    `Severidad: ${alert.severity}`,
+    `Mensaje: ${alert.message}`,
+    alert.process_name ? `Proceso: ${alert.process_name}` : null,
+    alert.pid != null ? `PID: ${alert.pid}` : null,
+    alert.destination ? `Destino: ${alert.destination}` : null,
+    alert.bandwidth_mbps != null ? `Bandwidth: ${alert.bandwidth_mbps.toFixed(2)} Mbps` : null,
+    alert.connection_count != null ? `Conexiones: ${alert.connection_count}` : null,
+    alert.details.length > 0 ? `Detalles: ${alert.details.join(" | ")}` : null,
+  ].filter(Boolean).join("\n");
+
+  askAiRequest.set(prompt);
+}
+
+export function matchesNetworkAlertFilter(alert: NetworkAlert, filter: NetworkAlertHistoryFilter): boolean {
+  if (filter.severity !== "all" && alert.severity !== filter.severity) return false;
+  const query = filter.query.trim().toLowerCase();
+  if (!query) return true;
+  return [
+    alert.rule_name,
+    alert.message,
+    alert.process_name ?? "",
+    alert.destination ?? "",
+    ...alert.details,
+  ].some((part) => part.toLowerCase().includes(query));
+}
+
+export type { NetworkAlertSeverityFilter };
+
 export function _resetAlerts(): void {
   alertRules.set([]);
   firedAlerts.set([]);
   dynamicAlerts.set([]);
+  networkAlerts.set([]);
+  networkAlertFilter.set({ severity: "all", query: "" });
   smartAlerts.set([]);
   lastFired.clear();
   alertId = 0;
