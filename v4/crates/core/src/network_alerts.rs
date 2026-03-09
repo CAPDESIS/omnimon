@@ -468,9 +468,7 @@ fn check_connection_count(
 
     let matched = snapshot.process_throughput.iter().find_map(|entry| {
         if let Some(process_name) = process {
-            let Some(name) = entry.process_name.as_deref() else {
-                return None;
-            };
+            let name = entry.process_name.as_deref()?;
             if !name.eq_ignore_ascii_case(process_name) {
                 return None;
             }

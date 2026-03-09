@@ -8,8 +8,8 @@
 //! via `clear()` + refill, preserving their backing capacity.
 
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -352,7 +352,8 @@ pub fn start_watcher() {
                         );
                     }
                     snapshot.top_network_processes = process_throughput;
-                    snapshot.recent_network_connections = network_snapshot.recent_connections.clone();
+                    snapshot.recent_network_connections =
+                        network_snapshot.recent_connections.clone();
                     snapshot.mitre_network_alerts = mitre_labels;
                     snapshot.dynamic_rule_alerts = dynamic_alerts;
                     snapshot.network_alerts = network_alerts;
