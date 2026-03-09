@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { fade, scale } from "svelte/transition";
+  import { fadeConfig, scaleConfig } from "../lib/transitions";
   import { onMount } from "svelte";
   import { cpuSeries, ramSeries, netRxSeries, netTxSeries, swapSeries, metricsHistory } from "../stores/metricsHistory";
   import { filtered, stats } from "../stores/processes";
@@ -165,8 +167,8 @@
   }
 </script>
 
-<div class="backdrop" onmousedown={closeWhenBackdropMatches} role="presentation">
-  <div class="modal" bind:this={modalEl} onmousedown={stopMouseEventPropagation} onkeydown={closeOnEscape} role="dialog" aria-modal="true" aria-labelledby="metric-modal-title" tabindex="-1">
+<div class="backdrop" onmousedown={closeWhenBackdropMatches} role="presentation" transition:fade={fadeConfig}>
+  <div class="modal" bind:this={modalEl} onmousedown={stopMouseEventPropagation} onkeydown={closeOnEscape} role="dialog" aria-modal="true" aria-labelledby="metric-modal-title" tabindex="-1" transition:scale={scaleConfig}>
     <div class="header">
       <div>
         <div class="eyebrow">{t("status.deepDive")}</div>

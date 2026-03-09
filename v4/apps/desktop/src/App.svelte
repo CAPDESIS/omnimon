@@ -19,7 +19,7 @@
   import Button from "./components/Button.svelte";
   import ProfilePanel from "./components/ProfilePanel.svelte";
   import ConfirmDialog from "./components/ConfirmDialog.svelte";
-  import SkeletonBlock from "./components/SkeletonBlock.svelte";
+  import Skeleton from "./components/Skeleton.svelte";
   import AIChat from "./components/AIChat.svelte";
   import ThemeSelector from "./components/ThemeSelector.svelte";
   import { totalFindings } from "./stores/security";
@@ -654,18 +654,18 @@
           {#if $loading}
             <div class="loading-shell" role="status" aria-busy="true" aria-label={t("common.loadingAria")}>
               <div class="loading-toolbar-card">
-                <SkeletonBlock width="22%" height="14px" rounded="999px" />
-                <SkeletonBlock width="100%" height="42px" rounded="14px" />
+                <Skeleton width="22%" height="14px" borderRadius="999px" />
+                <Skeleton width="100%" height="42px" borderRadius="14px" />
               </div>
               <div class="loading-table-card">
                 <div class="loading-table-header">
-                  <SkeletonBlock width="14%" height="12px" rounded="999px" />
-                  <SkeletonBlock width="10%" height="12px" rounded="999px" />
-                  <SkeletonBlock width="12%" height="12px" rounded="999px" />
+                  <Skeleton width="14%" height="12px" borderRadius="999px" />
+                  <Skeleton width="10%" height="12px" borderRadius="999px" />
+                  <Skeleton width="12%" height="12px" borderRadius="999px" />
                 </div>
                 <div class="loading-table-body">
                   {#each Array(12) as _, i}
-                    <SkeletonBlock width="100%" height="24px" rounded="4px" />
+                    <Skeleton width="100%" height="24px" borderRadius="4px" />
                   {/each}
                 </div>
               </div>
@@ -689,12 +689,12 @@
               <NetworkMapModule.default filter={searchValue} />
             {:catch}
               <div class="lazy-panel-fallback">
-                <SkeletonBlock width="100%" height="100%" rounded="12px" />
+                <Skeleton width="100%" height="100%" borderRadius="12px" />
               </div>
             {/await}
           {:else}
             <div class="lazy-panel-fallback">
-              <SkeletonBlock width="100%" height="100%" rounded="12px" />
+              <Skeleton width="100%" height="100%" borderRadius="12px" />
             </div>
           {/if}
         </div>
@@ -707,12 +707,12 @@
               <ChromeTabManagerModule.default filter={searchValue} />
             {:catch}
               <div class="lazy-panel-fallback">
-                <SkeletonBlock width="100%" height="100%" rounded="12px" />
+                <Skeleton width="100%" height="100%" borderRadius="12px" />
               </div>
             {/await}
           {:else}
             <div class="lazy-panel-fallback">
-              <SkeletonBlock width="100%" height="100%" rounded="12px" />
+              <Skeleton width="100%" height="100%" borderRadius="12px" />
             </div>
           {/if}
         </div>

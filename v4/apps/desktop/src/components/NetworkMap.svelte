@@ -1,6 +1,6 @@
 <script lang="ts">
   import ContextAiChat from "./ContextAiChat.svelte";
-  import SkeletonBlock from "./SkeletonBlock.svelte";
+  import Skeleton from "./Skeleton.svelte";
   import { tick } from "svelte";
   import { networkConnections, networkTelemetryStatus } from "../stores/security";
   import { metricsHistory } from "../stores/metricsHistory";

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { fade, scale } from "svelte/transition";
+  import { fadeConfig, scaleConfig } from "../lib/transitions";
   import { onMount } from "svelte";
   import { t } from "../lib/i18n";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
@@ -34,8 +36,8 @@
   });
 </script>
 
-<div class="backdrop" onmousedown={closeWhenBackdropMatches} role="presentation">
-  <div class="modal" bind:this={modalEl} onmousedown={stopMouseEventPropagation} onkeydown={closeOnEscape} role="dialog" aria-modal="true" aria-labelledby="help-center-title" tabindex="-1">
+<div class="backdrop" onmousedown={closeWhenBackdropMatches} role="presentation" transition:fade={fadeConfig}>
+  <div class="modal" bind:this={modalEl} onmousedown={stopMouseEventPropagation} onkeydown={closeOnEscape} role="dialog" aria-modal="true" aria-labelledby="help-center-title" tabindex="-1" transition:scale={scaleConfig}>
     <div class="header">
       <div>
         <div class="eyebrow">{t("helpCenter.eyebrow")}</div>
