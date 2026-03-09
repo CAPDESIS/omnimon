@@ -1,6 +1,7 @@
 <script lang="ts">
   import { stats, processes } from "../stores/processes";
   import { metricsHistory } from "../stores/metricsHistory";
+  import { theme } from "../stores/preferences";
   import { t } from "../lib/i18n";
 
   interface Props {
@@ -103,6 +104,7 @@
 
   // Reactively redraw charts when history updates
   $effect(() => {
+    const _t = $theme; // react to theme changes
     const h = $metricsHistory;
     if (collapsed || h.length < 2) return;
 
@@ -140,8 +142,8 @@
 
   function colorVarForPct(pct: number): string {
     if (pct >= 80) return "--danger";
-    if (pct >= 60) return "--warning";
-    return "--success";
+    if (pct >= 60) return "--yellow";
+    return "--green";
   }
 
   function colorForPct(pct: number): string {
