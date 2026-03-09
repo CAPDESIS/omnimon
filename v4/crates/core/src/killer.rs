@@ -405,6 +405,56 @@ mod tests {
     }
 
     #[test]
+    fn invalid_negative_pid_is_rejected() {
+        let result = kill_process_safe(-42, &[]);
+        assert!(matches!(result, Err(KillError::InvalidPid(-42))));
+    }
+
+    #[test]
+    fn protected_name_without_trusted_path_is_not_immutable_blocked() {
+        #[cfg(target_os = "macos")]
+        let proc_name = "WindowServer";
+        #[cfg(target_os = "windows")]
+        let proc_name = "svchost.exe";
+        #[cfg(target_os = "linux")]
+        let proc_name = "systemd";
+
+        assert!(!is_immutable_blocked_process(proc_name, None));
+    }
+
+    #[test]
+    fn extra_blocklist_is_case_insensitive() {
+        let extra = vec!["MyDaemon".to_string()];
+        let result = kill_process_by_name(
+            78,
+            "mydaemon".to_string(),
+            Some(Path::new("/opt/mydaemon")),
+            &extra,
+            || true,
+        );
+        assert!(matches!(result, Err(KillError::Blocked(name)) if name == "mydaemon"));
+    }
+
+    #[test]
+    fn non_blocked_process_name_is_allowed_without_executable_path() {
+        let result = kill_process_by_name(55, "user-app".to_string(), None, &[], || true);
+        assert!(matches!(
+            result,
+            Ok(KillResult {
+                pid: 55,
+                process_name,
+                killed: true,
+            }) if process_name == "user-app"
+        ));
+    }
+
+    #[test]
+    fn display_for_blocked_error_mentions_protected_process() {
+        let err = KillError::Blocked("system-service".to_string());
+        assert!(err.to_string().contains("protected process"));
+    }
+
+    #[test]
     fn immutable_blocked_requires_trusted_executable_path() {
         #[cfg(target_os = "macos")]
         {
