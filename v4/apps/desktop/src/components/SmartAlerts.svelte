@@ -1,6 +1,6 @@
 <script lang="ts">
   import { slide, fade } from "svelte/transition";
-  import { smartAlerts, dismissSmartAlert } from "../stores/alerts";
+  import { smartAlerts, dismissSmartAlert, dismissAllSmartAlerts } from "../stores/alerts";
   import { killSingle } from "../stores/processes";
   import { t } from "../lib/i18n";
   import { renderMarkdown } from "../lib/markdown";
@@ -15,15 +15,33 @@
     }
     dismissSmartAlert(id);
   }
+
+  const MAX_VISIBLE_ALERTS = 5;
+  let visibleAlerts = $derived($smartAlerts.slice(-MAX_VISIBLE_ALERTS));
+  let hiddenCount = $derived(Math.max(0, $smartAlerts.length - MAX_VISIBLE_ALERTS));
 </script>
 
 {#if $smartAlerts.length > 0}
   <div class="smart-alerts-container" transition:fade={{ duration: 200 }}>
-    {#each $smartAlerts as alert (alert.id)}
+    {#if $smartAlerts.length > 1}
+      <div class="alerts-global-actions">
+        {#if hiddenCount > 0}
+          <span class="hidden-count">+{hiddenCount} alertas más</span>
+        {/if}
+        <button class="close-all-btn" onclick={dismissAllSmartAlerts}>
+          ✕ Cerrar todas
+        </button>
+      </div>
+    {/if}
+
+    {#each visibleAlerts as alert (alert.id)}
       <div class="smart-alert-card" transition:slide={{ duration: 250 }}>
         <div class="alert-header">
           <span class="icon">⚠️</span>
           <strong>{t("smartAlerts.title")}</strong>
+          {#if alert.updateCount && alert.updateCount > 1}
+            <span class="update-badge">Actualizada {alert.updateCount}x</span>
+          {/if}
           <button class="close-btn" onclick={() => handleIgnore(alert.id)} aria-label={t("common.dismiss")}>✕</button>
         </div>
         
@@ -71,6 +89,38 @@
     flex-direction: column;
   }
 
+  .alerts-global-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+    pointer-events: auto;
+  }
+
+  .hidden-count {
+    font-size: 12px;
+    color: var(--fg-dim);
+    font-weight: 500;
+  }
+
+  .close-all-btn {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: all 0.2s;
+  }
+
+  .close-all-btn:hover {
+    background: var(--bg-hover);
+    color: #fff;
+  }
+
   .alert-header {
     display: flex;
     align-items: center;
@@ -78,6 +128,15 @@
     padding: 10px 12px;
     background: var(--bg-alt);
     border-bottom: 1px solid var(--border);
+  }
+
+  .update-badge {
+    font-size: 10px;
+    background: var(--blue, #3b82f6);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: 600;
   }
 
   .alert-header .icon {
