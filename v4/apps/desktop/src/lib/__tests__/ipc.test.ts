@@ -480,6 +480,11 @@ describe("other IPC helpers", () => {
     await expect(ipcAiChat("hi", "openai", "gpt-4o")).rejects.toThrow(IPCValidationError);
   });
 
+  it("rejects null AI chat payloads", async () => {
+    mockInvoke.mockResolvedValue(null);
+    await expect(ipcAiChat("hi", "openai", "gpt-4o")).rejects.toThrow(IPCValidationError);
+  });
+
   it("validates AI rules schema payloads", async () => {
     mockInvoke.mockResolvedValue('{"type":"object"}');
     await expect(ipcGetAiRulesSchema()).resolves.toBe('{"type":"object"}');
@@ -511,6 +516,16 @@ describe("other IPC helpers", () => {
       dpi_active: false,
     });
     await expect(ipcGetNetworkData()).rejects.toThrow(IPCValidationError);
+
+    mockInvoke.mockResolvedValue({
+      top_processes: [],
+      recent_connections: {},
+      net_rx_bytes_per_sec: 10,
+      net_tx_bytes_per_sec: 5,
+      capture_backend: "Unsupported",
+      dpi_active: false,
+    });
+    await expect(ipcGetNetworkData()).rejects.toThrow(IPCValidationError);
   });
 
   it("validates plugin payload helpers", async () => {
@@ -528,7 +543,13 @@ describe("other IPC helpers", () => {
   });
 
   it("rejects malformed plugin descriptors", async () => {
+    mockInvoke.mockResolvedValue({ plugins: [] });
+    await expect(ipcListPlugins()).rejects.toThrow(IPCValidationError);
+
     mockInvoke.mockResolvedValue([validPlugin({ metrics: "bad" })]);
+    await expect(ipcListPlugins()).rejects.toThrow(IPCValidationError);
+
+    mockInvoke.mockResolvedValue([validPlugin({ metrics: [validPluginMetric({ tags: [] })] })]);
     await expect(ipcListPlugins()).rejects.toThrow(IPCValidationError);
 
     mockInvoke.mockResolvedValue(validPlugin({ enabled: "yes" }));
