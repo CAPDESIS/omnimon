@@ -12,7 +12,7 @@ mod settings;
 
 #[derive(Parser)]
 #[command(name = "omnimon")]
-#[command(version = "5.2.0", about = "OmniMon: Monitor de sistema y navegador de próxima generación de alto rendimiento.", long_about = None)]
+#[command(version = env!("CARGO_PKG_VERSION"), about = "OmniMon: Monitor de sistema y navegador de próxima generación de alto rendimiento.", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

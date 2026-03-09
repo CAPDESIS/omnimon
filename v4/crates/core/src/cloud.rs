@@ -135,7 +135,7 @@ pub async fn validate_cloud_key(key: &str) -> CloudValidation {
     let response = match client
         .get(&url)
         .header("Authorization", format!("Bearer {}", key.trim()))
-        .header("User-Agent", "OmniMon/5.2.0")
+        .header("User-Agent", concat!("OmniMon/", env!("CARGO_PKG_VERSION")))
         .send()
         .await
     {

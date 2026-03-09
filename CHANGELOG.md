@@ -1,5 +1,19 @@
 # Changelog
 
+## 6.0.1 (2026-03-08)
+
+### Documentation
+- Refresh main README to align the public docs with OmniMon 6.0.1
+- Add `AUDIT_DOCS.md`, `COMMANDS_REFERENCE.md`, `CVE_REPORT.md`, and `NIST_COMPLIANCE.md`
+- Expand `docs/CLI_MANUAL.md` with the full CLI surface and practical examples
+
+### Compliance
+- Capture `cargo audit` results, remediation guidance, and dependency risk status
+- Map implemented safeguards against selected NIST SP 800-53 controls and identify coverage gaps
+
+### Versioning
+- Align runtime-visible version strings in the desktop footer, Tauri About metadata, CLI banner, TUI title, and cloud user agent
+
 ## 4.0.7 (2026-03-05)
 
 ### Branding
