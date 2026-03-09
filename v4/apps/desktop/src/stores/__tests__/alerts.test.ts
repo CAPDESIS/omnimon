@@ -3,14 +3,17 @@ import { get } from "svelte/store";
 import {
   alertRules,
   firedAlerts,
+  smartAlerts,
   addAlertRule,
   removeAlertRule,
   evaluateAlerts,
   clearFiredAlerts,
+  dismissAllSmartAlerts,
   _resetAlerts,
 } from "../alerts";
 import type { ProcessEntry, SystemStats } from "../../lib/types";
 import { _resetToasts } from "../toasts";
+import * as ipcModule from "../../lib/ipc";
 
 function makeStats(overrides?: Partial<SystemStats>): SystemStats {
   return {
@@ -156,3 +159,165 @@ describe("alerts store", () => {
     expect(get(firedAlerts)).toHaveLength(1);
   });
 });
+
+describe("Smart Health Alerts", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(ipcModule, "ipcAnalyzeContext").mockResolvedValue("Explicación mockeada de IA");
+    _resetAlerts();
+    _resetToasts();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("pico de 1 lectura NO genera alerta", async () => {
+    const stats = makeStats();
+    evaluateAlerts(stats, [makeProc({ name: "HighCpuProc", cpu_pct: 90 })]);
+    
+    // Dejamos que las promesas resuelvan
+    await vi.runAllTimersAsync();
+    expect(get(smartAlerts)).toHaveLength(0);
+  });
+
+  it("3 lecturas consecutivas SÍ genera alerta y actualiza count", async () => {
+    const stats = makeStats();
+    const proc = makeProc({ name: "HighCpuProc", cpu_pct: 90 });
+
+    // Lectura 1
+    evaluateAlerts(stats, [proc]);
+    await vi.advanceTimersByTimeAsync(5000);
+    
+    // Lectura 2
+    evaluateAlerts(stats, [proc]);
+    await vi.advanceTimersByTimeAsync(5000);
+
+    // Lectura 3
+    evaluateAlerts(stats, [proc]);
+    await vi.advanceTimersByTimeAsync(5000);
+
+    const alerts = get(smartAlerts);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].problem).toContain("Alto uso de CPU (90%)");
+    expect(alerts[0].updateCount).toBe(1);
+  });
+
+  it("pico intermitente (alto-bajo-alto) resetea contador", async () => {
+    const stats = makeStats();
+    
+    evaluateAlerts(stats, [makeProc({ name: "Proc", cpu_pct: 90 })]);
+    await vi.advanceTimersByTimeAsync(5000);
+    
+    evaluateAlerts(stats, [makeProc({ name: "Proc", cpu_pct: 10 })]); // Baja
+    await vi.advanceTimersByTimeAsync(5000);
+    
+    evaluateAlerts(stats, [makeProc({ name: "Proc", cpu_pct: 90 })]); // Sube de nuevo
+    await vi.advanceTimersByTimeAsync(5000);
+
+    evaluateAlerts(stats, [makeProc({ name: "Proc", cpu_pct: 90 })]);
+    await vi.advanceTimersByTimeAsync(5000);
+
+    // Solo tuvimos 2 consecutivas altas después del bajón, no debe haber alerta
+    expect(get(smartAlerts)).toHaveLength(0);
+  });
+
+  it("proceso que baja de 80% resetea tracking", async () => {
+    const stats = makeStats();
+    evaluateAlerts(stats, [makeProc({ name: "Proc", cpu_pct: 90 })]);
+    await vi.advanceTimersByTimeAsync(5000);
+    
+    evaluateAlerts(stats, [makeProc({ name: "Proc", cpu_pct: 70 })]); // Baja de 80%
+    await vi.advanceTimersByTimeAsync(5000);
+    
+    evaluateAlerts(stats, [makeProc({ name: "Proc", cpu_pct: 90 })]);
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(get(smartAlerts)).toHaveLength(0);
+  });
+
+  it("segunda alerta del mismo proceso actualiza la existente y updateCount se incrementa correctamente", async () => {
+    const stats = makeStats();
+    const proc = makeProc({ name: "duetexpertd", cpu_pct: 90 });
+
+    // Generar primera alerta (3 lecturas)
+    evaluateAlerts(stats, [proc]); await vi.advanceTimersByTimeAsync(5000);
+    evaluateAlerts(stats, [proc]); await vi.advanceTimersByTimeAsync(5000);
+    evaluateAlerts(stats, [proc]); await vi.advanceTimersByTimeAsync(5000);
+
+    expect(get(smartAlerts)).toHaveLength(1);
+    expect(get(smartAlerts)[0].updateCount).toBe(1);
+
+    // Avanzar más allá del cooldown (5 minutos)
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 1000);
+
+    // Generar segunda alerta para el mismo proceso
+    evaluateAlerts(stats, [proc]); await vi.advanceTimersByTimeAsync(5000);
+    evaluateAlerts(stats, [proc]); await vi.advanceTimersByTimeAsync(5000);
+    evaluateAlerts(stats, [proc]); await vi.advanceTimersByTimeAsync(5000);
+
+    // Debe seguir habiendo solo 1 alerta, pero el count debe subir
+    const alerts = get(smartAlerts);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].updateCount).toBe(2);
+  });
+
+  it("alertas de procesos diferentes se mantienen separadas", async () => {
+    const stats = makeStats();
+    
+    // Proceso 1
+    const p1 = makeProc({ name: "P1", cpu_pct: 90 });
+    evaluateAlerts(stats, [p1]); await vi.advanceTimersByTimeAsync(5000);
+    evaluateAlerts(stats, [p1]); await vi.advanceTimersByTimeAsync(5000);
+    evaluateAlerts(stats, [p1]); await vi.advanceTimersByTimeAsync(5000);
+
+    // Proceso 2
+    const p2 = makeProc({ name: "P2", cpu_pct: 95 });
+    evaluateAlerts(stats, [p2]); await vi.advanceTimersByTimeAsync(5000);
+    evaluateAlerts(stats, [p2]); await vi.advanceTimersByTimeAsync(5000);
+    evaluateAlerts(stats, [p2]); await vi.advanceTimersByTimeAsync(5000);
+
+    expect(get(smartAlerts)).toHaveLength(2);
+  });
+
+  it("dismissAllSmartAlerts limpia todas las alertas", async () => {
+    const stats = makeStats();
+    const proc = makeProc({ name: "P1", cpu_pct: 90 });
+    
+    evaluateAlerts(stats, [proc]); await vi.advanceTimersByTimeAsync(5000);
+    evaluateAlerts(stats, [proc]); await vi.advanceTimersByTimeAsync(5000);
+    evaluateAlerts(stats, [proc]); await vi.advanceTimersByTimeAsync(5000);
+
+    expect(get(smartAlerts)).toHaveLength(1);
+    dismissAllSmartAlerts();
+    expect(get(smartAlerts)).toHaveLength(0);
+  });
+
+  it("CPU > 100% muestra 'X cores' en el mensaje", async () => {
+    const stats = makeStats();
+    const proc = makeProc({ name: "HeavyProc", cpu_pct: 207 });
+
+    evaluateAlerts(stats, [proc]); await vi.advanceTimersByTimeAsync(5000);
+    evaluateAlerts(stats, [proc]); await vi.advanceTimersByTimeAsync(5000);
+    evaluateAlerts(stats, [proc]); await vi.advanceTimersByTimeAsync(5000);
+
+    const alerts = get(smartAlerts);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].problem).toContain("207% (2.1 cores)");
+  });
+
+  it("CPU < 100% no muestra cores", async () => {
+    const stats = makeStats();
+    const proc = makeProc({ name: "HeavyProc", cpu_pct: 88 });
+
+    evaluateAlerts(stats, [proc]); await vi.advanceTimersByTimeAsync(5000);
+    evaluateAlerts(stats, [proc]); await vi.advanceTimersByTimeAsync(5000);
+    evaluateAlerts(stats, [proc]); await vi.advanceTimersByTimeAsync(5000);
+
+    const alerts = get(smartAlerts);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].problem).toContain("88%");
+    expect(alerts[0].problem).not.toContain("cores");
+  });
+});
+
