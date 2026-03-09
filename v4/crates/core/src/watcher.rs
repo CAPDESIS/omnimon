@@ -15,7 +15,25 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use sysinfo::{ProcessRefreshKind, System};
 
 static CACHED_STATE: OnceLock<Arc<RwLock<SystemState>>> = OnceLock::new();
+static NETWORK_HISTORY: OnceLock<Arc<RwLock<crate::network_analysis::SnapshotHistory>>> =
+    OnceLock::new();
 static WATCHER_STARTED: AtomicBool = AtomicBool::new(false);
+
+/// Number of network snapshots to keep in the circular history buffer.
+/// At 5 seconds per snapshot, 60 entries = 5 minutes of history.
+const NETWORK_HISTORY_CAPACITY: usize = 60;
+
+/// Network analysis capture interval (every N watcher ticks).
+/// Watcher runs every 2s, so 3 ticks = 6 seconds between network captures.
+const NET_ANALYSIS_TICK_INTERVAL: u32 = 3;
+
+fn network_history_handle() -> Arc<RwLock<crate::network_analysis::SnapshotHistory>> {
+    Arc::clone(NETWORK_HISTORY.get_or_init(|| {
+        Arc::new(RwLock::new(crate::network_analysis::SnapshotHistory::new(
+            NETWORK_HISTORY_CAPACITY,
+        )))
+    }))
+}
 
 /// Pre-allocated buffers reused across watcher ticks to avoid heap allocations
 /// on the hot path. All containers are cleared (retaining capacity) at the
@@ -94,6 +112,7 @@ pub struct SystemState {
     pub dynamic_rule_alerts: Vec<crate::rules_engine::DynamicAlert>,
     pub security_heartbeat: Option<crate::audit::SecurityHeartbeat>,
     pub cached_process_info: Vec<CachedProcessInfo>,
+    pub network_snapshot: Option<crate::network_analysis::NetworkSnapshot>,
     pub updated_at_unix_ms: u128,
 }
 
@@ -202,6 +221,7 @@ fn collect_state(system: &mut System, buf: &mut WatcherBuffers) -> SystemState {
         dynamic_rule_alerts: Vec::new(),
         security_heartbeat: None,
         cached_process_info,
+        network_snapshot: None,
         updated_at_unix_ms,
     }
 }
@@ -233,6 +253,9 @@ pub fn start_watcher() {
             let mut system = System::new_all();
             let mut network_engine = crate::network::NetworkTelemetryEngine::new();
             let mut buffers = WatcherBuffers::new();
+            let net_history = network_history_handle();
+            let mut prev_net_snapshot: Option<crate::network_analysis::NetworkSnapshot> = None;
+            let mut net_tick_counter: u32 = 0;
 
             let initial = collect_state(&mut system, &mut buffers);
             if let Ok(mut guard) = cache.write() {
@@ -309,6 +332,28 @@ pub fn start_watcher() {
                     snapshot.mitre_network_alerts = mitre_labels;
                     snapshot.dynamic_rule_alerts = dynamic_alerts;
                     snapshot.security_heartbeat = Some(heartbeat);
+
+                    // Network analysis capture (every NET_ANALYSIS_TICK_INTERVAL ticks)
+                    net_tick_counter += 1;
+                    if net_tick_counter >= NET_ANALYSIS_TICK_INTERVAL {
+                        net_tick_counter = 0;
+                        if let Ok(net_snap) =
+                            crate::network_analysis::capture_snapshot(&prev_net_snapshot)
+                        {
+                            // Enqueue DNS resolution for new connections
+                            crate::network_analysis::enqueue_dns_resolution(&net_snap.connections);
+
+                            snapshot.network_snapshot = Some(net_snap.clone());
+                            if let Ok(mut history) = net_history.write() {
+                                history.push(net_snap.clone());
+                            }
+                            prev_net_snapshot = Some(net_snap);
+                        }
+                    } else {
+                        // On non-capture ticks, carry forward the previous snapshot
+                        snapshot.network_snapshot = prev_net_snapshot.clone();
+                    }
+
                     snapshot
                 }));
 
@@ -339,6 +384,31 @@ pub fn get_cached_state() -> SystemState {
         .read()
         .map(|guard| guard.clone())
         .unwrap_or_else(|poisoned| poisoned.into_inner().clone())
+}
+
+/// Returns the latest network analysis snapshot, if available.
+pub fn get_network_snapshot() -> Option<crate::network_analysis::NetworkSnapshot> {
+    let state = get_cached_state();
+    state.network_snapshot
+}
+
+/// Returns network snapshots from the last `seconds` seconds.
+pub fn get_network_history(seconds: u32) -> Vec<crate::network_analysis::NetworkSnapshot> {
+    let history = network_history_handle();
+    history
+        .read()
+        .map(|guard| guard.last_n_seconds(seconds))
+        .unwrap_or_default()
+}
+
+/// Returns filtered network connections from the latest snapshot.
+pub fn get_filtered_connections(
+    filter: &crate::network_analysis::NetworkFilter,
+) -> Vec<crate::network_analysis::NetworkConnection> {
+    match get_network_snapshot() {
+        Some(snapshot) => filter.apply(&snapshot.connections),
+        None => Vec::new(),
+    }
 }
 
 #[cfg(test)]
