@@ -360,7 +360,70 @@ jobs:
           done
           echo "All artifacts signed."
 
-      - name: Upload checksums and signatures
+      - name: Generate releases.json manifest
+        if: env.ED25519_SIGNING_KEY != ''
+        env:
+          ED25519_SIGNING_KEY: ${{ secrets.ED25519_SIGNING_KEY }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          cd /tmp/release-artifacts
+          VERSION="${TAG#v}"
+          DATE=$(date -u +%Y-%m-%d)
+
+          # Build releases.json from individual .sig.json files
+          python3 - <<'PY'
+          import json, glob, os
+
+          version = os.environ["VERSION"]
+          date = os.environ["DATE"]
+          artifacts = []
+
+          for sig_file in sorted(glob.glob("*.sig.json")):
+              with open(sig_file) as f:
+                  sig = json.load(f)
+              artifact_name = sig.get("artifact", sig_file.replace(".sig.json", ""))
+              artifact_path = sig_file.replace(".sig.json", "")
+              size = os.path.getsize(artifact_path) if os.path.exists(artifact_path) else 0
+              lower = artifact_name.lower()
+
+              platform = "unknown"
+              if "linux" in lower or ".appimage" in lower or ".deb" in lower or ".rpm" in lower:
+                  platform = "linux"
+              elif "macos" in lower or "darwin" in lower or ".dmg" in lower:
+                  platform = "macos"
+              elif "windows" in lower or ".msi" in lower or ".exe" in lower:
+                  platform = "windows"
+
+              arch = "unknown"
+              if "universal" in lower:
+                  arch = "universal"
+              elif "aarch64" in lower or "arm64" in lower:
+                  arch = "aarch64"
+              elif "x86_64" in lower or "amd64" in lower:
+                  arch = "x86_64"
+
+              artifacts.append({
+                  "filename": artifact_name,
+                  "platform": platform,
+                  "arch": arch,
+                  "sha256": sig["sha256"],
+                  "signature_b64": sig["signature_b64"],
+                  "size_bytes": size,
+              })
+
+          manifest = {
+              "version": version,
+              "date": date,
+              "artifacts": artifacts,
+              "manifest_signature": "GENERATED_BY_CI"
+          }
+
+          with open("releases.json", "w") as f:
+              json.dump(manifest, f, indent=2)
+          print(f"Generated releases.json with {len(artifacts)} artifacts")
+          PY
+
+      - name: Upload checksums, signatures, and manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag || github.ref_name }}
@@ -372,7 +435,10 @@ jobs:
             [ -f "$sig" ] || continue
             gh release upload "$TAG" "$sig" --repo "$REPO" --clobber
           done
-          echo "Checksums and signatures uploaded to release $TAG"
+          if [ -f releases.json ]; then
+            gh release upload "$TAG" releases.json --repo "$REPO" --clobber
+          fi
+          echo "Checksums, signatures, and manifest uploaded to release $TAG"
 
   rename-assets:
     name: Rename Release Assets

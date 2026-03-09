@@ -1,0 +1,39 @@
+{
+  "version": "6.0.1",
+  "date": "2026-03-08",
+  "artifacts": [
+    {
+      "filename": "OmniMon-6.0.1-macOS-Universal.dmg",
+      "platform": "macos",
+      "arch": "universal",
+      "sha256": "PLACEHOLDER_GENERATE_WITH_omnimon_release_manifest",
+      "signature_b64": "PLACEHOLDER_GENERATE_WITH_omnimon_release_manifest",
+      "size_bytes": 0
+    },
+    {
+      "filename": "OmniMon-6.0.1-Linux.AppImage",
+      "platform": "linux",
+      "arch": "x86_64",
+      "sha256": "PLACEHOLDER_GENERATE_WITH_omnimon_release_manifest",
+      "signature_b64": "PLACEHOLDER_GENERATE_WITH_omnimon_release_manifest",
+      "size_bytes": 0
+    },
+    {
+      "filename": "OmniMon-6.0.1-Linux.deb",
+      "platform": "linux",
+      "arch": "x86_64",
+      "sha256": "PLACEHOLDER_GENERATE_WITH_omnimon_release_manifest",
+      "signature_b64": "PLACEHOLDER_GENERATE_WITH_omnimon_release_manifest",
+      "size_bytes": 0
+    },
+    {
+      "filename": "OmniMon-6.0.1-Windows.msi",
+      "platform": "windows",
+      "arch": "x86_64",
+      "sha256": "PLACEHOLDER_GENERATE_WITH_omnimon_release_manifest",
+      "signature_b64": "PLACEHOLDER_GENERATE_WITH_omnimon_release_manifest",
+      "size_bytes": 0
+    }
+  ],
+  "manifest_signature": "PLACEHOLDER_GENERATE_WITH_omnimon_release_manifest"
+}
