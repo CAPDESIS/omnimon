@@ -2241,8 +2241,17 @@ short line
         };
     }
 
+    /// Helper: create an Instant far enough in the past to be considered expired.
+    /// Returns None on Windows CI VMs with uptime shorter than the required offset.
+    fn expired_instant(multiplier: u32) -> Option<Instant> {
+        Instant::now().checked_sub(DNS_CACHE_TTL * multiplier)
+    }
+
     #[test]
     fn dns_cache_evict_expired() {
+        let Some(old_ts) = expired_instant(3) else {
+            return; // system uptime too short for this test
+        };
         let cache = DnsCache::new();
         let ip = IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1));
 
@@ -2252,7 +2261,7 @@ short line
                 ip,
                 DnsCacheEntry {
                     hostname: Some("old.example.com".to_string()),
-                    resolved_at: Instant::now() - DNS_CACHE_TTL * 3,
+                    resolved_at: old_ts,
                 },
             );
         }
@@ -2369,6 +2378,9 @@ short line
 
     #[test]
     fn dns_cache_eviction_removes_stale_entries() {
+        let Some(old_ts) = expired_instant(3) else {
+            return; // system uptime too short for this test
+        };
         let ip = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 10));
         clear_dns_cache();
         if let Ok(mut entries) = dns_cache().entries.write() {
@@ -2376,7 +2388,7 @@ short line
                 ip,
                 DnsCacheEntry {
                     hostname: Some("stale.example".to_string()),
-                    resolved_at: Instant::now() - (DNS_CACHE_TTL * 2 + Duration::from_secs(1)),
+                    resolved_at: old_ts,
                 },
             );
         }
