@@ -75,6 +75,7 @@ vi.mock("../stores/processes", () => {
     grouping,
     startPolling: vi.fn(),
     stopPolling: vi.fn(),
+    setPollingTarget: vi.fn(),
     killSelected: vi.fn(async () => []),
     killSingle: vi.fn(async () => true),
     selectAllVisible: vi.fn(),
@@ -189,7 +190,7 @@ describe("App AI Command Bar", () => {
 
   it("renders the AI command bar with input", async () => {
     render(App);
-    // The AiCommandBar uses a different placeholder
+    await fireEvent.click(screen.getByRole("tab", { name: /AI Actions/i }));
     const input = screen.getByPlaceholderText(/Alert me if Chrome/i);
     expect(input).toBeInTheDocument();
   });
@@ -224,7 +225,7 @@ describe("App AI Command Bar", () => {
     const settingsButton = document.querySelector('.toolbar-actions button[title="AI Settings"]') as HTMLButtonElement;
     await fireEvent.click(settingsButton);
     await waitFor(() => {
-      expect(screen.getByText("OmniMon Settings")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "OmniMon Settings" })).toBeInTheDocument();
     });
   });
 

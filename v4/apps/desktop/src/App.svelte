@@ -9,6 +9,13 @@
   import InfoPopover from "./components/InfoPopover.svelte";
   import SmartAlerts from "./components/SmartAlerts.svelte";
   import AppToolbar from "./components/AppToolbar.svelte";
+  import AppLayout from "./components/layout/AppLayout.svelte";
+  import AppHeader from "./components/layout/AppHeader.svelte";
+  import AppSidebar from "./components/layout/AppSidebar.svelte";
+  import AppStatusBar from "./components/layout/AppStatusBar.svelte";
+  import NavigationTabs from "./components/layout/NavigationTabs.svelte";
+  import AIConfigPanel from "./components/layout/AIConfigPanel.svelte";
+
   import Button from "./components/Button.svelte";
   import ProfilePanel from "./components/ProfilePanel.svelte";
   import ConfirmDialog from "./components/ConfirmDialog.svelte";
@@ -584,267 +591,164 @@
       requestAnimationFrame(() => focusFirstFocusable(settingsModalEl));
     }
   });
+  let activeTab = $state<"processes" | "network" | "browser" | "aichat" | "settings">("processes");
+
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
-<main style="--base-font-size: {$fontSize}px">
-  <AppToolbar
-    searchValue={searchValue}
-    onsearch={onSearchInput}
-    onclearsearch={() => { searchValue = ""; $search = ""; }}
-    selectedCount={$selectedCount}
-    selectedRamMB={$selectedRamMB}
-    grouping={$grouping}
-    totalFindings={$totalFindings}
-    aiLoading={$aiLoading}
-    aiProfile={$aiProfile}
-    fontSize={$fontSize}
-    onselectall={selectAllVisible}
-    onselectnone={selectNone}
-    onkillselected={killSelected}
-    ontogglegrouping={() => $grouping = !$grouping}
-    onchangepofile={(value) => $aiProfile = value}
-    onanalyze={() => analyzeWithAi($aiProviderConfig.provider, $aiProviderConfig.model)}
-    onopensecurity={openSecurityReport}
-    ontoggledashboard={() => dashboardCollapsed = !dashboardCollapsed}
-    dashboardCollapsed={dashboardCollapsed}
-    ontoggleautomations={toggleAutomations}
-    onopenplugins={openPlugins}
-    onopensettings={() => showSettings = true}
-    onopenhelp={openHelpCenter}
-    ondecreasefont={decreaseFontSize}
-    onincreasefont={increaseFontSize}
-  />
+<AppLayout fontSize={$fontSize}>
+  {#snippet header()}
+    <AppHeader
+      searchValue={searchValue}
+      onsearch={onSearchInput}
+      onclearsearch={() => { searchValue = ""; $search = ""; }}
+      selectedCount={$selectedCount}
+      selectedRamMB={$selectedRamMB}
+      grouping={$grouping}
+      totalFindings={$totalFindings}
+      aiLoading={$aiLoading}
+      aiProfile={$aiProfile}
+      fontSize={$fontSize}
+      onselectall={selectAllVisible}
+      onselectnone={selectNone}
+      onkillselected={killSelected}
+      ontogglegrouping={() => $grouping = !$grouping}
+      onchangepofile={(value) => $aiProfile = value}
+      onanalyze={() => analyzeWithAi($aiProviderConfig.provider, $aiProviderConfig.model)}
+      onopensecurity={openSecurityReport}
+      ontoggledashboard={() => dashboardCollapsed = !dashboardCollapsed}
+      dashboardCollapsed={dashboardCollapsed}
+      ontoggleautomations={toggleAutomations}
+      onopenplugins={openPlugins}
+      onopensettings={() => { showSettings = true; activeTab = "settings"; }}
+      onopenhelp={openHelpCenter}
+      ondecreasefont={decreaseFontSize}
+      onincreasefont={increaseFontSize}
+    />
+  {/snippet}
 
-  <div class="scrollable-sections">
-  <div class="section-header" role="button" tabindex="0"
-    onclick={() => $profilesCollapsedStore = !$profilesCollapsedStore}
-    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $profilesCollapsedStore = !$profilesCollapsedStore; } }}
-    aria-expanded={!$profilesCollapsedStore}
-  >
-    <span class="section-chevron" class:open={!$profilesCollapsedStore}>&#9654;</span>
-    <span class="section-label">{t("toolbar.aiProfile")}</span>
-  </div>
-  {#if !$profilesCollapsedStore}
-    <div class="profiles-shell">
-      <ProfilePanel />
-    </div>
-  {/if}
+  {#snippet sidebar()}
+    <AppSidebar 
+      dashboardCollapsed={dashboardCollapsed}
+      userMode={$userMode}
+      onopenmetric={openMetricModal}
+    />
+  {/snippet}
 
-  <!-- Dashboard with charts -->
-  <SystemDashboard collapsed={dashboardCollapsed} mode={$userMode} onopenmetric={openMetricModal} />
-
-  <!-- Browser Tabs Panel -->
-  <div class="section-header" role="button" tabindex="0"
-    onclick={() => $browserTabsCollapsedStore = !$browserTabsCollapsedStore}
-    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $browserTabsCollapsedStore = !$browserTabsCollapsedStore; } }}
-    aria-expanded={!$browserTabsCollapsedStore}
-  >
-    <span class="section-chevron" class:open={!$browserTabsCollapsedStore}>&#9654;</span>
-    <span class="section-label">{t("common.browserTabs")}</span>
-    {#if !$browserTabsCollapsedStore}
-      <span class="section-resize-btns">
-        <button class="section-size-btn" type="button" onclick={(e: MouseEvent) => { e.stopPropagation(); resizeSection("tabs", -60); }} aria-label={t("common.smaller")}>−</button>
-        <button class="section-size-btn" type="button" onclick={(e: MouseEvent) => { e.stopPropagation(); resizeSection("tabs", 60); }} aria-label={t("common.larger")}>+</button>
-      </span>
-    {/if}
-  </div>
-  {#if !$browserTabsCollapsedStore}
-    <div class="tab-panel" style="height: {tabPanelHeight}px" bind:this={chromeTabsHost}>
-      {#if chromeTabManagerPromise}
-        {#await chromeTabManagerPromise then ChromeTabManagerModule}
-          <ChromeTabManagerModule.default filter={searchValue} />
-        {:catch}
-          <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
-            <SkeletonBlock width="100%" height="100%" rounded="12px" />
-          </div>
-        {/await}
-      {:else}
-        <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
-          <SkeletonBlock width="100%" height="100%" rounded="12px" />
-        </div>
-      {/if}
-    </div>
-    <button
-      type="button"
-      class="resize-divider"
-      class:active={dragging}
-      onmousedown={onDividerMousedown}
-      onkeydown={onDividerKeydown}
-      aria-label={t("common.resizeTabPanel")}
-    ></button>
-  {/if}
-
-  <!-- Process Table -->
-  <div class="section-header" role="button" tabindex="0"
-    onclick={() => $mainTableCollapsedStore = !$mainTableCollapsedStore}
-    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $mainTableCollapsedStore = !$mainTableCollapsedStore; } }}
-    aria-expanded={!$mainTableCollapsedStore}
-  >
-    <span class="section-chevron" class:open={!$mainTableCollapsedStore}>&#9654;</span>
-    <span class="section-label">{t("common.processes")}</span>
-  </div>
-  {#if !$mainTableCollapsedStore}
-    {#if $loading}
-      <div class="loading-shell" role="status" aria-busy="true" aria-label={t("common.loadingAria")}>
-        <div class="loading-toolbar-card">
-          <SkeletonBlock width="22%" height="14px" rounded="999px" />
-          <SkeletonBlock width="100%" height="42px" rounded="14px" />
-        </div>
-        <div class="loading-table-card">
-          <div class="loading-table-header">
-            <SkeletonBlock width="14%" height="12px" rounded="999px" />
-            <SkeletonBlock width="10%" height="12px" rounded="999px" />
-            <SkeletonBlock width="12%" height="12px" rounded="999px" />
-            <SkeletonBlock width="8%" height="12px" rounded="999px" />
-          </div>
-          {#each Array(7) as _, index}
-            <div class="loading-row" style={`animation-delay:${index * 50}ms`}>
-              <SkeletonBlock width="28px" height="28px" rounded="8px" />
-              <SkeletonBlock width="20%" height="12px" rounded="999px" />
-              <SkeletonBlock width="12%" height="12px" rounded="999px" />
-              <SkeletonBlock width="16%" height="12px" rounded="999px" />
-              <SkeletonBlock width="10%" height="12px" rounded="999px" />
+  {#snippet main()}
+    <NavigationTabs 
+      {activeTab} 
+      ontabchange={(t) => {
+        activeTab = t;
+        if (t === "browser") loadChromeTabManager();
+        if (t === "network") loadNetworkMap();
+      }}
+    />
+    
+    <div class="main-content-area">
+      {#if activeTab === "processes"}
+        <div class="tab-pane">
+          {#if $loading}
+            <div class="loading-shell" role="status" aria-busy="true" aria-label={t("common.loadingAria")}>
+              <div class="loading-toolbar-card">
+                <SkeletonBlock width="22%" height="14px" rounded="999px" />
+                <SkeletonBlock width="100%" height="42px" rounded="14px" />
+              </div>
+              <div class="loading-table-card">
+                <div class="loading-table-header">
+                  <SkeletonBlock width="14%" height="12px" rounded="999px" />
+                  <SkeletonBlock width="10%" height="12px" rounded="999px" />
+                  <SkeletonBlock width="12%" height="12px" rounded="999px" />
+                </div>
+                <div class="loading-table-body">
+                  {#each Array(12) as _, i}
+                    <SkeletonBlock width="100%" height="24px" rounded="4px" />
+                  {/each}
+                </div>
+              </div>
             </div>
-          {/each}
+          {:else}
+            <ProcessTable processes={$filtered} grouping={$grouping} columns={visibleColumns} columnOrder={$columnOrder} oninspect={inspectProcess} />
+          {/if}
         </div>
-      </div>
-    {:else}
-      <ProcessTable
-        processes={$filtered}
-        grouping={$grouping}
-        columns={visibleColumns}
-        columnOrder={$columnOrder}
-        oninspect={inspectProcess}
-      />
-    {/if}
-  {/if}
-
-  <!-- AI Suggestions Panel -->
-  {#if $aiError || $aiSuggestions.length > 0}
-    <div class="ai-panel" role="region" aria-label={t("ai.suggestions")}>
-      <div class="ai-header">
-        <span class="ai-title">{t("ai.suggestions")}</span>
-        <InfoPopover label={t("ai.suggestions")} content={t("toolbar.aiSuggestionsHelp")} />
-        <Button variant="ghost" size="sm" onclick={dismissAiSuggestions}>{t("ai.dismiss")}</Button>
-      </div>
-      {#if $aiError}
-        <div class="ai-error">{$aiError}</div>
       {/if}
-      {#each $aiSuggestions as suggestion (suggestion.pid)}
-        <div class="ai-row">
-          <span class="ai-name">{suggestion.name}</span>
-          <span class="ai-pid">{t("ai.pid", { pid: suggestion.pid })}</span>
-          <span class="ai-reason">{suggestion.reason}</span>
-          <Button
-            variant="danger"
-            size="sm"
-            onclick={() => killSingle(suggestion.pid)}
-          >{t("ai.close")}</Button>
+
+      {#if activeTab === "network"}
+        <div class="tab-pane" bind:this={networkMapHost}>
+          {#if basicModeNetworkHint}
+            <div class="mode-hint-card" role="note" style="border: 1px solid var(--border); border-radius: 16px; background: color-mix(in srgb, var(--bg-surface, var(--bg-alt)) 92%, white 2%); padding: 14px 16px; margin: 12px 16px; display: flex; flex-direction: column; gap: 6px;">
+              <span class="mode-hint-label" style="color: var(--accent); text-transform: uppercase; font-size: calc(var(--base-font-size) * 0.75); font-weight: 800; letter-spacing: 0.5px;">{t("common.userView")}</span>
+              <span style="font-size: calc(var(--base-font-size) * 0.95); line-height: 1.4;">{t("profiles.proHint")}</span>
+            </div>
+          {/if}
+          {#if networkMapPromise}
+            {#await networkMapPromise then NetworkMapModule}
+              <NetworkMapModule.default filter={searchValue} />
+            {:catch}
+              <div class="lazy-panel-fallback">
+                <SkeletonBlock width="100%" height="100%" rounded="12px" />
+              </div>
+            {/await}
+          {:else}
+            <div class="lazy-panel-fallback">
+              <SkeletonBlock width="100%" height="100%" rounded="12px" />
+            </div>
+          {/if}
         </div>
-      {/each}
-    </div>
-  {/if}
+      {/if}
 
-  <!-- AI Security Insights (human-readable) -->
-  {#if $userMode === "pro"}
-    <AiInsightCard />
-  {/if}
+      {#if activeTab === "browser"}
+        <div class="tab-pane" bind:this={chromeTabsHost}>
+          {#if chromeTabManagerPromise}
+            {#await chromeTabManagerPromise then ChromeTabManagerModule}
+              <ChromeTabManagerModule.default filter={searchValue} />
+            {:catch}
+              <div class="lazy-panel-fallback">
+                <SkeletonBlock width="100%" height="100%" rounded="12px" />
+              </div>
+            {/await}
+          {:else}
+            <div class="lazy-panel-fallback">
+              <SkeletonBlock width="100%" height="100%" rounded="12px" />
+            </div>
+          {/if}
+        </div>
+      {/if}
 
-  <!-- Network Connection Map -->
-  <div class="section-header" role="button" tabindex="0"
-    onclick={() => { $networkMapCollapsedStore = !$networkMapCollapsedStore; if (!$networkMapCollapsedStore) loadNetworkMap(); }}
-    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $networkMapCollapsedStore = !$networkMapCollapsedStore; if (!$networkMapCollapsedStore) loadNetworkMap(); } }}
-    aria-expanded={!$networkMapCollapsedStore}
-  >
-    <span class="section-chevron" class:open={!$networkMapCollapsedStore}>&#9654;</span>
-    <span class="section-label">{t("common.networkMap")}</span>
-    {#if !$networkMapCollapsedStore}
-      <span class="section-resize-btns">
-        <button class="section-size-btn" type="button" onclick={(e: MouseEvent) => { e.stopPropagation(); resizeSection("network", -60); }} aria-label={t("common.smaller")}>−</button>
-        <button class="section-size-btn" type="button" onclick={(e: MouseEvent) => { e.stopPropagation(); resizeSection("network", 60); }} aria-label={t("common.larger")}>+</button>
-      </span>
-    {/if}
-  </div>
-  {#if !$networkMapCollapsedStore}
-    <div bind:this={networkMapHost} style="--section-extra-height:{networkMapExtraHeight}px">
-      {#if networkMapPromise}
-        {#await networkMapPromise}
-          <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
-            <SkeletonBlock width="100%" height="140px" rounded="14px" />
+      {#if activeTab === "aichat"}
+        <div class="tab-pane aichat-pane" bind:this={aiChatHost}>
+          <AIConfigPanel 
+            isCollapsed={$aiConfigCollapsedStore} 
+            ontoggle={() => $aiConfigCollapsedStore = !$aiConfigCollapsedStore} 
+          />
+          <AIChat />
+        </div>
+      {/if}
+
+      {#if activeTab === "settings"}
+        <div class="tab-pane settings-pane">
+          <!-- We can move the settings content here or just let the modal show -->
+          <div style="padding: 24px; color: var(--fg-dim);">
+            {t("settings.title")} 
+            <br/><br/>
+            <Button onclick={() => showSettings = true}>Open Settings Modal</Button>
           </div>
-        {:then NetworkMapModule}
-          <NetworkMapModule.default mode={$userMode} extraHeight={networkMapExtraHeight} />
-        {:catch}
-          <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
-            <p style="padding:12px;color:var(--fg-dim);">{t("common.loadError", { default: "Failed to load component" })}</p>
-          </div>
-        {/await}
-      {:else}
-        <div class="lazy-panel-fallback" role="status" aria-label={t("common.loadingAria")}>
-          <SkeletonBlock width="100%" height="140px" rounded="14px" />
         </div>
       {/if}
     </div>
-    {#if basicModeNetworkHint}
-      <div class="mode-hint-card" role="note">
-        <span class="mode-hint-label">{t("common.userView")}</span>
-        <span>{t("profiles.proHint")}</span>
-      </div>
-    {/if}
-  {/if}
+  {/snippet}
 
-  <!-- AI Interactive Chat (Tool Calling) -->
-  <div class="section-header" role="button" tabindex="0"
-    onclick={() => { $aiChatCollapsedStore = !$aiChatCollapsedStore; }}
-    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $aiChatCollapsedStore = !$aiChatCollapsedStore; } }}
-    aria-expanded={!$aiChatCollapsedStore}
-  >
-    <span class="section-chevron" class:open={!$aiChatCollapsedStore}>&#9654;</span>
-    <span class="section-label">{t("aiChat.title")}</span>
-    {#if !$aiChatCollapsedStore}
-      <span class="section-resize-btns">
-        <button class="section-size-btn" type="button" onclick={(e: MouseEvent) => { e.stopPropagation(); resizeSection("aichat", -60); }} aria-label={t("common.smaller")}>−</button>
-        <button class="section-size-btn" type="button" onclick={(e: MouseEvent) => { e.stopPropagation(); resizeSection("aichat", 60); }} aria-label={t("common.larger")}>+</button>
-      </span>
-    {/if}
-  </div>
-  {#if !$aiChatCollapsedStore}
-    <div class="ai-chat-panel" bind:this={aiChatHost} style={aiChatExtraHeight !== 0 ? `min-height:${220 + aiChatExtraHeight}px` : ""}>
-      <AIChat />
-    </div>
-  {/if}
+  {#snippet footer()}
+    <AppStatusBar 
+      filteredCount={$filtered.length}
+      totalCount={$processes.length}
+      selectedCount={$selectedCount}
+      selectedRamMB={$selectedRamMB}
+    />
+  {/snippet}
 
-  <!-- AI Command Bar (Natural Language Config) -->
-  <div class="section-header" role="button" tabindex="0"
-    onclick={() => $aiConfigCollapsedStore = !$aiConfigCollapsedStore}
-    onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $aiConfigCollapsedStore = !$aiConfigCollapsedStore; } }}
-    aria-expanded={!$aiConfigCollapsedStore}
-  >
-    <span class="section-chevron" class:open={!$aiConfigCollapsedStore}>&#9654;</span>
-    <span class="section-label">{t("aiConfig.title")}</span>
-  </div>
-  {#if !$aiConfigCollapsedStore}
-    <AiCommandBar />
-  {/if}
-
-  </div><!-- end .scrollable-sections -->
-
-  <!-- Status Footer -->
-  <footer class="statusline" aria-live="polite" aria-atomic="true">
-    <span>
-      <span class="version-label">OmniMon v6.0.1</span> &nbsp;&middot;&nbsp;
-      {t("footer.processes", { count: $filtered.length })}{#if $filtered.length !== $processes.length}
-        &nbsp;{t("footer.filteredFrom", { count: $processes.length })}{/if}
-      {#if $selectedCount > 0}
-        <span aria-hidden="true">&nbsp;&middot;&nbsp;</span>{t("footer.selected", { count: $selectedCount, ram: $selectedRamMB.toFixed(0) })}
-      {/if}
-    </span>
-    <span class="shortcuts" aria-hidden="true"><kbd>Cmd+I</kbd> {t("footer.shortcutDetail")} <kbd>Cmd+F</kbd> {t("footer.shortcutSearch")} <kbd>Del</kbd> {t("footer.shortcutClose")}</span>
-  </footer>
-</main>
-
+  {#snippet modals()}
 {#if detailProcess}
   {#if processDetailsModalPromise}
     {#await processDetailsModalPromise then ProcessDetailsModalModule}
@@ -1147,6 +1051,8 @@
 
 <ConfirmDialog />
 
+  {/snippet}
+</AppLayout>
 <style>
   /* ==============================
      GLOBAL RESET & BASE
@@ -1168,590 +1074,161 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Platform-specific font tuning */
-  :global([data-platform="windows"]) :global(body) {
-    font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-  }
-  :global([data-platform="linux"]) :global(body) {
-    font-family: "Cantarell", "Noto Sans", system-ui, sans-serif;
-  }
-
-  /* Fallback theme vars for components that load before theme engine */
-  :global(:root) {
-    --bg: #0a0a0b;
-    --bg-alt: #111113;
-    --bg-hover: #1a1a1e;
-    --bg-selected: #0d2847;
-    --bg-surface: #161618;
-    --fg: #ededef;
-    --fg-dim: #71717a;
-    --border: #27272a;
-    --border-subtle: rgba(255,255,255,0.06);
-    --accent: #3b82f6;
-    --accent-hover: #2563eb;
-    --accent-dim: rgba(59,130,246,0.15);
-    --danger: #ef4444;
-    --danger-hover: #dc2626;
-    --green: #22c55e;
-    --yellow: #eab308;
-    --chart-cpu: #3b82f6;
-    --chart-ram: #a855f7;
-    --chart-net-rx: #22c55e;
-    --chart-net-tx: #f97316;
-    --chart-grid: rgba(255,255,255,0.04);
-    --chart-bg: #0a0a0b;
-    --toast-bg: #18181b;
-    --toast-border: #27272a;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
-    --shadow-md: 0 4px 12px rgba(0,0,0,0.5);
-    --shadow-lg: 0 8px 32px rgba(0,0,0,0.6);
-    --radius-sm: 4px;
-    --radius-md: 8px;
-    --radius-lg: 12px;
-  }
-
-  /* Smooth scrollbar styling */
-  :global(::-webkit-scrollbar) {
-    width: 6px;
-    height: 6px;
-  }
-  :global(::-webkit-scrollbar-track) {
-    background: transparent;
-  }
-  :global(::-webkit-scrollbar-thumb) {
-    background: var(--border);
-    border-radius: 3px;
-  }
-  :global(::-webkit-scrollbar-thumb:hover) {
-    background: var(--fg-dim);
-  }
-
-  /* ==============================
-     LAYOUT
-     ============================== */
-  main {
+  /* ... layout ... */
+  .main-content-area {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    flex: 1;
     overflow: hidden;
+    background: var(--bg, #0a0a0b);
   }
 
-  .scrollable-sections {
-    flex: 1 1 auto;
-    overflow-y: auto;
-    min-height: 0;
+  .tab-pane {
     display: flex;
     flex-direction: column;
-  }
-
-  .section-resize-btns {
-    display: inline-flex;
-    gap: 2px;
-    margin-left: auto;
-    flex-shrink: 0;
-  }
-
-  .section-size-btn {
-    width: 22px;
-    height: 22px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--bg);
-    color: var(--fg);
-    cursor: pointer;
-    font-weight: 700;
-    font-size: calc(var(--base-font-size, 12px) * 0.917);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-    padding: 0;
-  }
-
-  .section-size-btn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-
-  /* ==============================
-     BUTTONS
-     ============================== */
-  /* ==============================
-     COLLAPSIBLE SECTION HEADERS
-     ============================== */
-  .section-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    background: var(--bg-alt);
-    border-bottom: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
-    cursor: pointer;
-    user-select: none;
-    min-height: calc(var(--base-font-size) * 1.8);
-    flex-shrink: 0;
-  }
-  .section-header:hover {
-    background: var(--bg-hover);
-  }
-  .section-chevron {
-    font-size: calc(var(--base-font-size) * 0.6);
-    color: var(--fg-dim);
-    transition: transform 0.15s ease;
-    display: inline-block;
-  }
-  .section-chevron.open {
-    transform: rotate(90deg);
-  }
-  .section-label {
-    font-size: calc(var(--base-font-size) * 0.75);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--fg-dim);
-  }
-  .profiles-shell {
-    padding: 0 16px 16px;
-    background: var(--bg-alt);
-    border-bottom: 1px solid var(--border);
-  }
-
-  /* ==============================
-     PANELS
-     ============================== */
-  .tab-panel {
-    flex: 1 1 auto;
-    overflow: auto;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    min-width: 0;
-  }
-
-  .lazy-panel-fallback {
-    width: 100%;
-    height: 100%;
-    padding: 14px 16px;
-    background: var(--bg-alt);
-  }
-
-  .resize-divider {
-    flex-shrink: 0;
-    height: 3px;
-    width: 100%;
-    padding: 0;
-    border: none;
-    background: var(--border);
-    cursor: ns-resize;
-    position: relative;
-    transition: background 0.15s;
-  }
-  .resize-divider:hover, .resize-divider.active {
-    background: var(--accent);
-  }
-
-  .loading-shell {
     flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    padding: 18px 16px 22px;
-    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-alt) 92%, white 2%), var(--bg));
-  }
-
-  .loading-toolbar-card,
-  .loading-table-card,
-  .mode-hint-card {
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    background: color-mix(in srgb, var(--bg-surface, var(--bg-alt)) 92%, white 2%);
-    box-shadow: 0 18px 28px rgba(0, 0, 0, 0.08);
-  }
-
-  .loading-toolbar-card {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 18px;
-  }
-
-  .loading-table-card {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 18px;
-    flex: 1;
-  }
-
-  .loading-table-header,
-  .loading-row {
-    display: grid;
-    grid-template-columns: 28px 2fr 1fr 1fr 0.8fr;
-    gap: 10px;
-    align-items: center;
-  }
-
-  .mode-hint-card {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin: 12px 16px 0;
-    padding: 14px 16px;
-    color: var(--fg-dim);
-    line-height: 1.45;
-  }
-
-  .mode-hint-label {
-    color: var(--accent);
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    font-size: calc(var(--base-font-size) * 0.72);
-    font-weight: 800;
-  }
-
-  /* ==============================
-     AI PANEL
-     ============================== */
-  .ai-panel {
-    flex-shrink: 0;
-    border-top: 1px solid var(--border);
-    background: var(--bg-alt);
-    max-height: 180px;
     overflow-y: auto;
   }
 
-  .ai-chat-panel {
-    flex-shrink: 0;
-    overflow: visible;
-    min-height: 0;
-  }
-
-  .ai-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 10px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .ai-title {
-    font-size: calc(var(--base-font-size) * 0.75);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--accent);
-  }
-
-  .ai-error {
-    padding: 4px 10px;
-    font-size: calc(var(--base-font-size) * 0.833);
-    color: var(--danger);
-  }
-
-  .ai-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 10px;
-    font-size: calc(var(--base-font-size) * 0.917);
-    border-bottom: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
-    transition: background 0.1s;
-  }
-  .ai-row:hover { background: var(--bg-hover); }
-
-  .ai-name {
-    font-weight: 600;
-    min-width: 120px;
+  .aichat-pane {
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .ai-pid {
-    font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    font-size: calc(var(--base-font-size) * 0.833);
-    color: var(--fg-dim);
-    flex-shrink: 0;
-  }
-
-  .ai-reason {
-    flex: 1;
-    font-size: calc(var(--base-font-size) * 0.833);
-    color: var(--fg-dim);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   /* ==============================
-     FOOTER
-     ============================== */
-  .statusline {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 16px;
-    font-size: calc(var(--base-font-size) * 0.833);
-    color: var(--fg-dim);
-    background: var(--bg-alt);
-    border-top: 1px solid var(--border);
-    flex-shrink: 0;
-    min-height: calc(var(--base-font-size) * 2.4);
-    line-height: calc(var(--base-font-size) * 1.333);
-    font-family: "SF Mono", "Menlo", "Consolas", monospace;
-  }
-
-  .version-label {
-    color: var(--accent);
-    font-weight: 700;
-  }
-
-  .shortcuts { opacity: 0.5; }
-  .shortcuts :global(kbd) {
-    font-family: inherit;
-    font-size: inherit;
-    background: var(--bg-hover);
-    padding: 1px 4px;
-    border-radius: 3px;
-    border: 1px solid var(--border);
-  }
-
-  /* ==============================
-     SETTINGS MODAL
+     MODALS & BACKDROPS
      ============================== */
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.4);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 100;
+    z-index: 1000;
   }
 
   .settings-modal {
-    background: var(--bg-surface, var(--bg-alt));
+    background: var(--bg);
     border: 1px solid var(--border);
-    border-radius: 18px;
-    width: min(460px, calc(100vw - 32px));
+    border-radius: 12px;
+    width: 600px;
+    max-width: 90vw;
     max-height: 80vh;
-    overflow-y: auto;
-    box-shadow: var(--shadow-lg, 0 8px 32px rgba(0,0,0,0.5));
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
   }
 
   .settings-header {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    padding: 16px 18px;
+    align-items: center;
+    padding: 16px 20px;
     border-bottom: 1px solid var(--border);
+    background: var(--bg-alt);
   }
 
   .settings-title {
-    font-weight: 700;
-    font-size: calc(var(--base-font-size) * 1.083);
     margin: 0;
-  }
-
-  :global(.settings-close-button) {
-    flex-shrink: 0;
+    font-size: calc(var(--base-font-size) * 1.2);
+    font-weight: 600;
   }
 
   .settings-body {
-    padding: 16px 18px 18px;
+    padding: 20px;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
   }
 
   .settings-row {
     display: flex;
     align-items: center;
     gap: 12px;
-    font-size: calc(var(--base-font-size) * 0.917);
-  }
-
-  .settings-field-stack {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    align-items: flex-start;
   }
 
   .settings-label {
-    min-width: 80px;
-    width: auto;
-    flex-shrink: 0;
-    font-size: calc(var(--base-font-size) * 0.75);
-    font-weight: 700;
-    color: var(--fg-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
+    min-width: 140px;
+    font-weight: 500;
   }
-
-  .settings-select {
-    flex: 1;
-    padding: 4px 8px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 4px);
-    background: var(--bg);
-    color: var(--fg);
-    font-size: calc(var(--base-font-size) * 0.917);
-    outline: none;
-    height: calc(var(--base-font-size) * 2);
-    cursor: pointer;
-    transition: border-color 0.15s;
-  }
-  .settings-select:focus { border-color: var(--accent); }
 
   .settings-input {
     flex: 1;
-    padding: 4px 8px;
+    background: var(--bg-alt);
     border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 4px);
-    background: var(--bg);
     color: var(--fg);
-    font-size: calc(var(--base-font-size) * 0.917);
-    outline: none;
-    height: calc(var(--base-font-size) * 2);
-    transition: border-color 0.15s;
-  }
-  .settings-input:focus { border-color: var(--accent); }
-
-  .settings-error {
-    font-size: calc(var(--base-font-size) * 0.833);
-    color: var(--danger);
-    padding: 2px 0;
-  }
-
-  .settings-success {
-    font-size: calc(var(--base-font-size) * 0.833);
-    color: var(--green);
-    padding: 2px 0;
-  }
-
-  .settings-divider {
-    height: 1px;
-    background: var(--border);
-    margin: 8px 0;
-  }
-
-  .settings-section-label {
-    font-size: calc(var(--base-font-size) * 0.667);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--accent);
-    margin-bottom: 4px;
-  }
-
-  .settings-columns-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .col-order-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 8px;
-    font-size: calc(var(--base-font-size) * 0.917);
-    border-radius: 10px;
-    transition: background 0.1s;
-  }
-  .col-order-row:hover { background: var(--bg-hover); }
-
-  .col-order-row input[type="checkbox"] {
-    margin: 0;
-    width: 14px;
-    height: 14px;
-    cursor: pointer;
-    accent-color: var(--accent);
-  }
-  .col-order-name { flex: 1; }
-  .col-order-btns { display: flex; gap: 6px; }
-  :global(.col-move-btn) {
-    min-width: 30px;
-    padding: 0 8px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: var(--base-font-size);
   }
 
   .settings-hint {
-    font-size: calc(var(--base-font-size) * 0.75);
+    font-size: calc(var(--base-font-size) * 0.85);
     color: var(--fg-dim);
-    white-space: normal;
+    margin-top: 4px;
+    margin-left: 152px;
   }
-
-  .settings-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--fg);
-    font-size: calc(var(--base-font-size) * 0.833);
-    cursor: pointer;
-  }
-
-  .settings-toggle input[type="checkbox"] {
-    margin: 0;
-    width: 14px;
-    height: 14px;
-    accent-color: var(--accent);
-  }
-
-  .custom-theme-editor {
-    padding: 6px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 4px);
-    padding: 8px;
-    background: var(--bg);
-  }
-
-  .color-row {
-    gap: 6px;
-  }
-
-  .color-picker {
-    width: 32px;
-    height: 24px;
-    padding: 0;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    background: transparent;
-    cursor: pointer;
-  }
-  .color-picker::-webkit-color-swatch-wrapper { padding: 1px; }
-  .color-picker::-webkit-color-swatch { border-radius: 2px; border: none; }
 
   .settings-footer {
-    padding: 16px 18px 18px;
-    border-top: 1px solid var(--border);
     display: flex;
     justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-alt);
   }
 
-  @media (max-width: 840px) {
-    .loading-table-header,
-    .loading-row {
-      grid-template-columns: 24px 1.8fr 1fr;
-    }
+  .lazy-panel-fallback {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex: 1;
+    padding: 20px;
+    height: 100%;
+  }
 
-    .loading-table-header :global(.skeleton-block:nth-child(n+4)),
-    .loading-row :global(.skeleton-block:nth-child(n+4)) {
-      display: none;
-    }
+  /* Re-add loading card styles specifically for the process table skeleton */
+  .loading-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    height: 100%;
+  }
 
-    .settings-row {
-      align-items: flex-start;
-      flex-direction: column;
-    }
+  .loading-toolbar-card,
+  .loading-table-card {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--bg-alt);
+    padding: 16px;
+  }
 
-    .settings-label {
-      min-width: 0;
-    }
+  .loading-toolbar-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .loading-table-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .loading-table-header {
+    display: flex;
+    gap: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .loading-table-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 </style>
