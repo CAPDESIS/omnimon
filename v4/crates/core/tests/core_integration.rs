@@ -1,6 +1,6 @@
 use core::{
-    ai, audit, audit_trail, cloud, crypto, killer, metrics, network, process_identity, rate_limit,
-    rules_engine, security, telemetry, watcher,
+    ai, audit, audit_trail, cloud, crypto, killer, metrics, network, network_alerts,
+    process_identity, rate_limit, rules_engine, security, telemetry, watcher,
 };
 use std::sync::{Mutex, OnceLock};
 
@@ -66,6 +66,7 @@ fn integration_super_processes_pids_match_count() {
 fn integration_super_processes_with_network_data() {
     let network = vec![network::ProcessNetworkThroughput {
         pid: std::process::id(),
+        process_name: Some("self".to_string()),
         rx_bytes_per_sec: 2048,
         tx_bytes_per_sec: 4096,
         tcp_packets_per_sec: 5,
@@ -1260,4 +1261,58 @@ fn integration_security_scan_to_mitre_to_report_pipeline() {
         .any(|t| t.technique_id == "T1071"));
     assert!(json.contains("NIST 800-53"));
     assert!(json.contains("reported"));
+}
+
+#[test]
+fn integration_network_alerts_pipeline_emits_after_three_snapshots() {
+    network_alerts::reset_network_alert_state_for_tests();
+    let rules = vec![network_alerts::NetworkAlertRule {
+        id: "suspicious-port".to_string(),
+        name: "Puerto sospechoso".to_string(),
+        enabled: true,
+        condition: network_alerts::AlertCondition::UnusualPort {
+            suspicious_ports: vec![4444],
+        },
+        severity: network_alerts::AlertSeverity::Critical,
+        cooldown_seconds: 30,
+        notify_ai: true,
+    }];
+
+    let mut snapshot = network::NetworkFlowSample {
+        backend: network::NetworkCaptureBackend::Unsupported,
+        backend_label: "Unsupported".to_string(),
+        privileged_path_available: false,
+        deep_packet_inspection_active: false,
+        net_rx_bytes_per_sec: 0,
+        net_tx_bytes_per_sec: 0,
+        observed_interval_ms: 2_000,
+        process_throughput: vec![network::ProcessNetworkThroughput {
+            pid: 77,
+            process_name: Some("chrome".to_string()),
+            rx_bytes_per_sec: 0,
+            tx_bytes_per_sec: 0,
+            tcp_packets_per_sec: 0,
+            udp_packets_per_sec: 0,
+        }],
+        recent_connections: vec![network::ProcessConnectionEvent {
+            pid: 77,
+            protocol: network::TransportProtocol::Tcp,
+            direction: network::TrafficDirection::Outbound,
+            src_ip: "10.0.0.2".to_string(),
+            dst_ip: "8.8.8.8".to_string(),
+            src_port: 50_000,
+            dst_port: 4444,
+            bytes: 128,
+        }],
+        capture_windows_dropped: 0,
+        captured_at_unix_ms: 1_000,
+    };
+
+    assert!(network_alerts::evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+    snapshot.captured_at_unix_ms += 2_000;
+    assert!(network_alerts::evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+    snapshot.captured_at_unix_ms += 2_000;
+    let alerts = network_alerts::evaluate_network_alerts(&snapshot, None, &rules, &[]);
+    assert_eq!(alerts.len(), 1);
+    assert_eq!(alerts[0].rule_name, "Puerto sospechoso");
 }
