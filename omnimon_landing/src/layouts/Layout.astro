@@ -1,0 +1,24 @@
+---
+import '../styles/global.css';
+
+interface Props {
+	title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="es" class="dark">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="description" content="OmniMon - Monitoreo Avanzado y Seguridad" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="generator" content={Astro.generator} />
+		<title>{title}</title>
+	</head>
+	<body class="bg-slate-950 text-slate-200 font-sans antialiased min-h-screen selection:bg-indigo-500/30">
+		<slot />
+	</body>
+</html>
