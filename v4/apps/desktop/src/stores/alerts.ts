@@ -21,6 +21,7 @@ export interface SmartAlert {
   processPid?: number;
   processName?: string;
   timestamp: number;
+  updateCount?: number;
 }
 
 /** Configured alert rules (user or AI-generated). */
@@ -58,6 +59,16 @@ const lastFired = new Map<string, number>();
 const SMART_COOLDOWN = 60_000 * 5; // 5 mins
 const smartAnomalyLog = new Map<string, number>();
 let lastSmartCheck = 0;
+
+// Track de lecturas consecutivas por proceso
+const sustainedHighCpu = new Map<string, {
+  count: number;
+  lastSeen: number;
+  peakValue: number;
+}>();
+
+const SUSTAINED_THRESHOLD = 3; // lecturas consecutivas requeridas
+const SUSTAINED_WINDOW_MS = 10_000; // ventana de 10s
 
 function ruleKey(rule: AlertRule): string {
   return `${rule.metric}:${rule.operator}:${rule.threshold}:${rule.processName ?? "*"}`;
@@ -168,15 +179,40 @@ async function evaluateSmartHealth(stats: SystemStats, processes: ProcessEntry[]
   let problem = "";
   let targetProc: ProcessEntry | undefined;
 
-  const sortedCpu = [...processes].sort((a,b) => b.cpu_pct - a.cpu_pct);
   const sortedDisk = [...processes].sort((a,b) => (b.disk_read_mb + b.disk_write_mb) - (a.disk_read_mb + a.disk_write_mb));
-
-  const topCpu = sortedCpu[0];
   const topDisk = sortedDisk[0];
 
-  if (topCpu && topCpu.cpu_pct > 80) {
-    problem = `Alto uso de CPU (${topCpu.cpu_pct.toFixed(0)}%) por ${sanitizeProcessName(topCpu.name)}`;
-    targetProc = topCpu;
+  // Evaluar picos sostenidos de CPU
+  let topSustainedCpu: ProcessEntry | undefined;
+  for (const proc of processes) {
+    if (proc.cpu_pct > 80) {
+      let entry = sustainedHighCpu.get(proc.name);
+      if (!entry || now - entry.lastSeen > SUSTAINED_WINDOW_MS) {
+        entry = { count: 1, lastSeen: now, peakValue: proc.cpu_pct };
+      } else {
+        entry.count++;
+        entry.lastSeen = now;
+        entry.peakValue = Math.max(entry.peakValue, proc.cpu_pct);
+      }
+      sustainedHighCpu.set(proc.name, entry);
+
+      if (entry.count >= SUSTAINED_THRESHOLD) {
+        if (!topSustainedCpu || proc.cpu_pct > topSustainedCpu.cpu_pct) {
+          topSustainedCpu = proc;
+        }
+      }
+    } else {
+      sustainedHighCpu.delete(proc.name);
+    }
+  }
+
+  if (topSustainedCpu) {
+    const cpuPct = topSustainedCpu.cpu_pct;
+    const cpuLabel = cpuPct > 100
+      ? `${cpuPct.toFixed(0)}% (${(cpuPct / 100).toFixed(1)} cores)`
+      : `${cpuPct.toFixed(0)}%`;
+    problem = `Alto uso de CPU (${cpuLabel}) por ${sanitizeProcessName(topSustainedCpu.name)}`;
+    targetProc = topSustainedCpu;
   } else if (topDisk && (topDisk.disk_read_mb + topDisk.disk_write_mb) > 500) {
     problem = `Alta actividad de Disco (Lectura/Escritura) por ${sanitizeProcessName(topDisk.name)}`;
     targetProc = topDisk;
@@ -236,14 +272,36 @@ IMPORTANTE: Cuando reportes uso de CPU de un proceso, SIEMPRE aclara que el porc
      const reqPayload = `INSTRUCCIÓN DEL SISTEMA:\n${prompt}\n\nDATOS DE TELEMETRÍA:\n${ctxStr}`;
       const explanation = await ipcAnalyzeContext(reqPayload, cfg.provider, cfg.model);
      
-     smartAlerts.update(s => [...s, {
-        id: `smart-${Date.now()}`,
-        problem,
-        explanation,
-        processPid: targetProc?.pid,
-        processName: targetProc?.name,
-        timestamp: now
-     }]);
+     smartAlerts.update(current => {
+        const newAlert = {
+           id: `smart-${Date.now()}`,
+           problem,
+           explanation,
+           processPid: targetProc?.pid,
+           processName: targetProc?.name,
+           timestamp: now,
+           updateCount: 1
+        };
+
+        if (targetProc?.name) {
+          const existingIndex = current.findIndex(a => a.processName === targetProc?.name);
+          if (existingIndex >= 0) {
+            const updated = [...current];
+            updated[existingIndex] = {
+              ...updated[existingIndex],
+              problem: newAlert.problem,
+              explanation: newAlert.explanation,
+              timestamp: newAlert.timestamp,
+              updateCount: (updated[existingIndex].updateCount || 1) + 1
+            };
+            // Moverla al final de la lista (más reciente)
+            const alertToMove = updated.splice(existingIndex, 1)[0];
+            updated.push(alertToMove);
+            return updated;
+          }
+        }
+        return [...current, newAlert];
+     });
   } catch (e) {
      console.error("AI Smart Alert failed", e);
   }
@@ -251,6 +309,10 @@ IMPORTANTE: Cuando reportes uso de CPU de un proceso, SIEMPRE aclara que el porc
 
 export function dismissSmartAlert(id: string) {
   smartAlerts.update(list => list.filter(a => a.id !== id));
+}
+
+export function dismissAllSmartAlerts(): void {
+  smartAlerts.set([]);
 }
 
 export function addAlertRule(rule: AlertRule): void {
@@ -309,4 +371,7 @@ export function _resetAlerts(): void {
   smartAlerts.set([]);
   lastFired.clear();
   alertId = 0;
+  lastSmartCheck = 0;
+  smartAnomalyLog.clear();
+  sustainedHighCpu.clear();
 }
