@@ -1,6 +1,7 @@
 import { writable, derived, get } from "svelte/store";
 import { ipcGetMetrics, ipcKillProcess, ipcKillProcesses, ipcGetBrowserTabs, ipcSaveAiConfig, ipcAnalyzeProcesses } from "../lib/ipc";
-import type { ProcessEntry, SystemStats, BrowserTab, ProcessSuggestion } from "../lib/types";
+import type { ProcessEntry, SystemStats, BrowserTab, ProcessSuggestion, Metrics } from "../lib/types";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { confirmAction } from "../lib/confirm";
 import { t } from "../lib/i18n";
 import { idleThreshold } from "./preferences";
@@ -147,9 +148,8 @@ export function applyDiff(current: ProcessEntry[], incoming: ProcessEntry[]): Pr
 }
 
 /** Fetches metrics from the backend, applies diff updates to the process store, and prunes stale selected PIDs. */
-export async function fetchMetrics(): Promise<void> {
+export function handleMetricsUpdate(data: Metrics): void {
   try {
-    const data = await ipcGetMetrics(get(idleThreshold));
     consecutiveErrors = 0; // Reset on success
     const current = get(processes);
     const updated = applyDiff(current, data.processes);
@@ -187,6 +187,15 @@ export async function fetchMetrics(): Promise<void> {
       }
       return changed ? next : $pids;
     });
+  } finally {
+    loading.set(false);
+  }
+}
+
+export async function fetchMetrics(): Promise<void> {
+  try {
+    const data = await ipcGetMetrics(get(idleThreshold));
+    handleMetricsUpdate(data);
   } catch (e) {
     consecutiveErrors++;
     console.error("Failed to fetch metrics:", e);
@@ -194,7 +203,6 @@ export async function fetchMetrics(): Promise<void> {
       const msg = e instanceof Error ? e.message : String(e);
       toast.error("Metrics fetch failed", `Repeated errors (${consecutiveErrors}×): ${msg}`);
     }
-  } finally {
     loading.set(false);
   }
 }
@@ -356,7 +364,8 @@ let consecutiveErrors = 0;
 const ERROR_TOAST_THRESHOLD = 3;
 
 // --- Polling lifecycle ---
-let intervalId: ReturnType<typeof setInterval> | null = null;
+let metricsUnlisten: UnlistenFn | null = null;
+let isPollingActive = false;
 let tabIntervalId: ReturnType<typeof setInterval> | null = null;
 let networkIntervalId: ReturnType<typeof setInterval> | null = null;
 let pollingIntervalMs = 2000;
@@ -389,26 +398,38 @@ function syncNetworkPolling(): void {
 export function setPollingTarget(target: "browserTabs" | "network", active: boolean): void {
   if (pollingTargets[target] === active) return;
   pollingTargets[target] = active;
-  if (intervalId === null) return;
+  if (!isPollingActive) return;
   if (target === "browserTabs") syncBrowserTabsPolling();
   else syncNetworkPolling();
 }
 
 /** Starts periodic polling for metrics (every intervalMs) and browser tabs (every 5s). */
 export function startPolling(intervalMs = 2000): void {
+  isPollingActive = true;
   pollingIntervalMs = intervalMs;
   stopPolling();
+  // reset it so the stopPolling doesn't unset isPollingActive permanently
+  isPollingActive = true; 
   fetchMetrics();
-  intervalId = setInterval(fetchMetrics, intervalMs);
+  listen<Metrics>("metrics-update", (event) => {
+    handleMetricsUpdate(event.payload);
+  }).then(unlisten => {
+    if (isPollingActive) {
+      metricsUnlisten = unlisten;
+    } else {
+      unlisten();
+    }
+  });
   syncBrowserTabsPolling();
   syncNetworkPolling();
 }
 
 /** Stops all active polling intervals for metrics and browser tabs. */
 export function stopPolling(): void {
-  if (intervalId !== null) {
-    clearInterval(intervalId);
-    intervalId = null;
+  isPollingActive = false;
+  if (metricsUnlisten !== null) {
+    metricsUnlisten();
+    metricsUnlisten = null;
   }
   if (tabIntervalId !== null) {
     clearInterval(tabIntervalId);
