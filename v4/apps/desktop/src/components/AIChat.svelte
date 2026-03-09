@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { get } from "svelte/store";
 
   import { slide } from "svelte/transition";
@@ -31,7 +32,22 @@
   let chatContainer: HTMLDivElement | undefined = $state();
   let pendingAction = $state<{ tool: string; details: string; result: ToolResult } | null>(null);
   let requestToken = 0;
+  let isAutoScroll = $state(true);
 
+  function handleScroll() {
+    if (!chatContainer) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainer;
+    isAutoScroll = scrollHeight - scrollTop - clientHeight < 50;
+  }
+
+  $effect(() => {
+    const _len = messages.length; // trigger reactivo
+    if (isAutoScroll && chatContainer) {
+      tick().then(() => {
+        chatContainer!.scrollTop = chatContainer!.scrollHeight;
+      });
+    }
+  });
 
   function scrollToBottom() {
     scrollContainerToBottom(chatContainer);
@@ -355,7 +371,7 @@
   {#if messages.length > 0}
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="chat-messages" bind:this={chatContainer} onclick={handleChatClick} transition:slide={{ duration: 200 }}>
+    <div class="chat-messages" bind:this={chatContainer} onclick={handleChatClick} onscroll={handleScroll} transition:slide={{ duration: 200 }}>
       {#each messages as msg}
         <div class="chat-msg chat-{msg.role}">
           <span class="chat-role">
@@ -409,6 +425,14 @@
         </div>
       {/if}
     </div>
+    {#if !isAutoScroll}
+      <button class="scroll-to-bottom" onclick={() => {
+        if (chatContainer) {
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+          isAutoScroll = true;
+        }
+      }}>↓</button>
+    {/if}
   {:else}
     <div class="chat-empty">
       <p>{t("aiChat.emptyState")}</p>
@@ -463,6 +487,7 @@
     border-radius: var(--radius, 6px);
     background: var(--bg-alt);
     overflow: hidden;
+    position: relative;
   }
 
   .chat-header {
@@ -711,6 +736,28 @@
     overflow-y: auto;
   }
   .chat-input:focus { border-color: var(--accent); }
+
+  .scroll-to-bottom {
+    position: absolute;
+    bottom: 70px;
+    right: 20px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    z-index: 10;
+  }
+  .scroll-to-bottom:hover {
+    background: var(--bg);
+  }
+
   .chat-input::placeholder { color: var(--fg-dim); opacity: 0.6; }
   .chat-input:disabled { opacity: 0.5; }
 
