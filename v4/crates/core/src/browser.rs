@@ -946,15 +946,21 @@ mod tests {
         let ok = cdp_activate_tab(&server.url(), "tab-ok").expect("activate should not error");
         let missing =
             cdp_activate_tab(&server.url(), "tab-missing").expect("activate should not error");
-        let refused =
-            cdp_activate_tab("http://127.0.0.1:9", "tab-any").expect("connection failures map false");
+        let refused = cdp_activate_tab("http://127.0.0.1:9", "tab-any")
+            .expect("connection failures map false");
 
         assert!(ok);
         assert!(!missing);
         assert!(!refused);
 
         assert!(!cdp_activate_tab("http://127.0.0.1:9", "   ").unwrap());
-        assert_eq!(cdp_activate_tab("http://127.0.0.1:9", "tab?id").unwrap_err(), "Invalid tab ID");
-        assert_eq!(cdp_activate_tab("http://127.0.0.1:9", "tab#id").unwrap_err(), "Invalid tab ID");
+        assert_eq!(
+            cdp_activate_tab("http://127.0.0.1:9", "tab?id").unwrap_err(),
+            "Invalid tab ID"
+        );
+        assert_eq!(
+            cdp_activate_tab("http://127.0.0.1:9", "tab#id").unwrap_err(),
+            "Invalid tab ID"
+        );
     }
 }

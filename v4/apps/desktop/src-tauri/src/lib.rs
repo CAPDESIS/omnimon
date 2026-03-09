@@ -779,14 +779,12 @@ pub fn run() {
                         }
                     }
                 });
-                
+
                 let app_for_metrics = app.handle().clone();
-                std::thread::spawn(move || {
-                    loop {
-                        std::thread::sleep(std::time::Duration::from_millis(2000));
-                        if let Ok(metrics) = get_metrics(Some(1.0)) {
-                            let _ = app_for_metrics.emit("metrics-update", metrics);
-                        }
+                std::thread::spawn(move || loop {
+                    std::thread::sleep(std::time::Duration::from_millis(2000));
+                    if let Ok(metrics) = get_metrics(Some(1.0)) {
+                        let _ = app_for_metrics.emit("metrics-update", metrics);
                     }
                 });
             } // end ALERT_THREAD_STARTED guard

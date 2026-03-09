@@ -1154,7 +1154,8 @@ mod tests {
             ..Default::default()
         };
 
-        let kill_ok = execute_tool_call("kill_process", &serde_json::json!({ "pid": 4242 }), &state);
+        let kill_ok =
+            execute_tool_call("kill_process", &serde_json::json!({ "pid": 4242 }), &state);
         assert!(kill_ok.success);
         assert_eq!(kill_ok.details, "kill_process:4242:Google Chrome");
 
@@ -1235,7 +1236,12 @@ mod tests {
     async fn chat_with_tools_returns_cached_response_and_tool_call() {
         let messages = vec![("user".to_string(), "close youtube tabs".to_string())];
         let system_prompt = "system prompt";
-        let cache_key = calculate_hash(&(AiProvider::OpenAI as u8, "gpt-4o-mini", &messages, system_prompt));
+        let cache_key = calculate_hash(&(
+            AiProvider::OpenAI as u8,
+            "gpt-4o-mini",
+            &messages,
+            system_prompt,
+        ));
 
         {
             let mut cache = get_ai_cache().write().unwrap();
