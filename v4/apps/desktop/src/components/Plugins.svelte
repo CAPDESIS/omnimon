@@ -9,6 +9,7 @@
     ipcSetPluginEnabled,
   } from "../lib/ipc";
   import Button from "./Button.svelte";
+  import EmptyState from "./EmptyState.svelte";
 
   interface Props {
     onclose: () => void;
@@ -176,13 +177,11 @@ end`;
 
     <div class="plugins-body">
       {#if loading}
-        <div class="empty-state">{t("common.loading")}</div>
+        <EmptyState icon="⏳" title={t("common.loading")} description="" />
       {:else if plugins.length === 0}
-        <div class="empty-state">
-          <h3>{t("plugins.emptyTitle")}</h3>
-          <p>{t("plugins.emptyBody")}</p>
+        <EmptyState icon="🧩" title={t("plugins.emptyTitle")} description={t("plugins.emptyBody")}>
           <pre>{exampleScript}</pre>
-        </div>
+        </EmptyState>
       {:else}
         <div class="plugin-grid">
           {#each plugins as plugin (plugin.id)}
@@ -327,7 +326,6 @@ end`;
   .upload-card,
   .summary-card,
   .plugin-card,
-  .empty-state,
   .metric-card {
     border: 1px solid var(--border);
     border-radius: 18px;
@@ -383,8 +381,7 @@ end`;
     gap: 14px;
   }
 
-  .plugin-card,
-  .empty-state {
+  .plugin-card {
     padding: 16px;
     display: flex;
     flex-direction: column;
@@ -445,10 +442,6 @@ end`;
     border-radius: 999px;
     background: color-mix(in srgb, var(--accent) 12%, transparent);
     color: var(--fg-dim);
-  }
-
-  .empty-state {
-    align-items: flex-start;
   }
 
   pre {

@@ -48,7 +48,7 @@ describe("rendering", () => {
   });
 
   it("renders column headers", () => {
-    render(ProcessTable, { props: { processes: [] } });
+    render(ProcessTable, { props: { processes: [makeProc()] } });
     expect(screen.getByText("Name")).toBeInTheDocument();
     expect(screen.getByText("Detail")).toBeInTheDocument();
     expect(screen.getByText("Group")).toBeInTheDocument();

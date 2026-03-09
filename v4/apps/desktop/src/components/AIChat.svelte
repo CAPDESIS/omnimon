@@ -17,6 +17,7 @@
   import type { ToolResult } from "../lib/types";
   import InfoPopover from "./InfoPopover.svelte";
   import Button from "./Button.svelte";
+  import EmptyState from "./EmptyState.svelte";
   import { AI_CHAT_TIMEOUT_MS } from "../lib/constants";
 
   interface ChatMessageWithTool extends ChatMessage {
@@ -477,21 +478,26 @@
     {/if}
   {:else}
     <div class="chat-empty">
-      <p>{t("aiChat.emptyState")}</p>
-      <div class="suggestions">
-        <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion1"); handleSubmit(); }}>
-          {t("aiChat.suggestion1")}
-        </Button>
-        <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion2"); handleSubmit(); }}>
-          {t("aiChat.suggestion2")}
-        </Button>
-        <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion3"); handleSubmit(); }}>
-          {t("aiChat.suggestion3")}
-        </Button>
-        <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion4"); handleSubmit(); }}>
-          {t("aiChat.suggestion4")}
-        </Button>
-      </div>
+      <EmptyState
+        icon="sparkles"
+        title={t("aiChat.title")}
+        description={t("aiChat.emptyState")}
+      >
+        <div class="suggestions">
+          <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion1"); handleSubmit(); }}>
+            {t("aiChat.suggestion1")}
+          </Button>
+          <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion2"); handleSubmit(); }}>
+            {t("aiChat.suggestion2")}
+          </Button>
+          <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion3"); handleSubmit(); }}>
+            {t("aiChat.suggestion3")}
+          </Button>
+          <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion4"); handleSubmit(); }}>
+            {t("aiChat.suggestion4")}
+          </Button>
+        </div>
+      </EmptyState>
     </div>
   {/if}
 
@@ -741,9 +747,6 @@
     font-size: calc(var(--base-font-size, 12px) * 0.917);
   }
 
-  .chat-empty p {
-    margin: 0 0 12px;
-  }
 
   .suggestions {
     display: flex;

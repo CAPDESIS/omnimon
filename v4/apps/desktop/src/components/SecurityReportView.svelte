@@ -7,6 +7,7 @@
   import { renderMarkdown } from "../lib/markdown";
   import type { ProcessSecurityInfo, NistFinding, NistSeverity } from "../lib/types";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
+  import EmptyState from "./EmptyState.svelte";
 
 
   interface Props {
@@ -298,6 +299,8 @@
             </div>
           {/each}
         </div>
+      {:else}
+        <EmptyState icon="🛡️" title={t("securityReport.noFindings")} description={t("securityReport.noFindingsDesc")} />
       {/if}
 
       <div class="meta-section">

@@ -8,6 +8,7 @@
   import { t } from "../lib/i18n";
   import { detectBrowser } from "../lib/browser";
   import SecurityBadge from "./SecurityBadge.svelte";
+  import EmptyState from "./EmptyState.svelte";
   import { iconForProcess, isNativeIconDataUrl, getProcessIcon } from "../lib/processIcons";
   import {
     PROCESS_TABLE_ROW_BUFFER,
@@ -466,9 +467,16 @@
 {/snippet}
 
 <div class="table-wrap" bind:this={wrapEl} onscroll={onScroll}>
-  <table aria-label={t("table.processList")}>
-    <thead>
-      <tr>
+  {#if processes.length === 0}
+    <EmptyState 
+      icon="🔍" 
+      title={t("table.emptyTitle")} 
+      description={t("table.emptyDesc")} 
+    />
+  {:else}
+    <table aria-label={t("table.processList")}>
+      <thead>
+        <tr>
         <th class="col-check" scope="col"><span class="sr-only">{t("table.select")}</span></th>
         {#each orderedVisibleCols as key (key)}
           {#if key === "name"}
@@ -532,6 +540,7 @@
       {/if}
     </tbody>
   </table>
+  {/if}
 </div>
 
 <style>
