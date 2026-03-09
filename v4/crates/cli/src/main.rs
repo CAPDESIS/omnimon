@@ -111,6 +111,11 @@ enum Commands {
         #[command(subcommand)]
         command: RulesCommands,
     },
+    /// Release signing, verification, and manifest generation (NIST SI-7)
+    Release {
+        #[command(subcommand)]
+        command: ReleaseCommands,
+    },
 }
 
 #[derive(Subcommand)]
@@ -154,6 +159,62 @@ enum RulesCommands {
 enum ConfigCommands {
     /// Rotate the scan encryption key (NIST SC-12 key rotation)
     RotateKey,
+}
+
+#[derive(Subcommand)]
+enum ReleaseCommands {
+    /// Generate a new Ed25519 signing keypair (private key → keyring, public key → stdout)
+    GenerateKeypair,
+    /// Sign a release artifact with Ed25519
+    Sign {
+        /// Path to the binary/artifact to sign
+        file: String,
+        /// Version string (e.g. "6.0.1")
+        #[arg(long)]
+        version: String,
+        /// Path to a base64-encoded signing key file (alternative to keyring)
+        #[arg(long)]
+        key_file: Option<String>,
+    },
+    /// Verify a release artifact's signature
+    Verify {
+        /// Path to the binary/artifact to verify
+        file: String,
+        /// Path to the .sig.json signature file
+        #[arg(long)]
+        sig: String,
+        /// Base64-encoded public key (alternative to embedded key)
+        #[arg(long)]
+        pubkey: Option<String>,
+    },
+    /// Compute SHA-256 checksum of a file
+    Checksum {
+        /// Path to the file
+        file: String,
+    },
+    /// Generate a release manifest (releases.json) for all artifacts in a directory
+    Manifest {
+        /// Version string (e.g. "6.0.1")
+        #[arg(long)]
+        version: String,
+        /// Directory containing release artifacts
+        #[arg(long)]
+        dir: String,
+        /// Output path for releases.json (default: <dir>/releases.json)
+        #[arg(long)]
+        output: Option<String>,
+        /// Path to a base64-encoded signing key file (alternative to keyring)
+        #[arg(long)]
+        key_file: Option<String>,
+    },
+    /// Verify a release manifest (releases.json)
+    VerifyManifest {
+        /// Path to releases.json
+        file: String,
+        /// Base64-encoded public key (alternative to embedded key)
+        #[arg(long)]
+        pubkey: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -1071,5 +1132,379 @@ fn main() {
                 println!("{}", rules_engine::ai_rules_schema_json());
             }
         },
+        Commands::Release { command } => match command {
+            ReleaseCommands::GenerateKeypair => {
+                let (signing_key, verifying_key) = crypto::generate_ed25519_keypair();
+
+                // Store private key in OS keyring
+                let entry = match keyring::Entry::new("omnimon_release", "ed25519_signing_key") {
+                    Ok(e) => e,
+                    Err(e) => {
+                        eprintln!("Error: cannot access OS keyring: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+
+                let private_b64 = crypto::export_signing_key(&signing_key);
+                match entry.set_password(&private_b64) {
+                    Ok(_) => {
+                        println!("Ed25519 signing key stored in OS keyring.");
+                    }
+                    Err(e) => {
+                        eprintln!("Error: failed to store signing key: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+
+                let public_b64 = crypto::export_public_key(&verifying_key);
+                println!("Public key (base64):");
+                println!("{}", public_b64);
+                println!();
+                println!("Add this to tauri.conf.json plugins.updater.pubkey");
+                println!("and distribute it with your application.");
+            }
+            ReleaseCommands::Sign {
+                file,
+                version,
+                key_file,
+            } => {
+                let signing_key = load_signing_key(key_file.as_deref());
+
+                let data = match std::fs::read(file) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        eprintln!("Error reading '{}': {}", file, e);
+                        std::process::exit(1);
+                    }
+                };
+
+                let sig = crypto::sign_release(&signing_key, &data, version);
+                let sig_json = serde_json::to_string_pretty(&sig).expect("serialize signature");
+
+                let sig_path = format!("{}.sig.json", file);
+                if let Err(e) = std::fs::write(&sig_path, &sig_json) {
+                    eprintln!("Error writing signature: {}", e);
+                    std::process::exit(1);
+                }
+
+                println!("SHA-256:   {}", sig.sha256);
+                println!("Signature: {}", sig_path);
+                println!("Version:   {}", sig.version);
+            }
+            ReleaseCommands::Verify { file, sig, pubkey } => {
+                let data = match std::fs::read(file) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        eprintln!("Error reading '{}': {}", file, e);
+                        std::process::exit(1);
+                    }
+                };
+
+                let sig_content = match std::fs::read_to_string(sig) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("Error reading signature '{}': {}", sig, e);
+                        std::process::exit(1);
+                    }
+                };
+
+                let release_sig: crypto::ReleaseSignature = match serde_json::from_str(&sig_content)
+                {
+                    Ok(s) => s,
+                    Err(e) => {
+                        eprintln!("Error parsing signature JSON: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+
+                let pubkey_b64 = pubkey.as_deref().unwrap_or(&release_sig.public_key_b64);
+                let verifying_key = match crypto::import_public_key(pubkey_b64) {
+                    Ok(k) => k,
+                    Err(e) => {
+                        eprintln!("Error loading public key: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+
+                match crypto::verify_release(&data, &release_sig, &verifying_key) {
+                    Ok(()) => {
+                        println!("Verification PASSED");
+                        println!("  SHA-256:   {}", release_sig.sha256);
+                        println!("  Version:   {}", release_sig.version);
+                    }
+                    Err(e) => {
+                        eprintln!("Verification FAILED: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            ReleaseCommands::Checksum { file } => {
+                let data = match std::fs::read(file) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        eprintln!("Error reading '{}': {}", file, e);
+                        std::process::exit(1);
+                    }
+                };
+                let hash = crypto::sha256_hex(&data);
+                println!("{}  {}", hash, file);
+            }
+            ReleaseCommands::Manifest {
+                version,
+                dir,
+                output,
+                key_file,
+            } => {
+                let signing_key = load_signing_key(key_file.as_deref());
+
+                let dir_path = std::path::Path::new(dir.as_str());
+                if !dir_path.is_dir() {
+                    eprintln!("Error: '{}' is not a directory", dir);
+                    std::process::exit(1);
+                }
+
+                let entries = match std::fs::read_dir(dir_path) {
+                    Ok(e) => e,
+                    Err(e) => {
+                        eprintln!("Error reading directory: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+
+                let mut artifacts = Vec::new();
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if !path.is_file() {
+                        continue;
+                    }
+                    let filename = path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string();
+
+                    // Skip manifest itself and signature files
+                    if filename == "releases.json"
+                        || filename.ends_with(".sig.json")
+                        || filename.ends_with(".sha256")
+                    {
+                        continue;
+                    }
+
+                    let data = match std::fs::read(&path) {
+                        Ok(d) => d,
+                        Err(e) => {
+                            eprintln!("Warning: cannot read '{}': {}", filename, e);
+                            continue;
+                        }
+                    };
+
+                    let (platform, arch) = detect_platform_arch(&filename);
+                    let artifact =
+                        crypto::sign_artifact(&signing_key, &data, &filename, &platform, &arch);
+                    println!(
+                        "  Signed: {} ({}/{}, {} bytes)",
+                        filename, platform, arch, artifact.size_bytes
+                    );
+                    artifacts.push(artifact);
+                }
+
+                if artifacts.is_empty() {
+                    eprintln!("No artifacts found in '{}'", dir);
+                    std::process::exit(1);
+                }
+
+                let date = chrono_date_today();
+                let manifest =
+                    crypto::build_release_manifest(&signing_key, version, &date, artifacts);
+
+                let manifest_json =
+                    serde_json::to_string_pretty(&manifest).expect("serialize manifest");
+
+                let output_path = output
+                    .clone()
+                    .unwrap_or_else(|| format!("{}/releases.json", dir));
+                if let Err(e) = std::fs::write(&output_path, &manifest_json) {
+                    eprintln!("Error writing manifest: {}", e);
+                    std::process::exit(1);
+                }
+                println!(
+                    "Release manifest written to {} ({} artifacts)",
+                    output_path,
+                    manifest.artifacts.len()
+                );
+            }
+            ReleaseCommands::VerifyManifest { file, pubkey } => {
+                let content = match std::fs::read_to_string(file) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("Error reading '{}': {}", file, e);
+                        std::process::exit(1);
+                    }
+                };
+
+                let manifest: crypto::ReleaseManifest = match serde_json::from_str(&content) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        eprintln!("Error parsing manifest JSON: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+
+                let pubkey_b64 = match pubkey {
+                    Some(k) => k.clone(),
+                    None => {
+                        eprintln!("Error: --pubkey is required to verify a manifest");
+                        std::process::exit(1);
+                    }
+                };
+
+                let verifying_key = match crypto::import_public_key(&pubkey_b64) {
+                    Ok(k) => k,
+                    Err(e) => {
+                        eprintln!("Error loading public key: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+
+                match crypto::verify_release_manifest(&manifest, &verifying_key) {
+                    Ok(()) => {
+                        println!("Manifest verification PASSED");
+                        println!("  Version:   {}", manifest.version);
+                        println!("  Date:      {}", manifest.date);
+                        println!("  Artifacts: {}", manifest.artifacts.len());
+                        for a in &manifest.artifacts {
+                            println!(
+                                "    {} ({}/{}, {} bytes)",
+                                a.filename, a.platform, a.arch, a.size_bytes
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Manifest verification FAILED: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+        },
     }
+}
+
+/// Loads the Ed25519 signing key from a file or from the OS keyring.
+fn load_signing_key(key_file: Option<&str>) -> crypto::SigningKey {
+    if let Some(path) = key_file {
+        let content = match std::fs::read_to_string(path) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("Error reading key file '{}': {}", path, e);
+                std::process::exit(1);
+            }
+        };
+        match crypto::import_signing_key(content.trim()) {
+            Ok(k) => k,
+            Err(e) => {
+                eprintln!("Error parsing signing key: {}", e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        let entry = match keyring::Entry::new("omnimon_release", "ed25519_signing_key") {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!("Error: cannot access OS keyring: {}", e);
+                eprintln!("Hint: run 'omnimon release generate-keypair' first, or use --key-file");
+                std::process::exit(1);
+            }
+        };
+        let stored = match entry.get_password() {
+            Ok(s) => s,
+            Err(_) => {
+                eprintln!("Error: no signing key found in OS keyring.");
+                eprintln!("Run 'omnimon release generate-keypair' or provide --key-file");
+                std::process::exit(1);
+            }
+        };
+        match crypto::import_signing_key(&stored) {
+            Ok(k) => k,
+            Err(e) => {
+                eprintln!("Error: signing key in keyring is corrupted: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
+}
+
+/// Best-effort platform/arch detection from filename conventions.
+fn detect_platform_arch(filename: &str) -> (String, String) {
+    let lower = filename.to_lowercase();
+    let platform = if lower.contains("linux") {
+        "linux"
+    } else if lower.contains("macos") || lower.contains("darwin") || lower.contains(".dmg") {
+        "macos"
+    } else if lower.contains("windows") || lower.contains(".msi") || lower.contains(".exe") {
+        "windows"
+    } else {
+        "unknown"
+    };
+
+    let arch = if lower.contains("universal") {
+        "universal"
+    } else if lower.contains("aarch64") || lower.contains("arm64") {
+        "aarch64"
+    } else if lower.contains("x86_64") || lower.contains("amd64") {
+        "x86_64"
+    } else {
+        "unknown"
+    };
+
+    (platform.to_string(), arch.to_string())
+}
+
+/// Returns today's date as YYYY-MM-DD without pulling in the chrono crate.
+fn chrono_date_today() -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    // Simple date calculation
+    let days = now / 86400;
+    let mut y = 1970i64;
+    let mut remaining = days as i64;
+    loop {
+        let days_in_year = if y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) {
+            366
+        } else {
+            365
+        };
+        if remaining < days_in_year {
+            break;
+        }
+        remaining -= days_in_year;
+        y += 1;
+    }
+    let leap = y % 4 == 0 && (y % 100 != 0 || y % 400 == 0);
+    let month_days = [
+        31,
+        if leap { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
+    let mut m = 0;
+    for (i, &md) in month_days.iter().enumerate() {
+        if remaining < md {
+            m = i + 1;
+            break;
+        }
+        remaining -= md;
+    }
+    let d = remaining + 1;
+    format!("{:04}-{:02}-{:02}", y, m, d)
 }
