@@ -196,10 +196,11 @@ jobs:
       - name: Frontend Audit
         continue-on-error: true
         run: |
+          mkdir -p ../../reports
           if bun audit --help >/dev/null 2>&1; then
-            bun audit
+            bun audit 2>&1 | tee ../../reports/frontend-audit.txt
           else
-            bunx audit-ci@^7 --moderate
+            bunx audit-ci@^7 --moderate 2>&1 | tee ../../reports/frontend-audit.txt
           fi
         working-directory: ./v4/apps/desktop
 
@@ -216,6 +217,15 @@ jobs:
             echo '```' >> reports/cve-summary.md
           else
             echo "No Rust audit data available." >> reports/cve-summary.md
+          fi
+          echo "" >> reports/cve-summary.md
+          echo "## Frontend Dependencies" >> reports/cve-summary.md
+          if [ -f reports/frontend-audit.txt ]; then
+            echo '```text' >> reports/cve-summary.md
+            cat reports/frontend-audit.txt >> reports/cve-summary.md
+            echo '```' >> reports/cve-summary.md
+          else
+            echo "No frontend audit data available." >> reports/cve-summary.md
           fi
 
       - name: Upload CVE Report
