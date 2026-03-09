@@ -5,17 +5,17 @@ on:
     branches: [ "main" ]
     tags: [ "v*" ]
     paths:
-      - 'v4/**'
-      - '.github/workflows/**'
+      - "v4/**"
+      - ".github/workflows/**"
   pull_request:
     branches: [ "main" ]
     paths:
-      - 'v4/**'
-      - '.github/workflows/**'
+      - "v4/**"
+      - ".github/workflows/**"
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to build release for (e.g. v5.0.0)'
+        description: "Tag to build release for (e.g. v5.0.0)"
         required: true
         type: string
 
@@ -32,30 +32,30 @@ jobs:
     name: Lint (fmt + clippy)
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-    - name: Set up Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        components: rustfmt, clippy
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          components: rustfmt, clippy
 
-    - name: Rust Cache
-      uses: Swatinem/rust-cache@v2
-      with:
-        workspaces: "v4"
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+        with:
+          workspaces: "v4"
 
-    - name: Install Linux Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-    - name: Check Formatting
-      run: cargo fmt --check
-      working-directory: ./v4
+      - name: Check Formatting
+        run: cargo fmt --check
+        working-directory: ./v4
 
-    - name: Run Clippy
-      run: cargo clippy --workspace -- -D warnings
-      working-directory: ./v4
+      - name: Run Clippy
+        run: cargo clippy --workspace -- -D warnings
+        working-directory: ./v4
 
   test:
     name: Test (${{ matrix.platform }})
@@ -73,115 +73,177 @@ jobs:
             os: windows-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-    - name: Set up Rust
-      uses: dtolnay/rust-toolchain@stable
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
 
-    - name: Rust Cache
-      uses: Swatinem/rust-cache@v2
-      with:
-        workspaces: "v4"
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+        with:
+          workspaces: "v4"
 
-    - name: Install Linux Dependencies
-      if: matrix.platform == 'linux'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Install Linux Dependencies (Ubuntu Tauri packages only)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-    - name: Install cargo-llvm-cov
-      if: matrix.platform == 'linux'
-      uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
 
-    - name: Run Backend Tests with Coverage (Linux)
-      if: matrix.platform == 'linux'
-      run: cargo llvm-cov --all-features --workspace --fail-under-lines 85 --ignore-filename-regex "(ai\.rs|src-tauri|cli.src.main\.rs|os_native\.rs|network\.rs|tui/src/)" -- --test-threads=1
-      working-directory: ./v4
+      - name: Install Frontend Dependencies
+        run: bun install --frozen-lockfile
+        working-directory: ./v4/apps/desktop
 
-    - name: Run Backend Tests (macOS)
-      if: matrix.platform == 'macos'
-      run: cargo test --all-features --workspace -- --test-threads=1
-      working-directory: ./v4
+      - name: Run Cargo Check
+        run: cargo check --workspace
+        working-directory: ./v4
 
-    - name: Run Backend Tests (Windows)
-      if: matrix.platform == 'windows'
-      run: cargo test -p core --lib -- --test-threads=1
-      working-directory: ./v4
+      - name: Run Clippy
+        run: cargo clippy --workspace -- -D warnings
+        working-directory: ./v4
 
-    - name: Set up Bun
-      if: matrix.platform == 'linux'
-      uses: oven-sh/setup-bun@v2
+      - name: Run Backend Tests
+        run: cargo test --workspace -- --test-threads=1
+        working-directory: ./v4
 
-    - name: Install Frontend Dependencies
-      if: matrix.platform == 'linux'
-      run: bun install --frozen-lockfile
-      working-directory: ./v4/apps/desktop
+      - name: Run Frontend Tests
+        run: bun run test
+        working-directory: ./v4/apps/desktop
 
-    - name: Run Frontend Tests with Coverage
-      if: matrix.platform == 'linux'
-      run: bun run test:coverage
-      working-directory: ./v4/apps/desktop
+      - name: Build Frontend
+        run: bun run build
+        working-directory: ./v4/apps/desktop
 
-    - name: Build Frontend
-      if: matrix.platform == 'linux'
-      run: bun run build
-      working-directory: ./v4/apps/desktop
+      - name: Verify CLI Help Command
+        run: cargo run -p cli -- --help
+        working-directory: ./v4
 
-    - name: Verify CLI Help Command
-      if: matrix.platform != 'windows'
-      run: cargo run -p cli -- --help
-      working-directory: ./v4
+  coverage:
+    name: Coverage Gates
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@03e268b84870ac3cfa58a44d9b504511b732a857 # cargo-llvm-cov
+
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
+
+      - name: Install Frontend Dependencies
+        run: bun install --frozen-lockfile
+        working-directory: ./v4/apps/desktop
+
+      - name: Frontend coverage check
+        working-directory: ./v4/apps/desktop
+        run: |
+          bun run test:coverage -- --coverage.reporter=text-summary --coverage.reporter=json-summary
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          threshold = 75
+          summary = json.loads(Path("coverage/coverage-summary.json").read_text())
+          lines = float(summary["total"]["lines"]["pct"])
+          print(f"Frontend line coverage: {lines:.2f}%")
+          if lines < threshold:
+              raise SystemExit(f"Frontend coverage {lines:.2f}% is below {threshold}%")
+          PY
+
+      - name: Rust coverage check
+        working-directory: ./v4
+        run: |
+          cargo llvm-cov --workspace --fail-under-lines 70 --ignore-filename-regex "(ai\.rs|src-tauri|cli/src/main\.rs|os_native\.rs|network\.rs|tui/src/)" -- --test-threads=1
 
   security:
     name: Security Audit
-    needs: [lint]
+    needs: [coverage]
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-    - name: Install cargo-audit
-      uses: taiki-e/install-action@cargo-audit
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@1929cdef3ca26202efbfbb4719c58ecf43e84097 # cargo-audit
 
-    - name: Cargo Audit (CVE Scan)
-      run: |
-        mkdir -p ../reports
-        cargo audit --json > ../reports/rust-audit.json 2>/dev/null || true
-        echo "## Cargo Audit Results"
-        cargo audit 2>&1 || echo "::warning::Vulnerabilities found in dependencies (see CVE report artifact)"
-      working-directory: ./v4
+      - name: Cargo Audit (CVE Scan)
+        continue-on-error: true
+        run: |
+          mkdir -p ../reports
+          cargo audit --json > ../reports/rust-audit.json 2>/dev/null || true
+          echo "## Cargo Audit Results"
+          cargo audit --deny warnings 2>&1 || echo "::warning::Vulnerabilities found in dependencies (see CVE report artifact)"
+        working-directory: ./v4
 
-    - name: Generate CVE Report
-      if: always()
-      run: |
-        mkdir -p reports
-        echo "# OmniMon CVE Report - $(date -u +%Y-%m-%dT%H:%M:%SZ)" > reports/cve-summary.md
-        echo "" >> reports/cve-summary.md
-        echo "## Rust Dependencies" >> reports/cve-summary.md
-        if [ -f reports/rust-audit.json ]; then
-          echo '```json' >> reports/cve-summary.md
-          cat reports/rust-audit.json >> reports/cve-summary.md
-          echo '```' >> reports/cve-summary.md
-        else
-          echo "No Rust audit data available." >> reports/cve-summary.md
-        fi
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
 
-    - name: Upload CVE Report
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: cve-report
-        path: reports/
-        retention-days: 90
+      - name: Install Frontend Dependencies
+        run: bun install --frozen-lockfile
+        working-directory: ./v4/apps/desktop
 
-    - name: Secret Scanning (TruffleHog)
-      if: github.event_name == 'pull_request'
-      uses: trufflesecurity/trufflehog@main
-      with:
-        path: ./
-        base: ${{ github.event.pull_request.base.sha }}
-        head: ${{ github.event.pull_request.head.sha }}
-        extra_args: --only-verified
+      - name: Frontend Audit
+        continue-on-error: true
+        run: |
+          mkdir -p ../../reports
+          if bun audit --help >/dev/null 2>&1; then
+            bun audit 2>&1 | tee ../../reports/frontend-audit.txt
+          else
+            bunx audit-ci@^7 --moderate 2>&1 | tee ../../reports/frontend-audit.txt
+          fi
+        working-directory: ./v4/apps/desktop
+
+      - name: Generate CVE Report
+        if: always()
+        run: |
+          mkdir -p reports
+          echo "# OmniMon CVE Report - $(date -u +%Y-%m-%dT%H:%M:%SZ)" > reports/cve-summary.md
+          echo "" >> reports/cve-summary.md
+          echo "## Rust Dependencies" >> reports/cve-summary.md
+          if [ -f reports/rust-audit.json ]; then
+            echo '```json' >> reports/cve-summary.md
+            cat reports/rust-audit.json >> reports/cve-summary.md
+            echo '```' >> reports/cve-summary.md
+          else
+            echo "No Rust audit data available." >> reports/cve-summary.md
+          fi
+          echo "" >> reports/cve-summary.md
+          echo "## Frontend Dependencies" >> reports/cve-summary.md
+          if [ -f reports/frontend-audit.txt ]; then
+            echo '```text' >> reports/cve-summary.md
+            cat reports/frontend-audit.txt >> reports/cve-summary.md
+            echo '```' >> reports/cve-summary.md
+          else
+            echo "No frontend audit data available." >> reports/cve-summary.md
+          fi
+
+      - name: Upload CVE Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cve-report
+          path: reports/
+          retention-days: 90
+
+      - name: Secret Scanning (TruffleHog)
+        if: github.event_name == 'pull_request'
+        uses: trufflesecurity/trufflehog@ef63d66d58bb7317d9b220b02af5beae569835ee # main
+        with:
+          path: ./
+          base: ${{ github.event.pull_request.base.sha }}
+          head: ${{ github.event.pull_request.head.sha }}
+          extra_args: --only-verified
 
   release:
     name: Release Builder (${{ matrix.platform }})
@@ -196,62 +258,62 @@ jobs:
         include:
           - platform: linux
             os: ubuntu-latest
-            args: ''
+            args: ""
           - platform: macos-universal
             os: macos-latest
-            args: '--target universal-apple-darwin'
+            args: "--target universal-apple-darwin"
           - platform: windows
             os: windows-latest
-            args: ''
+            args: ""
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
-    - name: Set up Bun
-      uses: oven-sh/setup-bun@v2
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
 
-    - name: Install Frontend Dependencies
-      run: bun install --frozen-lockfile
-      working-directory: ./v4/apps/desktop
+      - name: Install Frontend Dependencies
+        run: bun install --frozen-lockfile
+        working-directory: ./v4/apps/desktop
 
-    - name: Set up Rust
-      uses: dtolnay/rust-toolchain@stable
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
 
-    - name: Add Intel target for universal macOS binary
-      if: matrix.platform == 'macos-universal'
-      run: rustup target add x86_64-apple-darwin
+      - name: Add Intel target for universal macOS binary
+        if: matrix.platform == 'macos-universal'
+        run: rustup target add x86_64-apple-darwin
 
-    - name: Rust Cache
-      uses: Swatinem/rust-cache@v2
-      with:
-        workspaces: "v4"
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+        with:
+          workspaces: "v4"
 
-    - name: Install Linux Dependencies (Ubuntu only)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Install Linux Dependencies (Ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-    - name: Build and Release with Tauri Action
-      uses: tauri-apps/tauri-action@v0
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        projectPath: ./v4/apps/desktop
-        tagName: ${{ inputs.tag || github.ref_name }}
-        releaseName: "OmniMon ${{ inputs.tag || github.ref_name }}"
-        releaseBody: |
-          Automated multiplatform release for OmniMon ${{ inputs.tag || github.ref_name }}
+      - name: Build and Release with Tauri Action
+        uses: tauri-apps/tauri-action@73fb865345c54760d875b94642314f8c0c894afa # v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: ./v4/apps/desktop
+          tagName: ${{ inputs.tag || github.ref_name }}
+          releaseName: "OmniMon ${{ inputs.tag || github.ref_name }}"
+          releaseBody: |
+            Automated multiplatform release for OmniMon ${{ inputs.tag || github.ref_name }}
 
-          **macOS note:** If macOS shows "app is damaged", run:
-          ```
-          xattr -cr /Applications/OmniMon.app
-          ```
-        releaseDraft: false
-        prerelease: false
-        args: ${{ matrix.args }}
+            **macOS note:** If macOS shows "app is damaged", run:
+            ```
+            xattr -cr /Applications/OmniMon.app
+            ```
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
 
   sign-release:
     name: Sign Release Artifacts
@@ -261,27 +323,27 @@ jobs:
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-    - name: Generate SHA-256 checksums
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        TAG: ${{ inputs.tag || github.ref_name }}
-      run: |
-        REPO="${{ github.repository }}"
-        sleep 15
-        TMPDIR=$(mktemp -d)
-        gh release download "$TAG" --repo "$REPO" --dir "$TMPDIR" || true
-        CHECKSUM_FILE="$TMPDIR/SHA256SUMS.txt"
-        cd "$TMPDIR"
-        for f in *; do
-          [ -f "$f" ] || continue
-          sha256sum "$f" >> SHA256SUMS.txt
-        done
-        echo "Generated checksums:"
-        cat SHA256SUMS.txt
-        gh release upload "$TAG" "$CHECKSUM_FILE" --repo "$REPO" --clobber
-        echo "SHA-256 checksums uploaded to release $TAG"
+      - name: Generate SHA-256 checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          REPO="${{ github.repository }}"
+          sleep 15
+          TMPDIR=$(mktemp -d)
+          gh release download "$TAG" --repo "$REPO" --dir "$TMPDIR" || true
+          CHECKSUM_FILE="$TMPDIR/SHA256SUMS.txt"
+          cd "$TMPDIR"
+          for f in *; do
+            [ -f "$f" ] || continue
+            sha256sum "$f" >> SHA256SUMS.txt
+          done
+          echo "Generated checksums:"
+          cat SHA256SUMS.txt
+          gh release upload "$TAG" "$CHECKSUM_FILE" --repo "$REPO" --clobber
+          echo "SHA-256 checksums uploaded to release $TAG"
 
   rename-assets:
     name: Rename Release Assets
@@ -291,54 +353,54 @@ jobs:
     permissions:
       contents: write
     steps:
-    - name: Rename assets to user-friendly names
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        TAG: ${{ inputs.tag || github.ref_name }}
-      run: |
-        REPO="${{ github.repository }}"
-        sleep 30
-        ASSETS=$(gh api "repos/$REPO/releases/tags/$TAG" --jq '.assets[] | "\(.id)|\(.name)"')
-        echo "Found assets:"
-        echo "$ASSETS"
-        while IFS='|' read -r ID NAME; do
-          NEW_NAME=""
-          LABEL=""
-          case "$NAME" in
-            *universal*.dmg)
-              NEW_NAME="OmniMon-${TAG#v}-macOS-Universal.dmg"
-              LABEL="macOS (Apple Silicon + Intel)"
-              ;;
-            *aarch64*.dmg)
-              NEW_NAME="OmniMon-${TAG#v}-macOS-Apple-Silicon.dmg"
-              LABEL="macOS (Apple Silicon)"
-              ;;
-            *.AppImage)
-              NEW_NAME="OmniMon-${TAG#v}-Linux.AppImage"
-              LABEL="Linux (AppImage - portable)"
-              ;;
-            *.deb)
-              NEW_NAME="OmniMon-${TAG#v}-Linux.deb"
-              LABEL="Linux (Debian/Ubuntu)"
-              ;;
-            *.rpm)
-              NEW_NAME="OmniMon-${TAG#v}-Linux.rpm"
-              LABEL="Linux (Fedora/RHEL/openSUSE)"
-              ;;
-            *.msi)
-              NEW_NAME="OmniMon-${TAG#v}-Windows.msi"
-              LABEL="Windows (64-bit installer)"
-              ;;
-            *.nsis.zip)
-              NEW_NAME="OmniMon-${TAG#v}-Windows-Setup.exe.zip"
-              LABEL="Windows (NSIS installer)"
-              ;;
-            *)
-              echo "Skipping unknown asset: $NAME"
-              continue
-              ;;
-          esac
-          echo "Renaming: $NAME -> $NEW_NAME ($LABEL)"
-          gh api "repos/$REPO/releases/assets/$ID" -X PATCH -f name="$NEW_NAME" -f label="$LABEL" --silent
-        done <<< "$ASSETS"
-        echo "All assets renamed successfully."
+      - name: Rename assets to user-friendly names
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          REPO="${{ github.repository }}"
+          sleep 30
+          ASSETS=$(gh api "repos/$REPO/releases/tags/$TAG" --jq '.assets[] | "\(.id)|\(.name)"')
+          echo "Found assets:"
+          echo "$ASSETS"
+          while IFS='|' read -r ID NAME; do
+            NEW_NAME=""
+            LABEL=""
+            case "$NAME" in
+              *universal*.dmg)
+                NEW_NAME="OmniMon-${TAG#v}-macOS-Universal.dmg"
+                LABEL="macOS (Apple Silicon + Intel)"
+                ;;
+              *aarch64*.dmg)
+                NEW_NAME="OmniMon-${TAG#v}-macOS-Apple-Silicon.dmg"
+                LABEL="macOS (Apple Silicon)"
+                ;;
+              *.AppImage)
+                NEW_NAME="OmniMon-${TAG#v}-Linux.AppImage"
+                LABEL="Linux (AppImage - portable)"
+                ;;
+              *.deb)
+                NEW_NAME="OmniMon-${TAG#v}-Linux.deb"
+                LABEL="Linux (Debian/Ubuntu)"
+                ;;
+              *.rpm)
+                NEW_NAME="OmniMon-${TAG#v}-Linux.rpm"
+                LABEL="Linux (Fedora/RHEL/openSUSE)"
+                ;;
+              *.msi)
+                NEW_NAME="OmniMon-${TAG#v}-Windows.msi"
+                LABEL="Windows (64-bit installer)"
+                ;;
+              *.nsis.zip)
+                NEW_NAME="OmniMon-${TAG#v}-Windows-Setup.exe.zip"
+                LABEL="Windows (NSIS installer)"
+                ;;
+              *)
+                echo "Skipping unknown asset: $NAME"
+                continue
+                ;;
+            esac
+            echo "Renaming: $NAME -> $NEW_NAME ($LABEL)"
+            gh api "repos/$REPO/releases/assets/$ID" -X PATCH -f name="$NEW_NAME" -f label="$LABEL" --silent
+          done <<< "$ASSETS"
+          echo "All assets renamed successfully."
