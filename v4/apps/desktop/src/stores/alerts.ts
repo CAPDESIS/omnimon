@@ -201,28 +201,33 @@ async function evaluateSmartHealth(stats: SystemStats, processes: ProcessEntry[]
     .filter(p => p.cpu_pct > 0.5 || p.ram_mb > 100 || p.disk_read_mb > 1 || p.disk_write_mb > 1)
     .slice(0, 15);
 
+  const numCores = navigator.hardwareConcurrency || 1;
+  const sysTotalCpu = (processes.reduce((sum, p) => sum + p.cpu_pct, 0) / numCores).toFixed(2);
+
   const prompt = `Actúas como un 'Health Report' traductor de telemetría para usuarios no técnicos.
 Se detectó una anomalía de hardware: ${problem}. 
-Genera una explicación muy breve (1-2 oraciones) usando términos coloquiales (ej. peras y manzanas) de por qué esto podría estar pasando y qué significa para la computadora. Responde en español y no uses lenguaje técnico complejo.`;
+Genera una explicación muy breve (1-2 oraciones) usando términos coloquiales (ej. peras y manzanas) de por qué esto podría estar pasando y qué significa para la computadora. Responde en español y no uses lenguaje técnico complejo.
+
+IMPORTANTE: Cuando reportes uso de CPU de un proceso, SIEMPRE aclara que el porcentaje es relativo a un solo core. Si el sistema tiene N cores, el impacto real en el sistema es cpu_pct/N. No generes alertas de 'alto uso de CPU' si el impacto real en el sistema total es menor al 25%. Ejemplo: Si un proceso usa 88% de un core en una máquina de 8 cores, el impacto real es 11% — esto NO es una alerta de alto uso.`;
   
   const ctxStr = JSON.stringify({
-    stats: {
-       cpu_user: processes.length > 0
-         ? Number((processes.reduce((sum, proc) => sum + proc.cpu_pct, 0) / processes.length).toFixed(2))
-         : 0,
-       ram_used: stats.ram_used_pct,
+    system_info: {
+       cpu_total_system_pct: `${sysTotalCpu}% (de ${numCores} cores)`,
+       ram_total_used_pct: stats.ram_used_pct,
+       ram_total_gb: stats.ram_total_gb
     },
     target_process: {
        name: targetProc.name,
-       cpu: targetProc.cpu_pct,
-       ram: targetProc.ram_mb,
+       cpu_process_pct: `${targetProc.cpu_pct.toFixed(2)}% (esto es porcentaje de UN core, NO del total)`,
+       cpu_real_impact_pct: `${(targetProc.cpu_pct / numCores).toFixed(2)}%`,
+       ram_mb: targetProc.ram_mb,
        disk_r: targetProc.disk_read_mb,
        disk_w: targetProc.disk_write_mb
     },
     active_context_processes: activeProcesses.map(p => ({
        name: p.name, 
-       cpu: p.cpu_pct, 
-       ram: p.ram_mb
+       cpu_process_pct: p.cpu_pct, 
+       ram_mb: p.ram_mb
     }))
   });
 

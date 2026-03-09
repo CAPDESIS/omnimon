@@ -4,6 +4,7 @@
   import { processes } from "../stores/processes";
   import { slide } from "svelte/transition";
   import { t } from "../lib/i18n";
+  import { renderMarkdown } from "../lib/markdown";
   import type { ProcessSecurityInfo, NistFinding, NistSeverity } from "../lib/types";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
 
@@ -286,11 +287,11 @@
                 <div class="finding-detail" transition:slide={{ duration: 150 }}>
                   <div class="detail-section">
                     <span class="detail-label">{t("securityReport.whatHappened")}</span>
-                    <p class="detail-text">{finding.description}</p>
+                    <div class="detail-text prose">{@html renderMarkdown(finding.description)}</div>
                   </div>
                   <div class="detail-section">
                     <span class="detail-label">{t("securityReport.whatToDo")}</span>
-                    <p class="detail-text recommendation">{finding.recommendation}</p>
+                    <div class="detail-text recommendation prose">{@html renderMarkdown(finding.recommendation)}</div>
                   </div>
                 </div>
               {/if}
@@ -676,6 +677,14 @@
     color: var(--fg);
     line-height: 1.5;
   }
+
+  .detail-text :global(p) { margin: 0 0 4px; }
+  .detail-text :global(p:last-child) { margin-bottom: 0; }
+  .detail-text :global(strong) { color: var(--fg); font-weight: 700; }
+  .detail-text :global(em) { font-style: italic; color: var(--fg-dim); }
+  .detail-text :global(ul) { margin: 4px 0; padding-left: 18px; list-style: disc; }
+  .detail-text :global(li) { margin: 2px 0; }
+  .detail-text :global(pre), .detail-text :global(code) { background: var(--bg-hover); padding: 2px 4px; border-radius: 4px; font-family: monospace; }
 
   .recommendation {
     color: var(--green);

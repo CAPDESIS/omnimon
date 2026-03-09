@@ -1,3 +1,4 @@
+import { listen } from "@tauri-apps/api/event";
 import { get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import type { ProcessEntry } from "../../lib/types";
@@ -64,6 +65,10 @@ function makeProc(overrides: Partial<ProcessEntry> = {}): ProcessEntry {
 
 // Mock confirmAction to auto-approve (returns Promise<boolean>)
 const mockConfirmAction = vi.fn<(msg: string) => Promise<boolean>>(() => Promise.resolve(true));
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn().mockResolvedValue(vi.fn()),
+}));
+
 vi.mock("../../lib/confirm", () => ({
   confirmAction: (msg: string) => mockConfirmAction(msg),
   confirmDialogState: { subscribe: vi.fn(() => () => {}) },
@@ -570,9 +575,10 @@ describe("saveAiConfigAction", () => {
 describe("polling", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    // fetchMetrics now calls both get_metrics and get_browser_tabs
+    vi.clearAllMocks();
     mockInvoke.mockImplementation((cmd: string) => {
       if (cmd === "get_browser_tabs") return Promise.resolve([]);
+      if (cmd === "get_network_data") return Promise.resolve({ top_processes: [], recent_connections: [], net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0, capture_backend: "test", dpi_active: false });
       return Promise.resolve({
         processes: [],
         stats: { ram_total_gb: 16, ram_used_pct: 0, swap_used_mb: 0, total_processes: 0, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 },
@@ -585,45 +591,37 @@ describe("polling", () => {
     vi.useRealTimers();
   });
 
-  it("startPolling calls fetchMetrics immediately and on interval", async () => {
+  it("startPolling calls fetchMetrics immediately and registers listener", async () => {
     startPolling(1000);
-    // Immediate call: get_metrics (sync), get_browser_tabs (async after await)
     const metricsCallCount = () =>
       mockInvoke.mock.calls.filter((c) => c[0] === "get_metrics").length;
 
     expect(metricsCallCount()).toBe(1);
-
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(metricsCallCount()).toBe(2);
-
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(metricsCallCount()).toBe(3);
+    expect(listen).toHaveBeenCalledWith("metrics-update", expect.any(Function));
   });
 
-  it("stopPolling stops interval", async () => {
+  it("stopPolling stops unlistens metrics", async () => {
+    const unlistenMock = vi.fn();
+    vi.mocked(listen).mockResolvedValueOnce(unlistenMock as any);
     startPolling(1000);
-    const metricsCallCount = () =>
-      mockInvoke.mock.calls.filter((c) => c[0] === "get_metrics").length;
-
-    expect(metricsCallCount()).toBe(1);
-
+    
+    // Give promises time to resolve so unlisten is registered
+    await vi.advanceTimersByTimeAsync(0);
+    
     stopPolling();
-    await vi.advanceTimersByTimeAsync(3000);
-    // No additional calls after stop (just the initial one)
-    expect(metricsCallCount()).toBe(1);
+    expect(unlistenMock).toHaveBeenCalled();
   });
 
-  it("can disable browser tab polling while keeping metrics polling active", async () => {
+  it("can disable browser tab polling while keeping push polling active", async () => {
     startPolling(1000);
     setPollingTarget("browserTabs", false);
 
     const browserCallsBefore = mockInvoke.mock.calls.filter((c) => c[0] === "get_browser_tabs").length;
     await vi.advanceTimersByTimeAsync(6000);
     const browserCallsAfter = mockInvoke.mock.calls.filter((c) => c[0] === "get_browser_tabs").length;
-    const metricsCalls = mockInvoke.mock.calls.filter((c) => c[0] === "get_metrics").length;
 
     expect(browserCallsAfter).toBe(browserCallsBefore);
-    expect(metricsCalls).toBeGreaterThan(browserCallsBefore);
+    expect(listen).toHaveBeenCalled();
   });
 
   it("starts network polling only when the target is enabled", async () => {
@@ -634,9 +632,9 @@ describe("polling", () => {
     await vi.advanceTimersByTimeAsync(1000);
 
     const browserCallsAfter = mockInvoke.mock.calls.filter((c) => c[0] === "get_browser_tabs").length;
-    const metricsCalls = mockInvoke.mock.calls.filter((c) => c[0] === "get_metrics").length;
+    const networkCalls = mockInvoke.mock.calls.filter((c) => c[0] === "get_network_connections" || c[0] === "get_network_data").length;
 
     expect(browserCallsAfter).toBeGreaterThanOrEqual(browserCallsBefore);
-    expect(metricsCalls).toBeGreaterThanOrEqual(2);
+    expect(networkCalls).toBeGreaterThanOrEqual(1);
   });
 });
