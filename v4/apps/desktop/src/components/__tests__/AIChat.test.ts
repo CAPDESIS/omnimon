@@ -328,6 +328,120 @@ describe("AIChat", () => {
     });
   });
 
+  it("formatea resultados alternativos para tool calls de lectura", async () => {
+    const cases: Array<{ toolCall: ToolResult; texts: string[] }> = [
+      {
+        toolCall: {
+          tool: "get_process_details",
+          success: true,
+          details: "Process details",
+          payload: { pid: 77, cpu_pct: 1, ram_mb: 2, state: "S" },
+        } as ToolResult,
+        texts: ["Process details", "Name: Unknown"],
+      },
+      {
+        toolCall: {
+          tool: "run_security_scan",
+          success: true,
+          details: "Scan complete",
+          payload: { findings: [] },
+        } as ToolResult,
+        texts: ["Scan complete", "No findings."],
+      },
+      {
+        toolCall: {
+          tool: "get_network_details",
+          success: true,
+          details: "Network details",
+          payload: { connections: [] },
+        } as ToolResult,
+        texts: ["Network details", "No active connections."],
+      },
+      {
+        toolCall: {
+          tool: "explain_process",
+          success: true,
+          details: "Explanation",
+          payload: { bundle_id: null },
+        } as ToolResult,
+        texts: ["Explanation", "Path: unknown", "Bundle ID: n/a"],
+      },
+    ];
+
+    for (const { toolCall, texts } of cases) {
+      mockAiChat.mockResolvedValueOnce({ reply: `Reply for ${toolCall.tool}`, tool_call: toolCall });
+    }
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    for (const { toolCall, texts } of cases) {
+      await fireEvent.input(input, { target: { value: `Run ${toolCall.tool}` } });
+      await fireEvent.click(screen.getByText("Send"));
+
+      await waitFor(() => {
+        for (const text of texts) {
+          expect(screen.getByText(new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"))).toBeInTheDocument();
+        }
+      });
+    }
+
+    expect(mockToast.success).toHaveBeenCalledTimes(cases.length);
+  });
+
+  it("muestra error para tool calls no destructivas con success false", async () => {
+    mockAiChat.mockResolvedValueOnce({
+      reply: "Action failed",
+      tool_call: {
+        tool: "get_system_summary",
+        success: false,
+        details: "Backend rejected the request",
+        payload: null,
+      } as ToolResult,
+    });
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Summarize" } });
+    await fireEvent.click(screen.getByText("Send"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Backend rejected the request")).toBeInTheDocument();
+      expect(mockToast.error).toHaveBeenCalledWith("Action Failed", "Backend rejected the request");
+    });
+  });
+
+  it("clasifica errores timeout, genericos y keyring", async () => {
+    mockAiChat
+      .mockRejectedValueOnce(new Error("timeout while contacting provider"))
+      .mockRejectedValueOnce(new Error("something odd happened"))
+      .mockRejectedValueOnce(new Error("keyring unavailable"));
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+
+    await fireEvent.input(input, { target: { value: "first" } });
+    await fireEvent.click(screen.getByText("Send"));
+    await waitFor(() => {
+      expect(screen.getByText(/Connection Error: Timeout reached/i)).toBeInTheDocument();
+    });
+
+    await fireEvent.input(input, { target: { value: "second" } });
+    await fireEvent.click(screen.getByText("Send"));
+    await waitFor(() => {
+      expect(screen.getByText("Error processing request: something odd happened")).toBeInTheDocument();
+    });
+
+    await fireEvent.input(input, { target: { value: "third" } });
+    await fireEvent.click(screen.getByText("Send"));
+    await waitFor(() => {
+      expect(screen.getByText("Error processing request: keyring unavailable")).toBeInTheDocument();
+      expect(mockToast.error).toHaveBeenCalledWith("Config", "Set up an AI provider in Settings first.");
+    });
+  });
+
   it("permite confirmar acciones destructivas pendientes", async () => {
     mockAiChat.mockResolvedValueOnce({
       reply: "I can close those tabs.",
@@ -362,6 +476,152 @@ describe("AIChat", () => {
       expect(screen.queryByText(/Pending action/i)).not.toBeInTheDocument();
       expect(screen.getByText(/Closed 1 tab\(s\)/i)).toBeInTheDocument();
       expect(mockToast.success).toHaveBeenCalledWith("Action", "Closed 1 tab(s)");
+    });
+  });
+
+  it("muestra error cuando no hay tabs que coincidan al confirmar cierre", async () => {
+    mockAiChat.mockResolvedValueOnce({
+      reply: "I can close those tabs.",
+      tool_call: {
+        tool: "close_tabs",
+        success: true,
+        details: "close_tabs:youtube",
+      },
+    });
+    mockGetBrowserTabs.mockResolvedValueOnce([
+      { id: "tab-1", title: "Docs", url: "https://docs.example.com", browser: "Chrome" },
+    ]);
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Close YouTube tabs" } });
+    await fireEvent.click(screen.getByText("Send"));
+    await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("No tabs matched: youtube")).toBeInTheDocument();
+      expect(mockToast.error).toHaveBeenCalledWith("Action Failed", "No tabs matched: youtube");
+    });
+  });
+
+  it("muestra error al confirmar kill_process con PID invalido", async () => {
+    mockAiChat.mockResolvedValueOnce({
+      reply: "I can kill that process.",
+      tool_call: {
+        tool: "kill_process",
+        success: true,
+        details: "kill_process:0:Chrome",
+      },
+    });
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Kill invalid" } });
+    await fireEvent.click(screen.getByText("Send"));
+    await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Invalid PID: 0")).toBeInTheDocument();
+      expect(mockKillProcess).not.toHaveBeenCalled();
+      expect(mockToast.error).toHaveBeenCalledWith("Action Failed", "Invalid PID: 0");
+    });
+  });
+
+  it("muestra error cuando kill_process no encuentra el PID", async () => {
+    mockAiChat.mockResolvedValueOnce({
+      reply: "I can kill that process.",
+      tool_call: {
+        tool: "kill_process",
+        success: true,
+        details: "kill_process:101:Chrome",
+      },
+    });
+    mockKillProcess.mockResolvedValueOnce(false);
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Kill Chrome" } });
+    await fireEvent.click(screen.getByText("Send"));
+    await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Process PID 101 not found (may have already exited)")).toBeInTheDocument();
+      expect(mockToast.error).toHaveBeenCalledWith("Action Failed", "Process PID 101 not found (may have already exited)");
+    });
+  });
+
+  it("muestra advertencia cuando kill_by_name no recibe PIDs validos", async () => {
+    mockAiChat.mockResolvedValueOnce({
+      reply: "I can kill those processes.",
+      tool_call: {
+        tool: "kill_by_name",
+        success: true,
+        details: "kill_by_name:Chrome:0,-1,NaN",
+      },
+    });
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Kill bad Chrome pids" } });
+    await fireEvent.click(screen.getByText("Send"));
+    await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => {
+      expect(screen.getByText('No valid PIDs for "Chrome"')).toBeInTheDocument();
+      expect(mockKillProcesses).not.toHaveBeenCalled();
+      expect(mockToast.error).toHaveBeenCalledWith("Action Failed", 'No valid PIDs for "Chrome"');
+    });
+  });
+
+  it("mantiene el error original al confirmar kill_process ya fallido", async () => {
+    mockAiChat.mockResolvedValueOnce({
+      reply: "I cannot kill that process.",
+      tool_call: {
+        tool: "kill_process",
+        success: false,
+        details: "Permission denied",
+      },
+    });
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Kill Chrome" } });
+    await fireEvent.click(screen.getByText("Send"));
+    await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Permission denied")).toBeInTheDocument();
+      expect(mockKillProcess).not.toHaveBeenCalled();
+      expect(mockToast.error).toHaveBeenCalledWith("Action Failed", "Permission denied");
+    });
+  });
+
+  it("mantiene el error original al confirmar kill_by_name ya fallido", async () => {
+    mockAiChat.mockResolvedValueOnce({
+      reply: "I cannot kill those processes.",
+      tool_call: {
+        tool: "kill_by_name",
+        success: false,
+        details: "No matching processes",
+      },
+    });
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Kill Chrome by name" } });
+    await fireEvent.click(screen.getByText("Send"));
+    await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("No matching processes")).toBeInTheDocument();
+      expect(mockKillProcesses).not.toHaveBeenCalled();
+      expect(mockToast.error).toHaveBeenCalledWith("Action Failed", "No matching processes");
     });
   });
 
@@ -417,6 +677,27 @@ describe("AIChat", () => {
     });
   });
 
+  it("reintenta aunque ya no exista un error previo en la lista", async () => {
+    mockAiChat
+      .mockRejectedValueOnce(new Error("fetch failed"))
+      .mockResolvedValueOnce({ reply: "Recovered without previous error", tool_call: null });
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Check browser health" } });
+    await fireEvent.click(screen.getByText("Send"));
+
+    const retryButton = await screen.findByRole("button", { name: /common\.retry/i });
+    await fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    await fireEvent.click(retryButton);
+
+    await waitFor(() => {
+      expect(mockAiChat).toHaveBeenCalledTimes(2);
+      expect(screen.getByText("Recovered without previous error")).toBeInTheDocument();
+    });
+  });
+
   it("cancela una solicitud en progreso", async () => {
     const pending = deferred<ChatResponse>();
     mockAiChat.mockReturnValueOnce(pending.promise);
@@ -457,6 +738,24 @@ describe("AIChat", () => {
     await fireEvent.click(pidButton);
 
     expect(mockInspectSet).toHaveBeenCalledWith(expect.objectContaining({ pid: 101, name: "Chrome" }));
+  });
+
+  it("muestra el boton para volver al final cuando auto scroll esta desactivado", async () => {
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "What uses most RAM?" } });
+    await fireEvent.click(screen.getByText("Send"));
+    await screen.findByText("All good");
+
+    const container = document.querySelector(".chat-messages") as HTMLDivElement;
+    Object.defineProperty(container, "scrollHeight", { configurable: true, value: 500 });
+    Object.defineProperty(container, "clientHeight", { configurable: true, value: 100 });
+    Object.defineProperty(container, "scrollTop", { configurable: true, writable: true, value: 0 });
+
+    await fireEvent.scroll(container);
+
+    expect(document.querySelector(".scroll-to-bottom")).toBeInTheDocument();
   });
 
   it("limpia la conversacion cuando el usuario lo solicita", async () => {
