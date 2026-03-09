@@ -341,6 +341,7 @@ pub fn get_cached_state() -> SystemState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sysinfo::System;
 
     #[test]
     fn cached_state_is_readable_without_starting_watcher() {
@@ -358,6 +359,20 @@ mod tests {
         assert!(state.total_memory_bytes >= state.used_memory_bytes);
         assert!(state.total_memory_bytes >= state.free_memory_bytes);
         assert!(state.free_percent <= 100);
+        assert!(state.updated_at_unix_ms > 0);
+    }
+
+    #[test]
+    fn collect_state_starts_with_empty_network_fields() {
+        let mut system = System::new_all();
+        let mut buffers = WatcherBuffers::new();
+
+        let state = collect_state(&mut system, &mut buffers);
+
+        assert_eq!(state.net_capture_backend, BACKEND_UNKNOWN);
+        assert_eq!(state.net_rx_bytes_per_sec, 0);
+        assert_eq!(state.net_tx_bytes_per_sec, 0);
+        assert!(!state.net_dpi_active);
         assert!(state.updated_at_unix_ms > 0);
     }
 }

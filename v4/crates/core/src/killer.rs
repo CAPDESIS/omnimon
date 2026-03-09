@@ -444,6 +444,23 @@ mod tests {
     }
 
     #[test]
+    fn display_messages_are_human_readable() {
+        assert_eq!(KillError::InvalidPid(0).to_string(), "invalid pid: 0");
+        assert_eq!(
+            KillError::ProcessNotFound(42).to_string(),
+            "process not found: 42"
+        );
+        assert_eq!(
+            KillError::Blocked("launchd".to_string()).to_string(),
+            "refusing to kill protected process: launchd"
+        );
+        assert_eq!(
+            KillError::KillFailed(99).to_string(),
+            "failed to kill process: 99"
+        );
+    }
+
+    #[test]
     fn kill_process_safe_terminates_spawned_child() {
         let mut child = std::process::Command::new("sleep")
             .arg("30")

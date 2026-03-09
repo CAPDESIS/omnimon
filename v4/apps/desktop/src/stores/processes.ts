@@ -93,11 +93,10 @@ export const selectedRamMB = derived(
 /** Shallow comparison for SystemStats to avoid unnecessary re-renders on poll. */
 function shallowEqualStats(a: SystemStats, b: SystemStats): boolean {
   return (
-    a.total_ram_mb === b.total_ram_mb &&
-    a.used_ram_mb === b.used_ram_mb &&
+    a.ram_total_gb === b.ram_total_gb &&
+    a.ram_used_pct === b.ram_used_pct &&
     a.swap_used_mb === b.swap_used_mb &&
     a.total_processes === b.total_processes &&
-    a.idle_processes === b.idle_processes &&
     Math.abs(a.net_rx_bytes_per_sec - b.net_rx_bytes_per_sec) < 100 &&
     Math.abs(a.net_tx_bytes_per_sec - b.net_tx_bytes_per_sec) < 100
   );

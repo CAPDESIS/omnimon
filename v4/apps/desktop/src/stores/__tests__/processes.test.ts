@@ -18,6 +18,7 @@ import {
   toggleSelect,
   selectAllVisible,
   selectNone,
+  setPollingTarget,
   startPolling,
   stopPolling,
   applyDiff,
@@ -610,5 +611,32 @@ describe("polling", () => {
     await vi.advanceTimersByTimeAsync(3000);
     // No additional calls after stop (just the initial one)
     expect(metricsCallCount()).toBe(1);
+  });
+
+  it("can disable browser tab polling while keeping metrics polling active", async () => {
+    startPolling(1000);
+    setPollingTarget("browserTabs", false);
+
+    const browserCallsBefore = mockInvoke.mock.calls.filter((c) => c[0] === "get_browser_tabs").length;
+    await vi.advanceTimersByTimeAsync(6000);
+    const browserCallsAfter = mockInvoke.mock.calls.filter((c) => c[0] === "get_browser_tabs").length;
+    const metricsCalls = mockInvoke.mock.calls.filter((c) => c[0] === "get_metrics").length;
+
+    expect(browserCallsAfter).toBe(browserCallsBefore);
+    expect(metricsCalls).toBeGreaterThan(browserCallsBefore);
+  });
+
+  it("starts network polling only when the target is enabled", async () => {
+    startPolling(1000);
+    const browserCallsBefore = mockInvoke.mock.calls.filter((c) => c[0] === "get_browser_tabs").length;
+
+    setPollingTarget("network", true);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const browserCallsAfter = mockInvoke.mock.calls.filter((c) => c[0] === "get_browser_tabs").length;
+    const metricsCalls = mockInvoke.mock.calls.filter((c) => c[0] === "get_metrics").length;
+
+    expect(browserCallsAfter).toBeGreaterThanOrEqual(browserCallsBefore);
+    expect(metricsCalls).toBeGreaterThanOrEqual(2);
   });
 });
