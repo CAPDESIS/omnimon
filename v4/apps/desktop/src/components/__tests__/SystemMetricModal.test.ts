@@ -2,6 +2,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/sv
 
 import SystemMetricModal from "../SystemMetricModal.svelte";
 import type { ProcessEntry } from "../../lib/types";
+import {
+  activeSeriesForMetric,
+  defaultSortKey,
+  getSparklineColor,
+  metricSummaryLabel,
+} from "../../lib/systemMetricModal";
 
 const {
   mockFiltered,
@@ -14,6 +20,7 @@ const {
   mockSwapSeries,
   mockFocusFirstFocusable,
   mockTrapFocus,
+  mockLoadNetworkMap,
 } = vi.hoisted(() => {
   const { writable } = require("svelte/store") as typeof import("svelte/store");
   return {
@@ -44,6 +51,15 @@ const {
     ]),
     mockFocusFirstFocusable: vi.fn(),
     mockTrapFocus: vi.fn(),
+    mockLoadNetworkMap: vi.fn(async () => await import("../NetworkMap.svelte")),
+  };
+});
+
+vi.mock("../../lib/systemMetricModal", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/systemMetricModal")>();
+  return {
+    ...actual,
+    loadNetworkMap: mockLoadNetworkMap,
   };
 });
 
@@ -125,6 +141,8 @@ describe("SystemMetricModal", () => {
     ]);
     mockFocusFirstFocusable.mockClear();
     mockTrapFocus.mockClear();
+    mockLoadNetworkMap.mockReset();
+    mockLoadNetworkMap.mockImplementation(async () => await import("../NetworkMap.svelte"));
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
       cb(0);
       return 1;
@@ -195,6 +213,89 @@ describe("SystemMetricModal", () => {
     await waitFor(() => {
       expect(document.body.textContent).toContain("Processes");
     });
+  });
+
+  it("usa RAM como orden por defecto para processes", () => {
+    expect(defaultSortKey("processes")).toBe("ram");
+
+    render(SystemMetricModal, {
+      props: { metric: "processes", onclose: vi.fn() },
+    });
+
+    const rows = screen.getAllByRole("row").slice(1).map((row) => row.textContent ?? "");
+    expect(rows[0]).toContain("Node");
+    expect(rows[1]).toContain("Chrome");
+  });
+
+  it("usa color accent para sparklines que no son cpu o ram", () => {
+    expect(getSparklineColor("network", [{ value: 10 }])).toBe("var(--accent)");
+  });
+
+  it("usa color default cuando la serie esta vacia", () => {
+    expect(getSparklineColor("cpu", [])).toBe("var(--accent)");
+  });
+
+  it("devuelve serie vacia para network y processes", () => {
+    const series = {
+      cpuSeries: [{ time: 1, value: 10 }],
+      ramSeries: [{ time: 1, value: 20 }],
+      swapSeries: [{ time: 1, value: 30 }],
+    };
+
+    expect(activeSeriesForMetric("network", series)).toEqual([]);
+    expect(activeSeriesForMetric("processes", series)).toEqual([]);
+  });
+
+  it("muestra etiqueta correcta para network y processes", () => {
+    expect(
+      metricSummaryLabel("network", {
+        cpuSeries: [],
+        ramSeries: [],
+        swapSeries: [],
+        totalProcesses: 3,
+      }),
+    ).toBe("3 visible");
+    expect(
+      metricSummaryLabel("processes", {
+        cpuSeries: [],
+        ramSeries: [],
+        swapSeries: [],
+        totalProcesses: 3,
+      }),
+    ).toBe("3 visible");
+  });
+
+  it("maneja rejection del import dinamico de network map", async () => {
+    mockFiltered.set([]);
+    mockLoadNetworkMap.mockRejectedValueOnce(new Error("import failed"));
+
+    render(SystemMetricModal, {
+      props: { metric: "network", onclose: vi.fn() },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Failed to load network map.")).toBeInTheDocument();
+    });
+  });
+
+  it("no renderiza SVG cuando la serie tiene un solo punto", () => {
+    mockCpuSeries.set([{ time: 1, value: 10 }]);
+
+    render(SystemMetricModal, {
+      props: { metric: "cpu", onclose: vi.fn() },
+    });
+
+    expect(document.querySelector("svg")).toBeNull();
+  });
+
+  it("no muestra boton show more cuando filtered no supera el limite", () => {
+    mockFiltered.set(Array.from({ length: 30 }, (_, index) => makeProc({ pid: index + 1, name: `Proc ${index + 1}` })));
+
+    render(SystemMetricModal, {
+      props: { metric: "ram", onclose: vi.fn() },
+    });
+
+    expect(screen.queryByRole("button", { name: /Show more/i })).not.toBeInTheDocument();
   });
 
   it("cierra con escape y atrapa tab focus", async () => {
