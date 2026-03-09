@@ -544,6 +544,32 @@ fn get_network_data() -> Result<serde_json::Value, String> {
     }))
 }
 
+/// IPC: Return full network analysis snapshot with per-process summaries and connection details.
+#[tauri::command]
+#[tracing::instrument(skip_all)]
+fn get_network_connections() -> Result<macmon_core::network_analysis::NetworkSnapshot, String> {
+    macmon_core::watcher::get_network_snapshot()
+        .ok_or_else(|| "No network snapshot available yet".to_string())
+}
+
+/// IPC: Return historical network snapshots from the last N seconds.
+#[tauri::command]
+#[tracing::instrument(skip_all)]
+fn get_network_history(
+    seconds: u32,
+) -> Result<Vec<macmon_core::network_analysis::NetworkSnapshot>, String> {
+    Ok(macmon_core::watcher::get_network_history(seconds))
+}
+
+/// IPC: Return filtered network connections from the current snapshot.
+#[tauri::command]
+#[tracing::instrument(skip_all)]
+fn get_filtered_connections(
+    filter: macmon_core::network_analysis::NetworkFilter,
+) -> Result<Vec<macmon_core::network_analysis::NetworkConnection>, String> {
+    Ok(macmon_core::watcher::get_filtered_connections(&filter))
+}
+
 /// IPC: Query whether the main window is currently visible.
 #[tauri::command]
 #[tracing::instrument(skip_all)]
@@ -818,6 +844,15 @@ pub fn run() {
                         let _ = app_for_metrics.emit("metrics-update", metrics);
                     }
                 });
+
+                // Emit network-update events when new snapshots are available
+                let app_for_network = app.handle().clone();
+                std::thread::spawn(move || loop {
+                    std::thread::sleep(std::time::Duration::from_millis(5000));
+                    if let Some(snapshot) = macmon_core::watcher::get_network_snapshot() {
+                        let _ = app_for_network.emit("network-update", &snapshot);
+                    }
+                });
             } // end ALERT_THREAD_STARTED guard
 
             // --- System Tray Menu ---
@@ -872,6 +907,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_metrics,
             get_network_data,
+            get_network_connections,
+            get_network_history,
+            get_filtered_connections,
             kill_process,
             kill_processes,
             save_ai_config,
