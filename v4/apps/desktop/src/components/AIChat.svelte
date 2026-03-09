@@ -6,7 +6,7 @@
   import { ipcAiChat, ipcGetBrowserTabs, ipcCloseBrowserTab, ipcKillProcess, ipcKillProcesses } from "../lib/ipc";
   import { aiProviderConfig } from "../stores/preferences";
   import { processes } from "../stores/processes";
-  import { inspectProcessRequest } from "../stores/uiActions";
+  import { inspectProcessRequest, askAiRequest } from "../stores/uiActions";
   import { toast } from "../stores/toasts";
   import { detectPromptInjection } from "../lib/aiConfigBridge";
   import { t, resolvedLocale } from "../lib/i18n";
@@ -46,6 +46,15 @@
       tick().then(() => {
         chatContainer!.scrollTop = chatContainer!.scrollHeight;
       });
+    }
+  });
+
+  $effect(() => {
+    const request = $askAiRequest;
+    if (request) {
+      input = request;
+      askAiRequest.set(null);
+      tick().then(() => handleSubmit());
     }
   });
 

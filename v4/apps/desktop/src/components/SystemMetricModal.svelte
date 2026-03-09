@@ -127,6 +127,16 @@
   });
 
   /** Build a mini sparkline SVG path from a series of points */
+
+  function getSparklineColor(m: string, series: {value: number}[]): string {
+    if (m !== "cpu" && m !== "ram") return "var(--accent)";
+    if (series.length === 0) return "var(--accent)";
+    const latest = series[series.length - 1].value;
+    if (latest >= 80) return "var(--danger)";
+    if (latest >= 60) return "var(--yellow)";
+    return "var(--green)";
+  }
+
   function sparklinePath(series: MetricPoint[], width = 200, height = 32): string {
     if (series.length < 2) return "";
     const max = Math.max(...series.map((p) => p.value), 1);
@@ -197,7 +207,7 @@
         {#if activeSeries.length > 1}
           <div class="sparkline-container">
             <svg viewBox="0 0 200 32" preserveAspectRatio="none" class="sparkline-svg" role="img" aria-label={metricSummaryLabel(metric)}>
-              <path d={sparklinePath(activeSeries)} fill="none" stroke="var(--accent)" stroke-width="1.5" />
+              <path d={sparklinePath(activeSeries)} fill="none" stroke={getSparklineColor(metric, activeSeries)} stroke-width="1.5" />
             </svg>
           </div>
         {/if}

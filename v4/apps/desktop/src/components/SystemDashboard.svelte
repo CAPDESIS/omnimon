@@ -107,10 +107,12 @@
     if (collapsed || h.length < 2) return;
 
     if (cpuCanvas) {
-      drawSparkline(cpuCanvas, h.map((s) => s.cpuAvg), "--chart-cpu", 100);
+      const avg = h[h.length - 1]?.cpuAvg || 0;
+      drawSparkline(cpuCanvas, h.map((s) => s.cpuAvg), colorVarForPct(avg), 100);
     }
     if (ramCanvas) {
-      drawSparkline(ramCanvas, h.map((s) => s.ramPct), "--chart-ram", 100);
+      const pct = h[h.length - 1]?.ramPct || 0;
+      drawSparkline(ramCanvas, h.map((s) => s.ramPct), colorVarForPct(pct), 100);
     }
     if (netCanvas) {
       const rx = h.map((s) => s.netRx);
@@ -136,10 +138,14 @@
     return `${(bytesPerSec / 1_048_576).toFixed(1)} MB/s`;
   }
 
+  function colorVarForPct(pct: number): string {
+    if (pct >= 80) return "--danger";
+    if (pct >= 60) return "--yellow";
+    return "--green";
+  }
+
   function colorForPct(pct: number): string {
-    if (pct >= 80) return "var(--danger)";
-    if (pct >= 60) return "var(--yellow)";
-    return "var(--green)";
+    return `var(${colorVarForPct(pct)})`;
   }
 </script>
 

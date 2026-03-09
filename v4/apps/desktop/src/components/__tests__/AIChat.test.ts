@@ -96,6 +96,10 @@ vi.mock("../../stores/uiActions", () => ({
   inspectProcessRequest: {
     set: mockInspectSet,
   },
+  askAiRequest: {
+    subscribe: (cb: any) => { cb(null); return () => {}; },
+    set: vi.fn(),
+  },
 }));
 
 vi.mock("../../stores/toasts", () => ({
