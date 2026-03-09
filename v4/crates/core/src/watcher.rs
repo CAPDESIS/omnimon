@@ -25,8 +25,6 @@ struct WatcherBuffers {
     process_info: Vec<CachedProcessInfo>,
     /// Maps PID → (rx, tx) bytes/sec for merging network throughput into process info.
     throughput_map: HashMap<u32, (u64, u64)>,
-    /// Process runtime data fed into the rules engine each tick.
-    runtime: Vec<crate::rules_engine::ProcessRuntime>,
     /// Tracks the previous tick's process count for next-tick capacity hints.
     last_process_count: usize,
 }
@@ -36,7 +34,6 @@ impl WatcherBuffers {
         Self {
             process_info: Vec::with_capacity(512),
             throughput_map: HashMap::with_capacity(128),
-            runtime: Vec::with_capacity(512),
             last_process_count: 0,
         }
     }
@@ -44,6 +41,9 @@ impl WatcherBuffers {
 
 /// Per-process info cached by the watcher thread (memory, CPU%, executable name, start time).
 /// Avoids the need for IPC handlers to create `System` instances on the main thread.
+///
+/// Implements [`crate::rules_engine::ProcessMetadata`] so the rules engine can
+/// operate on the cached process data directly without cloning process names.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CachedProcessInfo {
     pub pid: u32,
@@ -61,6 +61,18 @@ pub struct CachedProcessInfo {
     pub net_tx_bytes_per_sec: u64,
     pub energy_impact_score: Option<f32>,
     pub start_time: u64,
+}
+
+impl crate::rules_engine::ProcessMetadata for CachedProcessInfo {
+    fn pid(&self) -> u32 {
+        self.pid
+    }
+    fn process_name(&self) -> &str {
+        &self.name
+    }
+    fn memory_bytes(&self) -> u64 {
+        self.memory_bytes
+    }
 }
 
 /// Periodically refreshed snapshot of system health: memory, CPU, swap, and network I/O.
@@ -248,18 +260,9 @@ pub fn start_watcher() {
 
                     let mut snapshot = collect_state(&mut system, &mut buffers);
 
-                    // Reuse the runtime buffer: clear retains capacity.
-                    buffers.runtime.clear();
-                    for p in &snapshot.cached_process_info {
-                        buffers.runtime.push(crate::rules_engine::ProcessRuntime {
-                            pid: p.pid,
-                            process_name: p.name.clone(),
-                            memory_bytes: p.memory_bytes,
-                        });
-                    }
-                    let dynamic_alerts = crate::rules_engine::evaluate_events(
+                    let dynamic_alerts = crate::rules_engine::evaluate_events_generic(
                         &sample.recent_connections,
-                        &buffers.runtime,
+                        &snapshot.cached_process_info,
                     );
                     let heartbeat = crate::audit::build_security_heartbeat(
                         sample.process_throughput.len(),

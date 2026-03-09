@@ -246,9 +246,37 @@ pub fn remove_rule_by_id(id: &str) -> Result<bool, String> {
     Ok(guard.rules.len() < before)
 }
 
+/// Trait for types that provide per-process metadata to the rules engine.
+/// Implemented by both [`ProcessRuntime`] and [`crate::watcher::CachedProcessInfo`]
+/// so the watcher hot path can avoid cloning process names.
+pub trait ProcessMetadata {
+    fn pid(&self) -> u32;
+    fn process_name(&self) -> &str;
+    fn memory_bytes(&self) -> u64;
+}
+
+impl ProcessMetadata for ProcessRuntime {
+    fn pid(&self) -> u32 {
+        self.pid
+    }
+    fn process_name(&self) -> &str {
+        &self.process_name
+    }
+    fn memory_bytes(&self) -> u64 {
+        self.memory_bytes
+    }
+}
+
 pub fn evaluate_events(
     events: &[crate::network::ProcessConnectionEvent],
     runtime: &[ProcessRuntime],
+) -> Vec<DynamicAlert> {
+    evaluate_events_generic(events, runtime)
+}
+
+pub fn evaluate_events_generic<P: ProcessMetadata>(
+    events: &[crate::network::ProcessConnectionEvent],
+    runtime: &[P],
 ) -> Vec<DynamicAlert> {
     let Ok(mut guard) = state().write() else {
         return Vec::new();
@@ -262,27 +290,34 @@ pub fn evaluate_events(
 
     let runtime_by_pid = runtime
         .iter()
-        .map(|r| (r.pid, r))
-        .collect::<HashMap<u32, &ProcessRuntime>>();
+        .map(|r| (r.pid(), r))
+        .collect::<HashMap<u32, &P>>();
 
     // Evict stale entries from last_matched to prevent unbounded growth.
     // Any entry older than 60 seconds is irrelevant for temporal correlation.
     last_matched.retain(|_, instant| instant.elapsed().as_secs() < 60);
 
     let mut alerts = Vec::new();
+    let mut fallback_name = String::new();
     for event in events {
-        let process = runtime_by_pid.get(&event.pid).copied();
-        let process_name = process
-            .map(|r| r.process_name.clone())
-            .unwrap_or_else(|| format!("pid-{}", event.pid));
+        let process = runtime_by_pid.get(&event.pid);
+        let process_name: &str = match process {
+            Some(r) => r.process_name(),
+            None => {
+                fallback_name.clear();
+                use std::fmt::Write;
+                let _ = write!(fallback_name, "pid-{}", event.pid);
+                &fallback_name
+            }
+        };
         let process_memory_mb = process
-            .map(|r| r.memory_bytes / 1_048_576)
+            .map(|r| r.memory_bytes() / 1_048_576)
             .unwrap_or_default();
 
         let country = country_for_ip(geo_db, &event.dst_ip);
 
         for rule in rules.iter().filter(|r| r.enabled) {
-            if !matches_process(rule, &process_name) {
+            if !matches_process(rule, process_name) {
                 continue;
             }
 
@@ -334,7 +369,7 @@ pub fn evaluate_events(
                 rule_id: rule.id.clone(),
                 rule_name: rule.name.clone(),
                 pid: event.pid,
-                process_name: process_name.clone(),
+                process_name: process_name.to_string(),
                 dst_ip: event.dst_ip.clone(),
                 dst_port: event.dst_port,
                 country_code: country.clone(),
