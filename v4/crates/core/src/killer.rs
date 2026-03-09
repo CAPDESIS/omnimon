@@ -529,4 +529,52 @@ mod tests {
         let result = kill_process_safe(pid, &[]);
         assert!(result.is_ok(), "expected kill success, got: {result:?}");
     }
+
+    #[test]
+    fn identity_matches_returns_false_for_missing_process() {
+        let mut system = System::new();
+        system.refresh_processes_specifics(ProcessRefreshKind::everything());
+
+        let mut candidate: u32 = 600_000;
+        while system.process(Pid::from_u32(candidate)).is_some() {
+            candidate = candidate.saturating_add(1);
+        }
+
+        assert!(!identity_matches(&mut system, candidate, "missing", None));
+    }
+
+    #[test]
+    fn identity_matches_checks_name_and_executable() {
+        let current_pid = std::process::id();
+        let mut system = System::new();
+        system.refresh_processes_specifics(ProcessRefreshKind::everything());
+        let process = system
+            .process(Pid::from_u32(current_pid))
+            .expect("current process should exist");
+
+        let current_name = process.name().to_string();
+        let current_exe = process.exe().map(|p| p.to_path_buf());
+
+        assert!(!identity_matches(
+            &mut system,
+            current_pid,
+            "definitely-not-the-current-process",
+            current_exe.as_deref(),
+        ));
+
+        assert!(identity_matches(
+            &mut system,
+            current_pid,
+            &current_name,
+            None
+        ));
+
+        let fake_exe = Path::new("/tmp/not-the-real-executable");
+        assert!(!identity_matches(
+            &mut system,
+            current_pid,
+            &current_name,
+            Some(fake_exe),
+        ));
+    }
 }

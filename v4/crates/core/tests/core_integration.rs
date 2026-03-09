@@ -1,5 +1,5 @@
 use core::{
-    audit, audit_trail, cloud, crypto, killer, metrics, network, process_identity, rate_limit,
+    ai, audit, audit_trail, cloud, crypto, killer, metrics, network, process_identity, rate_limit,
     rules_engine, security, telemetry, watcher,
 };
 
@@ -1197,4 +1197,54 @@ fn integration_crypto_to_audit_heartbeat_pipeline() {
         crypto::decrypt_json(&key, &encrypted).expect("decrypt heartbeat");
     assert_eq!(decrypted.identification.tracked_processes, 100);
     assert_eq!(decrypted.monitoring.mitre_alert_count, 8);
+}
+
+#[test]
+fn integration_watcher_metrics_to_ai_prompt_pipeline() {
+    watcher::start_watcher();
+    std::thread::sleep(std::time::Duration::from_millis(2500));
+
+    let state = watcher::get_cached_state();
+    let prompt = ai::build_chat_system_prompt(&state);
+
+    assert!(state.total_memory_bytes > 0);
+    assert!(prompt.contains("System State"));
+    assert!(prompt.contains("Top processes"));
+}
+
+#[test]
+fn integration_security_scan_to_mitre_to_report_pipeline() {
+    let policy = security::NetworkPolicy::default();
+    let events = vec![network::ProcessConnectionEvent {
+        pid: 808,
+        protocol: network::TransportProtocol::Tcp,
+        direction: network::TrafficDirection::Outbound,
+        src_ip: "10.0.0.8".to_string(),
+        dst_ip: policy.blocked_ips[0].clone(),
+        src_port: 50_808,
+        dst_port: policy.unusual_ports[0],
+        bytes: 512,
+    }];
+
+    let observations = security::evaluate_network_events(&events, &policy);
+    let labels = security::label_process_observations(&observations);
+    let heartbeat = audit::build_security_heartbeat(
+        10,
+        0,
+        true,
+        observations.len(),
+        labels.len(),
+        true,
+        "reported",
+    );
+    let json = audit::security_heartbeat_json(&heartbeat).expect("heartbeat json");
+
+    assert_eq!(observations.len(), 1);
+    assert_eq!(labels.len(), 1);
+    assert!(labels[0]
+        .mitre_techniques
+        .iter()
+        .any(|t| t.technique_id == "T1071"));
+    assert!(json.contains("NIST 800-53"));
+    assert!(json.contains("reported"));
 }

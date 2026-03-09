@@ -1,4 +1,5 @@
 import { get } from "svelte/store";
+
 import { initI18n, locale, resolvedLocale, t } from "../i18n";
 import { localePreference } from "../../stores/preferences";
 
@@ -19,13 +20,15 @@ describe("i18n", () => {
   });
 
   it("falls back to key when translation does not exist", () => {
+    locale.set("es");
     expect(t("missing.path.key")).toBe("missing.path.key");
   });
 
-  it("interpolates params in translation strings", () => {
+  it("interpolates params and preserves unknown placeholders", () => {
     expect(t("process.browserTabs", { count: 3 })).toBe("Browser Tabs (3)");
     locale.set("es");
     expect(t("process.browserTabs", { count: 3 })).toBe("Pestañas del navegador (3)");
+    expect(t("aiChat.errorGeneric")).toBe("Error al procesar la solicitud: {msg}");
   });
 
   it("initializes locale from saved preference", () => {
@@ -33,19 +36,22 @@ describe("i18n", () => {
     expect(get(locale)).toBe("es");
   });
 
-  it("changes locale store directly", () => {
-    locale.set("es");
-    expect(get(locale)).toBe("es");
+  it("ignora locales invalidos al inicializar", () => {
     locale.set("en");
+    initI18n("fr" as never);
     expect(get(locale)).toBe("en");
   });
 
-  it("resolves auto locale from navigator", () => {
+  it("resolves auto locale from navigator y cae a en cuando no existe", () => {
     const langSpy = vi.spyOn(window.navigator, "language", "get").mockReturnValue("es-ES");
-
     initI18n("auto");
     expect(get(resolvedLocale)).toBe("es");
     langSpy.mockRestore();
+
+    const unsupportedSpy = vi.spyOn(window.navigator, "language", "get").mockReturnValue("pt-BR");
+    initI18n("auto");
+    expect(get(resolvedLocale)).toBe("en");
+    unsupportedSpy.mockRestore();
   });
 
   it("keeps locale in app state via localePreference store", () => {
