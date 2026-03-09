@@ -1,7 +1,11 @@
-# OmniMon CLI Manual (v5.2.0)
+# OmniMon CLI Manual (v6.0.1)
 
 ## Overview
 The OmniMon CLI allows you to interact with the core system monitoring and management capabilities directly from your terminal. It offers full parity with the GUI features, allowing you to check system status, manage processes, analyze system state using AI, manage browser tabs, and sync configurations.
+
+## Global Options
+
+- `--sync-keychain`: force a credential presence check across supported AI providers before running the selected subcommand.
 
 ## Commands
 
@@ -106,4 +110,60 @@ Read or update application settings. These settings mirror the GUI preferences.
 ```bash
 omnimon settings get
 omnimon settings set theme dark
+```
+
+### 8. `auth`
+Store the CrabNebula API key securely in the OS keyring.
+
+**Usage:**
+```bash
+omnimon auth login <KEY>
+```
+
+**Examples:**
+```bash
+omnimon auth login "cn_live_..."
+```
+
+### 9. `cloud`
+Sync an encrypted security report to the CrabNebula backend.
+
+**Usage:**
+```bash
+omnimon cloud sync --report-path <PATH>
+```
+
+**Examples:**
+```bash
+omnimon cloud sync --report-path /tmp/omnimon_scan_report.enc
+```
+
+### 10. `security-scan`
+Run a local security scan using an optional JSON CVE database.
+
+**Usage:**
+```bash
+omnimon security-scan [--cve-db <PATH>]
+```
+
+**Examples:**
+```bash
+omnimon security-scan
+omnimon security-scan --cve-db ./fixtures/cves.json
+```
+
+### 11. `doctor`
+Run environment, driver, and keyring checks for the local machine.
+
+**Usage:**
+```bash
+omnimon doctor
+```
+
+### 12. `tui`
+Launch the real-time terminal interface.
+
+**Usage:**
+```bash
+omnimon tui
 ```

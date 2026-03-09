@@ -1,4 +1,4 @@
-# OmniMon v5
+# OmniMon v6.0.1
 
 [![CI/CD](https://github.com/chochy2001/omnimon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/omnimon/actions) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_+_Svelte-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#) [![Sponsor](https://img.shields.io/badge/Sponsor-💖-ff69b4)](https://github.com/sponsors/chochy2001)
 
@@ -9,7 +9,7 @@
 
 OmniMon is a next-generation system monitor rewritten from scratch in a modern monorepo. It replaces the legacy AppKit/Bash architecture with a hyper-optimized native core and a reactive UI.
 
-## What's New in v5.0
+## What's New in v6.0.1
 
 * **Ed25519 cryptographic signatures:** every release binary is signed with Ed25519 keys and verified with SHA-256 integrity checksums, ensuring tamper-proof distribution.
 * **Deep OS telemetry:** process grouping, native app icons, energy impact scores, and network throughput per-process.
@@ -100,6 +100,13 @@ cd omnimon/v4
 make dev
 ```
 
+## Documentation and Compliance
+
+- `AUDIT_DOCS.md`: documentation audit, version review, and recommended fixes.
+- `COMMANDS_REFERENCE.md`: CLI commands, AI chat actions, and full Tauri IPC catalog.
+- `CVE_REPORT.md`: `cargo audit` findings, affected crates, remediation, and status.
+- `NIST_COMPLIANCE.md`: mapped NIST SP 800-53 controls with implemented and missing safeguards.
+
 ## CLI Usage (Build from Source)
 
 ```bash
@@ -123,11 +130,11 @@ Sponsors get access to pre-built premium installers (.exe, .dmg, .deb) and prior
 
 ---
 
-# OmniMon v5 (Español)
+# OmniMon v6.0.1 (Español)
 
 OmniMon es un monitor de sistema de próxima generación reescrito desde cero en un monorepositorio moderno. Reemplaza la antigua arquitectura de AppKit/Bash con un núcleo nativo hiperoptimizado y una interfaz reactiva.
 
-## Novedades en v5.0
+## Novedades en v6.0.1
 
 * **Firmas criptográficas Ed25519:** cada binario de release se firma con claves Ed25519 y se verifica con checksums SHA-256, garantizando distribución a prueba de manipulaciones.
 * **Telemetría profunda del SO:** agrupación de procesos, iconos nativos de aplicaciones, puntuación de impacto energético y throughput de red por proceso.
@@ -264,4 +271,3 @@ Core security abstractions. Manages secure credential storage using native OS ke
 
 ### `core::watcher`
 Background monitoring daemon. Periodically aggregates system metrics, network flows, and dynamically evaluates AI-driven security rules.
-

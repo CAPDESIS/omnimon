@@ -686,7 +686,7 @@ pub fn run() {
             // --- macOS Application Menu Bar ---
             let about_metadata = AboutMetadata {
                 name: Some("OmniMon".into()),
-                version: Some("6.0.1".into()),
+                version: Some(env!("CARGO_PKG_VERSION").into()),
                 authors: Some(vec!["Jorge Salgado Miranda".into()]),
                 copyright: Some("© 2024-2026 Jorge Salgado Miranda".into()),
                 website: Some("https://github.com/chochy2001/omnimon".into()),

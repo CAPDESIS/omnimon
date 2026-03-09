@@ -40,7 +40,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 
 fn draw_header(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
-        .title(" OmniMon v6.0 — TUI ")
+        .title(format!(" OmniMon v{} — TUI ", env!("CARGO_PKG_VERSION")))
         .title_alignment(Alignment::Center)
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Cyan));
