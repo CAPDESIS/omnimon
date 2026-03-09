@@ -5,9 +5,21 @@ import {
   ipcKillProcesses,
   ipcGetBrowserTabs,
   ipcCloseBrowserTab,
+  ipcFocusBrowserTab,
+  ipcAnalyzeContext,
   ipcSaveAiConfig,
+  ipcCheckApiKey,
   ipcValidateApiKey,
   ipcAnalyzeProcesses,
+  ipcGetWindowVisible,
+  ipcApplyAiRules,
+  ipcAiChat,
+  ipcGetAiRulesSchema,
+  ipcGetNetworkData,
+  ipcListPlugins,
+  ipcInstallPlugin,
+  ipcSetPluginEnabled,
+  ipcRemovePlugin,
   IPCValidationError,
 } from "../ipc";
 
@@ -67,6 +79,35 @@ function validTab(overrides: Record<string, unknown> = {}) {
     title: "Example",
     url: "https://example.com",
     browser: "Chrome",
+    ...overrides,
+  };
+}
+
+function validPluginMetric(overrides: Record<string, unknown> = {}) {
+  return {
+    name: "cpu_pct",
+    label: "CPU %",
+    kind: "gauge",
+    value: 12.5,
+    unit: "%",
+    tags: { source: "plugin" },
+    ...overrides,
+  };
+}
+
+function validPlugin(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "plugin-1",
+    name: "Test Plugin",
+    file_name: "test.lua",
+    enabled: true,
+    description: "Collects test metrics",
+    version: "1.0.0",
+    status: "healthy",
+    last_error: null,
+    last_run_ms: 1234,
+    last_duration_ms: 50,
+    metrics: [validPluginMetric()],
     ...overrides,
   };
 }
@@ -276,6 +317,35 @@ describe("ipcCloseBrowserTab", () => {
   });
 });
 
+describe("ipcFocusBrowserTab", () => {
+  it("returns true on valid boolean response", async () => {
+    mockInvoke.mockResolvedValue(true);
+    await expect(ipcFocusBrowserTab("tab-1", "https://example.com", "Chrome")).resolves.toBe(true);
+    expect(mockInvoke).toHaveBeenCalledWith("focus_browser_tab", {
+      tabId: "tab-1",
+      tabUrl: "https://example.com",
+      browser: "Chrome",
+    });
+  });
+
+  it("rejects non-boolean response", async () => {
+    mockInvoke.mockResolvedValue({ ok: true });
+    await expect(ipcFocusBrowserTab("tab-1", "https://example.com", "Chrome")).rejects.toThrow(IPCValidationError);
+  });
+});
+
+describe("ipcAnalyzeContext", () => {
+  it("returns AI text when backend responds with a string", async () => {
+    mockInvoke.mockResolvedValue("analysis ready");
+    await expect(ipcAnalyzeContext("ctx", "openai", "gpt-4o-mini")).resolves.toBe("analysis ready");
+  });
+
+  it("rejects non-string payloads", async () => {
+    mockInvoke.mockResolvedValue({ reply: "nope" });
+    await expect(ipcAnalyzeContext("ctx", "openai", "gpt-4o-mini")).rejects.toThrow(IPCValidationError);
+  });
+});
+
 describe("ipcSaveAiConfig", () => {
   it("calls invoke with correct params", async () => {
     mockInvoke.mockResolvedValue(undefined);
@@ -321,6 +391,19 @@ describe("ipcValidateApiKey", () => {
   });
 });
 
+describe("ipcCheckApiKey", () => {
+  it("returns boolean state from secure storage", async () => {
+    mockInvoke.mockResolvedValue(false);
+    await expect(ipcCheckApiKey("openrouter")).resolves.toBe(false);
+    expect(mockInvoke).toHaveBeenCalledWith("check_api_key", { provider: "openrouter" });
+  });
+
+  it("rejects malformed responses", async () => {
+    mockInvoke.mockResolvedValue("present");
+    await expect(ipcCheckApiKey("openrouter")).rejects.toThrow(IPCValidationError);
+  });
+});
+
 describe("ipcAnalyzeProcesses", () => {
   function validSuggestion(overrides: Record<string, unknown> = {}) {
     return { pid: 1, name: "Heavy App", reason: "High memory usage", ...overrides };
@@ -363,6 +446,93 @@ describe("ipcAnalyzeProcesses", () => {
   it("propagates tauri backend errors", async () => {
     mockInvoke.mockRejectedValue(new Error("AppleScript permission denied"));
     await expect(ipcAnalyzeProcesses("general", "openrouter", "m")).rejects.toThrow("AppleScript permission denied");
+  });
+});
+
+describe("other IPC helpers", () => {
+  it("validates window visibility responses", async () => {
+    mockInvoke.mockResolvedValue(true);
+    await expect(ipcGetWindowVisible()).resolves.toBe(true);
+
+    mockInvoke.mockResolvedValue("yes");
+    await expect(ipcGetWindowVisible()).rejects.toThrow(IPCValidationError);
+  });
+
+  it("validates AI rules apply count", async () => {
+    mockInvoke.mockResolvedValue(3);
+    await expect(ipcApplyAiRules('{"rules":[]}')).resolves.toBe(3);
+
+    mockInvoke.mockResolvedValue(null);
+    await expect(ipcApplyAiRules('{"rules":[]}')).rejects.toThrow(IPCValidationError);
+  });
+
+  it("validates AI chat responses", async () => {
+    mockInvoke.mockResolvedValue({
+      reply: "done",
+      tool_call: { name: "kill_process", args: { pid: 99 } },
+    });
+    await expect(ipcAiChat("hi", "openai", "gpt-4o", [["user", "prev"]])).resolves.toEqual({
+      reply: "done",
+      tool_call: { name: "kill_process", args: { pid: 99 } },
+    });
+
+    mockInvoke.mockResolvedValue({ tool_call: null });
+    await expect(ipcAiChat("hi", "openai", "gpt-4o")).rejects.toThrow(IPCValidationError);
+  });
+
+  it("validates AI rules schema payloads", async () => {
+    mockInvoke.mockResolvedValue('{"type":"object"}');
+    await expect(ipcGetAiRulesSchema()).resolves.toBe('{"type":"object"}');
+
+    mockInvoke.mockResolvedValue({ type: "object" });
+    await expect(ipcGetAiRulesSchema()).rejects.toThrow(IPCValidationError);
+  });
+
+  it("validates network data payloads", async () => {
+    mockInvoke.mockResolvedValue({
+      top_processes: [{ pid: 1, rx_bytes_per_sec: 10, tx_bytes_per_sec: 5, tcp_packets_per_sec: 2, udp_packets_per_sec: 1 }],
+      recent_connections: [{ pid: 1, protocol: "tcp", direction: "outbound", src_ip: "10.0.0.2", dst_ip: "8.8.8.8", src_port: 50100, dst_port: 443, bytes: 128 }],
+      net_rx_bytes_per_sec: 10,
+      net_tx_bytes_per_sec: 5,
+      capture_backend: "Unsupported",
+      dpi_active: false,
+    });
+    await expect(ipcGetNetworkData()).resolves.toEqual(expect.objectContaining({
+      net_rx_bytes_per_sec: 10,
+      capture_backend: "Unsupported",
+    }));
+
+    mockInvoke.mockResolvedValue({
+      top_processes: {},
+      recent_connections: [],
+      net_rx_bytes_per_sec: 10,
+      net_tx_bytes_per_sec: 5,
+      capture_backend: "Unsupported",
+      dpi_active: false,
+    });
+    await expect(ipcGetNetworkData()).rejects.toThrow(IPCValidationError);
+  });
+
+  it("validates plugin payload helpers", async () => {
+    mockInvoke.mockResolvedValue([validPlugin(), validPlugin({ id: "plugin-2", enabled: false })]);
+    await expect(ipcListPlugins()).resolves.toHaveLength(2);
+
+    mockInvoke.mockResolvedValue(validPlugin({ enabled: false }));
+    await expect(ipcInstallPlugin("test.lua", "marketplace")).resolves.toEqual(expect.objectContaining({ enabled: false }));
+
+    mockInvoke.mockResolvedValue(validPlugin({ enabled: false }));
+    await expect(ipcSetPluginEnabled("plugin-1", false)).resolves.toEqual(expect.objectContaining({ enabled: false }));
+
+    mockInvoke.mockResolvedValue(undefined);
+    await expect(ipcRemovePlugin("plugin-1")).resolves.toBeUndefined();
+  });
+
+  it("rejects malformed plugin descriptors", async () => {
+    mockInvoke.mockResolvedValue([validPlugin({ metrics: "bad" })]);
+    await expect(ipcListPlugins()).rejects.toThrow(IPCValidationError);
+
+    mockInvoke.mockResolvedValue(validPlugin({ enabled: "yes" }));
+    await expect(ipcInstallPlugin("test.lua", "local")).rejects.toThrow(IPCValidationError);
   });
 });
 

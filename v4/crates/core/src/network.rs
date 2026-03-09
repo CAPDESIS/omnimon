@@ -995,6 +995,118 @@ mod tests {
     }
 
     #[test]
+    fn collector_window_merge_truncates_recent_connections_and_accumulates_rates() {
+        let mut base = CollectorWindow::default();
+        base.process_traffic.insert(
+            42,
+            ProcessTrafficAcc {
+                rx_bytes: 10,
+                tx_bytes: 5,
+                tcp_packets: 1,
+                udp_packets: 0,
+            },
+        );
+        base.recent_connections = (0..MAX_CONNECTION_EVENTS)
+            .map(|idx| ProcessConnectionEvent {
+                pid: idx as u32,
+                protocol: TransportProtocol::Tcp,
+                direction: TrafficDirection::Outbound,
+                src_ip: "10.0.0.1".to_string(),
+                dst_ip: format!("8.8.8.{}", idx % 255),
+                src_port: 40_000,
+                dst_port: 443,
+                bytes: 32,
+            })
+            .collect();
+
+        let mut incoming = CollectorWindow::default();
+        incoming.process_traffic.insert(
+            42,
+            ProcessTrafficAcc {
+                rx_bytes: 15,
+                tx_bytes: 20,
+                tcp_packets: 2,
+                udp_packets: 1,
+            },
+        );
+        incoming.recent_connections = (0..4)
+            .map(|idx| ProcessConnectionEvent {
+                pid: 500 + idx as u32,
+                protocol: TransportProtocol::Udp,
+                direction: TrafficDirection::Inbound,
+                src_ip: "1.1.1.1".to_string(),
+                dst_ip: "10.0.0.5".to_string(),
+                src_port: 53,
+                dst_port: 53_000 + idx as u16,
+                bytes: 64,
+            })
+            .collect();
+
+        base.merge_from(incoming);
+
+        let merged = base.process_traffic.get(&42).expect("merged traffic");
+        assert_eq!(merged.rx_bytes, 25);
+        assert_eq!(merged.tx_bytes, 25);
+        assert_eq!(merged.tcp_packets, 3);
+        assert_eq!(merged.udp_packets, 1);
+        assert_eq!(base.recent_connections.len(), MAX_CONNECTION_EVENTS);
+        assert_eq!(base.recent_connections.last().expect("latest").pid, 503);
+    }
+
+    #[test]
+    fn collector_window_into_rates_sorts_and_scales_processes() {
+        let mut window = CollectorWindow::default();
+        window.process_traffic.insert(
+            10,
+            ProcessTrafficAcc {
+                rx_bytes: 50,
+                tx_bytes: 0,
+                tcp_packets: 1,
+                udp_packets: 0,
+            },
+        );
+        window.process_traffic.insert(
+            20,
+            ProcessTrafficAcc {
+                rx_bytes: 150,
+                tx_bytes: 50,
+                tcp_packets: 2,
+                udp_packets: 1,
+            },
+        );
+
+        let (rates, recent) = window.into_rates(250);
+
+        assert!(recent.is_empty());
+        assert_eq!(rates.len(), 2);
+        assert_eq!(rates[0].pid, 20);
+        assert_eq!(rates[0].rx_bytes_per_sec, 600);
+        assert_eq!(rates[0].tx_bytes_per_sec, 200);
+        assert_eq!(rates[1].pid, 10);
+        assert_eq!(rates[1].rx_bytes_per_sec, 200);
+    }
+
+    #[test]
+    fn parse_ipv4_udp_packet_without_ethernet_header() {
+        let mut frame = vec![0u8; 28];
+        frame[0] = 0x45;
+        frame[2] = 0;
+        frame[3] = 28;
+        frame[9] = 17;
+        frame[12..16].copy_from_slice(&[192, 168, 1, 10]);
+        frame[16..20].copy_from_slice(&[8, 8, 4, 4]);
+        frame[20..22].copy_from_slice(&53_500u16.to_be_bytes());
+        frame[22..24].copy_from_slice(&53u16.to_be_bytes());
+
+        let parsed = parse_ipv4_transport_inner(&frame, 0).expect("parsed ipv4 udp frame");
+        assert_eq!(parsed.protocol, TransportProtocol::Udp);
+        assert_eq!(parsed.src_ip, "192.168.1.10");
+        assert_eq!(parsed.dst_ip, "8.8.4.4");
+        assert_eq!(parsed.src_port, 53_500);
+        assert_eq!(parsed.dst_port, 53);
+    }
+
+    #[test]
     fn engine_produces_sample() {
         let mut engine = NetworkTelemetryEngine::new();
         std::thread::sleep(Duration::from_millis(300));

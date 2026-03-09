@@ -217,6 +217,60 @@ mod tests {
     }
 
     #[test]
+    fn ignores_network_events_that_do_not_match_policy() {
+        let policy = NetworkPolicy::default();
+        let events = vec![crate::network::ProcessConnectionEvent {
+            pid: 7,
+            protocol: crate::network::TransportProtocol::Tcp,
+            direction: crate::network::TrafficDirection::Outbound,
+            src_ip: "10.0.0.2".to_string(),
+            dst_ip: "8.8.8.8".to_string(),
+            src_port: 50_000,
+            dst_port: 443,
+            bytes: 512,
+        }];
+
+        let observations = evaluate_network_events(&events, &policy);
+        assert!(observations.is_empty());
+    }
+
+    #[test]
+    fn blocked_ip_and_unusual_port_are_both_recorded_in_context() {
+        let policy = NetworkPolicy::default();
+        let events = vec![crate::network::ProcessConnectionEvent {
+            pid: 77,
+            protocol: crate::network::TransportProtocol::Udp,
+            direction: crate::network::TrafficDirection::Outbound,
+            src_ip: "10.0.0.3".to_string(),
+            dst_ip: policy.blocked_ips[0].clone(),
+            src_port: 55_000,
+            dst_port: policy.unusual_ports[0],
+            bytes: 64,
+        }];
+
+        let observations = evaluate_network_events(&events, &policy);
+        assert_eq!(observations.len(), 1);
+        let detail = observations[0].detail.clone().expect("detail");
+        assert!(detail.contains("destination_ip_blocked"));
+        assert!(detail.contains("unusual_destination_port"));
+    }
+
+    #[test]
+    fn labels_without_detail_use_lower_confidence() {
+        let observations = vec![ProcessBehaviorObservation {
+            pid: 5,
+            process_name: "quiet.exe".to_string(),
+            indicator: BehaviorIndicator::UnsignedModuleLoad,
+            detail: None,
+        }];
+
+        let labels = label_process_observations(&observations);
+        assert_eq!(labels.len(), 1);
+        assert_eq!(labels[0].confidence, 0.7);
+        assert!(labels[0].context.is_none());
+    }
+
+    #[test]
     fn network_policy_maps_to_mitre_network_techniques() {
         let policy = NetworkPolicy::default();
         let events = vec![crate::network::ProcessConnectionEvent {
