@@ -85,9 +85,9 @@ pub fn map_behavior_to_mitre(indicator: &BehaviorIndicator) -> Vec<MitreTechniqu
         }],
         BehaviorIndicator::SuspiciousNetworkConnection => vec![
             MitreTechnique {
-                technique_id: "T1043".to_string(),
+                technique_id: "T1071".to_string(),
                 tactic: "Command and Control".to_string(),
-                name: "Commonly Used Port".to_string(),
+                name: "Application Layer Protocol".to_string(),
             },
             MitreTechnique {
                 technique_id: "T1571".to_string(),
@@ -292,6 +292,6 @@ mod tests {
             .iter()
             .map(|t| t.technique_id.clone())
             .collect::<Vec<_>>();
-        assert!(ids.contains(&"T1043".to_string()));
+        assert!(ids.contains(&"T1071".to_string()));
     }
 }
