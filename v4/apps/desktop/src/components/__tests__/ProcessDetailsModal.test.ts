@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import ProcessDetailsModal from "../ProcessDetailsModal.svelte";
 import type { ProcessEntry } from "../../lib/types";
 import { _resetForTest, browserTabs } from "../../stores/processes";
+import { getFocusableElements } from "../../lib/focusTrap";
 
 const { mockUserMode } = vi.hoisted(() => {
   const { writable } = require("svelte/store") as typeof import("svelte/store");
@@ -346,14 +347,14 @@ describe("focus trap", () => {
   it("wraps Shift+Tab from first to last focusable element", async () => {
     const onclose = vi.fn();
     render(ProcessDetailsModal, { props: { process: makeProc(), onclose } });
-    const closeBtn = screen.getByLabelText("Close");
-    const askAiBtn = screen.getByText("Ask AI");
-
-    closeBtn.focus();
     const dialog = screen.getByRole("dialog");
-    await fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
-    // Last focusable is now the "Ask AI" button
-    expect(document.activeElement).toBe(askAiBtn);
+    const focusables = getFocusableElements(dialog);
+    const firstFocusable = focusables[0];
+    const lastFocusable = focusables[focusables.length - 1];
+
+    firstFocusable.focus();
+    await fireEvent.keyDown(firstFocusable, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(lastFocusable);
   });
 
   it("returns early when no focusable elements exist", async () => {
@@ -383,12 +384,13 @@ describe("focus trap", () => {
   it("wraps Tab from last focusable back to first", async () => {
     render(ProcessDetailsModal, { props: { process: makeProc(), onclose: vi.fn() } });
     const dialog = screen.getByRole("dialog");
-    const closeBtn = screen.getByLabelText("Close");
-    const askAiBtn = screen.getByText("Ask AI");
+    const focusables = getFocusableElements(dialog);
+    const firstFocusable = focusables[0];
+    const lastFocusable = focusables[focusables.length - 1];
 
-    askAiBtn.focus();
-    await fireEvent.keyDown(dialog, { key: "Tab" });
-    expect(document.activeElement).toBe(closeBtn);
+    lastFocusable.focus();
+    await fireEvent.keyDown(lastFocusable, { key: "Tab" });
+    expect(document.activeElement).toBe(firstFocusable);
   });
 });
 

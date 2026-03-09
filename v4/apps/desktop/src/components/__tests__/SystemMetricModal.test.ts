@@ -305,7 +305,10 @@ describe("SystemMetricModal", () => {
     });
 
     const dialog = screen.getByRole("dialog", { name: "Swap" });
-    await fireEvent.keyDown(dialog, { key: "Tab" });
+    // Tab must be fired on an element inside modalEl (child of dialog),
+    // since the onkeydown={closeOnEscape} handler is on the inner div, not on the dialog itself.
+    const closeBtn = screen.getByRole("button", { name: "Close" });
+    await fireEvent.keyDown(closeBtn, { key: "Tab" });
     expect(mockTrapFocus).toHaveBeenCalled();
 
     await fireEvent.keyDown(dialog, { key: "Escape" });
