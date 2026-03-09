@@ -8,7 +8,7 @@
   import { t } from "../lib/i18n";
   import { detectBrowser } from "../lib/browser";
   import SecurityBadge from "./SecurityBadge.svelte";
-  import { iconForProcess, isNativeIconDataUrl } from "../lib/processIcons";
+  import { iconForProcess, isNativeIconDataUrl, getProcessIcon } from "../lib/processIcons";
   import {
     PROCESS_TABLE_ROW_BUFFER,
     RAM_THRESHOLD_DANGER,
@@ -174,10 +174,18 @@
     totalEnergy: number;
   }
 
+  function getBaseName(name: string): string {
+    return name
+      .replace(/\s*(Helper|Renderer|GPU|Utility|Worker|Crashpad|Extension).*$/i, '')
+      .replace(/\s*\(.*\)$/, '')
+      .trim();
+  }
+
   function getGroupIdentity(proc: ProcessEntry): { key: string; label: string } {
     const browser = detectBrowser(proc);
-    const label = (proc.grouped_name || browser || proc.name || proc.exec_name || proc.group || "Unknown").trim();
-    const key = (proc.group_key || `${label}:${proc.exec_name}:${proc.group_identity_type || proc.group || "proc"}`).trim();
+    const baseName = getBaseName(proc.name);
+    const label = (proc.grouped_name || browser || baseName || proc.exec_name || proc.group || "Unknown").trim();
+    const key = (proc.group_key || (browser || baseName).toLowerCase()).trim();
     return { key, label };
   }
 
@@ -381,9 +389,7 @@
       {#if isNativeIconDataUrl(proc.icon_data_url)}
         <img class="proc-icon native" src={proc.icon_data_url} alt="" aria-hidden="true" />
       {:else}
-        <svg class="proc-icon" viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
-          <path d={iconForProcess(proc.name, proc.group)} />
-        </svg>
+        <span class="process-icon" aria-hidden="true">{getProcessIcon(proc.name)}</span>
       {/if}
       <span class="name-text">{proc.name}</span>
       {#if !grouping && proc.process_count > 1}<span class="badge grouped">x{proc.process_count}</span>{/if}
