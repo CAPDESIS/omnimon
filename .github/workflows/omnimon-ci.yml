@@ -450,13 +450,44 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Rename assets to user-friendly names
+      - name: Remove duplicate assets from previous builds
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           REPO="${{ github.repository }}"
           sleep 30
+          # Collect all assets grouped by extension/type. Keep only the newest per type.
+          ASSETS=$(gh api "repos/$REPO/releases/tags/$TAG" --jq '.assets | sort_by(.created_at) | reverse | .[] | "\(.id)|\(.name)"')
+          declare -A SEEN
+          while IFS='|' read -r ID NAME; do
+            [ -z "$NAME" ] && continue
+            # Normalize to canonical type key
+            KEY=""
+            case "$NAME" in
+              *.dmg) KEY="dmg" ;;
+              *.AppImage) KEY="appimage" ;;
+              *.deb) KEY="deb" ;;
+              *.rpm) KEY="rpm" ;;
+              *.msi) KEY="msi" ;;
+              *.nsis.zip) KEY="nsis" ;;
+              SHA256SUMS*|*.sig.json|releases.json) continue ;;
+              *) continue ;;
+            esac
+            if [ -n "${SEEN[$KEY]+x}" ]; then
+              echo "Deleting duplicate: $NAME (ID: $ID)"
+              gh api "repos/$REPO/releases/assets/$ID" -X DELETE --silent || true
+            else
+              SEEN[$KEY]=1
+            fi
+          done <<< "$ASSETS"
+
+      - name: Rename assets to user-friendly names
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          REPO="${{ github.repository }}"
           ASSETS=$(gh api "repos/$REPO/releases/tags/$TAG" --jq '.assets[] | "\(.id)|\(.name)"')
           echo "Found assets:"
           echo "$ASSETS"
@@ -493,10 +524,14 @@ jobs:
                 LABEL="Windows (NSIS installer)"
                 ;;
               *)
-                echo "Skipping unknown asset: $NAME"
+                echo "Skipping: $NAME"
                 continue
                 ;;
             esac
+            if [ "$NAME" = "$NEW_NAME" ]; then
+              echo "Already named: $NAME"
+              continue
+            fi
             echo "Renaming: $NAME -> $NEW_NAME ($LABEL)"
             gh api "repos/$REPO/releases/assets/$ID" -X PATCH -f name="$NEW_NAME" -f label="$LABEL" --silent
           done <<< "$ASSETS"
