@@ -140,8 +140,8 @@
 
   function colorVarForPct(pct: number): string {
     if (pct >= 80) return "--danger";
-    if (pct >= 60) return "--yellow";
-    return "--green";
+    if (pct >= 60) return "--warning";
+    return "--success";
   }
 
   function colorForPct(pct: number): string {
@@ -209,13 +209,13 @@
     grid-template-columns: 1fr 1fr 1fr auto;
     gap: 8px;
     padding: 8px 10px;
-    background: var(--bg);
+    background: var(--bg-primary);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
 
   .metric-card {
-    background: var(--bg-surface, var(--bg-alt));
+    background: var(--bg-card, var(--bg-secondary));
     border: 1px solid var(--border);
     border-radius: var(--radius-md, 8px);
     padding: 8px 10px;
@@ -259,7 +259,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--fg-dim);
+    color: var(--text-secondary);
   }
 
   .metric-value {
@@ -272,7 +272,7 @@
   .metric-sub {
     font-size: calc(var(--base-font-size, 12px) * 0.75);
     font-weight: 400;
-    color: var(--fg-dim);
+    color: var(--text-secondary);
   }
 
   .net-values {
@@ -281,8 +281,8 @@
     font-size: calc(var(--base-font-size, 12px) * 0.833);
   }
 
-  .net-rx { color: var(--chart-net-rx, var(--green)); }
-  .net-tx { color: var(--chart-net-tx, var(--yellow)); }
+  .net-rx { color: var(--chart-net-rx, var(--success)); }
+  .net-tx { color: var(--chart-net-tx, var(--warning)); }
 
   .net-rx::before { content: "\2193 "; }
   .net-tx::before { content: "\2191 "; }
@@ -320,7 +320,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.3px;
-    color: var(--fg-dim);
+    color: var(--text-secondary);
   }
 
   .stat-value {
@@ -328,7 +328,7 @@
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    color: var(--fg);
+    color: var(--text-primary);
   }
 
   @media (max-width: 700px) {

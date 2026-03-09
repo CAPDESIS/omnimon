@@ -76,7 +76,7 @@
   .tabs-container {
     display: flex;
     flex-direction: row;
-    background: var(--bg-alt, #121214);
+    background: var(--bg-secondary, #121214);
     border-bottom: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
     padding: 0 8px;
     gap: 2px;
@@ -86,7 +86,7 @@
   .tab {
     background: transparent;
     border: none;
-    color: var(--fg-dim, #888);
+    color: var(--text-secondary, #888);
     padding: 10px 16px;
     font-size: calc(var(--base-font-size) * 1.1);
     cursor: pointer;
@@ -98,7 +98,7 @@
   }
   
   .tab:hover {
-    color: var(--fg, #ededef);
+    color: var(--text-primary, #ededef);
     background: var(--bg-hover, rgba(255,255,255,0.05));
   }
   
