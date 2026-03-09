@@ -1,13 +1,23 @@
-import { cleanup, render, screen } from "@testing-library/svelte";
-import { writable, derived } from "svelte/store";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 
 import SystemMetricModal from "../SystemMetricModal.svelte";
+import type { ProcessEntry } from "../../lib/types";
 
-const { mockFiltered, mockStats, mockMetricsHistory, mockCpuSeries, mockRamSeries, mockNetRxSeries, mockNetTxSeries, mockSwapSeries } = vi.hoisted(() => {
-  const { writable, derived } = require("svelte/store") as typeof import("svelte/store");
-  const metricsHistory = writable([]);
+const {
+  mockFiltered,
+  mockStats,
+  mockMetricsHistory,
+  mockCpuSeries,
+  mockRamSeries,
+  mockNetRxSeries,
+  mockNetTxSeries,
+  mockSwapSeries,
+  mockFocusFirstFocusable,
+  mockTrapFocus,
+} = vi.hoisted(() => {
+  const { writable } = require("svelte/store") as typeof import("svelte/store");
   return {
-    mockFiltered: writable([]),
+    mockFiltered: writable<ProcessEntry[]>([]),
     mockStats: writable({
       ram_total_gb: 16,
       ram_used_pct: 42,
@@ -16,12 +26,24 @@ const { mockFiltered, mockStats, mockMetricsHistory, mockCpuSeries, mockRamSerie
       net_rx_bytes_per_sec: 2048,
       net_tx_bytes_per_sec: 1024,
     }),
-    mockMetricsHistory: metricsHistory,
-    mockCpuSeries: derived(metricsHistory, () => []),
-    mockRamSeries: derived(metricsHistory, () => []),
-    mockNetRxSeries: derived(metricsHistory, () => []),
-    mockNetTxSeries: derived(metricsHistory, () => []),
-    mockSwapSeries: derived(metricsHistory, () => []),
+    mockMetricsHistory: writable([{ time: 1, cpuAvg: 20, ramPct: 40, netRx: 1000, netTx: 500, swapMb: 64, processCount: 3 }]),
+    mockCpuSeries: writable([
+      { time: 1, value: 10 },
+      { time: 2, value: 40 },
+      { time: 3, value: 20 },
+    ]),
+    mockRamSeries: writable([
+      { time: 1, value: 35 },
+      { time: 2, value: 45 },
+    ]),
+    mockNetRxSeries: writable([]),
+    mockNetTxSeries: writable([]),
+    mockSwapSeries: writable([
+      { time: 1, value: 64 },
+      { time: 2, value: 128 },
+    ]),
+    mockFocusFirstFocusable: vi.fn(),
+    mockTrapFocus: vi.fn(),
   };
 });
 
@@ -39,12 +61,82 @@ vi.mock("../../stores/processes", () => ({
   stats: mockStats,
 }));
 
+vi.mock("../../lib/focusTrap", () => ({
+  focusFirstFocusable: mockFocusFirstFocusable,
+  trapFocus: mockTrapFocus,
+}));
+
+function makeProc(overrides: Partial<ProcessEntry> = {}): ProcessEntry {
+  return {
+    pid: 1,
+    name: "Chrome",
+    exec_name: "/Applications/Chrome",
+    exe_path: "/Applications/Chrome",
+    bundle_id: null,
+    icon_data_url: null,
+    ram_mb: 500,
+    cpu_pct: 20,
+    disk_read_mb: 0,
+    disk_write_mb: 0,
+    net_rx_bytes_per_sec: 2048,
+    net_tx_bytes_per_sec: 1024,
+    energy_impact_score: 10,
+    uptime: "1h",
+    group: "Browser",
+    group_key: "browser:chrome",
+    group_identity_type: "normalized_name",
+    grouped_name: "Chrome",
+    process_count: 1,
+    is_system: false,
+    idle: false,
+    state: "R",
+    ...overrides,
+  };
+}
+
 describe("SystemMetricModal", () => {
-  afterEach(() => {
-    cleanup();
+  beforeEach(() => {
+    mockFiltered.set([
+      makeProc({ pid: 1, name: "Chrome", ram_mb: 500, cpu_pct: 20, uptime: "1h", state: "R" }),
+      makeProc({ pid: 2, name: "Node", ram_mb: 900, cpu_pct: 60, uptime: "3h", state: "S", net_rx_bytes_per_sec: 10, net_tx_bytes_per_sec: 15 }),
+      makeProc({ pid: 3, name: "Safari", ram_mb: 100, cpu_pct: 5, uptime: "30m", state: "I", net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 }),
+    ]);
+    mockStats.set({
+      ram_total_gb: 16,
+      ram_used_pct: 42,
+      swap_used_mb: 64,
+      total_processes: 3,
+      net_rx_bytes_per_sec: 2048,
+      net_tx_bytes_per_sec: 1024,
+    });
+    mockMetricsHistory.set([{ time: 1, cpuAvg: 20, ramPct: 40, netRx: 1000, netTx: 500, swapMb: 64, processCount: 3 }]);
+    mockCpuSeries.set([
+      { time: 1, value: 10 },
+      { time: 2, value: 40 },
+      { time: 3, value: 20 },
+    ]);
+    mockRamSeries.set([
+      { time: 1, value: 35 },
+      { time: 2, value: 45 },
+    ]);
+    mockSwapSeries.set([
+      { time: 1, value: 64 },
+      { time: 2, value: 128 },
+    ]);
+    mockFocusFirstFocusable.mockClear();
+    mockTrapFocus.mockClear();
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      cb(0);
+      return 1;
+    });
   });
 
-  it("renderiza sin errores", () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("renderiza sin errores con metricas de CPU", () => {
     render(SystemMetricModal, {
       props: {
         metric: "cpu",
@@ -54,6 +146,102 @@ describe("SystemMetricModal", () => {
 
     expect(screen.getByRole("dialog", { name: "CPU" })).toBeInTheDocument();
     expect(screen.getByText("Deep Dive")).toBeInTheDocument();
-    expect(screen.getByText(/Top processes/i)).toBeInTheDocument();
+    expect(screen.getByText(/Now 20.0%/)).toBeInTheDocument();
+    expect(document.querySelector("svg path")?.getAttribute("d")).toContain("M0.0");
+  });
+
+  it("ordena filas al hacer click en encabezados", async () => {
+    render(SystemMetricModal, {
+      props: { metric: "cpu", onclose: vi.fn() },
+    });
+
+    const before = screen.getAllByRole("row").slice(1).map((row) => row.textContent);
+    expect(before[0]).toContain("Node");
+
+    await fireEvent.click(screen.getByRole("button", { name: /Name/i }));
+    const afterDesc = screen.getAllByRole("row").slice(1).map((row) => row.textContent);
+    expect(afterDesc[0]).toContain("Safari");
+
+    await fireEvent.click(screen.getByRole("button", { name: /Name/i }));
+    const afterAsc = screen.getAllByRole("row").slice(1).map((row) => row.textContent);
+    expect(afterAsc[0]).toContain("Chrome");
+  });
+
+  it("muestra boton show more cuando hay mas procesos que el limite", async () => {
+    mockFiltered.set(Array.from({ length: 35 }, (_, index) => makeProc({ pid: index + 1, name: `Proc ${index + 1}`, ram_mb: 1000 - index })));
+
+    render(SystemMetricModal, {
+      props: { metric: "ram", onclose: vi.fn() },
+    });
+
+    const button = screen.getByRole("button", { name: /Show more/i });
+    expect(button).toHaveTextContent("Show more (5 remaining)");
+    await fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("row")).toHaveLength(36);
+    });
+  });
+
+  it("renderiza resumen de red y usa el modo recibido", async () => {
+    render(SystemMetricModal, {
+      props: { metric: "network", mode: "basic", onclose: vi.fn() },
+    });
+
+    expect(screen.getByText("RX")).toBeInTheDocument();
+    expect(screen.getByText("2.0 KB/s")).toBeInTheDocument();
+    expect(screen.getByText("1.0 KB/s")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(document.body.textContent).toContain("Processes");
+    });
+  });
+
+  it("cierra con escape y atrapa tab focus", async () => {
+    const onclose = vi.fn();
+    render(SystemMetricModal, {
+      props: { metric: "swap", onclose },
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Swap" });
+    await fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(mockTrapFocus).toHaveBeenCalled();
+
+    await fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(onclose).toHaveBeenCalledTimes(1);
+  });
+
+  it("cierra con backdrop y boton close", async () => {
+    const onclose = vi.fn();
+    render(SystemMetricModal, {
+      props: { metric: "cpu", onclose },
+    });
+
+    await fireEvent.mouseDown(document.querySelector(".backdrop") as HTMLElement);
+    await fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(onclose).toHaveBeenCalledTimes(2);
+  });
+
+  it("tolera series vacias y datos malformados en procesos", () => {
+    mockCpuSeries.set([]);
+    mockFiltered.set([
+      makeProc({ pid: 11, name: "Broken", state: "", uptime: "", net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 }),
+    ]);
+
+    render(SystemMetricModal, {
+      props: { metric: "cpu", onclose: vi.fn() },
+    });
+
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(document.querySelector("svg")).toBeNull();
+  });
+
+  it("intenta enfocar el primer elemento al montar", () => {
+    render(SystemMetricModal, {
+      props: { metric: "cpu", onclose: vi.fn() },
+    });
+
+    expect(mockFocusFirstFocusable).toHaveBeenCalled();
   });
 });
