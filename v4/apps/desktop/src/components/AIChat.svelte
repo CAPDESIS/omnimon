@@ -3,6 +3,7 @@
   import { get } from "svelte/store";
 
   import { slide } from "svelte/transition";
+  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { ipcAiChat, ipcGetBrowserTabs, ipcCloseBrowserTab, ipcKillProcess, ipcKillProcesses } from "../lib/ipc";
   import { aiProviderConfig } from "../stores/preferences";
   import { processes } from "../stores/processes";
@@ -33,6 +34,21 @@
   let pendingAction = $state<{ tool: string; details: string; result: ToolResult } | null>(null);
   let requestToken = 0;
   let isAutoScroll = $state(true);
+  let streamingMessage = $state("");
+
+  $effect(() => {
+    let unlisten: UnlistenFn | undefined;
+    listen<string>("ai-stream-token", (event) => {
+      streamingMessage += event.payload;
+      if (isAutoScroll) {
+        scrollToBottom();
+      }
+    }).then(fn => { unlisten = fn; });
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  });
 
   function handleScroll() {
     if (!chatContainer) return;
@@ -90,6 +106,7 @@
     messages = [...messages, { role: "user", text: trimmed }];
     input = "";
     loading = true;
+    streamingMessage = "";
     scrollToBottom();
 
     try {
@@ -120,6 +137,7 @@
 
       if (token !== requestToken) return;
 
+      streamingMessage = "";
       messages = [...messages, { role: "assistant", text: response.reply }];
 
       if (response.tool_call) {
@@ -164,6 +182,7 @@
     } finally {
       if (token === requestToken) {
         loading = false;
+        streamingMessage = "";
         scrollToBottom();
       }
     }
@@ -327,6 +346,7 @@
   function cancelRequest() {
     requestToken++;
     loading = false;
+    streamingMessage = "";
     messages = [...messages, { role: "system", text: t("aiChat.requestCancelled") }];
     scrollToBottom();
   }
@@ -416,7 +436,11 @@
       {#if loading}
         <div class="chat-msg chat-assistant">
           <span class="chat-role">{t("aiChat.assistantLabel")}</span>
-          <span class="chat-text typing">{t("aiChat.thinking")}<span class="dots"><span>.</span><span>.</span><span>.</span></span></span>
+          {#if streamingMessage}
+            <span class="chat-text">{@html renderMessage(streamingMessage)}</span>
+          {:else}
+            <span class="chat-text typing">{t("aiChat.thinking")}<span class="dots"><span>.</span><span>.</span><span>.</span></span></span>
+          {/if}
           <Button class="cancel-btn" variant="danger" size="sm" onclick={cancelRequest}>{t("aiChat.cancel")}</Button>
         </div>
       {/if}
