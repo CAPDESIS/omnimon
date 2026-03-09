@@ -1319,31 +1319,6 @@ fn get_connections_windows_netstat() -> Result<Vec<NetworkConnection>, String> {
     parse_netstat_windows(&text, &pid_names)
 }
 
-/// Fallback: build PID→name map using `tasklist` command on Windows.
-#[cfg(target_os = "windows")]
-fn build_pid_name_map_windows() -> HashMap<u32, String> {
-    use std::process::Command;
-
-    let mut map = HashMap::new();
-    let output = Command::new("tasklist")
-        .args(["/fo", "csv", "/nh"])
-        .output();
-
-    if let Ok(output) = output {
-        let text = String::from_utf8_lossy(&output.stdout);
-        for line in text.lines() {
-            let parts: Vec<&str> = line.split(',').collect();
-            if parts.len() >= 2 {
-                let name = parts[0].trim_matches('"').to_string();
-                if let Ok(pid) = parts[1].trim_matches('"').parse::<u32>() {
-                    map.insert(pid, name);
-                }
-            }
-        }
-    }
-    map
-}
-
 /// Parse `netstat -ano` output on Windows.
 #[cfg(any(target_os = "windows", test))]
 fn parse_netstat_windows(
