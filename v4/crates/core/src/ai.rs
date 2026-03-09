@@ -649,11 +649,7 @@ pub fn build_chat_system_prompt(state: &crate::watcher::SystemState) -> String {
         .map(|c| {
             format!(
                 "  - PID {} | {}:{} | {:?} | {} bytes",
-                c.pid,
-                c.dst_ip,
-                c.dst_port,
-                c.protocol,
-                c.bytes
+                c.pid, c.dst_ip, c.dst_port, c.protocol, c.bytes
             )
         })
         .collect();
@@ -1488,12 +1484,28 @@ fn validate_tool_call(call: RawToolCall) -> Result<RawToolCall, String> {
             }
         }
         "close_connection" => {
-            let pid = call.args.get("pid").and_then(|v| v.as_u64()).ok_or("close_connection requires pid")?;
-            if pid == 0 || pid > u32::MAX as u64 { return Err("close_connection pid out of range".into()); }
-            let ip = call.args.get("dst_ip").and_then(|v| v.as_str()).ok_or("close_connection requires dst_ip")?;
+            let pid = call
+                .args
+                .get("pid")
+                .and_then(|v| v.as_u64())
+                .ok_or("close_connection requires pid")?;
+            if pid == 0 || pid > u32::MAX as u64 {
+                return Err("close_connection pid out of range".into());
+            }
+            let ip = call
+                .args
+                .get("dst_ip")
+                .and_then(|v| v.as_str())
+                .ok_or("close_connection requires dst_ip")?;
             validate_safe_fragment(ip, 64, "destination IP")?;
-            let port = call.args.get("dst_port").and_then(|v| v.as_u64()).ok_or("close_connection requires dst_port")?;
-            if port == 0 || port > u16::MAX as u64 { return Err("close_connection port out of range".into()); }
+            let port = call
+                .args
+                .get("dst_port")
+                .and_then(|v| v.as_u64())
+                .ok_or("close_connection requires dst_port")?;
+            if port == 0 || port > u16::MAX as u64 {
+                return Err("close_connection port out of range".into());
+            }
         }
 
         "explain_process" => {
@@ -2179,13 +2191,20 @@ mod tests {
     }
 }
 
-fn execute_close_connection(args: &serde_json::Value, _state: &crate::watcher::SystemState) -> ToolResult {
+fn execute_close_connection(
+    args: &serde_json::Value,
+    _state: &crate::watcher::SystemState,
+) -> ToolResult {
     let pid = args.get("pid").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
     let dst_ip = args.get("dst_ip").and_then(|v| v.as_str()).unwrap_or("");
     let dst_port = args.get("dst_port").and_then(|v| v.as_u64()).unwrap_or(0) as u16;
 
     if pid == 0 || dst_ip.is_empty() || dst_port == 0 {
-        return tool_result("close_connection", false, "Missing required fields (pid, dst_ip, dst_port)");
+        return tool_result(
+            "close_connection",
+            false,
+            "Missing required fields (pid, dst_ip, dst_port)",
+        );
     }
 
     // Return a deferred instruction so the frontend can dispatch an IPC command

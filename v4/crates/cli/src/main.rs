@@ -392,7 +392,7 @@ fn top_network_processes(
 fn determine_network_view(
     connections: bool,
     alerts: bool,
-    top: bool,
+    _top: bool,
     protocol: Option<NetworkProtocolArg>,
     port: Option<u16>,
 ) -> NetworkView {
@@ -400,8 +400,6 @@ fn determine_network_view(
         NetworkView::Connections
     } else if alerts {
         NetworkView::Alerts
-    } else if top {
-        NetworkView::Top
     } else {
         NetworkView::Top
     }
@@ -457,8 +455,8 @@ fn print_network_text(state: &watcher::SystemState, view: NetworkView, filter: &
             println!();
             println!("  Network alerts:");
             println!(
-                "  {:<10}  {:<12}  {:<18}  {}",
-                "SEVERITY", "RULE", "DESTINATION", "MESSAGE"
+                "  {:<10}  {:<12}  {:<18}  MESSAGE",
+                "SEVERITY", "RULE", "DESTINATION"
             );
             println!("  {}", "-".repeat(90));
             for alert in &state.network_alerts {
