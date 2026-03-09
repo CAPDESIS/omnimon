@@ -271,7 +271,20 @@
     "noTabsMatched": "No coincidió ninguna pestaña: {patterns}",
     "closedTabs": "Se cerraron {count} pestaña(s){suffix}",
     "failedCloseTabs": "No se pudieron cerrar {count} pestaña(s)",
-    "errorPrefix": "Error: {message}"
+    "errorPrefix": "Error: {message}",
+    "errorTimeout": "Error de conexión: Timeout agotado. ¿Deseas reintentar o usar un modelo local (Ollama)?",
+    "errorApi": "Error de API: No se pudo contactar al proveedor. Si usas Ollama, verifica que esté corriendo (`ollama serve`).",
+    "errorGeneric": "Error al procesar la solicitud: {msg}",
+    "killProcessDesc": "Matar proceso \"{name}\" (PID {pid})",
+    "killByNameDesc": "Matar {count} proceso(s) que coincida(n) con \"{name}\" (PIDs: {pids})",
+    "invalidPid": "PID inválido: {pid}",
+    "killedProcess": "Proceso \"{name}\" matado (PID {pid})",
+    "processNotFound": "Proceso PID {pid} no encontrado (puede haber terminado ya)",
+    "failedKill": "Error al matar PID {pid}: {error}",
+    "noValidPids": "No hay PIDs válidos para \"{name}\"",
+    "killedProcesses": "Matados {killed}/{total} procesos que coinciden con \"{name}\"{failedText}",
+    "failedKillAny": "No se pudo matar ningún proceso que coincida con \"{name}\"",
+    "failedKillMultiple": "Error al matar procesos: {error}"
   },
   "securityReport": {
     "title": "Reporte de Seguridad",

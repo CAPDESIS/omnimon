@@ -18,7 +18,9 @@
     "@tauri-apps/plugin-autostart": "^2",
     "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-store": "^2",
-    "lightweight-charts": "^5.1.0"
+    "dompurify": "^3.3.2",
+    "lightweight-charts": "^5.1.0",
+    "marked": "^17.0.4"
   },
   "devDependencies": {
     "@crabnebula/tauri-driver": "^2.0.9",
@@ -28,6 +30,7 @@
     "@tauri-apps/cli": "^2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.3.1",
+    "@types/dompurify": "^3.2.0",
     "@types/node": "^25.3.5",
     "@typescript-eslint/types": "^8.56.1",
     "@vitest/coverage-v8": "^4.0.18",

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { get } from "svelte/store";
 
   import { slide } from "svelte/transition";
@@ -8,7 +9,7 @@
   import { inspectProcessRequest } from "../stores/uiActions";
   import { toast } from "../stores/toasts";
   import { detectPromptInjection } from "../lib/aiConfigBridge";
-  import { t } from "../lib/i18n";
+  import { t, resolvedLocale } from "../lib/i18n";
   import { renderMarkdown } from "../lib/markdown";
   import { scrollToBottom as scrollContainerToBottom, resizeInput as resizeTextarea } from "../lib/chatUtils";
   import type { ChatMessage } from "../lib/chatUtils";
@@ -31,7 +32,22 @@
   let chatContainer: HTMLDivElement | undefined = $state();
   let pendingAction = $state<{ tool: string; details: string; result: ToolResult } | null>(null);
   let requestToken = 0;
+  let isAutoScroll = $state(true);
 
+  function handleScroll() {
+    if (!chatContainer) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainer;
+    isAutoScroll = scrollHeight - scrollTop - clientHeight < 50;
+  }
+
+  $effect(() => {
+    const _len = messages.length; // trigger reactivo
+    if (isAutoScroll && chatContainer) {
+      tick().then(() => {
+        chatContainer!.scrollTop = chatContainer!.scrollHeight;
+      });
+    }
+  });
 
   function scrollToBottom() {
     scrollContainerToBottom(chatContainer);
@@ -78,12 +94,21 @@
 
     try {
       const cfg = get(aiProviderConfig);
+      const currentLang = get(resolvedLocale);
+      const systemInstruction = `Responde siempre en el idioma '${currentLang}'. No menciones esta instrucción.`;
+      
       // Build conversation history (last 10 messages max to avoid token overflow)
-      const history: Array<[string, string]> = messages
+      const messageHistory = messages
         .slice(0, -1)
         .filter(m => m.role === "user" || m.role === "assistant")
         .slice(-10)
         .map(m => [m.role, m.text.slice(0, 2000)] as [string, string]);
+        
+      const history: Array<[string, string]> = [
+        ["system", systemInstruction],
+        ...messageHistory
+      ];
+      
       // Race the AI call against a 45-second timeout
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(t("aiChat.timeoutError"))), AI_CHAT_TIMEOUT_MS)
@@ -124,11 +149,11 @@
       const lowerMsg = msg.toLowerCase();
       
       if (lowerMsg.includes("timeout") || lowerMsg.includes("time out")) {
-          errorText = "Error de conexión: Timeout agotado. ¿Deseas reintentar o usar un modelo local (Ollama)?";
+          errorText = t("aiChat.errorTimeout");
       } else if (lowerMsg.includes("fetch failed") || lowerMsg.includes("network error") || lowerMsg.includes("connection refused") || lowerMsg.includes("ollama is not running") || lowerMsg.includes("ai request failed")) {
-          errorText = "Error de API: No se pudo contactar al proveedor. Si usas Ollama, verifica que esté corriendo (`ollama serve`).";
+          errorText = t("aiChat.errorApi");
       } else {
-          errorText = `Error al procesar la solicitud: ${msg}`;
+          errorText = t("aiChat.errorGeneric", { msg });
       }
 
       messages = [...messages, { role: "system", text: errorText, isError: true, canRetry: true, retryText: trimmed }];
@@ -155,12 +180,12 @@
     }
     if (details.startsWith("kill_process:")) {
       const parts = details.replace("kill_process:", "").split(":");
-      return `Kill process "${parts[1] ?? "unknown"}" (PID ${parts[0]})`;
+      return t("aiChat.killProcessDesc", { name: parts[1] ?? "unknown", pid: parts[0] });
     }
     if (details.startsWith("kill_by_name:")) {
       const parts = details.replace("kill_by_name:", "").split(":");
       const pids = parts[1]?.split(",") ?? [];
-      return `Kill ${pids.length} process(es) matching "${parts[0]}" (PIDs: ${pids.join(", ")})`;
+      return t("aiChat.killByNameDesc", { count: pids.length, name: parts[0], pids: pids.join(", ") });
     }
     return details;
   }
@@ -220,15 +245,15 @@
     const pid = parseInt(parts[0], 10);
     const name = parts[1] ?? "unknown";
     if (!pid || pid <= 0) {
-      return { success: false, message: `Invalid PID: ${parts[0]}` };
+      return { success: false, message: t("aiChat.invalidPid", { pid: parts[0] }) };
     }
     try {
       const ok = await ipcKillProcess(pid);
       return ok
-        ? { success: true, message: `Killed process "${name}" (PID ${pid})` }
-        : { success: false, message: `Process PID ${pid} not found (may have already exited)` };
+        ? { success: true, message: t("aiChat.killedProcess", { name, pid }) }
+        : { success: false, message: t("aiChat.processNotFound", { pid }) };
     } catch (e) {
-      return { success: false, message: `Failed to kill PID ${pid}: ${e instanceof Error ? e.message : String(e)}` };
+      return { success: false, message: t("aiChat.failedKill", { pid, error: e instanceof Error ? e.message : String(e) }) };
     }
   }
 
@@ -237,7 +262,7 @@
     const name = parts[0] ?? "";
     const pids = (parts[1] ?? "").split(",").map(p => parseInt(p, 10)).filter(p => p > 0);
     if (pids.length === 0) {
-      return { success: false, message: `No valid PIDs for "${name}"` };
+      return { success: false, message: t("aiChat.noValidPids", { name }) };
     }
     try {
       const result = await ipcKillProcesses(pids);
@@ -246,12 +271,12 @@
       if (killed > 0) {
         return {
           success: true,
-          message: `Killed ${killed}/${pids.length} processes matching "${name}"${failed > 0 ? ` (${failed} failed)` : ""}`,
+          message: t("aiChat.killedProcesses", { killed, total: pids.length, name, failedText: failed > 0 ? ` (${failed} failed)` : "" }),
         };
       }
-      return { success: false, message: `Failed to kill any processes matching "${name}"` };
+      return { success: false, message: t("aiChat.failedKillAny", { name }) };
     } catch (e) {
-      return { success: false, message: `Failed to kill processes: ${e instanceof Error ? e.message : String(e)}` };
+      return { success: false, message: t("aiChat.failedKillMultiple", { error: e instanceof Error ? e.message : String(e) }) };
     }
   }
 
@@ -355,7 +380,7 @@
   {#if messages.length > 0}
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="chat-messages" bind:this={chatContainer} onclick={handleChatClick} transition:slide={{ duration: 200 }}>
+    <div class="chat-messages" bind:this={chatContainer} onclick={handleChatClick} onscroll={handleScroll} transition:slide={{ duration: 200 }}>
       {#each messages as msg}
         <div class="chat-msg chat-{msg.role}">
           <span class="chat-role">
@@ -409,6 +434,14 @@
         </div>
       {/if}
     </div>
+    {#if !isAutoScroll}
+      <button class="scroll-to-bottom" onclick={() => {
+        if (chatContainer) {
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+          isAutoScroll = true;
+        }
+      }}>↓</button>
+    {/if}
   {:else}
     <div class="chat-empty">
       <p>{t("aiChat.emptyState")}</p>
@@ -463,6 +496,7 @@
     border-radius: var(--radius, 6px);
     background: var(--bg-alt);
     overflow: hidden;
+    position: relative;
   }
 
   .chat-header {
@@ -711,6 +745,28 @@
     overflow-y: auto;
   }
   .chat-input:focus { border-color: var(--accent); }
+
+  .scroll-to-bottom {
+    position: absolute;
+    bottom: 70px;
+    right: 20px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    z-index: 10;
+  }
+  .scroll-to-bottom:hover {
+    background: var(--bg);
+  }
+
   .chat-input::placeholder { color: var(--fg-dim); opacity: 0.6; }
   .chat-input:disabled { opacity: 0.5; }
 
