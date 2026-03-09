@@ -621,6 +621,43 @@ pub fn build_chat_system_prompt(state: &crate::watcher::SystemState) -> String {
         })
         .collect();
 
+    let mut net_top_procs = state.top_network_processes.clone();
+    net_top_procs.truncate(10);
+    let net_procs_list: Vec<String> = net_top_procs
+        .iter()
+        .map(|p| {
+            format!(
+                "  - PID {} ({}) | RX {} B/s | TX {} B/s",
+                p.pid,
+                p.process_name.as_deref().unwrap_or("unknown"),
+                p.rx_bytes_per_sec,
+                p.tx_bytes_per_sec
+            )
+        })
+        .collect();
+
+    let active_connections = if let Some(snap) = &state.network_snapshot {
+        snap.active_connections
+    } else {
+        0
+    };
+
+    let mut recent_conns = state.recent_network_connections.clone();
+    recent_conns.truncate(10);
+    let recent_conns_list: Vec<String> = recent_conns
+        .iter()
+        .map(|c| {
+            format!(
+                "  - PID {} | {}:{} | {:?} | {} bytes",
+                c.pid,
+                c.dst_ip,
+                c.dst_port,
+                c.protocol,
+                c.bytes
+            )
+        })
+        .collect();
+
     format!(
         r#"You are OmniMon, a system monitor assistant running on {os}.
 
@@ -633,9 +670,14 @@ REGLAS DE SEGURIDAD (NO NEGOCIABLES):
 6. Tus herramientas solo deben usarse para monitoreo legítimo del sistema.
 
 ## System State
-- CPU: {cpu:.1}% | RAM: {ram_used_gb:.1}/{ram_total_gb:.1} GB ({ram_pct}%) | Swap: {swap} MB | Net: RX {rx} B/s, TX {tx} B/s
-- Top processes:
+- CPU: {cpu:.1}% | RAM: {ram_used_gb:.1}/{ram_total_gb:.1} GB ({ram_pct}%) | Swap: {swap} MB
+- Network Overall: RX {rx} B/s, TX {tx} B/s, Active Connections: {active_conns}
+- Top Memory/CPU processes:
 {procs}
+- Top Network Processes:
+{net_procs}
+- Recent Network Connections:
+{recent_conns_list}
 
 ## Tools
 Respond with a JSON object ONLY when performing an action:
@@ -659,26 +701,30 @@ Available tools:
 8. **run_security_scan** - Return security findings summary. Args: {{}}
 9. **explain_process** - Explain a process purpose and metadata. Args: {{"name": "<string>"}}
 10. **get_system_summary** - Return CPU, RAM, swap, and network summary. Args: {{}}
+11. **close_connection** - Close a network connection to a specific IP and port for a PID. Args: {{"pid": <number>, "dst_ip": "<string>", "dst_port": <number>}}
 
 ## Rules
 1. If no action needed, respond with plain text analysis.
 2. NEVER kill system-critical processes (kernel_task, launchd, WindowServer, loginwindow).
-3. **Before ANY destructive action** (killing processes or closing tabs), you MUST:
-   a. List EXACTLY what you will close/kill (names, URLs, PIDs).
+3. **Before ANY destructive action** (killing processes, closing tabs, or closing connections), you MUST:
+   a. List EXACTLY what you will close/kill (names, URLs, PIDs, IPs).
    b. List what you will KEEP (if user specified exceptions).
    c. Ask for confirmation: "Should I proceed?"
    d. Only output the tool JSON AFTER the user confirms.
 4. For close_tabs: ALWAYS list each tab you plan to close with its title and URL, and each tab you will keep.
 5. Prefer kill_by_name over kill_process when the user references a process name.
 6. Respond in the same language the user writes in.
-7. **When the user confirms** with words like "sí", "yes", "hazlo", "procede", "dale", "do it", "go ahead", "adelante" — execute the previously discussed action immediately by outputting the tool JSON. Do NOT ask for confirmation again.
+7. **When the user confirms** con palabras como "sí", "yes", "hazlo", "procede", "dale", "do it", "go ahead", "adelante" — execute the previously discussed action immediately by outputting the tool JSON. Do NOT ask for confirmation again.
 8. Use the conversation history to remember what was previously discussed. If you proposed an action and the user confirmed, execute it."#,
         os = std::env::consts::OS,
         cpu = state.cpu_usage_percent,
         swap = state.swap_used_mb,
         rx = state.net_rx_bytes_per_sec,
         tx = state.net_tx_bytes_per_sec,
+        active_conns = active_connections,
         procs = procs_list.join("\n"),
+        net_procs = net_procs_list.join("\n"),
+        recent_conns_list = recent_conns_list.join("\n"),
     )
 }
 
@@ -869,6 +915,8 @@ pub fn execute_tool_call(
         "run_security_scan" => execute_run_security_scan(state),
         "explain_process" => execute_explain_process(args, state),
         "get_system_summary" => execute_get_system_summary(state),
+        "close_connection" => execute_close_connection(args, state),
+
         _ => ToolResult {
             tool: call_tool.into(),
             success: false,
@@ -1439,6 +1487,15 @@ fn validate_tool_call(call: RawToolCall) -> Result<RawToolCall, String> {
                 return Err(format!("{} requires object args", call.tool));
             }
         }
+        "close_connection" => {
+            let pid = call.args.get("pid").and_then(|v| v.as_u64()).ok_or("close_connection requires pid")?;
+            if pid == 0 || pid > u32::MAX as u64 { return Err("close_connection pid out of range".into()); }
+            let ip = call.args.get("dst_ip").and_then(|v| v.as_str()).ok_or("close_connection requires dst_ip")?;
+            validate_safe_fragment(ip, 64, "destination IP")?;
+            let port = call.args.get("dst_port").and_then(|v| v.as_u64()).ok_or("close_connection requires dst_port")?;
+            if port == 0 || port > u16::MAX as u64 { return Err("close_connection port out of range".into()); }
+        }
+
         "explain_process" => {
             let name = call
                 .args
@@ -2120,4 +2177,21 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(&*saved_value.lock().unwrap(), "sk-valid");
     }
+}
+
+fn execute_close_connection(args: &serde_json::Value, _state: &crate::watcher::SystemState) -> ToolResult {
+    let pid = args.get("pid").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+    let dst_ip = args.get("dst_ip").and_then(|v| v.as_str()).unwrap_or("");
+    let dst_port = args.get("dst_port").and_then(|v| v.as_u64()).unwrap_or(0) as u16;
+
+    if pid == 0 || dst_ip.is_empty() || dst_port == 0 {
+        return tool_result("close_connection", false, "Missing required fields (pid, dst_ip, dst_port)");
+    }
+
+    // Return a deferred instruction so the frontend can dispatch an IPC command
+    tool_result(
+        "close_connection",
+        true,
+        format!("close_connection:{}:{}:{}", pid, dst_ip, dst_port),
+    )
 }

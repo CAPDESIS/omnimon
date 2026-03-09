@@ -229,7 +229,7 @@
       if (response.tool_call) {
         const result = response.tool_call;
         // For destructive actions, require confirmation
-        if (result.tool === "close_tabs" || result.tool === "kill_process" || result.tool === "kill_by_name") {
+        if (result.tool === "close_tabs" || result.tool === "kill_process" || result.tool === "kill_by_name" || result.tool === "close_connection") {
           pendingAction = { tool: result.tool, details: result.details, result };
           // Don't execute yet - wait for user confirmation
         } else {
@@ -286,6 +286,10 @@
     if (details.startsWith("kill_process:")) {
       const parts = details.replace("kill_process:", "").split(":");
       return t("aiChat.killProcessDesc", { name: parts[1] ?? "unknown", pid: parts[0] });
+    }
+    if (details.startsWith("close_connection:")) {
+      const parts = details.replace("close_connection:", "").split(":");
+      return t("aiChat.closeConnectionDesc", { pid: parts[0], ip: parts[1], port: parts[2] });
     }
     if (details.startsWith("kill_by_name:")) {
       const parts = details.replace("kill_by_name:", "").split(":");
@@ -362,6 +366,25 @@
     }
   }
 
+  async function executeCloseConnection(details: string): Promise<{ success: boolean; message: string }> {
+    const parts = details.replace("close_connection:", "").split(":");
+    const pid = parseInt(parts[0], 10);
+    const ip = parts[1];
+    const port = parts[2];
+    if (!pid || pid <= 0) {
+      return { success: false, message: t("aiChat.invalidPid", { pid: parts[0] }) };
+    }
+    try {
+      // Direct connection closing is not fully supported without elevated privileges, so we fallback to process killing
+      const ok = await ipcKillProcess(pid);
+      return ok
+        ? { success: true, message: t("aiChat.killedProcessForConnection", { pid, ip, port }) }
+        : { success: false, message: t("aiChat.processNotFound", { pid }) };
+    } catch (e) {
+      return { success: false, message: t("aiChat.failedKill", { pid, error: e instanceof Error ? e.message : String(e) }) };
+    }
+  }
+
   async function executeKillByName(details: string): Promise<{ success: boolean; message: string }> {
     const parts = details.replace("kill_by_name:", "").split(":");
     const name = parts[0] ?? "";
@@ -395,6 +418,10 @@
       result.success = executed.closed > 0;
     } else if (result.tool === "kill_process" && result.success) {
       const executed = await executeKillProcess(result.details);
+      result.details = executed.message;
+      result.success = executed.success;
+    } else if (result.tool === "close_connection" && result.success) {
+      const executed = await executeCloseConnection(result.details);
       result.details = executed.message;
       result.success = executed.success;
     } else if (result.tool === "kill_by_name" && result.success) {

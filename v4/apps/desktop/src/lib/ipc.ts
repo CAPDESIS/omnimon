@@ -77,7 +77,7 @@ function validateToolResult(raw: unknown, field: string): ToolResult {
   assertBoolean(`${field}.success`, r.success);
   assertString(`${field}.details`, r.details);
 
-  if (!["kill_process", "kill_by_name", "close_tabs", "add_automation_rule", "remove_automation_rule", "get_process_details", "get_network_details", "run_security_scan", "explain_process", "get_system_summary"].includes(r.tool as string)) {
+  if (!["kill_process", "kill_by_name", "close_tabs", "add_automation_rule", "remove_automation_rule", "get_process_details", "get_network_details", "run_security_scan", "explain_process", "get_system_summary", "close_connection"].includes(r.tool as string)) {
     throw new IPCValidationError(`${field}.tool`, r.tool, `Unknown tool "${r.tool}"`);
   }
 

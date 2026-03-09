@@ -1,5 +1,6 @@
 <script lang="ts">
   import ContextAiChat from "./ContextAiChat.svelte";
+  import ConnectionDetail from "./network/ConnectionDetail.svelte";
   import NetworkAlertConfig from "./NetworkAlertConfig.svelte";
   import Skeleton from "./Skeleton.svelte";
   import { tick } from "svelte";
@@ -41,6 +42,9 @@
   let chartLoadFailed = $state(false);
   let pendingChartInit = 0;
   let proMode = $derived(mode === "pro");
+  let aiChatRef: ReturnType<typeof ContextAiChat> | undefined = $state();
+  let selectedNodeId = $state<string | null>(null);
+  let selectedConnections = $derived($networkConnections.filter(c => c.remote_addr === selectedNodeId));
 
 
   // Group connections by process, then by domain
@@ -610,6 +614,14 @@
     link.click();
   }
 
+  function askAiAboutHost(host: string) {
+    const proc = selectedConnections[0]?.process_name || "Desconocido";
+    const port = selectedConnections[0]?.remote_port || 0;
+    const ip = selectedConnections[0]?.remote_addr || host;
+    const question = `El proceso ${proc} tiene una conexión a ${ip}:${port} (${host}). ¿Qué es este servicio? ¿Es seguro? ¿Debería estar ahí?`;
+    if (aiChatRef) aiChatRef.ask(question);
+  }
+
   function setActiveTab(tab: "map" | "table" | "traffic") {
     activeTab = tab;
   }
@@ -705,7 +717,7 @@
                         <span class="proc-count">{node.totalConns}</span>
                         <div class="domain-chips">
                           {#each node.domains.slice(0, 5) as domain}
-                            <span class="domain-chip" title="{domain.hostname}:{domain.port} ({domain.protocol})">
+                            <span class="domain-chip clickable-chip" onclick={() => selectedNodeId = domain.hostname} role="button" tabindex="0" title="{domain.hostname}:{domain.port} ({domain.protocol})">
                               {domain.hostname}:{domain.port}
                             </span>
                           {/each}
@@ -729,7 +741,7 @@
                 {:else}
                   <table class="conn-table" aria-label="Active connections">
                   <thead>
-                    <tr>
+                    <tr class="clickable-row" onclick={() => selectedNodeId = conn.remote_addr}>
                       <th class="sortable" scope="col"><button type="button" class="sort-button" onclick={() => setTableSort("process")} aria-label={sortHeaderLabel("process")}>{t("network.process")}<span aria-hidden="true">{sortArrow("process")}</span></button></th>
                       <th class="sortable" scope="col"><button type="button" class="sort-button" onclick={() => setTableSort("addr")} aria-label={sortHeaderLabel("addr")}>{t("network.destination")}<span aria-hidden="true">{sortArrow("addr")}</span></button></th>
                       <th class="sortable" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => setTableSort("port")} aria-label={sortHeaderLabel("port")}>{t("network.port")}<span aria-hidden="true">{sortArrow("port")}</span></button></th>
@@ -741,7 +753,7 @@
                   </thead>
                   <tbody>
                     {#each visibleConnections as conn (conn.pid + conn.remote_addr + conn.remote_port + conn.direction)}
-                      <tr>
+                      <tr class="clickable-row" onclick={() => selectedNodeId = conn.remote_addr}>
                         <td class="col-process">{conn.process_name}</td>
                         <td class="col-addr mono">{conn.remote_addr}</td>
                         <td class="col-port mono">{conn.remote_port}</td>
@@ -783,6 +795,16 @@
             {/if}
           </div>
 
+          {#if selectedNodeId}
+            <div class="connection-detail-overlay">
+              <ConnectionDetail
+                nodeId={selectedNodeId}
+                connections={selectedConnections}
+                onClose={() => selectedNodeId = null}
+                onAskAi={askAiAboutHost}
+              />
+            </div>
+          {/if}
           {#if proMode}
             <button type="button" class="side-resize-divider" class:active={sideDragMode === "sidebar"} onmousedown={startSideResize} onkeydown={onSideResizeKeydown} aria-label={t("common.expand")}></button>
           {/if}
@@ -811,6 +833,7 @@
               {/if}
               <NetworkAlertConfig />
               <ContextAiChat
+                bind:this={aiChatRef}
                 title={t("network.aiTitle")}
                 placeholder={t("network.aiPlaceholder")}
                 emptyState={t("network.aiEmpty")}
@@ -836,8 +859,10 @@
     {/if}
 </div>
 
-<style>
-  .netmap-section {
+
+
+  <style>
+.netmap-section {
     flex-shrink: 0;
     border-top: 1px solid var(--border);
     background: var(--bg-alt);
@@ -1264,4 +1289,36 @@
     white-space: nowrap;
     border: 0;
   }
+
+
+
+/* Appended programmatically */
+.clickable-chip {
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.clickable-chip:hover {
+  opacity: 0.8;
+  transform: translateY(-1px);
+}
+.connection-detail-overlay {
+  position: absolute;
+  top: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  min-width: 300px;
+  max-width: 90%;
+}
+
+
+
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-row {
+  cursor: pointer;
+}
+
 </style>
