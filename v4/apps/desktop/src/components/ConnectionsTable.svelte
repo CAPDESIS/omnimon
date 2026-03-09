@@ -1,10 +1,10 @@
 <script lang="ts">
   import {
     getNetworkState,
-    filteredConnections,
+    getFilteredConnections,
   } from "../stores/network.svelte";
 
-  const state = getNetworkState();
+  const networkState = getNetworkState();
 
   let sortColumn = $state("bytes_up");
   let sortDirection = $state(-1); // -1 for desc, 1 for asc
@@ -19,8 +19,9 @@
     }
   }
 
-  const sortedConnections = $derived(() => {
-    return [...filteredConnections].sort((a, b) => {
+  const sortedConnections = $derived.by(() => {
+    const connections = getFilteredConnections();
+    return [...connections].sort((a, b) => {
       let valA = a[sortColumn as keyof typeof a];
       let valB = b[sortColumn as keyof typeof b];
 
@@ -49,26 +50,26 @@
 
 <div class="connections-table-container">
   <div class="network-filters">
-    <select bind:value={state.filter.protocol}>
+    <select bind:value={networkState.filter.protocol}>
       <option value="">Todos los protocolos</option>
       <option value="TCP">TCP</option>
       <option value="UDP">UDP</option>
     </select>
 
-    <input type="text" placeholder="Filtrar por proceso..." bind:value={state.filter.process} />
-    <input type="text" placeholder="Filtrar por dominio/IP..." bind:value={state.filter.host} />
+    <input type="text" placeholder="Filtrar por proceso..." bind:value={networkState.filter.process} />
+    <input type="text" placeholder="Filtrar por dominio/IP..." bind:value={networkState.filter.host} />
 
     <label>
-      <input type="checkbox" bind:checked={state.filter.hideLocalhost} />
+      <input type="checkbox" bind:checked={networkState.filter.hideLocalhost} />
       Ocultar localhost
     </label>
 
     <label>
-      <input type="checkbox" bind:checked={state.filter.onlyEstablished} />
+      <input type="checkbox" bind:checked={networkState.filter.onlyEstablished} />
       Solo establecidas
     </label>
 
-    <input type="number" placeholder="Min KB/s" bind:value={state.filter.minSpeed} />
+    <input type="number" placeholder="Min KB/s" bind:value={networkState.filter.minSpeed} />
   </div>
 
   <table class="connections-table">
@@ -85,7 +86,7 @@
       </tr>
     </thead>
     <tbody>
-      {#each sortedConnections() as conn}
+      {#each sortedConnections as conn}
         <tr onclick={() => expandedRow = expandedRow === conn.process_id ? null : conn.process_id}>
           <td>{conn.process_name || 'Unknown'} ({conn.process_id})</td>
           <td>{conn.protocol}</td>

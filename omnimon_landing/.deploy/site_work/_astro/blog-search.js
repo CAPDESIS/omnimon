@@ -1,4 +1,11 @@
 (() => {
+  const escapeHtml = (value) => String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
   async function initBlogSearch() {
     const input = document.querySelector("[data-blog-search-input]");
     const cards = document.querySelector("[data-blog-cards]");
@@ -16,15 +23,16 @@
     input.setAttribute("placeholder", strings.placeholder);
     if (clearBtn) clearBtn.textContent = strings.clear;
 
-    const response = await fetch(indexUrl, { credentials: "same-origin" });
-    const entries = await response.json();
-
-    const escapeHtml = (value) => value
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\"/g, "&quot;")
-      .replace(/'/g, "&#39;");
+    let entries = [];
+    try {
+      const response = await fetch(indexUrl, { credentials: "same-origin" });
+      if (!response.ok) throw new Error(`Search index request failed: ${response.status}`);
+      entries = await response.json();
+    } catch (error) {
+      console.error("OmniMon blog search failed to load", error);
+      status.textContent = locale === "es" ? "Busqueda no disponible" : "Search unavailable";
+      return;
+    }
 
     const render = (items, query) => {
       if (!items.length) {
@@ -32,7 +40,7 @@
       } else {
         cards.innerHTML = items.map((item, index) => {
           const tags = (item.tags || []).slice(0, 4).map((tag) => `<span class="text-[10px] font-mono text-cyan bg-cyan/10 px-2 py-0.5 rounded-full border border-cyan/20">${escapeHtml(tag)}</span>`).join("");
-          return `<a href="${escapeHtml(item.url)}" class="glass glass-hover rounded-xl p-6 block reveal reveal-delay-${Math.min(index + 1, 4)}" data-cursor-hover>
+          return `<a href="${escapeHtml(item.url)}" class="glass glass-hover rounded-xl p-6 block visible" data-cursor-hover>
             <div class="flex items-start gap-4">
               <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap gap-1.5 mb-2">${tags}</div>

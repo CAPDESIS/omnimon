@@ -79,38 +79,48 @@ export function getNetworkState() {
   return state;
 }
 
-export const filteredConnections = $derived(
-  state.snapshot?.connections.filter(applyFilter) ?? []
-);
+export function getFilteredConnections(): NetworkConnection[] {
+  return state.snapshot?.connections.filter(applyFilter) ?? [];
+}
 
-export const perProcessSummary = $derived(
-  (function() {
-    const connections = state.snapshot?.connections.filter(applyFilter) ?? [];
-    const map = new Map<string, {
-      name: string;
-      connectionsCount: number;
-      totalUp: number;
-      totalDown: number;
-      topDest: string;
-    }>();
+export function getPerProcessSummary(): Array<{
+  name: string;
+  connectionsCount: number;
+  totalUp: number;
+  totalDown: number;
+  topDest: string;
+}> {
+  const connections = getFilteredConnections();
+  const map = new Map<string, {
+    name: string;
+    connectionsCount: number;
+    totalUp: number;
+    totalDown: number;
+    topDest: string;
+  }>();
 
-    for (const conn of connections) {
-      const pName = conn.process_name || "Unknown";
-      let entry = map.get(pName);
-      if (!entry) {
-        entry = { name: pName, connectionsCount: 0, totalUp: 0, totalDown: 0, topDest: conn.remote_hostname || conn.remote_address };
-        map.set(pName, entry);
-      }
-      entry.connectionsCount++;
-      entry.totalUp += conn.bytes_per_sec_up;
-      entry.totalDown += conn.bytes_per_sec_down;
+  for (const conn of connections) {
+    const pName = conn.process_name || "Unknown";
+    let entry = map.get(pName);
+    if (!entry) {
+      entry = { name: pName, connectionsCount: 0, totalUp: 0, totalDown: 0, topDest: conn.remote_hostname || conn.remote_address };
+      map.set(pName, entry);
     }
-    return Array.from(map.values()).sort((a, b) => (b.totalUp + b.totalDown) - (a.totalUp + a.totalDown));
-  })()
-);
+    entry.connectionsCount++;
+    entry.totalUp += conn.bytes_per_sec_up;
+    entry.totalDown += conn.bytes_per_sec_down;
+  }
 
-export const totalUp = $derived(state.snapshot?.total_bytes_per_sec_up ?? 0);
-export const totalDown = $derived(state.snapshot?.total_bytes_per_sec_down ?? 0);
+  return Array.from(map.values()).sort((a, b) => (b.totalUp + b.totalDown) - (a.totalUp + a.totalDown));
+}
+
+export function getTotalUp(): number {
+  return state.snapshot?.total_bytes_per_sec_up ?? 0;
+}
+
+export function getTotalDown(): number {
+  return state.snapshot?.total_bytes_per_sec_down ?? 0;
+}
 
 export async function initNetworkListener() {
   const unlisten = await listen<NetworkSnapshot>("network-update", (event) => {

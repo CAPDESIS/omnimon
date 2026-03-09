@@ -700,4 +700,223 @@ mod tests {
         snapshot.captured_at_unix_ms = 16_000;
         assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
     }
+
+    #[test]
+    fn active_rules_drive_evaluate_active_network_alerts() {
+        reset_network_alert_state_for_tests();
+        set_active_rules(vec![NetworkAlertRule {
+            id: "new-external".to_string(),
+            name: "Nueva externa".to_string(),
+            enabled: true,
+            condition: AlertCondition::NewExternalConnection {
+                exclude_known: false,
+            },
+            severity: AlertSeverity::Info,
+            cooldown_seconds: 0,
+            notify_ai: false,
+        }]);
+
+        let mut snapshot = sample();
+        snapshot.recent_connections = vec![ProcessConnectionEvent {
+            pid: 99,
+            protocol: TransportProtocol::Tcp,
+            direction: TrafficDirection::Outbound,
+            src_ip: "10.0.0.5".to_string(),
+            dst_ip: "8.8.4.4".to_string(),
+            src_port: 40_000,
+            dst_port: 443,
+            bytes: 1024,
+        }];
+
+        assert!(evaluate_active_network_alerts(&snapshot, None, &[]).is_empty());
+        snapshot.captured_at_unix_ms += 2_000;
+        assert!(evaluate_active_network_alerts(&snapshot, None, &[]).is_empty());
+        snapshot.captured_at_unix_ms += 2_000;
+        let alerts = evaluate_active_network_alerts(&snapshot, None, &[]);
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0].rule_id, "new-external");
+        reset_network_alert_state_for_tests();
+    }
+
+    #[test]
+    fn known_destinations_suppress_new_external_alerts_when_requested() {
+        reset_network_alert_state_for_tests();
+        let rules = vec![NetworkAlertRule {
+            id: "external-known".to_string(),
+            name: "Destinos nuevos".to_string(),
+            enabled: true,
+            condition: AlertCondition::NewExternalConnection {
+                exclude_known: true,
+            },
+            severity: AlertSeverity::Warning,
+            cooldown_seconds: 0,
+            notify_ai: false,
+        }];
+
+        let mut snapshot = sample();
+        snapshot.recent_connections = vec![ProcessConnectionEvent {
+            pid: 7,
+            protocol: TransportProtocol::Tcp,
+            direction: TrafficDirection::Outbound,
+            src_ip: "10.0.0.7".to_string(),
+            dst_ip: "1.1.1.1".to_string(),
+            src_port: 55_000,
+            dst_port: 443,
+            bytes: 256,
+        }];
+
+        let warmup_rules = vec![NetworkAlertRule {
+            id: "warmup".to_string(),
+            name: "Warmup".to_string(),
+            enabled: true,
+            condition: AlertCondition::NewExternalConnection {
+                exclude_known: false,
+            },
+            severity: AlertSeverity::Info,
+            cooldown_seconds: 0,
+            notify_ai: false,
+        }];
+
+        assert!(evaluate_network_alerts(&snapshot, None, &warmup_rules, &[]).is_empty());
+        snapshot.captured_at_unix_ms += 2_000;
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        snapshot.captured_at_unix_ms += 2_000;
+        let first = evaluate_network_alerts(&snapshot, None, &rules, &[]);
+        assert!(first.is_empty());
+
+        snapshot.captured_at_unix_ms += 2_000;
+        let second = evaluate_network_alerts(&snapshot, None, &rules, &[]);
+        assert!(second.is_empty());
+    }
+
+    #[test]
+    fn suspicious_destination_rule_matches_regex_patterns() {
+        reset_network_alert_state_for_tests();
+        let rules = vec![NetworkAlertRule {
+            id: "dest-regex".to_string(),
+            name: "Destino regex".to_string(),
+            enabled: true,
+            condition: AlertCondition::SuspiciousDestination {
+                patterns: vec!["198\\.51\\.100\\..*".to_string()],
+            },
+            severity: AlertSeverity::Critical,
+            cooldown_seconds: 0,
+            notify_ai: true,
+        }];
+
+        let mut snapshot = sample();
+        snapshot.recent_connections = vec![ProcessConnectionEvent {
+            pid: 11,
+            protocol: TransportProtocol::Udp,
+            direction: TrafficDirection::Outbound,
+            src_ip: "10.0.0.11".to_string(),
+            dst_ip: "198.51.100.24".to_string(),
+            src_port: 60_000,
+            dst_port: 53,
+            bytes: 128,
+        }];
+
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        snapshot.captured_at_unix_ms += 2_000;
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        snapshot.captured_at_unix_ms += 2_000;
+        let alerts = evaluate_network_alerts(&snapshot, None, &rules, &[]);
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0].destination.as_deref(), Some("198.51.100.24:53"));
+        assert!(alerts[0].notify_ai);
+    }
+
+    #[test]
+    fn process_spike_uses_history_baseline() {
+        reset_network_alert_state_for_tests();
+        let rules = vec![NetworkAlertRule {
+            id: "spike".to_string(),
+            name: "Spike".to_string(),
+            enabled: true,
+            condition: AlertCondition::ProcessNetworkSpike {
+                process_name: "chrome".to_string(),
+                multiplier: 3.0,
+            },
+            severity: AlertSeverity::Warning,
+            cooldown_seconds: 0,
+            notify_ai: false,
+        }];
+
+        let mut history = Vec::new();
+        for offset in 0..5_u128 {
+            let mut prev = sample();
+            prev.captured_at_unix_ms = 1_000 + offset;
+            prev.process_throughput[0].rx_bytes_per_sec = 200_000;
+            prev.process_throughput[0].tx_bytes_per_sec = 200_000;
+            history.push(prev);
+        }
+
+        let mut snapshot = sample();
+        snapshot.process_throughput[0].rx_bytes_per_sec = 2_000_000;
+        snapshot.process_throughput[0].tx_bytes_per_sec = 2_000_000;
+
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &history).is_empty());
+        snapshot.captured_at_unix_ms += 2_000;
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &history).is_empty());
+        snapshot.captured_at_unix_ms += 2_000;
+        let alerts = evaluate_network_alerts(&snapshot, None, &rules, &history);
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0].process_name.as_deref(), Some("chrome"));
+        assert!(alerts[0].bandwidth_mbps.unwrap_or_default() > 0.0);
+    }
+
+    #[test]
+    fn connection_count_rule_can_target_specific_process() {
+        reset_network_alert_state_for_tests();
+        let rules = vec![NetworkAlertRule {
+            id: "conn-count".to_string(),
+            name: "Connection count".to_string(),
+            enabled: true,
+            condition: AlertCondition::ConnectionCountExceeded {
+                max_connections: 2,
+                process: Some("chrome".to_string()),
+            },
+            severity: AlertSeverity::Warning,
+            cooldown_seconds: 0,
+            notify_ai: false,
+        }];
+
+        let mut snapshot = sample();
+        snapshot.process_throughput.push(ProcessNetworkThroughput {
+            pid: 77,
+            process_name: Some("curl".to_string()),
+            rx_bytes_per_sec: 0,
+            tx_bytes_per_sec: 0,
+            tcp_packets_per_sec: 0,
+            udp_packets_per_sec: 0,
+        });
+        snapshot.recent_connections = vec![
+            make_event(42, "8.8.8.8", 443),
+            make_event(42, "8.8.4.4", 443),
+            make_event(42, "1.1.1.1", 80),
+            make_event(77, "9.9.9.9", 53),
+        ];
+
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        snapshot.captured_at_unix_ms += 2_000;
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        snapshot.captured_at_unix_ms += 2_000;
+        let alerts = evaluate_network_alerts(&snapshot, None, &rules, &[]);
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0].pid, Some(42));
+        assert_eq!(alerts[0].connection_count, Some(3));
+    }
+
+    fn make_event(pid: u32, dst_ip: &str, dst_port: u16) -> ProcessConnectionEvent {
+        ProcessConnectionEvent {
+            pid,
+            protocol: TransportProtocol::Tcp,
+            direction: TrafficDirection::Outbound,
+            src_ip: "10.0.0.10".to_string(),
+            dst_ip: dst_ip.to_string(),
+            src_port: 50_000,
+            dst_port,
+            bytes: 512,
+        }
+    }
 }

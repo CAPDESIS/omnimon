@@ -33,6 +33,12 @@ These are the backend-supported actions that can be triggered from the in-app AI
 | `omnimon security-scan [--cve-db <path>]` | Run a local security scan | `omnimon security-scan --cve-db ./cves.json` |
 | `omnimon doctor` | Check platform, drivers, and keyring health | `omnimon doctor` |
 | `omnimon tui` | Launch the terminal UI | `omnimon tui` |
+| `omnimon network [--format text|json]` | Show live network throughput per process | `omnimon network --top` |
+| `omnimon network --connections` | Show filtered connection snapshots from network analysis | `omnimon network --connections` |
+| `omnimon network --filter <tcp|udp|icmp|other> --port <PORT>` | Filter connection snapshots by protocol and port | `omnimon network --filter tcp --port 443` |
+| `omnimon network --alerts` | Show evaluated network alerts from watcher state | `omnimon network --alerts` |
+| `omnimon network --top` | Force top-throughput view explicitly (top 10 procesos) | `omnimon network --top --format json` |
+| `omnimon network --watch [--watch-interval-ms <MS>] [--watch-iterations <N>]` | Refresh the selected network view continuously | `omnimon network --watch --watch-interval-ms 1000` |
 
 ## Tauri IPC Commands
 
@@ -40,6 +46,9 @@ These are the backend-supported actions that can be triggered from the in-app AI
 | --- | --- | --- |
 | `get_metrics` | `idleThreshold?: number` | `Metrics` object with `processes[]` and `stats` |
 | `get_network_data` | none | JSON object with `top_processes`, `recent_connections`, aggregate throughput, backend, and DPI flag |
+| `get_network_connections` | none | `NetworkSnapshot` with current connection list and aggregate per-process analysis |
+| `get_network_history` | `seconds: number` | `NetworkSnapshot[]` for the requested recent interval |
+| `get_filtered_connections` | `filter: NetworkFilter` | `NetworkConnection[]` matching protocol/port/process/host filters |
 | `kill_process` | `pid: number` | `boolean` |
 | `kill_processes` | `pids: number[]` | `{ killed: number[], failed: [number, string][] }` |
 | `save_ai_config` | `provider: string`, `model: string`, `key: string` | `void` |
@@ -69,3 +78,4 @@ These are the backend-supported actions that can be triggered from the in-app AI
 - CLI and AI chat should present human-readable text by default for user-facing flows.
 - JSON output is explicit and opt-in only, for example `omnimon status --format json`.
 - AI tool calls are internal transport objects; the end user should see the natural-language reply and the action result, not the raw JSON envelope.
+- Network analysis commands default to a top-throughput summary; `--connections`, `--alerts`, and `--filter/--port` switch the view without requiring a separate subcommand.

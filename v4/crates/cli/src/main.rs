@@ -4,6 +4,7 @@ use core::browser::{BrowserKind, BrowserTab, NativeTabProvider, TabProvider};
 use core::crypto;
 use core::killer;
 use core::metrics;
+use core::network_analysis::{NetworkFilter, Protocol};
 use core::rules_engine;
 use core::settings::{self, ProfilePreset};
 use core::watcher;
@@ -102,8 +103,29 @@ enum Commands {
         #[arg(long, value_enum, default_value_t = Format::Text)]
         format: Format,
         /// Show recent connection events instead of throughput summary
-        #[arg(long)]
+        #[arg(long, conflicts_with_all = ["alerts", "top"])]
         connections: bool,
+        /// Filter connections by protocol (implies connections view)
+        #[arg(long, value_enum)]
+        filter: Option<NetworkProtocolArg>,
+        /// Filter connections by local or remote port (implies connections view)
+        #[arg(long)]
+        port: Option<u16>,
+        /// Show evaluated network alerts from the watcher
+        #[arg(long, conflicts_with_all = ["connections", "top"])]
+        alerts: bool,
+        /// Show top per-process throughput explicitly
+        #[arg(long, conflicts_with_all = ["connections", "alerts"])]
+        top: bool,
+        /// Refresh continuously until interrupted
+        #[arg(long)]
+        watch: bool,
+        /// Refresh interval for watch mode in milliseconds
+        #[arg(long, default_value_t = 2000, requires = "watch")]
+        watch_interval_ms: u64,
+        /// Limit watch iterations for scripts/tests; omit to watch indefinitely
+        #[arg(long, requires = "watch")]
+        watch_iterations: Option<u32>,
     },
     /// Manage AI-driven security alert rules (MITRE ATT&CK)
     Rules {
@@ -276,6 +298,32 @@ enum AiProvider {
     Gemini,
 }
 
+#[derive(Clone, Copy, ValueEnum)]
+enum NetworkProtocolArg {
+    Tcp,
+    Udp,
+    Icmp,
+    Other,
+}
+
+impl NetworkProtocolArg {
+    fn to_protocol(self) -> Protocol {
+        match self {
+            Self::Tcp => Protocol::TCP,
+            Self::Udp => Protocol::UDP,
+            Self::Icmp => Protocol::ICMP,
+            Self::Other => Protocol::Other,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NetworkView {
+    Connections,
+    Alerts,
+    Top,
+}
+
 impl AiProvider {
     fn to_core_provider(&self) -> core_ai::AiProvider {
         match self {
@@ -318,6 +366,174 @@ fn format_memory(bytes: u64) -> String {
         format!("{:.2} KB", kb)
     } else {
         format!("{} B", bytes)
+    }
+}
+
+fn build_network_filter(protocol: Option<NetworkProtocolArg>, port: Option<u16>) -> NetworkFilter {
+    NetworkFilter {
+        protocols: protocol.map(|value| vec![value.to_protocol()]),
+        ports: port.map(|value| vec![value]),
+        ..Default::default()
+    }
+}
+
+fn top_network_processes(
+    state: &watcher::SystemState,
+    limit: usize,
+) -> Vec<core::network::ProcessNetworkThroughput> {
+    state
+        .top_network_processes
+        .iter()
+        .take(limit)
+        .cloned()
+        .collect()
+}
+
+fn determine_network_view(
+    connections: bool,
+    alerts: bool,
+    top: bool,
+    protocol: Option<NetworkProtocolArg>,
+    port: Option<u16>,
+) -> NetworkView {
+    if connections || protocol.is_some() || port.is_some() {
+        NetworkView::Connections
+    } else if alerts {
+        NetworkView::Alerts
+    } else if top {
+        NetworkView::Top
+    } else {
+        NetworkView::Top
+    }
+}
+
+fn print_network_text(state: &watcher::SystemState, view: NetworkView, filter: &NetworkFilter) {
+    println!("OmniMon Network Telemetry");
+    println!();
+    println!(
+        "  Backend:   {} (DPI: {})",
+        state.net_capture_backend,
+        if state.net_dpi_active {
+            "active"
+        } else {
+            "inactive"
+        }
+    );
+    println!(
+        "  Global:    rx {} /s   tx {} /s",
+        format_memory(state.net_rx_bytes_per_sec),
+        format_memory(state.net_tx_bytes_per_sec)
+    );
+
+    match view {
+        NetworkView::Connections => {
+            let connections = watcher::get_filtered_connections(filter);
+            println!();
+            println!("  Filtered connections:");
+            println!(
+                "  {:>6}  {:<18}  {:>5}  {:<18}  {:>5}  {:<5}  {:<12}",
+                "PID", "LOCAL", "PORT", "REMOTE", "PORT", "PROTO", "STATE"
+            );
+            println!("  {}", "-".repeat(88));
+            for conn in &connections {
+                println!(
+                    "  {:>6}  {:<18}  {:>5}  {:<18}  {:>5}  {:<5}  {:<12}",
+                    conn.pid,
+                    conn.local_addr,
+                    conn.local_port,
+                    conn.remote_hostname
+                        .as_deref()
+                        .unwrap_or(&conn.remote_addr.to_string()),
+                    conn.remote_port,
+                    conn.protocol,
+                    format!("{:?}", conn.state)
+                );
+            }
+            if connections.is_empty() {
+                println!("  (no matching connections captured yet)");
+            }
+        }
+        NetworkView::Alerts => {
+            println!();
+            println!("  Network alerts:");
+            println!(
+                "  {:<10}  {:<12}  {:<18}  {}",
+                "SEVERITY", "RULE", "DESTINATION", "MESSAGE"
+            );
+            println!("  {}", "-".repeat(90));
+            for alert in &state.network_alerts {
+                println!(
+                    "  {:<10}  {:<12}  {:<18}  {}",
+                    format!("{:?}", alert.severity),
+                    alert.rule_id,
+                    alert.destination.as_deref().unwrap_or("-"),
+                    alert.message
+                );
+            }
+            if state.network_alerts.is_empty() {
+                println!("  (no network alerts fired yet)");
+            }
+        }
+        NetworkView::Top => {
+            let top_processes = top_network_processes(state, 10);
+            println!();
+            println!("  Top 10 processes by throughput:");
+            println!(
+                "  {:>6}  {:<18}  {:>12}  {:>12}  {:>8}  {:>8}",
+                "PID", "NAME", "RX/s", "TX/s", "TCP/s", "UDP/s"
+            );
+            println!("  {}", "-".repeat(78));
+            for process in &top_processes {
+                println!(
+                    "  {:>6}  {:<18}  {:>12}  {:>12}  {:>8}  {:>8}",
+                    process.pid,
+                    process.process_name.as_deref().unwrap_or("unknown"),
+                    format_memory(process.rx_bytes_per_sec),
+                    format_memory(process.tx_bytes_per_sec),
+                    process.tcp_packets_per_sec,
+                    process.udp_packets_per_sec
+                );
+            }
+            if top_processes.is_empty() {
+                println!("  (no network activity captured yet)");
+            }
+        }
+    }
+}
+
+fn print_network_json(state: &watcher::SystemState, view: NetworkView, filter: &NetworkFilter) {
+    let output = match view {
+        NetworkView::Connections => serde_json::json!({
+            "view": "connections",
+            "capture_backend": state.net_capture_backend,
+            "dpi_active": state.net_dpi_active,
+            "filters": filter,
+            "connections": watcher::get_filtered_connections(filter),
+        }),
+        NetworkView::Alerts => serde_json::json!({
+            "view": "alerts",
+            "capture_backend": state.net_capture_backend,
+            "dpi_active": state.net_dpi_active,
+            "alerts": state.network_alerts,
+        }),
+        NetworkView::Top => serde_json::json!({
+            "view": "top",
+            "net_rx_bytes_per_sec": state.net_rx_bytes_per_sec,
+            "net_tx_bytes_per_sec": state.net_tx_bytes_per_sec,
+            "capture_backend": state.net_capture_backend,
+            "dpi_active": state.net_dpi_active,
+            "top_processes": top_network_processes(state, 10),
+        }),
+    };
+
+    println!("{}", serde_json::to_string_pretty(&output).unwrap());
+}
+
+fn render_network_view(format: &Format, view: NetworkView, filter: &NetworkFilter) {
+    let state = watcher::get_cached_state();
+    match format {
+        Format::Json => print_network_json(&state, view, filter),
+        Format::Text => print_network_text(&state, view, filter),
     }
 }
 
@@ -1075,92 +1291,44 @@ fn main() {
         Commands::Network {
             format,
             connections,
+            filter,
+            port,
+            alerts,
+            top,
+            watch,
+            watch_interval_ms,
+            watch_iterations,
         } => {
             watcher::start_watcher();
             std::thread::sleep(std::time::Duration::from_millis(2500));
 
-            let state = watcher::get_cached_state();
+            let view = determine_network_view(*connections, *alerts, *top, *filter, *port);
+            let connection_filter = build_network_filter(*filter, *port);
 
-            match format {
-                Format::Json => {
-                    let output = serde_json::json!({
-                        "net_rx_bytes_per_sec": state.net_rx_bytes_per_sec,
-                        "net_tx_bytes_per_sec": state.net_tx_bytes_per_sec,
-                        "capture_backend": state.net_capture_backend,
-                        "dpi_active": state.net_dpi_active,
-                        "top_processes": state.top_network_processes,
-                        "recent_connections": state.recent_network_connections,
-                    });
-                    println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            if *watch {
+                if matches!(format, Format::Text) {
+                    println!(
+                        "Watching network telemetry every {} ms (Ctrl+C para salir)...",
+                        watch_interval_ms
+                    );
                 }
-                Format::Text => {
-                    println!("OmniMon Network Telemetry");
-                    println!();
-                    println!(
-                        "  Backend:   {} (DPI: {})",
-                        state.net_capture_backend,
-                        if state.net_dpi_active {
-                            "active"
-                        } else {
-                            "inactive"
-                        }
-                    );
-                    println!(
-                        "  Global:    rx {} /s   tx {} /s",
-                        format_memory(state.net_rx_bytes_per_sec),
-                        format_memory(state.net_tx_bytes_per_sec)
-                    );
 
-                    if *connections {
-                        println!();
-                        println!("  Recent connections:");
-                        println!(
-                            "  {:>6}  {:>5}  {:<15}  {:>5}  -->  {:<15}  {:>5}  {:>10}",
-                            "PID", "PROTO", "SRC IP", "PORT", "DST IP", "PORT", "BYTES"
-                        );
-                        println!("  {}", "-".repeat(80));
-                        for conn in &state.recent_network_connections {
-                            let proto = match conn.protocol {
-                                core::network::TransportProtocol::Tcp => "TCP",
-                                core::network::TransportProtocol::Udp => "UDP",
-                            };
-                            println!(
-                                "  {:>6}  {:>5}  {:<15}  {:>5}  -->  {:<15}  {:>5}  {:>10}",
-                                conn.pid,
-                                proto,
-                                conn.src_ip,
-                                conn.src_port,
-                                conn.dst_ip,
-                                conn.dst_port,
-                                format_memory(conn.bytes)
-                            );
+                let mut remaining = *watch_iterations;
+                loop {
+                    render_network_view(format, view, &connection_filter);
+                    if let Some(ref mut iterations) = remaining {
+                        if *iterations == 1 {
+                            break;
                         }
-                        if state.recent_network_connections.is_empty() {
-                            println!("  (no connections captured yet)");
-                        }
-                    } else {
-                        println!();
-                        println!("  Top processes by throughput:");
-                        println!(
-                            "  {:>6}  {:>12}  {:>12}  {:>8}  {:>8}",
-                            "PID", "RX/s", "TX/s", "TCP/s", "UDP/s"
-                        );
-                        println!("  {}", "-".repeat(56));
-                        for p in &state.top_network_processes {
-                            println!(
-                                "  {:>6}  {:>12}  {:>12}  {:>8}  {:>8}",
-                                p.pid,
-                                format_memory(p.rx_bytes_per_sec),
-                                format_memory(p.tx_bytes_per_sec),
-                                p.tcp_packets_per_sec,
-                                p.udp_packets_per_sec
-                            );
-                        }
-                        if state.top_network_processes.is_empty() {
-                            println!("  (no network activity captured yet)");
-                        }
+                        *iterations -= 1;
                     }
+                    if matches!(format, Format::Text) {
+                        println!();
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(*watch_interval_ms));
                 }
+            } else {
+                render_network_view(format, view, &connection_filter);
             }
         }
         Commands::Rules { command } => match command {

@@ -2,14 +2,14 @@
   import { onMount } from "svelte";
   import {
     getNetworkState,
-    totalUp,
-    totalDown,
+    getTotalUp,
+    getTotalDown,
     initNetworkListener
   } from "../stores/network.svelte";
   import ConnectionsTable from "./ConnectionsTable.svelte";
   import ProcessNetworkView from "./ProcessNetworkView.svelte";
 
-  const state = getNetworkState();
+  const networkState = getNetworkState();
 
   let activeTab = $state<"connections" | "processes">("connections");
 
@@ -35,19 +35,19 @@
   <div class="header">
     <div class="metric">
       <h3>Total Upload</h3>
-      <p class="up">{formatSpeed(totalUp)} ↑</p>
+      <p class="up">{formatSpeed(getTotalUp())} ↑</p>
     </div>
     <div class="metric">
       <h3>Total Download</h3>
-      <p class="down">{formatSpeed(totalDown)} ↓</p>
+      <p class="down">{formatSpeed(getTotalDown())} ↓</p>
     </div>
     <div class="metric">
       <h3>Conexiones activas</h3>
-      <p>{state.snapshot?.active_connections ?? 0}</p>
+      <p>{networkState.snapshot?.active_connections ?? 0}</p>
     </div>
     <div class="metric">
       <h3>Procesos con red</h3>
-      <p>{state.snapshot?.processes_with_network ?? 0}</p>
+      <p>{networkState.snapshot?.processes_with_network ?? 0}</p>
     </div>
   </div>
 

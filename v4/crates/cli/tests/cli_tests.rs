@@ -98,6 +98,75 @@ fn test_network_text_format() {
 }
 
 #[test]
+fn test_network_connections_flag() {
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cli");
+
+    cmd.arg("network").arg("--connections");
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Filtered connections:"));
+}
+
+#[test]
+fn test_network_filter_and_port_json_output() {
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cli");
+
+    cmd.arg("network")
+        .arg("--format")
+        .arg("json")
+        .arg("--filter")
+        .arg("tcp")
+        .arg("--port")
+        .arg("443");
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("\"view\": \"connections\""))
+        .stdout(predicate::str::contains("\"filters\""))
+        .stdout(predicate::str::contains("443"));
+}
+
+#[test]
+fn test_network_alerts_flag() {
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cli");
+
+    cmd.arg("network").arg("--alerts");
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Network alerts:"));
+}
+
+#[test]
+fn test_network_top_flag_json_output() {
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cli");
+
+    cmd.arg("network").arg("--top").arg("--format").arg("json");
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("\"view\": \"top\""))
+        .stdout(predicate::str::contains("\"top_processes\""));
+}
+
+#[test]
+fn test_network_watch_single_iteration() {
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cli");
+
+    cmd.arg("network")
+        .arg("--watch")
+        .arg("--watch-iterations")
+        .arg("1")
+        .arg("--watch-interval-ms")
+        .arg("10");
+
+    cmd.assert().success().stdout(predicate::str::contains(
+        "Watching network telemetry every 10 ms",
+    ));
+}
+
+#[test]
 fn test_rules_help() {
     let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cli");
 
