@@ -34,3 +34,18 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD=tu-contraseña
   que el cliente verifique la autenticidad de las actualizaciones.
 - Sin una pubkey válida, el updater no puede verificar firmas y un atacante
   con capacidad MITM podría servir binarios maliciosos.
+
+## Firma de Releases (Ed25519)
+
+Además de la firma del updater Tauri, OmniMon firma cada artefacto de release
+con Ed25519 para verificación independiente. Consultar
+[RELEASE_SIGNING.md](./RELEASE_SIGNING.md) para el proceso completo.
+
+### Claves involucradas
+
+| Propósito | Secret en CI | Formato |
+|-----------|-------------|---------|
+| Firma de updates Tauri | `TAURI_SIGNING_PRIVATE_KEY` | PEM (tauri signer) |
+| Firma de releases Ed25519 | `ED25519_SIGNING_KEY` | Base64 (32 bytes) |
+
+Ambas claves son independientes y deben configurarse por separado.
