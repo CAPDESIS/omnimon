@@ -464,20 +464,53 @@ describe("other IPC helpers", () => {
 
     mockInvoke.mockResolvedValue(null);
     await expect(ipcApplyAiRules('{"rules":[]}')).rejects.toThrow(IPCValidationError);
+
+    await expect(ipcApplyAiRules("x".repeat(70 * 1024))).rejects.toThrow(IPCValidationError);
   });
 
   it("validates AI chat responses", async () => {
     mockInvoke.mockResolvedValue({
       reply: "done",
-      tool_call: { name: "kill_process", args: { pid: 99 } },
+      tool_call: { tool: "kill_process", success: true, details: "kill_process:99:Test" },
     });
     await expect(ipcAiChat("hi", "openai", "gpt-4o", [["user", "prev"]])).resolves.toEqual({
       reply: "done",
-      tool_call: { name: "kill_process", args: { pid: 99 } },
+      tool_call: { tool: "kill_process", success: true, details: "kill_process:99:Test" },
     });
 
     mockInvoke.mockResolvedValue({ tool_call: null });
     await expect(ipcAiChat("hi", "openai", "gpt-4o")).rejects.toThrow(IPCValidationError);
+  });
+
+  it("accepts optional tool payloads and cache ttl", async () => {
+    mockInvoke.mockResolvedValue({
+      reply: "summary",
+      tool_call: {
+        tool: "get_system_summary",
+        success: true,
+        details: "Current system summary",
+        payload: { cpu_pct: 42 },
+      },
+    });
+
+    await expect(ipcAiChat("hi", "openai", "gpt-4o", [], 10)).resolves.toEqual({
+      reply: "summary",
+      tool_call: {
+        tool: "get_system_summary",
+        success: true,
+        details: "Current system summary",
+        payload: { cpu_pct: 42 },
+      },
+    });
+  });
+
+  it("rejects invalid ai chat tool payloads and oversized inputs", async () => {
+    mockInvoke.mockResolvedValue({
+      reply: "done",
+      tool_call: { tool: "format_disk", success: true, details: "boom" },
+    });
+    await expect(ipcAiChat("hi", "openai", "gpt-4o")).rejects.toThrow(IPCValidationError);
+    await expect(ipcAiChat("x".repeat(5000), "openai", "gpt-4o")).rejects.toThrow(IPCValidationError);
   });
 
   it("rejects null AI chat payloads", async () => {

@@ -15,5 +15,6 @@ pub mod process_identity;
 pub mod rate_limit;
 pub mod rules_engine;
 pub mod security;
+pub mod settings;
 pub mod telemetry;
 pub mod watcher;

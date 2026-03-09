@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fly, fade } from "svelte/transition";
   import { aiProfile } from "../stores/processes";
-  import { userMode } from "../stores/preferences";
+  import { userMode, profilePresets, activeProfilePreset, applyProfilePresetById, syncAiProfileToPreset } from "../stores/preferences";
   import { t } from "../lib/i18n";
   import InfoPopover from "./InfoPopover.svelte";
 
@@ -37,7 +37,10 @@
         class="profile-card"
         class:selected={$aiProfile === profile.id}
         style={`--card-accent:${profile.accent}`}
-        onclick={() => aiProfile.set(profile.id)}
+        onclick={() => {
+          aiProfile.set(profile.id);
+          syncAiProfileToPreset(profile.id as "general" | "developer" | "gaming" | "battery");
+        }}
         transition:fly={{ y: 8, duration: 180 }}
       >
         <span class="profile-icon">{profile.icon}</span>
@@ -45,6 +48,28 @@
         <span class="profile-desc">{descriptionFor(profile.id)}</span>
       </button>
     {/each}
+  </div>
+
+  <div class="workspace-mode" role="group" aria-label="Shared profile presets">
+    <div class="workspace-copy">
+      <div class="profile-eyebrow">Shared presets</div>
+      <div class="workspace-title">{$activeProfilePreset}</div>
+      <div class="profile-footnote">Thresholds and intervals stay aligned across UI and CLI.</div>
+    </div>
+    <select
+      class="preset-select"
+      value={$activeProfilePreset}
+      onchange={(event: Event) => {
+        const value = (event.target as HTMLSelectElement).value;
+        applyProfilePresetById(value);
+        aiProfile.set(value);
+      }}
+      aria-label="Shared profile presets"
+    >
+      {#each $profilePresets as preset}
+        <option value={preset.id}>{preset.label}</option>
+      {/each}
+    </select>
   </div>
 
   <div class="workspace-mode" role="group" aria-label={t("profiles.userMode")}>
@@ -167,6 +192,15 @@
     border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
     border-radius: 12px;
     background: color-mix(in srgb, var(--bg) 90%, white 3%);
+  }
+
+  .preset-select {
+    min-width: 160px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-alt);
+    color: var(--fg);
+    padding: 8px 10px;
   }
 
   .workspace-copy {

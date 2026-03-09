@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import AIChat from "../AIChat.svelte";
+import type { ToolResult } from "../../lib/types";
 import type { ChatResponse, ProcessEntry } from "../../lib/types";
+import { AI_PRESETS } from "../../lib/aiPresets";
 
 function makeProc(overrides: Partial<ProcessEntry> = {}): ProcessEntry {
   return {
@@ -51,6 +53,7 @@ const {
   mockDetectPromptInjection,
   mockProcesses,
   mockAiProviderConfig,
+  mockAiCacheTtlMinutes,
 } = vi.hoisted(() => {
   const { writable } = require("svelte/store") as typeof import("svelte/store");
   return {
@@ -69,6 +72,7 @@ const {
     mockDetectPromptInjection: vi.fn(() => false),
     mockProcesses: writable<ProcessEntry[]>([]),
     mockAiProviderConfig: writable({ provider: "openrouter", model: "test-model" }),
+    mockAiCacheTtlMinutes: writable(5),
   };
 });
 
@@ -86,6 +90,7 @@ vi.mock("../../lib/ipc", async (importOriginal) => {
 
 vi.mock("../../stores/preferences", () => ({
   aiProviderConfig: mockAiProviderConfig,
+  aiCacheTtlMinutes: mockAiCacheTtlMinutes,
 }));
 
 vi.mock("../../stores/processes", () => ({
@@ -127,6 +132,7 @@ describe("AIChat", () => {
   beforeEach(() => {
     mockProcesses.set([makeProc()]);
     mockAiProviderConfig.set({ provider: "openrouter", model: "test-model" });
+    mockAiCacheTtlMinutes.set(5);
     mockAiChat.mockReset();
     mockAiChat.mockResolvedValue({ reply: "All good", tool_call: null });
     mockGetBrowserTabs.mockReset();
@@ -178,6 +184,7 @@ describe("AIChat", () => {
         "openrouter",
         "test-model",
         expect.arrayContaining([expect.arrayContaining(["system", expect.any(String)])]),
+        5,
       );
     });
   });
@@ -233,6 +240,24 @@ describe("AIChat", () => {
     expect(screen.getByText("Ask me anything about your system:")).toBeInTheDocument();
   });
 
+  it("sanitiza caracteres de control antes de enviar", async () => {
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Hello\u0000 world" } });
+    await fireEvent.click(screen.getByText("Send"));
+
+    await waitFor(() => {
+      expect(mockAiChat).toHaveBeenCalledWith(
+        "Hello  world",
+        "openrouter",
+        "test-model",
+        expect.any(Array),
+        5,
+      );
+    });
+  });
+
   it("envia sugerencias rapidas desde el estado vacio", async () => {
     render(AIChat);
 
@@ -244,8 +269,62 @@ describe("AIChat", () => {
         "openrouter",
         "test-model",
         expect.any(Array),
+        5,
       );
       expect(screen.getByText("Close all YouTube tabs")).toBeInTheDocument();
+    });
+  });
+
+  it("expone presets de AI suficientes y completos", () => {
+    expect(AI_PRESETS.length).toBeGreaterThanOrEqual(5);
+    for (const preset of AI_PRESETS) {
+      expect(preset.id).toBeTruthy();
+      expect(preset.label).toBeTruthy();
+      expect(preset.icon).toBeTruthy();
+      expect(preset.prompt).toBeTruthy();
+      expect(["performance", "security", "network", "general"]).toContain(preset.category);
+    }
+  });
+
+  it("muestra chips de presets y llena el input al hacer clic", async () => {
+    render(AIChat);
+    const presetButton = screen.getByRole("button", { name: /Preset Rendimiento general/i });
+    expect(presetButton).toBeInTheDocument();
+
+    await fireEvent.click(presetButton);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i) as HTMLTextAreaElement;
+    expect(input.value).toMatch(/Analiza el rendimiento general del sistema/i);
+  });
+
+  it("muestra resultados formateados para tool calls de lectura", async () => {
+    mockAiChat.mockResolvedValueOnce({
+      reply: "Here is the summary",
+      tool_call: {
+        tool: "get_system_summary",
+        success: true,
+        details: "Current system summary",
+        payload: {
+          cpu_pct: 24,
+          ram_used_gb: 8,
+          ram_total_gb: 16,
+          swap_mb: 0,
+          net_rx_bytes_per_sec: 1200,
+          net_tx_bytes_per_sec: 800,
+        },
+      } as ToolResult,
+    });
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Summarize the system" } });
+    await fireEvent.click(screen.getByText("Send"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Current system summary/i)).toBeInTheDocument();
+      expect(screen.getByText(/CPU: 24%/i)).toBeInTheDocument();
+      expect(screen.getByText(/RAM: 8\/16 GB/i)).toBeInTheDocument();
     });
   });
 

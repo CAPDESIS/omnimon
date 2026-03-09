@@ -9,6 +9,8 @@ vi.mock("../lib/ipc", async (importOriginal) => {
     ...actual,
     ipcAnalyzeContext: vi.fn(async () => ""),
     ipcValidateApiKey: vi.fn(async () => true),
+    ipcCheckApiKey: vi.fn(async () => true),
+    ipcClearAiCache: vi.fn(async () => undefined),
   };
 });
 
@@ -111,6 +113,13 @@ vi.mock("../stores/preferences", () => {
     columnOrder: writable(["name", "detail", "group", "ram", "cpu", "energy", "network", "uptime", "pid", "state"]),
     aiProviderConfig: writable({ provider: "openrouter", model: "meta-llama/llama-3.2-3b-instruct:free" }),
     idleThreshold: writable(1),
+    pollIntervalMs: writable(2000),
+    automationIntervalSecs: writable(5),
+    aiCacheTtlMinutes: writable(5),
+    activeProfilePreset: writable("general"),
+    profilePresets: writable([
+      { id: "general", label: "General", idleThreshold: 1, pollIntervalMs: 2000, automationIntervalSecs: 5, aiProfile: "general" },
+    ]),
     theme: writable("auto"),
     userMode: writable("pro"),
     tabPanelHeight: writable(160),
@@ -133,6 +142,11 @@ vi.mock("../stores/preferences", () => {
     moveColumnDown: vi.fn(),
     MIN_IDLE_THRESHOLD: 0.1,
     MAX_IDLE_THRESHOLD: 10,
+    MIN_AI_CACHE_TTL_MINUTES: 0,
+    MAX_AI_CACHE_TTL_MINUTES: 60,
+    applyProfilePresetById: vi.fn(() => true),
+    syncAiProfileToPreset: vi.fn(),
+    setProfilePresets: vi.fn(),
   };
 });
 

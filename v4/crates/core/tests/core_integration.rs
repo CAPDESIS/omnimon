@@ -2,6 +2,12 @@ use core::{
     ai, audit, audit_trail, cloud, crypto, killer, metrics, network, process_identity, rate_limit,
     rules_engine, security, telemetry, watcher,
 };
+use std::sync::{Mutex, OnceLock};
+
+fn rules_test_guard() -> std::sync::MutexGuard<'static, ()> {
+    static GUARD: OnceLock<Mutex<()>> = OnceLock::new();
+    GUARD.get_or_init(|| Mutex::new(())).lock().unwrap()
+}
 
 // ===========================================================================
 // Metrics Module
@@ -241,6 +247,7 @@ fn integration_rules_engine_ip_rule() {
 
 #[test]
 fn integration_rules_engine_rejects_invalid_schema_version() {
+    let _guard = rules_test_guard();
     let payload = r#"{"schema_version":99,"rules":[]}"#;
     let result = rules_engine::upsert_rules_from_ai_json(payload);
     assert!(result.is_err());
@@ -249,12 +256,14 @@ fn integration_rules_engine_rejects_invalid_schema_version() {
 
 #[test]
 fn integration_rules_engine_rejects_invalid_json() {
+    let _guard = rules_test_guard();
     let result = rules_engine::upsert_rules_from_ai_json("not valid json");
     assert!(result.is_err());
 }
 
 #[test]
 fn integration_rules_engine_schema_contains_all_kinds() {
+    let _guard = rules_test_guard();
     let schema = rules_engine::ai_rules_schema_json();
     assert!(schema.contains("process_country"));
     assert!(schema.contains("process_ip"));
@@ -265,6 +274,7 @@ fn integration_rules_engine_schema_contains_all_kinds() {
 
 #[test]
 fn integration_rules_engine_active_rules_returns_loaded() {
+    let _guard = rules_test_guard();
     let payload = r#"{"schema_version":1,"rules":[{"id":"active-test","name":"Active Test","enabled":true,"kind":"process_port","process_contains":null,"country_code":null,"destination_ip":null,"destination_cidr":null,"destination_port":8080,"protocol":"any","process_memory_mb_gt":null,"mitre_technique_id":"T1571"}]}"#;
     rules_engine::upsert_rules_from_ai_json(payload).expect("load rule");
     let rules = rules_engine::active_rules();
@@ -273,6 +283,7 @@ fn integration_rules_engine_active_rules_returns_loaded() {
 
 #[test]
 fn integration_rules_engine_remove_rule() {
+    let _guard = rules_test_guard();
     let payload = r#"{"schema_version":1,"rules":[{"id":"removable","name":"To Remove","enabled":true,"kind":"process_port","process_contains":null,"country_code":null,"destination_ip":null,"destination_cidr":null,"destination_port":9999,"protocol":"any","process_memory_mb_gt":null,"mitre_technique_id":"T1571"}]}"#;
     rules_engine::upsert_rules_from_ai_json(payload).expect("load rule");
     let removed = rules_engine::remove_rule_by_id("removable").expect("remove rule");
@@ -284,6 +295,7 @@ fn integration_rules_engine_remove_rule() {
 
 #[test]
 fn integration_rules_geoip_replace_db() {
+    let _guard = rules_test_guard();
     let geo_json = r#"[{"cidr":"100.0.0.0/8","country_code":"RU"}]"#;
     let count = rules_engine::replace_geoip_db_from_json(geo_json).expect("replace geo db");
     assert_eq!(count, 1);
@@ -291,6 +303,7 @@ fn integration_rules_geoip_replace_db() {
 
 #[test]
 fn integration_rules_geoip_invalid_json() {
+    let _guard = rules_test_guard();
     let result = rules_engine::replace_geoip_db_from_json("bad json");
     assert!(result.is_err());
 }

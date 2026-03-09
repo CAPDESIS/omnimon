@@ -17,6 +17,9 @@ use tauri::{
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_store::StoreExt;
 
+const MAX_AI_RULES_PAYLOAD_BYTES: usize = 64 * 1024;
+const MAX_KILL_BATCH: usize = 50;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ProcessEntry {
     pub pid: u32,
@@ -314,13 +317,16 @@ pub struct KillProcessesResult {
 #[tauri::command]
 #[tracing::instrument(skip_all)]
 fn kill_processes(pids: Vec<u32>) -> Result<KillProcessesResult, String> {
-    macmon_core::rate_limit::check_rate_limit(
-        "kill_processes",
-        &macmon_core::rate_limit::profiles::KILL,
-    )?;
+    if pids.len() > MAX_KILL_BATCH {
+        return Err(format!("batch limited to {} PIDs", MAX_KILL_BATCH));
+    }
     let mut killed = Vec::new();
     let mut failed = Vec::new();
     for pid in pids {
+        macmon_core::rate_limit::check_rate_limit(
+            "kill_processes",
+            &macmon_core::rate_limit::profiles::KILL,
+        )?;
         match macmon_core::killer::kill_process_safe(pid as i32, &[]) {
             Ok(_) => killed.push(pid),
             Err(e) => failed.push((pid, e.to_string())),
@@ -413,8 +419,14 @@ fn check_api_key(app: AppHandle, provider: String) -> Result<bool, String> {
 fn apply_ai_rules(payload: String) -> Result<usize, String> {
     macmon_core::rate_limit::check_rate_limit(
         "apply_ai_rules",
-        &macmon_core::rate_limit::profiles::AI,
+        &macmon_core::rate_limit::profiles::CONFIG,
     )?;
+    if payload.len() > MAX_AI_RULES_PAYLOAD_BYTES {
+        return Err(format!(
+            "payload exceeds {}KB limit",
+            MAX_AI_RULES_PAYLOAD_BYTES / 1024
+        ));
+    }
     macmon_core::rules_engine::upsert_rules_from_ai_json(&payload)
 }
 
@@ -570,8 +582,10 @@ async fn ai_chat(
     provider: String,
     model: String,
     history: Vec<(String, String)>,
+    cache_ttl_minutes: Option<u64>,
 ) -> Result<macmon_core::ai::ChatResponse, String> {
     macmon_core::rate_limit::check_rate_limit("ai_chat", &macmon_core::rate_limit::profiles::AI)?;
+    macmon_core::ai::check_prompt_injection(&message).map_err(|e| e.to_string())?;
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
 
     // Ollama doesn't need an API key
@@ -607,10 +621,16 @@ async fn ai_chat(
     messages.push(("user".to_string(), message));
 
     // Send to LLM
-    let (ai_text, tool_call) =
-        macmon_core::ai::chat_with_tools(ai_provider, &model, &api_key, &messages, &system_prompt)
-            .await
-            .map_err(|e| e.to_string())?;
+    let (ai_text, tool_call) = macmon_core::ai::chat_with_tools_ttl(
+        ai_provider,
+        &model,
+        &api_key,
+        &messages,
+        &system_prompt,
+        cache_ttl_minutes.unwrap_or(5),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     // If AI requested a tool call, execute it
     let tool_result = tool_call.map(|call| match call.tool.as_str() {
@@ -623,12 +643,14 @@ async fn ai_chat(
                     tool: call.tool,
                     success: true,
                     details: "Added automation rule successfully".into(),
+                    payload: None,
                 }
             } else {
                 macmon_core::ai::ToolResult {
                     tool: call.tool,
                     success: false,
                     details: "Failed to parse rule arguments".into(),
+                    payload: None,
                 }
             }
         }
@@ -639,12 +661,14 @@ async fn ai_chat(
                     tool: call.tool,
                     success: true,
                     details: "Removed automation rule successfully".into(),
+                    payload: None,
                 }
             } else {
                 macmon_core::ai::ToolResult {
                     tool: call.tool,
                     success: false,
                     details: "Failed to parse rule id".into(),
+                    payload: None,
                 }
             }
         }
@@ -666,6 +690,13 @@ async fn ai_chat(
         reply,
         tool_call: tool_result,
     })
+}
+
+#[tauri::command]
+#[tracing::instrument(skip_all)]
+fn clear_ai_cache() -> Result<(), String> {
+    macmon_core::ai::clear_ai_cache();
+    Ok(())
 }
 
 fn show_main_window(app: &tauri::AppHandle) {
@@ -851,6 +882,7 @@ pub fn run() {
             analyze_processes,
             analyze_context,
             ai_chat,
+            clear_ai_cache,
             get_browser_tabs,
             close_browser_tab,
             focus_browser_tab,

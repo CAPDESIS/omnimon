@@ -51,6 +51,18 @@ fn test_settings_help() {
 }
 
 #[test]
+fn test_settings_help_mentions_presets() {
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cli");
+
+    cmd.arg("settings").arg("--help");
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("presets"))
+        .stdout(predicate::str::contains("use"));
+}
+
+#[test]
 fn test_network_help() {
     let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cli");
 

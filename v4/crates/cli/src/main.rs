@@ -5,12 +5,11 @@ use core::crypto;
 use core::killer;
 use core::metrics;
 use core::rules_engine;
+use core::settings::{self, ProfilePreset};
 use core::watcher;
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
-
-mod settings;
 
 #[derive(Parser)]
 #[command(name = "omnimon")]
@@ -162,10 +161,17 @@ enum SettingsCommands {
     Get,
     /// Set a specific setting
     Set {
-        /// Setting to change (theme, font-size, locale, idle-threshold)
+        /// Setting to change (theme, font-size, locale, idle-threshold, ai-profile, poll-interval-ms, automation-interval-secs, active-profile-preset)
         key: String,
         /// New value for the setting
         value: String,
+    },
+    /// List shared profile presets
+    Presets,
+    /// Apply a shared profile preset by ID
+    Use {
+        /// Preset ID to activate
+        id: String,
     },
 }
 
@@ -593,6 +599,24 @@ fn main() {
                     s.locale.as_deref().unwrap_or("auto")
                 );
                 println!("  idle-threshold: {}", s.idle_threshold.unwrap_or(1.0));
+                println!(
+                    "  ai-profile:     {}",
+                    s.ai_profile.as_deref().unwrap_or("general")
+                );
+                println!(
+                    "  poll-interval-ms: {}",
+                    s.poll_interval_ms
+                        .unwrap_or(settings::DEFAULT_POLL_INTERVAL_MS)
+                );
+                println!(
+                    "  automation-interval-secs: {}",
+                    s.automation_interval_secs
+                        .unwrap_or(settings::DEFAULT_AUTOMATION_INTERVAL_SECS)
+                );
+                println!(
+                    "  active-profile-preset: {}",
+                    s.active_profile_preset.as_deref().unwrap_or("general")
+                );
             }
             SettingsCommands::Set { key, value } => {
                 let mut s = settings::read_settings();
@@ -615,6 +639,38 @@ fn main() {
                             std::process::exit(1);
                         }
                     }
+                    "ai-profile" => {
+                        if matches!(
+                            value.as_str(),
+                            "general" | "developer" | "gaming" | "battery"
+                        ) {
+                            s.ai_profile = Some(value.clone());
+                        } else {
+                            eprintln!(
+                                "Error: ai-profile must be one of general|developer|gaming|battery"
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    "poll-interval-ms" => {
+                        if let Ok(interval) = value.parse::<u64>() {
+                            s.poll_interval_ms = Some(interval);
+                        } else {
+                            eprintln!("Error: poll-interval-ms must be a positive integer");
+                            std::process::exit(1);
+                        }
+                    }
+                    "automation-interval-secs" => {
+                        if let Ok(interval) = value.parse::<u64>() {
+                            s.automation_interval_secs = Some(interval);
+                        } else {
+                            eprintln!("Error: automation-interval-secs must be a positive integer");
+                            std::process::exit(1);
+                        }
+                    }
+                    "active-profile-preset" => {
+                        s.active_profile_preset = Some(value.clone());
+                    }
                     _ => {
                         eprintln!("Error: unknown setting '{}'", key);
                         std::process::exit(1);
@@ -622,6 +678,43 @@ fn main() {
                 }
                 match settings::write_settings(&s) {
                     Ok(_) => println!("Setting '{}' updated to '{}'", key, value),
+                    Err(e) => {
+                        eprintln!("Failed to save settings: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            SettingsCommands::Presets => {
+                let s = settings::read_settings();
+                println!("Shared profile presets:");
+                for preset in &s.profile_presets {
+                    print_preset(
+                        preset,
+                        s.active_profile_preset.as_deref() == Some(preset.id.as_str()),
+                    );
+                }
+            }
+            SettingsCommands::Use { id } => {
+                let mut s = settings::read_settings();
+                let Some(preset) = s
+                    .profile_presets
+                    .iter()
+                    .find(|preset| preset.id == *id)
+                    .cloned()
+                else {
+                    eprintln!("Error: preset '{}' not found", id);
+                    std::process::exit(1);
+                };
+                s.active_profile_preset = Some(preset.id.clone());
+                s.ai_profile = Some(preset.ai_profile.clone());
+                s.idle_threshold = Some(preset.idle_threshold);
+                s.poll_interval_ms = Some(preset.poll_interval_ms);
+                s.automation_interval_secs = Some(preset.automation_interval_secs);
+                match settings::write_settings(&s) {
+                    Ok(_) => {
+                        println!("Applied preset '{}':", preset.id);
+                        print_preset(&preset, true);
+                    }
                     Err(e) => {
                         eprintln!("Failed to save settings: {}", e);
                         std::process::exit(1);
@@ -1072,4 +1165,18 @@ fn main() {
             }
         },
     }
+}
+
+fn print_preset(preset: &ProfilePreset, active: bool) {
+    let marker = if active { "*" } else { "-" };
+    println!(
+        "  {} {} ({}) -> idle {:.1}, poll {}ms, automation {}s, ai {}",
+        marker,
+        preset.id,
+        preset.label,
+        preset.idle_threshold,
+        preset.poll_interval_ms,
+        preset.automation_interval_secs,
+        preset.ai_profile
+    );
 }
