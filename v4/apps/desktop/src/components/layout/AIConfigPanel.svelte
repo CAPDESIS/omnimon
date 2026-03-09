@@ -37,7 +37,7 @@
     align-items: center;
     gap: 6px;
     padding: 8px 12px;
-    background: var(--bg-alt, #121214);
+    background: var(--bg-secondary, #121214);
     cursor: pointer;
     user-select: none;
     min-height: calc(var(--base-font-size) * 1.8);
@@ -49,7 +49,7 @@
 
   .section-chevron {
     font-size: calc(var(--base-font-size) * 0.6);
-    color: var(--fg-dim, #888);
+    color: var(--text-secondary, #888);
     transition: transform 0.15s ease;
     display: inline-block;
   }
@@ -61,11 +61,11 @@
   .section-label {
     font-size: calc(var(--base-font-size) * 1.05);
     font-weight: 500;
-    color: var(--fg, #ededef);
+    color: var(--text-primary, #ededef);
   }
 
   .config-content {
     padding: 12px;
-    background: var(--bg, #0a0a0b);
+    background: var(--bg-primary, #0a0a0b);
   }
 </style>

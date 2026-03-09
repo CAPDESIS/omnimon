@@ -19,13 +19,15 @@
   import Button from "./components/Button.svelte";
   import ProfilePanel from "./components/ProfilePanel.svelte";
   import ConfirmDialog from "./components/ConfirmDialog.svelte";
-  import SkeletonBlock from "./components/SkeletonBlock.svelte";
+  import Skeleton from "./components/Skeleton.svelte";
   import AIChat from "./components/AIChat.svelte";
+  import ThemeSelector from "./components/ThemeSelector.svelte";
   import { totalFindings } from "./stores/security";
   import { initSecurityAlertListener } from "./stores/alerts";
   import type { ProcessEntry } from "./lib/types";
   import { AI_PROVIDERS, type AiProviderKind } from "./lib/types";
-  import { applyThemeTokens, detectPlatform, type ThemeId, type ThemeTokens } from "./lib/theme";
+  import { detectPlatform } from "./lib/theme";
+  import { applyTheme, getTheme } from "./lib/themes";
   import {
     processes,
     filtered,
@@ -338,7 +340,7 @@
 
   // Apply theme engine
   $effect(() => {
-    applyThemeTokens($theme as ThemeId);
+    applyTheme(getTheme($theme));
   });
 
   $effect(() => {
@@ -614,7 +616,7 @@
       onselectnone={selectNone}
       onkillselected={killSelected}
       ontogglegrouping={() => $grouping = !$grouping}
-      onchangepofile={(value) => $aiProfile = value}
+      onchangepofile={(value: string) => $aiProfile = value}
       onanalyze={() => analyzeWithAi($aiProviderConfig.provider, $aiProviderConfig.model)}
       onopensecurity={openSecurityReport}
       ontoggledashboard={() => dashboardCollapsed = !dashboardCollapsed}
@@ -652,18 +654,18 @@
           {#if $loading}
             <div class="loading-shell" role="status" aria-busy="true" aria-label={t("common.loadingAria")}>
               <div class="loading-toolbar-card">
-                <SkeletonBlock width="22%" height="14px" rounded="999px" />
-                <SkeletonBlock width="100%" height="42px" rounded="14px" />
+                <Skeleton width="22%" height="14px" borderRadius="999px" />
+                <Skeleton width="100%" height="42px" borderRadius="14px" />
               </div>
               <div class="loading-table-card">
                 <div class="loading-table-header">
-                  <SkeletonBlock width="14%" height="12px" rounded="999px" />
-                  <SkeletonBlock width="10%" height="12px" rounded="999px" />
-                  <SkeletonBlock width="12%" height="12px" rounded="999px" />
+                  <Skeleton width="14%" height="12px" borderRadius="999px" />
+                  <Skeleton width="10%" height="12px" borderRadius="999px" />
+                  <Skeleton width="12%" height="12px" borderRadius="999px" />
                 </div>
                 <div class="loading-table-body">
                   {#each Array(12) as _, i}
-                    <SkeletonBlock width="100%" height="24px" rounded="4px" />
+                    <Skeleton width="100%" height="24px" borderRadius="4px" />
                   {/each}
                 </div>
               </div>
@@ -677,7 +679,7 @@
       {#if activeTab === "network"}
         <div class="tab-pane" bind:this={networkMapHost}>
           {#if basicModeNetworkHint}
-            <div class="mode-hint-card" role="note" style="border: 1px solid var(--border); border-radius: 16px; background: color-mix(in srgb, var(--bg-surface, var(--bg-alt)) 92%, white 2%); padding: 14px 16px; margin: 12px 16px; display: flex; flex-direction: column; gap: 6px;">
+            <div class="mode-hint-card" role="note" style="border: 1px solid var(--border); border-radius: 16px; background: color-mix(in srgb, var(--bg-card, var(--bg-secondary)) 92%, white 2%); padding: 14px 16px; margin: 12px 16px; display: flex; flex-direction: column; gap: 6px;">
               <span class="mode-hint-label" style="color: var(--accent); text-transform: uppercase; font-size: calc(var(--base-font-size) * 0.75); font-weight: 800; letter-spacing: 0.5px;">{t("common.userView")}</span>
               <span style="font-size: calc(var(--base-font-size) * 0.95); line-height: 1.4;">{t("profiles.proHint")}</span>
             </div>
@@ -687,12 +689,12 @@
               <NetworkMapModule.default filter={searchValue} />
             {:catch}
               <div class="lazy-panel-fallback">
-                <SkeletonBlock width="100%" height="100%" rounded="12px" />
+                <Skeleton width="100%" height="100%" borderRadius="12px" />
               </div>
             {/await}
           {:else}
             <div class="lazy-panel-fallback">
-              <SkeletonBlock width="100%" height="100%" rounded="12px" />
+              <Skeleton width="100%" height="100%" borderRadius="12px" />
             </div>
           {/if}
         </div>
@@ -705,12 +707,12 @@
               <ChromeTabManagerModule.default filter={searchValue} />
             {:catch}
               <div class="lazy-panel-fallback">
-                <SkeletonBlock width="100%" height="100%" rounded="12px" />
+                <Skeleton width="100%" height="100%" borderRadius="12px" />
               </div>
             {/await}
           {:else}
             <div class="lazy-panel-fallback">
-              <SkeletonBlock width="100%" height="100%" rounded="12px" />
+              <Skeleton width="100%" height="100%" borderRadius="12px" />
             </div>
           {/if}
         </div>
@@ -729,7 +731,7 @@
       {#if activeTab === "settings"}
         <div class="tab-pane settings-pane">
           <!-- We can move the settings content here or just let the modal show -->
-          <div style="padding: 24px; color: var(--fg-dim);">
+          <div style="padding: 24px; color: var(--text-secondary);">
             {t("settings.title")} 
             <br/><br/>
             <Button onclick={() => showSettings = true}>Open Settings Modal</Button>
@@ -865,77 +867,8 @@
         </div>
         <div class="settings-row">
           <label class="settings-label" for="theme-select">{t("settings.theme")}</label>
-          <select
-            id="theme-select"
-            class="settings-select"
-            value={$theme}
-            onchange={(e: Event) => { $theme = (e.target as HTMLSelectElement).value as ThemeMode; }}
-          >
-            <option value="auto">{t("settings.themeAuto")}</option>
-            <option value="light">{t("settings.themeLight")}</option>
-            <option value="dark">{t("settings.themeDark")}</option>
-            <option value="cyberpunk">Cyberpunk</option>
-            <option value="custom">Custom</option>
-          </select>
+          <ThemeSelector />
         </div>
-        {#if $theme === "custom"}
-          <div class="custom-theme-editor">
-            <div class="settings-row">
-              <label class="settings-label" for="custom-base">Base</label>
-              <select
-                id="custom-base"
-                class="settings-select"
-                value={$customTheme?.base ?? "dark"}
-                onchange={(e: Event) => {
-                  const base = (e.target as HTMLSelectElement).value as "dark" | "light" | "cyberpunk";
-                  customTheme.update((ct) => ({ name: ct?.name ?? "My Theme", base, overrides: ct?.overrides ?? {} }));
-                }}
-              >
-                <option value="dark">Dark</option>
-                <option value="light">Light</option>
-                <option value="cyberpunk">Cyberpunk</option>
-              </select>
-            </div>
-            {#each [
-              { key: "--accent" as keyof ThemeTokens, label: "Accent" },
-              { key: "--bg" as keyof ThemeTokens, label: "Background" },
-              { key: "--fg" as keyof ThemeTokens, label: "Text" },
-              { key: "--danger" as keyof ThemeTokens, label: "Danger" },
-              { key: "--green" as keyof ThemeTokens, label: "Success" },
-              { key: "--yellow" as keyof ThemeTokens, label: "Warning" },
-            ] as colorOpt (colorOpt.key)}
-              <div class="settings-row color-row">
-                <label class="settings-label" for={`color-${colorOpt.key}`}>{colorOpt.label}</label>
-                <input
-                  id={`color-${colorOpt.key}`}
-                  type="color"
-                  class="color-picker"
-                  value={$customTheme?.overrides?.[colorOpt.key] ?? ""}
-                  oninput={(e: Event) => {
-                    const val = (e.target as HTMLInputElement).value;
-                    customTheme.update((ct) => ({
-                      name: ct?.name ?? "My Theme",
-                      base: ct?.base ?? "dark",
-                      overrides: { ...ct?.overrides, [colorOpt.key]: val },
-                    }));
-                  }}
-                />
-                {#if $customTheme?.overrides?.[colorOpt.key]}
-                  <button
-                    class="btn btn-sm"
-                    onclick={() => {
-                      customTheme.update((ct) => {
-                        if (!ct) return ct;
-                        const { [colorOpt.key]: _, ...rest } = ct.overrides;
-                        return { ...ct, overrides: rest };
-                      });
-                    }}
-                  >Reset</button>
-                {/if}
-              </div>
-            {/each}
-          </div>
-        {/if}
         <div class="settings-row">
           <label class="settings-label" for="locale-select">{t("settings.language")}</label>
           <select
@@ -1067,8 +1000,8 @@
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
       Roboto, "Helvetica Neue", sans-serif;
     font-size: var(--base-font-size, 12px);
-    background: var(--bg, #0a0a0b);
-    color: var(--fg, #ededef);
+    background: var(--bg-primary, #0a0a0b);
+    color: var(--text-primary, #ededef);
     overflow: hidden;
     height: 100vh;
     -webkit-font-smoothing: antialiased;
@@ -1080,7 +1013,7 @@
     flex-direction: column;
     flex: 1;
     overflow: hidden;
-    background: var(--bg, #0a0a0b);
+    background: var(--bg-primary, #0a0a0b);
   }
 
   .tab-pane {
@@ -1108,7 +1041,7 @@
   }
 
   .settings-modal {
-    background: var(--bg);
+    background: var(--bg-primary);
     border: 1px solid var(--border);
     border-radius: 12px;
     width: 600px;
@@ -1126,7 +1059,7 @@
     align-items: center;
     padding: 16px 20px;
     border-bottom: 1px solid var(--border);
-    background: var(--bg-alt);
+    background: var(--bg-secondary);
   }
 
   .settings-title {
@@ -1156,9 +1089,9 @@
 
   .settings-input {
     flex: 1;
-    background: var(--bg-alt);
+    background: var(--bg-secondary);
     border: 1px solid var(--border);
-    color: var(--fg);
+    color: var(--text-primary);
     padding: 8px 12px;
     border-radius: 6px;
     font-size: var(--base-font-size);
@@ -1166,7 +1099,7 @@
 
   .settings-hint {
     font-size: calc(var(--base-font-size) * 0.85);
-    color: var(--fg-dim);
+    color: var(--text-secondary);
     margin-top: 4px;
     margin-left: 152px;
   }
@@ -1177,7 +1110,7 @@
     gap: 10px;
     padding: 16px 20px;
     border-top: 1px solid var(--border);
-    background: var(--bg-alt);
+    background: var(--bg-secondary);
   }
 
   .lazy-panel-fallback {
@@ -1202,7 +1135,7 @@
   .loading-table-card {
     border: 1px solid var(--border);
     border-radius: 16px;
-    background: var(--bg-alt);
+    background: var(--bg-secondary);
     padding: 16px;
   }
 

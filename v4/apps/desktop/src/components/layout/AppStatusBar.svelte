@@ -41,17 +41,17 @@
     justify-content: space-between;
     align-items: center;
     padding: 2px 10px;
-    background: var(--bg-alt, #121214);
+    background: var(--bg-secondary, #121214);
     border-top: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
     font-size: calc(var(--base-font-size) * 0.833);
-    color: var(--fg-dim, #888);
+    color: var(--text-secondary, #888);
     height: calc(var(--base-font-size) * 1.5);
     flex-shrink: 0;
   }
 
   .version-label {
     font-weight: 600;
-    color: var(--fg, #ededef);
+    color: var(--text-primary, #ededef);
   }
 
   .shortcuts kbd {

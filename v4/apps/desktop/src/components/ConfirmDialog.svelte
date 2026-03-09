@@ -2,6 +2,8 @@
   import { confirmDialogState, resolveConfirmDialog } from "../lib/confirm";
   import { t } from "../lib/i18n";
   import Button from "./Button.svelte";
+  import { fade, scale } from "svelte/transition";
+  import { fadeConfig, scaleConfig } from "../lib/transitions";
 
   let dialogEl = $state<HTMLDivElement | undefined>();
 
@@ -35,8 +37,8 @@
 {#if $confirmDialogState.open}
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <!-- svelte-ignore a11y_interactive_supports_focus -->
-  <div class="confirm-backdrop" onmousedown={handleBackdropClick} role="alertdialog" aria-modal="true" aria-labelledby="confirm-msg">
-    <div class="confirm-dialog" bind:this={dialogEl}>
+  <div class="confirm-backdrop" transition:fade={fadeConfig} onmousedown={handleBackdropClick} role="alertdialog" aria-modal="true" aria-labelledby="confirm-msg">
+    <div class="confirm-dialog" transition:scale={scaleConfig} bind:this={dialogEl}>
       <p class="confirm-message" id="confirm-msg">{$confirmDialogState.message}</p>
       <div class="confirm-actions">
         <Button variant="secondary" size="sm" onclick={() => resolveConfirmDialog(false)}>

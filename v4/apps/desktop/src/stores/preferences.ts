@@ -54,7 +54,7 @@ const MIN_IDLE_THRESHOLD = 0.1;
 const MAX_IDLE_THRESHOLD = 10.0;
 const DEFAULT_IDLE_THRESHOLD = 1.0;
 
-const DEFAULT_THEME: ThemeMode = "auto";
+const DEFAULT_THEME: ThemeMode = "dark";
 const DEFAULT_USER_MODE: UserMode = "pro";
 
 const DEFAULT_LOCALE: LocaleCode = "auto";

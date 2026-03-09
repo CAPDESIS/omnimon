@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { fade, fly } from "svelte/transition";
-  import SkeletonBlock from "./SkeletonBlock.svelte";
+  import { fade, fly, scale } from "svelte/transition";
+  import { fadeConfig, scaleConfig } from "../lib/transitions";
+  import Skeleton from "./Skeleton.svelte";
   import type { ProcessEntry, BrowserTab } from "../lib/types";
   import { ipcCloseBrowserTab, ipcFocusBrowserTab } from "../lib/ipc";
   import { browserTabs } from "../stores/processes";
@@ -201,6 +202,7 @@
   onclick={closeWhenBackdropMatches}
   onkeydown={handleBackdropKeydown}
   role="presentation"
+  transition:fade={fadeConfig}
 >
   <div
     class="modal"
@@ -210,6 +212,7 @@
     aria-modal="true"
     aria-labelledby="modal-title"
     tabindex="-1"
+    transition:scale={scaleConfig}
   >
     <div class="header">
       <h2 class="title" id="modal-title">{process.name}</h2>
@@ -348,10 +351,10 @@
         {/if}
         {#if aiAnalyzing}
           <div class="ai-skeleton" role="status" aria-label={t("processView.analyzingAria")}>
-            <SkeletonBlock width="38%" height="12px" rounded="999px" />
-            <SkeletonBlock width="100%" height="12px" rounded="999px" />
-            <SkeletonBlock width="92%" height="12px" rounded="999px" />
-            <SkeletonBlock width="72%" height="12px" rounded="999px" />
+            <Skeleton width="38%" height="12px" borderRadius="999px" />
+            <Skeleton width="100%" height="12px" borderRadius="999px" />
+            <Skeleton width="92%" height="12px" borderRadius="999px" />
+            <Skeleton width="72%" height="12px" borderRadius="999px" />
           </div>
         {:else if aiResponse}
           <div class="ai-response">{aiResponse}</div>

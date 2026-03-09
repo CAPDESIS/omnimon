@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import EmptyState from "./EmptyState.svelte";
   
   interface AutomationRule {
     id: string;
@@ -71,12 +72,16 @@
   </div>
 
   <div class="rules-list">
-    {#each rules as rule}
-      <div class="rule-item">
-        <span>{rule.process_pattern} > {rule.threshold} {rule.metric} for {rule.duration_secs}s -> {rule.action}</span>
-        <button onclick={() => removeRule(rule.id)}>Delete</button>
-      </div>
-    {/each}
+    {#if rules.length === 0}
+      <EmptyState icon="⚙️" title="No Automations" description="Create a rule above to automate actions." />
+    {:else}
+      {#each rules as rule}
+        <div class="rule-item">
+          <span>{rule.process_pattern} > {rule.threshold} {rule.metric} for {rule.duration_secs}s -> {rule.action}</span>
+          <button onclick={() => removeRule(rule.id)}>Delete</button>
+        </div>
+      {/each}
+    {/if}
   </div>
 </div>
 

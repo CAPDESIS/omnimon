@@ -8,6 +8,7 @@
   import { t } from "../lib/i18n";
   import { detectBrowser } from "../lib/browser";
   import SecurityBadge from "./SecurityBadge.svelte";
+  import EmptyState from "./EmptyState.svelte";
   import { iconForProcess, isNativeIconDataUrl, getProcessIcon } from "../lib/processIcons";
   import {
     PROCESS_TABLE_ROW_BUFFER,
@@ -300,21 +301,21 @@
 
   function ramColor(mb: number): string {
     if (mb >= RAM_THRESHOLD_DANGER) return "var(--danger)";
-    if (mb >= RAM_THRESHOLD_WARNING) return "var(--yellow)";
-    return "var(--fg)";
+    if (mb >= RAM_THRESHOLD_WARNING) return "var(--warning)";
+    return "var(--text-primary)";
   }
 
   function cpuColor(pct: number): string {
     if (pct >= CPU_THRESHOLD_DANGER) return "var(--danger)";
-    if (pct >= CPU_THRESHOLD_WARNING) return "var(--yellow)";
-    return "var(--fg)";
+    if (pct >= CPU_THRESHOLD_WARNING) return "var(--warning)";
+    return "var(--text-primary)";
   }
 
   function energyColor(score: number | null): string {
     const value = score ?? 0;
     if (value >= ENERGY_THRESHOLD_DANGER) return "var(--danger)";
-    if (value >= ENERGY_THRESHOLD_WARNING) return "var(--yellow)";
-    return "var(--fg)";
+    if (value >= ENERGY_THRESHOLD_WARNING) return "var(--warning)";
+    return "var(--text-primary)";
   }
 
   function formatNetworkRate(bytesPerSec: number): string {
@@ -466,9 +467,16 @@
 {/snippet}
 
 <div class="table-wrap" bind:this={wrapEl} onscroll={onScroll}>
-  <table aria-label={t("table.processList")}>
-    <thead>
-      <tr>
+  {#if processes.length === 0}
+    <EmptyState 
+      icon="🔍" 
+      title={t("table.emptyTitle")} 
+      description={t("table.emptyDesc")} 
+    />
+  {:else}
+    <table aria-label={t("table.processList")}>
+      <thead>
+        <tr>
         <th class="col-check" scope="col"><span class="sr-only">{t("table.select")}</span></th>
         {#each orderedVisibleCols as key (key)}
           {#if key === "name"}
@@ -532,6 +540,7 @@
       {/if}
     </tbody>
   </table>
+  {/if}
 </div>
 
 <style>
@@ -558,9 +567,9 @@
     height: calc(var(--base-font-size) * 1.667);
     padding: 0 6px;
     text-align: left;
-    background: var(--bg-alt);
+    background: var(--bg-secondary);
     border-bottom: 1px solid var(--border);
-    color: var(--fg-dim);
+    color: var(--text-secondary);
     font-weight: 600;
     font-size: calc(var(--base-font-size) * 0.833);
     text-transform: uppercase;
@@ -592,7 +601,7 @@
 
   .sort-button:hover,
   .sort-button:focus-visible {
-    color: var(--fg);
+    color: var(--text-primary);
   }
 
   td {
@@ -630,7 +639,7 @@
   }
 
   .group-header {
-    background: var(--bg-alt);
+    background: var(--bg-secondary);
   }
   .group-header:hover {
     background: var(--bg-hover);
@@ -646,7 +655,7 @@
     background: transparent;
     font-weight: 600;
     font-size: calc(var(--base-font-size) * 0.917);
-    color: var(--fg);
+    color: var(--text-primary);
     padding: 0 6px;
     display: flex;
     align-items: center;
@@ -661,7 +670,7 @@
 
   .chevron {
     font-size: calc(var(--base-font-size) * 0.667);
-    color: var(--fg-dim);
+    color: var(--text-secondary);
     transition: transform 0.15s ease;
     display: inline-block;
   }
@@ -678,7 +687,7 @@
   }
 
   .group-meta {
-    color: var(--fg-dim);
+    color: var(--text-secondary);
     font-weight: 400;
     font-size: calc(var(--base-font-size) * 0.833);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
@@ -706,13 +715,13 @@
   .col-detail {
     width: 24%;
     min-width: 140px;
-    color: var(--fg-dim);
+    color: var(--text-secondary);
     font-size: calc(var(--base-font-size) * 0.833);
   }
   .col-group {
     width: 12%;
     min-width: 80px;
-    color: var(--fg-dim);
+    color: var(--text-secondary);
     font-size: calc(var(--base-font-size) * 0.833);
   }
   .col-ram {
@@ -726,7 +735,7 @@
   .col-uptime {
     width: 72px;
     text-align: right;
-    color: var(--fg-dim);
+    color: var(--text-secondary);
   }
   .col-pid {
     width: 72px;
@@ -735,7 +744,7 @@
   .col-state {
     width: 24px;
     text-align: center;
-    color: var(--fg-dim);
+    color: var(--text-secondary);
   }
 
   .detail-text,
@@ -753,7 +762,7 @@
   th[draggable="true"]::after {
     content: "⋮⋮";
     margin-left: 6px;
-    color: var(--fg-dim);
+    color: var(--text-secondary);
     font-size: 10px;
     letter-spacing: -1px;
   }
@@ -767,7 +776,7 @@
 
   .proc-icon {
     flex-shrink: 0;
-    color: var(--fg-dim);
+    color: var(--text-secondary);
     vertical-align: middle;
     margin-right: 3px;
   }
@@ -806,7 +815,7 @@
   }
   .badge.idle {
     background: rgba(255, 193, 7, 0.15);
-    color: var(--yellow);
+    color: var(--warning);
   }
 
   .badge.grouped {

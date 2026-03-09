@@ -44,8 +44,8 @@
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
-    background: var(--bg, #0a0a0b);
-    color: var(--fg, #ededef);
+    background: var(--bg-primary, #0a0a0b);
+    color: var(--text-primary, #ededef);
   }
   
   .layout-body {
@@ -60,7 +60,7 @@
     flex-shrink: 0;
     border-right: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
     overflow-y: auto;
-    background: var(--bg-alt, #121214);
+    background: var(--bg-secondary, #121214);
     display: flex;
     flex-direction: column;
   }
@@ -71,6 +71,6 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    background: var(--bg, #0a0a0b);
+    background: var(--bg-primary, #0a0a0b);
   }
 </style>

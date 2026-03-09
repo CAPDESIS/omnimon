@@ -17,6 +17,7 @@
   import type { ToolResult } from "../lib/types";
   import InfoPopover from "./InfoPopover.svelte";
   import Button from "./Button.svelte";
+  import EmptyState from "./EmptyState.svelte";
   import { AI_CHAT_TIMEOUT_MS } from "../lib/constants";
 
   interface ChatMessageWithTool extends ChatMessage {
@@ -477,21 +478,26 @@
     {/if}
   {:else}
     <div class="chat-empty">
-      <p>{t("aiChat.emptyState")}</p>
-      <div class="suggestions">
-        <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion1"); handleSubmit(); }}>
-          {t("aiChat.suggestion1")}
-        </Button>
-        <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion2"); handleSubmit(); }}>
-          {t("aiChat.suggestion2")}
-        </Button>
-        <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion3"); handleSubmit(); }}>
-          {t("aiChat.suggestion3")}
-        </Button>
-        <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion4"); handleSubmit(); }}>
-          {t("aiChat.suggestion4")}
-        </Button>
-      </div>
+      <EmptyState
+        icon="sparkles"
+        title={t("aiChat.title")}
+        description={t("aiChat.emptyState")}
+      >
+        <div class="suggestions">
+          <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion1"); handleSubmit(); }}>
+            {t("aiChat.suggestion1")}
+          </Button>
+          <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion2"); handleSubmit(); }}>
+            {t("aiChat.suggestion2")}
+          </Button>
+          <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion3"); handleSubmit(); }}>
+            {t("aiChat.suggestion3")}
+          </Button>
+          <Button variant="secondary" size="sm" onclick={() => { input = t("aiChat.suggestion4"); handleSubmit(); }}>
+            {t("aiChat.suggestion4")}
+          </Button>
+        </div>
+      </EmptyState>
     </div>
   {/if}
 
@@ -527,7 +533,7 @@
     flex-direction: column;
     border: 1px solid var(--border);
     border-radius: var(--radius, 6px);
-    background: var(--bg-alt);
+    background: var(--bg-secondary);
     overflow: hidden;
     position: relative;
   }
@@ -538,13 +544,13 @@
     gap: 8px;
     padding: 8px 12px;
     border-bottom: 1px solid var(--border);
-    background: var(--bg);
+    background: var(--bg-primary);
   }
 
   .chat-title {
     font-weight: 700;
     font-size: calc(var(--base-font-size, 12px) * 0.917);
-    color: var(--fg);
+    color: var(--text-primary);
   }
 
   .chat-provider {
@@ -591,12 +597,12 @@
   }
 
   .chat-user .chat-role { color: var(--accent); }
-  .chat-assistant .chat-role { color: var(--green); }
-  .chat-system .chat-role { color: var(--yellow); }
+  .chat-assistant .chat-role { color: var(--success); }
+  .chat-system .chat-role { color: var(--warning); }
   .chat-tool .chat-role { color: var(--cyan, #06b6d4); }
 
   .chat-text {
-    color: var(--fg);
+    color: var(--text-primary);
     word-break: break-word;
     flex: 1;
     line-height: 1.6;
@@ -609,8 +615,8 @@
   /* Markdown rendered content */
   .chat-text :global(p) { margin: 0 0 4px; }
   .chat-text :global(p:last-child) { margin-bottom: 0; }
-  .chat-text :global(strong) { color: var(--fg); font-weight: 700; }
-  .chat-text :global(em) { font-style: italic; color: var(--fg-dim); }
+  .chat-text :global(strong) { color: var(--text-primary); font-weight: 700; }
+  .chat-text :global(em) { font-style: italic; color: var(--text-secondary); }
   .chat-text :global(ul) {
     margin: 4px 0;
     padding-left: 18px;
@@ -648,7 +654,7 @@
   }
 
   .typing {
-    color: var(--fg-dim);
+    color: var(--text-secondary);
     font-style: italic;
   }
 
@@ -675,13 +681,13 @@
     letter-spacing: 0.3px;
     vertical-align: middle;
   }
-  .tool-badge.success { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+  .tool-badge.success { background: rgba(34, 197, 94, 0.15); color: var(--success); }
   .tool-badge.fail { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
 
   .action-preview {
     margin: 8px 0;
     padding: 10px 12px;
-    border: 1px solid var(--yellow, #eab308);
+    border: 1px solid var(--warning, #eab308);
     border-radius: var(--radius, 6px);
     background: rgba(234, 179, 8, 0.08);
   }
@@ -692,7 +698,7 @@
     gap: 6px;
     font-size: calc(var(--base-font-size, 12px) * 0.917);
     margin-bottom: 6px;
-    color: var(--yellow, #eab308);
+    color: var(--warning, #eab308);
   }
 
   .action-icon {
@@ -701,7 +707,7 @@
 
   .action-details {
     font-size: calc(var(--base-font-size, 12px) * 0.833);
-    color: var(--fg);
+    color: var(--text-primary);
     margin-bottom: 8px;
     white-space: pre-wrap;
     line-height: 1.5;
@@ -737,13 +743,10 @@
   .chat-empty {
     padding: 20px 12px;
     text-align: center;
-    color: var(--fg-dim);
+    color: var(--text-secondary);
     font-size: calc(var(--base-font-size, 12px) * 0.917);
   }
 
-  .chat-empty p {
-    margin: 0 0 12px;
-  }
 
   .suggestions {
     display: flex;
@@ -757,7 +760,7 @@
     gap: 4px;
     padding: 8px 12px;
     border-top: 1px solid var(--border);
-    background: var(--bg);
+    background: var(--bg-primary);
   }
 
   .chat-input {
@@ -766,8 +769,8 @@
     max-height: 180px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm, 4px);
-    background: var(--bg-alt);
-    color: var(--fg);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
     padding: 6px 10px;
     font-size: calc(var(--base-font-size, 12px) * 0.917);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
@@ -786,9 +789,9 @@
     width: 30px;
     height: 30px;
     border-radius: 50%;
-    background: var(--bg-alt);
+    background: var(--bg-secondary);
     border: 1px solid var(--border);
-    color: var(--fg);
+    color: var(--text-primary);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -797,10 +800,10 @@
     z-index: 10;
   }
   .scroll-to-bottom:hover {
-    background: var(--bg);
+    background: var(--bg-primary);
   }
 
-  .chat-input::placeholder { color: var(--fg-dim); opacity: 0.6; }
+  .chat-input::placeholder { color: var(--text-secondary); opacity: 0.6; }
   .chat-input:disabled { opacity: 0.5; }
 
   .send-btn {
