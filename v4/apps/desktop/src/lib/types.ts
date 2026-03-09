@@ -257,11 +257,21 @@ export interface ToolResult {
   tool: string;
   success: boolean;
   details: string;
+  payload?: Record<string, unknown> | null;
 }
 
 export interface ChatResponse {
   reply: string;
   tool_call: ToolResult | null;
+}
+
+export interface ProfilePreset {
+  id: string;
+  label: string;
+  idleThreshold: number;
+  pollIntervalMs: number;
+  automationIntervalSecs: number;
+  aiProfile: "general" | "developer" | "gaming" | "battery";
 }
 
 export type AiProviderKind = "openrouter" | "openai" | "gemini" | "anthropic" | "ollama";

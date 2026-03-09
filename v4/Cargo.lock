@@ -829,6 +829,7 @@ dependencies = [
  "aya",
  "base64 0.22.1",
  "criterion",
+ "dirs 6.0.0",
  "ed25519-dalek",
  "hex",
  "hkdf",
@@ -837,6 +838,7 @@ dependencies = [
  "mockito",
  "pcap",
  "rand 0.8.5",
+ "regex",
  "reqwest 0.12.28",
  "semver",
  "serde",
@@ -844,6 +846,7 @@ dependencies = [
  "sha2",
  "sysinfo",
  "tokio",
+ "unicode-normalization",
  "windows 0.52.0",
  "zeroize",
 ]
@@ -5823,6 +5826,15 @@ name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+
+[[package]]
+name = "unicode-normalization"
+version = "0.1.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fd4f6878c9cb28d874b009da9e8d183b5abc80117c40bbd187a1fde336be6e8"
+dependencies = [
+ "tinyvec",
+]
 
 [[package]]
 name = "unicode-segmentation"

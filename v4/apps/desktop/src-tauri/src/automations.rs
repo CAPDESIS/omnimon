@@ -6,6 +6,8 @@ use tauri::AppHandle;
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_store::StoreExt;
 
+const DEFAULT_AUTOMATION_INTERVAL_SECS: u64 = 5;
+
 // --- Constants ---
 
 /// Metric name for RAM usage (in MB).
@@ -138,7 +140,10 @@ pub fn start_engine(app: AppHandle) {
     std::thread::spawn(move || {
         let mut violations: HashMap<(String, u32), Instant> = HashMap::new();
         loop {
-            std::thread::sleep(Duration::from_secs(5));
+            let interval_secs = macmon_core::settings::read_settings()
+                .automation_interval_secs
+                .unwrap_or(DEFAULT_AUTOMATION_INTERVAL_SECS);
+            std::thread::sleep(Duration::from_secs(interval_secs));
             let rules = read_lock_or_recover(&get_rules()).clone();
             if rules.is_empty() {
                 continue;

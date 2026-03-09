@@ -5,6 +5,11 @@ import {
   columnOrder,
   aiProviderConfig,
   idleThreshold,
+  pollIntervalMs,
+  automationIntervalSecs,
+  aiCacheTtlMinutes,
+  activeProfilePreset,
+  profilePresets,
   theme,
   userMode,
   tabPanelHeight,
@@ -19,6 +24,10 @@ import {
   DEFAULT_COLUMNS,
   DEFAULT_AI_CONFIG,
   DEFAULT_IDLE_THRESHOLD,
+  DEFAULT_POLL_INTERVAL_MS,
+  DEFAULT_AUTOMATION_INTERVAL_SECS,
+  DEFAULT_AI_CACHE_TTL_MINUTES,
+  DEFAULT_PROFILE_PRESETS,
   DEFAULT_USER_MODE,
   DEFAULT_LOCALE,
   MIN_IDLE_THRESHOLD,
@@ -52,6 +61,11 @@ beforeEach(() => {
   aiProviderConfig.set({ ...DEFAULT_AI_CONFIG });
   columnOrder.set(["name", "detail", "group", "ram", "cpu", "energy", "network", "uptime", "pid", "state"]);
   idleThreshold.set(DEFAULT_IDLE_THRESHOLD);
+  pollIntervalMs.set(DEFAULT_POLL_INTERVAL_MS);
+  automationIntervalSecs.set(DEFAULT_AUTOMATION_INTERVAL_SECS);
+  aiCacheTtlMinutes.set(DEFAULT_AI_CACHE_TTL_MINUTES);
+  activeProfilePreset.set("general");
+  profilePresets.set([...DEFAULT_PROFILE_PRESETS]);
   theme.set("auto");
   tabPanelHeight.set(160);
   localePreference.set(DEFAULT_LOCALE);
@@ -148,15 +162,24 @@ describe("loadPreferences", () => {
   it("loads idle threshold, theme, and tab panel height when valid", async () => {
     mockStore.get.mockImplementation((key: string) => {
       if (key === "idleThreshold") return 2.5;
+      if (key === "pollIntervalMs") return 1500;
+      if (key === "automationIntervalSecs") return 10;
+      if (key === "activeProfilePreset") return "developer";
+      if (key === "profilePresets") return DEFAULT_PROFILE_PRESETS;
       if (key === "theme") return "dark";
       if (key === "userMode") return "basic";
       if (key === "tabPanelHeight") return 240;
+      if (key === "aiCacheTtlMinutes") return 15;
       return undefined;
     });
 
     await loadPreferences();
 
     expect(get(idleThreshold)).toBe(2.5);
+    expect(get(pollIntervalMs)).toBe(1500);
+    expect(get(automationIntervalSecs)).toBe(10);
+    expect(get(activeProfilePreset)).toBe("developer");
+    expect(get(aiCacheTtlMinutes)).toBe(15);
     expect(get(theme)).toBe("dark");
     expect(get(userMode)).toBe("basic");
     expect(get(tabPanelHeight)).toBe(240);
@@ -196,6 +219,10 @@ describe("savePreferences", () => {
     fontSize.set(14);
     columns.set({ ...DEFAULT_COLUMNS, group: false });
     aiProviderConfig.set({ provider: "anthropic", model: "claude-sonnet-4-20250514" });
+    pollIntervalMs.set(1200);
+    automationIntervalSecs.set(9);
+    aiCacheTtlMinutes.set(12);
+    activeProfilePreset.set("developer");
     userMode.set("basic");
 
     await savePreferences();
@@ -206,6 +233,10 @@ describe("savePreferences", () => {
       "aiProviderConfig",
       expect.objectContaining({ provider: "anthropic" }),
     );
+    expect(mockStore.set).toHaveBeenCalledWith("pollIntervalMs", 1200);
+    expect(mockStore.set).toHaveBeenCalledWith("automationIntervalSecs", 9);
+    expect(mockStore.set).toHaveBeenCalledWith("aiCacheTtlMinutes", 12);
+    expect(mockStore.set).toHaveBeenCalledWith("activeProfilePreset", "developer");
     expect(mockStore.set).toHaveBeenCalledWith("userMode", "basic");
     expect(mockStore.save).toHaveBeenCalled();
   });

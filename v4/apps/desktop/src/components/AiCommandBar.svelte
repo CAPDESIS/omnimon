@@ -11,11 +11,16 @@
     type ConfigPatch,
   } from "../lib/aiConfigBridge";
   import type { AlertRule } from "../lib/aiConfigBridge";
-  import type { AiRuleV1 } from "../lib/types";
+  import type { AiRuleV1, ProfilePreset } from "../lib/types";
   import { ipcAnalyzeContext, ipcApplyAiRules } from "../lib/ipc";
   import {
     aiProviderConfig,
     idleThreshold,
+    pollIntervalMs,
+    automationIntervalSecs,
+    activeProfilePreset,
+    setProfilePresets,
+    applyProfilePresetById,
     fontSize,
     theme,
     localePreference,
@@ -31,6 +36,7 @@
   import type { ChatMessage } from "../lib/chatUtils";
   import type { ThemeId } from "../lib/theme";
   import type { LocaleCode } from "../lib/i18n";
+  import { AI_PRESETS, AI_PRESET_CATEGORY_LABELS } from "../lib/aiPresets";
   import Button from "./Button.svelte";
   import InfoPopover from "./InfoPopover.svelte";
 
@@ -38,9 +44,17 @@
   let loading = $state(false);
   let error = $state<string | null>(null);
   let inputRef: HTMLTextAreaElement | undefined = $state();
+  let activePresetCategory = $state<(typeof AI_PRESETS)[number]["category"] | null>(null);
 
   let messages = $state<ChatMessage[]>([]);
   let chatContainer: HTMLDivElement | undefined = $state();
+  const presetGroups = Object.entries(
+    AI_PRESETS.reduce((acc, preset) => {
+      (acc[preset.category] ??= []).push(preset);
+      return acc;
+    }, {} as Record<(typeof AI_PRESETS)[number]["category"], typeof AI_PRESETS[number][]>),
+  ) as Array<[(typeof AI_PRESETS)[number]["category"], typeof AI_PRESETS[number][]]>;
+  const showPresets = $derived(messages.length === 0 || input.trim().length === 0);
 
   // --- Preview state (human-in-the-loop) ---
   interface PendingChange {
@@ -57,9 +71,18 @@
     scrollContainerToBottom(chatContainer);
   }
 
+  $effect(() => {
+    if (activePresetCategory === null && presetGroups.length > 0) {
+      activePresetCategory = presetGroups[0][0];
+    }
+  });
+
   function getCurrentConfig(): Record<string, unknown> {
     return {
       idleThreshold: get(idleThreshold),
+      pollIntervalMs: get(pollIntervalMs),
+      automationIntervalSecs: get(automationIntervalSecs),
+      activeProfilePreset: get(activeProfilePreset),
       fontSize: get(fontSize),
       theme: get(theme),
       locale: get(localePreference),
@@ -84,6 +107,18 @@
     }
     if ("aiProfile" in patch && typeof patch.aiProfile === "string") {
       aiProfile.set(patch.aiProfile);
+    }
+    if ("pollIntervalMs" in patch && typeof patch.pollIntervalMs === "number") {
+      pollIntervalMs.set(patch.pollIntervalMs);
+    }
+    if ("automationIntervalSecs" in patch && typeof patch.automationIntervalSecs === "number") {
+      automationIntervalSecs.set(patch.automationIntervalSecs);
+    }
+    if ("activeProfilePreset" in patch && typeof patch.activeProfilePreset === "string") {
+      applyProfilePresetById(patch.activeProfilePreset);
+    }
+    if ("profilePresets" in patch && Array.isArray(patch.profilePresets)) {
+      setProfilePresets(patch.profilePresets as ProfilePreset[]);
     }
   }
 
@@ -135,6 +170,11 @@
     messages = [...messages, { role: "system", text: t("aiConfig.changeRejected") }];
     pendingChange = null;
     scrollToBottom();
+  }
+
+  function applyPreset(prompt: string) {
+    input = prompt;
+    inputRef?.focus();
   }
 
   async function handleSubmit() {
@@ -266,6 +306,36 @@
     <span class="bar-label">{t("aiConfig.title")}</span>
     <InfoPopover label={t("aiConfig.title")} content={t("aiConfig.helpTooltip")} />
   </div>
+  {#if showPresets}
+    <div class="command-presets" aria-label="AI config presets">
+      <div class="command-preset-categories">
+        {#each presetGroups as [category]}
+          <button
+            class="command-preset-category"
+            class:active={activePresetCategory === category}
+            type="button"
+            onclick={() => activePresetCategory = category}
+          >
+            {AI_PRESET_CATEGORY_LABELS[category]}
+          </button>
+        {/each}
+      </div>
+      <div class="command-preset-list">
+        {#each presetGroups.filter(([category]) => category === activePresetCategory) as [, presets]}
+          {#each presets as preset}
+            <button
+              class="command-preset-chip"
+              type="button"
+              onclick={() => applyPreset(preset.prompt)}
+            >
+              <span>{preset.icon}</span>
+              <span>{preset.label}</span>
+            </button>
+          {/each}
+        {/each}
+      </div>
+    </div>
+  {/if}
   {#if messages.length > 0}
     <div class="chat-messages" bind:this={chatContainer} transition:slide={{ duration: 200 }}>
       {#each messages as msg}
@@ -426,6 +496,52 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--fg-dim);
+  }
+
+  .command-presets {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px 10px 0;
+  }
+
+  .command-preset-categories,
+  .command-preset-list {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .command-preset-category,
+  .command-preset-chip {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg);
+    color: var(--fg);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .command-preset-category {
+    padding: 4px 9px;
+    font-size: calc(var(--base-font-size, 12px) * 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--fg-dim);
+  }
+
+  .command-preset-category.active {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .command-preset-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    font-size: calc(var(--base-font-size, 12px) * 0.79);
   }
 
   .chat-messages {

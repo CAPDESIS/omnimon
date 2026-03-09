@@ -4,7 +4,7 @@ import type { ProcessEntry, SystemStats, BrowserTab, ProcessSuggestion, Metrics 
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { confirmAction } from "../lib/confirm";
 import { t } from "../lib/i18n";
-import { idleThreshold } from "./preferences";
+import { idleThreshold, pollIntervalMs, activeProfilePreset, profilePresets } from "./preferences";
 import { pushMetrics } from "./metricsHistory";
 import { evaluateAlerts } from "./alerts";
 import { refreshSecurityAnalysis, refreshNetworkConnections } from "./security";
@@ -300,6 +300,13 @@ export const aiError = writable<string | null>(null);
 /** Current AI analysis profile (e.g., "general", "gaming", "development"). */
 export const aiProfile = writable("general");
 
+activeProfilePreset.subscribe((presetId) => {
+  const preset = get(profilePresets).find((entry) => entry.id === presetId);
+  if (preset) {
+    aiProfile.set(preset.aiProfile);
+  }
+});
+
 // --- UI state ---
 
 /** PID of the process row currently focused/highlighted in the table, or null. */
@@ -406,7 +413,7 @@ export function setPollingTarget(target: "browserTabs" | "network", active: bool
 /** Starts periodic polling for metrics (every intervalMs) and browser tabs (every 5s). */
 export function startPolling(intervalMs = 2000): void {
   isPollingActive = true;
-  pollingIntervalMs = intervalMs;
+  pollingIntervalMs = intervalMs > 0 ? intervalMs : get(pollIntervalMs);
   stopPolling();
   // reset it so the stopPolling doesn't unset isPollingActive permanently
   isPollingActive = true; 

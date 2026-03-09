@@ -5,7 +5,7 @@
   import { slide } from "svelte/transition";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { ipcAiChat, ipcGetBrowserTabs, ipcCloseBrowserTab, ipcKillProcess, ipcKillProcesses } from "../lib/ipc";
-  import { aiProviderConfig } from "../stores/preferences";
+  import { aiProviderConfig, aiCacheTtlMinutes } from "../stores/preferences";
   import { processes } from "../stores/processes";
   import { inspectProcessRequest, askAiRequest } from "../stores/uiActions";
   import { toast } from "../stores/toasts";
@@ -15,6 +15,7 @@
   import { scrollToBottom as scrollContainerToBottom, resizeInput as resizeTextarea } from "../lib/chatUtils";
   import type { ChatMessage } from "../lib/chatUtils";
   import type { ToolResult } from "../lib/types";
+  import { AI_PRESETS, AI_PRESET_CATEGORY_LABELS } from "../lib/aiPresets";
   import InfoPopover from "./InfoPopover.svelte";
   import Button from "./Button.svelte";
   import EmptyState from "./EmptyState.svelte";
@@ -36,15 +37,36 @@
   let requestToken = 0;
   let isAutoScroll = $state(true);
   let streamingMessage = $state("");
+  let activePresetCategory = $state<(typeof AI_PRESETS)[number]["category"] | null>(null);
+
+  const MAX_CHAT_INPUT_CHARS = 4000;
+  const presetGroups = Object.entries(
+    AI_PRESETS.reduce((acc, preset) => {
+      (acc[preset.category] ??= []).push(preset);
+      return acc;
+    }, {} as Record<(typeof AI_PRESETS)[number]["category"], typeof AI_PRESETS[number][]>),
+  ) as Array<[(typeof AI_PRESETS)[number]["category"], typeof AI_PRESETS[number][]]>;
+
+  const showPresetChips = $derived(messages.length === 0 || input.trim().length === 0);
+
+  $effect(() => {
+    if (activePresetCategory === null && presetGroups.length > 0) {
+      activePresetCategory = presetGroups[0][0];
+    }
+  });
+
+  function sanitizeUserInput(value: string): string {
+    return value.normalize("NFKC").replace(/[\u0000-\u001f\u007f]/g, " ").trim();
+  }
 
   $effect(() => {
     let unlisten: UnlistenFn | undefined;
-    listen<string>("ai-stream-token", (event) => {
-      streamingMessage += event.payload;
-      if (isAutoScroll) {
-        scrollToBottom();
-      }
-    }).then(fn => { unlisten = fn; });
+      listen<string>("ai-stream-token", (event: { payload: string }) => {
+        streamingMessage += event.payload;
+        if (isAutoScroll) {
+          scrollToBottom();
+        }
+    }).then((fn: UnlistenFn) => { unlisten = fn; });
 
     return () => {
       if (unlisten) unlisten();
@@ -101,9 +123,63 @@
     }
   }
 
+  function applyPreset(prompt: string) {
+    input = prompt;
+    tick().then(() => inputRef?.focus());
+  }
+
+  function formatPayload(result: ToolResult): string {
+    const payload = result.payload;
+    if (!payload) return result.details;
+
+    if (result.tool === "get_process_details") {
+      const pid = payload.pid ?? "-";
+      const name = payload.name ?? "Unknown";
+      const cpu = payload.cpu_pct ?? "-";
+      const ram = payload.ram_mb ?? "-";
+      const state = payload.state ?? "-";
+      return `${result.details}\n\nPID: ${pid}\nName: ${name}\nCPU: ${cpu}%\nRAM: ${ram} MB\nState: ${state}`;
+    }
+
+    if (result.tool === "run_security_scan") {
+      const findings = Array.isArray(payload.findings) ? payload.findings : [];
+      if (findings.length === 0) return `${result.details}\n\nNo findings.`;
+      const lines = findings.map((finding: unknown) => {
+        const item = finding as Record<string, unknown>;
+        return `- [${String(item.severity ?? "info").toUpperCase()}] ${String(item.process_name ?? "unknown")} (PID ${String(item.pid ?? "?")})`;
+      });
+      return `${result.details}\n\n${lines.join("\n")}`;
+    }
+
+    if (result.tool === "get_network_details") {
+      const connections = Array.isArray(payload.connections) ? payload.connections : [];
+      if (connections.length === 0) return `${result.details}\n\nNo active connections.`;
+      const lines = connections.map((connection: unknown) => {
+        const item = connection as Record<string, unknown>;
+        return `- ${String(item.protocol ?? "?")} ${String(item.dst_ip ?? "?")}:${String(item.dst_port ?? "?")} (${String(item.bytes ?? 0)} bytes)`;
+      });
+      return `${result.details}\n\n${lines.join("\n")}`;
+    }
+
+    if (result.tool === "explain_process") {
+      return `${result.details}\n\nPath: ${String(payload.exe_path ?? "unknown")}\nBundle ID: ${String(payload.bundle_id ?? "n/a")}`;
+    }
+
+    if (result.tool === "get_system_summary") {
+      return `${result.details}\n\nCPU: ${String(payload.cpu_pct ?? "-")}%\nRAM: ${String(payload.ram_used_gb ?? "-")}/${String(payload.ram_total_gb ?? "-")} GB\nSwap: ${String(payload.swap_mb ?? "-")} MB\nNetwork: RX ${String(payload.net_rx_bytes_per_sec ?? "-")} B/s, TX ${String(payload.net_tx_bytes_per_sec ?? "-")} B/s`;
+    }
+
+    return result.details;
+  }
+
   async function handleSubmit() {
-    const trimmed = input.trim();
+    const trimmed = sanitizeUserInput(input);
     if (!trimmed || loading) return;
+
+    if (trimmed.length > MAX_CHAT_INPUT_CHARS) {
+      toast.error(t("aiChat.blockedTitle"), `Input exceeds ${MAX_CHAT_INPUT_CHARS} characters.`);
+      return;
+    }
 
     const token = ++requestToken;
 
@@ -129,7 +205,7 @@
         .slice(0, -1)
         .filter(m => m.role === "user" || m.role === "assistant")
         .slice(-10)
-        .map(m => [m.role, m.text.slice(0, 2000)] as [string, string]);
+        .map(m => [m.role, sanitizeUserInput(m.text).slice(0, 2000)] as [string, string]);
         
       const history: Array<[string, string]> = [
         ["system", systemInstruction],
@@ -141,7 +217,7 @@
         setTimeout(() => reject(new Error(t("aiChat.timeoutError"))), AI_CHAT_TIMEOUT_MS)
       );
       const response = await Promise.race([
-        ipcAiChat(trimmed, cfg.provider, cfg.model, history),
+        ipcAiChat(trimmed, cfg.provider, cfg.model, history, get(aiCacheTtlMinutes)),
         timeoutPromise,
       ]);
 
@@ -159,7 +235,7 @@
         } else {
           messages = [
             ...messages,
-            { role: "tool", text: result.details, toolResult: result },
+            { role: "tool", text: formatPayload(result), toolResult: result },
           ];
           if (result.success) {
             toast.success(t("aiChat.actionSuccessTitle"), result.details);
@@ -502,6 +578,37 @@
   {/if}
 
   <div class="chat-input-row">
+    {#if showPresetChips}
+      <div class="preset-strip" aria-label="AI prompt presets">
+        <div class="preset-categories">
+          {#each presetGroups as [category]}
+            <button
+              class="preset-category"
+              class:active={activePresetCategory === category}
+              type="button"
+              onclick={() => activePresetCategory = category}
+            >
+              {AI_PRESET_CATEGORY_LABELS[category]}
+            </button>
+          {/each}
+        </div>
+        <div class="preset-chips">
+          {#each presetGroups.filter(([category]) => category === activePresetCategory) as [, presets]}
+            {#each presets as preset}
+              <button
+                class="preset-chip"
+                type="button"
+                onclick={() => applyPreset(preset.prompt)}
+                aria-label={`Preset ${preset.label}`}
+              >
+                <span class="preset-icon">{preset.icon}</span>
+                <span>{preset.label}</span>
+              </button>
+            {/each}
+          {/each}
+        </div>
+      </div>
+    {/if}
     <textarea
       class="chat-input"
       placeholder={t("aiChat.placeholder")}
@@ -757,10 +864,74 @@
 
   .chat-input-row {
     display: flex;
+    flex-direction: column;
     gap: 4px;
     padding: 8px 12px;
     border-top: 1px solid var(--border);
     background: var(--bg-primary);
+  }
+
+  .preset-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .preset-categories,
+  .preset-chips {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    padding-bottom: 2px;
+  }
+
+  .preset-category,
+  .preset-chip {
+    border: 1px solid var(--border);
+    background: var(--bg-alt);
+    color: var(--fg);
+    border-radius: 999px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .preset-category {
+    padding: 5px 10px;
+    font-size: calc(var(--base-font-size, 12px) * 0.72);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--fg-dim);
+  }
+
+  .preset-category.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+
+  .preset-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    font-size: calc(var(--base-font-size, 12px) * 0.83);
+  }
+
+  .preset-chip:hover,
+  .preset-chip:focus-visible {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+
+  .preset-icon {
+    font-size: 0.95rem;
+  }
+
+  @media (min-width: 720px) {
+    .chat-input-row {
+      gap: 8px;
+    }
   }
 
   .chat-input {

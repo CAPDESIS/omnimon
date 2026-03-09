@@ -58,6 +58,9 @@
     columnOrder,
     aiProviderConfig,
     idleThreshold,
+    pollIntervalMs,
+    automationIntervalSecs,
+    aiCacheTtlMinutes,
     theme,
     tabPanelHeight as tabPanelHeightStore,
     localePreference,
@@ -69,6 +72,8 @@
     moveColumnDown,
     MIN_IDLE_THRESHOLD,
     MAX_IDLE_THRESHOLD,
+    MIN_AI_CACHE_TTL_MINUTES,
+    MAX_AI_CACHE_TTL_MINUTES,
     customTheme,
     userMode,
     type ThemeMode,
@@ -79,7 +84,7 @@
     aiChatCollapsedStore,
     aiConfigCollapsedStore,
   } from "./stores/preferences";
-  import { ipcValidateApiKey, ipcCheckApiKey } from "./lib/ipc";
+  import { ipcValidateApiKey, ipcCheckApiKey, ipcClearAiCache } from "./lib/ipc";
   import { listen } from "@tauri-apps/api/event";
   import { t, locale, initI18n } from "./lib/i18n";
   import { inspectProcessRequest } from "./stores/uiActions";
@@ -402,6 +407,14 @@
     }
   }
 
+  async function handleClearAiCache() {
+    try {
+      await ipcClearAiCache();
+    } catch (e) {
+      settingsError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
   onMount(() => {
     console.debug("[APP] onMount started");
     let disposed = false;
@@ -428,7 +441,7 @@
     loadPreferences().then(() => {
       console.debug("[APP] Preferences loaded, initializing i18n and polling.");
       initI18n($localePreference);
-      startPolling(2000);
+      startPolling($pollIntervalMs);
     });
     loadAutostartState();
     const unsubPrefs = initPreferenceSubscriptions();
@@ -440,7 +453,7 @@
     registerUnlistener(
       listen<boolean>("window-visibility", (event: { payload: boolean }) => {
         if (event.payload) {
-          startPolling(2000);
+          startPolling($pollIntervalMs);
         } else {
           stopPolling();
         }
@@ -903,6 +916,65 @@
             }}
           />
           <span class="settings-hint">{t("settings.idleHint")}</span>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="poll-interval">Poll interval</label>
+          <input
+            id="poll-interval"
+            class="settings-input"
+            type="number"
+            min="500"
+            max="10000"
+            step="100"
+            value={$pollIntervalMs}
+            oninput={(e: Event) => {
+              const v = parseInt((e.target as HTMLInputElement).value, 10);
+              if (!Number.isNaN(v) && v >= 500 && v <= 10000) {
+                $pollIntervalMs = v;
+              }
+            }}
+          />
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="automation-interval">Automation interval</label>
+          <input
+            id="automation-interval"
+            class="settings-input"
+            type="number"
+            min="1"
+            max="300"
+            step="1"
+            value={$automationIntervalSecs}
+            oninput={(e: Event) => {
+              const v = parseInt((e.target as HTMLInputElement).value, 10);
+              if (!Number.isNaN(v) && v >= 1 && v <= 300) {
+                $automationIntervalSecs = v;
+              }
+            }}
+          />
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="ai-cache-ttl">AI cache TTL (minutes)</label>
+          <input
+            id="ai-cache-ttl"
+            class="settings-input"
+            type="number"
+            min={MIN_AI_CACHE_TTL_MINUTES}
+            max={MAX_AI_CACHE_TTL_MINUTES}
+            step="1"
+            value={$aiCacheTtlMinutes}
+            oninput={(e: Event) => {
+              const v = parseInt((e.target as HTMLInputElement).value, 10);
+              if (!Number.isNaN(v) && v >= MIN_AI_CACHE_TTL_MINUTES && v <= MAX_AI_CACHE_TTL_MINUTES) {
+                $aiCacheTtlMinutes = v;
+              }
+            }}
+          />
+          <span class="settings-hint">0 disables cache, 60 is the max.</span>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="clear-ai-cache">AI cache</label>
+          <Button id="clear-ai-cache" variant="ghost" onclick={handleClearAiCache}>Clear cache</Button>
         </div>
         <div class="settings-row">
           <label class="settings-label" for="autostart-toggle">{t("settings.autostart")}</label>

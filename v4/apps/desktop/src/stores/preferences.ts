@@ -1,6 +1,7 @@
 import { writable, get } from "svelte/store";
 import type { LocaleCode } from "../lib/i18n";
 import type { CustomThemeOverrides } from "../lib/theme";
+import type { ProfilePreset } from "../lib/types";
 import { setCustomThemeOverrides } from "../lib/theme";
 
 export interface ColumnConfig {
@@ -50,6 +51,13 @@ const DEFAULT_AI_CONFIG: AiProviderConfig = {
   model: "meta-llama/llama-3.2-3b-instruct:free",
 };
 
+const DEFAULT_PROFILE_PRESETS: ProfilePreset[] = [
+  { id: "general", label: "General", idleThreshold: 1.0, pollIntervalMs: 2000, automationIntervalSecs: 5, aiProfile: "general" },
+  { id: "developer", label: "Developer", idleThreshold: 0.6, pollIntervalMs: 1500, automationIntervalSecs: 3, aiProfile: "developer" },
+  { id: "gaming", label: "Gaming", idleThreshold: 0.4, pollIntervalMs: 1000, automationIntervalSecs: 2, aiProfile: "gaming" },
+  { id: "battery", label: "Battery Saver", idleThreshold: 2.0, pollIntervalMs: 4000, automationIntervalSecs: 10, aiProfile: "battery" },
+];
+
 const MIN_IDLE_THRESHOLD = 0.1;
 const MAX_IDLE_THRESHOLD = 10.0;
 const DEFAULT_IDLE_THRESHOLD = 1.0;
@@ -68,6 +76,15 @@ const MAX_NETWORK_PANEL_HEIGHT = 720;
 const DEFAULT_AI_CHAT_HEIGHT = 220;
 const MIN_AI_CHAT_HEIGHT = 140;
 const MAX_AI_CHAT_HEIGHT = 640;
+const DEFAULT_POLL_INTERVAL_MS = 2000;
+const MIN_POLL_INTERVAL_MS = 500;
+const MAX_POLL_INTERVAL_MS = 10_000;
+const DEFAULT_AUTOMATION_INTERVAL_SECS = 5;
+const MIN_AUTOMATION_INTERVAL_SECS = 1;
+const MAX_AUTOMATION_INTERVAL_SECS = 300;
+const DEFAULT_AI_CACHE_TTL_MINUTES = 5;
+const MIN_AI_CACHE_TTL_MINUTES = 0;
+const MAX_AI_CACHE_TTL_MINUTES = 60;
 
 /** Current font size (in px) for the process table. */
 export const fontSize = writable(DEFAULT_FONT_SIZE);
@@ -83,6 +100,11 @@ export const aiProviderConfig = writable<AiProviderConfig>({ ...DEFAULT_AI_CONFI
 
 /** CPU usage threshold (in %) below which a process is considered idle. */
 export const idleThreshold = writable(DEFAULT_IDLE_THRESHOLD);
+export const pollIntervalMs = writable(DEFAULT_POLL_INTERVAL_MS);
+export const automationIntervalSecs = writable(DEFAULT_AUTOMATION_INTERVAL_SECS);
+export const aiCacheTtlMinutes = writable(DEFAULT_AI_CACHE_TTL_MINUTES);
+export const activeProfilePreset = writable("general");
+export const profilePresets = writable<ProfilePreset[]>([...DEFAULT_PROFILE_PRESETS]);
 
 /** Current theme mode: "auto" follows system, or forced "light"/"dark". */
 export const theme = writable<ThemeMode>(DEFAULT_THEME);
@@ -122,6 +144,68 @@ export const customTheme = writable<CustomThemeOverrides | null>(null);
 
 /** User-facing workspace density mode. */
 export const userMode = writable<UserMode>(DEFAULT_USER_MODE);
+
+function sanitizeProfilePreset(raw: unknown): ProfilePreset | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const preset = raw as Record<string, unknown>;
+  const id = typeof preset.id === "string" ? preset.id.trim().toLowerCase() : "";
+  const label = typeof preset.label === "string" ? preset.label.trim() : "";
+  const idle = typeof preset.idleThreshold === "number" ? preset.idleThreshold : NaN;
+  const poll = typeof preset.pollIntervalMs === "number" ? preset.pollIntervalMs : NaN;
+  const automation = typeof preset.automationIntervalSecs === "number" ? preset.automationIntervalSecs : NaN;
+  const ai = typeof preset.aiProfile === "string" ? preset.aiProfile : "";
+
+  if (!/^[a-z0-9_-]{1,32}$/.test(id) || !label) return null;
+  if (!["general", "developer", "gaming", "battery"].includes(ai)) return null;
+  if (!Number.isFinite(idle) || !Number.isFinite(poll) || !Number.isFinite(automation)) return null;
+
+  return {
+    id,
+    label: label.slice(0, 48),
+    idleThreshold: Math.min(Math.max(idle, MIN_IDLE_THRESHOLD), MAX_IDLE_THRESHOLD),
+    pollIntervalMs: Math.min(Math.max(Math.round(poll), MIN_POLL_INTERVAL_MS), MAX_POLL_INTERVAL_MS),
+    automationIntervalSecs: Math.min(Math.max(Math.round(automation), MIN_AUTOMATION_INTERVAL_SECS), MAX_AUTOMATION_INTERVAL_SECS),
+    aiProfile: ai as ProfilePreset["aiProfile"],
+  };
+}
+
+function sanitizeProfilePresets(raw: unknown): ProfilePreset[] {
+  if (!Array.isArray(raw)) return [...DEFAULT_PROFILE_PRESETS];
+  const seen = new Set<string>();
+  const presets: ProfilePreset[] = [];
+  for (const entry of raw) {
+    const preset = sanitizeProfilePreset(entry);
+    if (!preset || seen.has(preset.id)) continue;
+    seen.add(preset.id);
+    presets.push(preset);
+  }
+  return presets.length > 0 ? presets : [...DEFAULT_PROFILE_PRESETS];
+}
+
+export function applyProfilePresetById(id: string): boolean {
+  const preset = get(profilePresets).find((entry) => entry.id === id);
+  if (!preset) return false;
+  activeProfilePreset.set(preset.id);
+  idleThreshold.set(preset.idleThreshold);
+  pollIntervalMs.set(preset.pollIntervalMs);
+  automationIntervalSecs.set(preset.automationIntervalSecs);
+  return true;
+}
+
+export function syncAiProfileToPreset(profile: ProfilePreset["aiProfile"]): void {
+  const preset = get(profilePresets).find((entry) => entry.aiProfile === profile);
+  if (preset) {
+    applyProfilePresetById(preset.id);
+  }
+}
+
+export function setProfilePresets(nextPresets: ProfilePreset[]): void {
+  const sanitized = sanitizeProfilePresets(nextPresets);
+  profilePresets.set(sanitized);
+  if (!applyProfilePresetById(get(activeProfilePreset))) {
+    applyProfilePresetById(sanitized[0]?.id ?? "general");
+  }
+}
 
 let storeInstance: any = null;
 
@@ -183,9 +267,44 @@ export async function loadPreferences(): Promise<void> {
       });
     }
 
+    const savedProfilePresets = await store.get("profilePresets");
+    const sanitizedPresets = sanitizeProfilePresets(savedProfilePresets);
+    setProfilePresets(sanitizedPresets);
+
+    const savedActiveProfilePreset = await store.get("activeProfilePreset");
+    const fallbackPresetId = typeof savedActiveProfilePreset === "string" ? savedActiveProfilePreset : sanitizedPresets[0]?.id ?? "general";
+    const fallbackPreset = sanitizedPresets.find((preset) => preset.id === fallbackPresetId) ?? sanitizedPresets[0];
+    if (fallbackPreset) {
+      activeProfilePreset.set(fallbackPreset.id);
+      if (typeof savedActiveProfilePreset === "string") {
+        activeProfilePreset.set(savedActiveProfilePreset);
+      }
+    }
+
     const savedIdleThreshold = await store.get("idleThreshold");
     if (typeof savedIdleThreshold === "number" && savedIdleThreshold >= MIN_IDLE_THRESHOLD && savedIdleThreshold <= MAX_IDLE_THRESHOLD) {
       idleThreshold.set(savedIdleThreshold);
+    } else if (fallbackPreset) {
+      idleThreshold.set(fallbackPreset.idleThreshold);
+    }
+
+    const savedPollIntervalMs = await store.get("pollIntervalMs");
+    if (typeof savedPollIntervalMs === "number" && savedPollIntervalMs >= MIN_POLL_INTERVAL_MS && savedPollIntervalMs <= MAX_POLL_INTERVAL_MS) {
+      pollIntervalMs.set(Math.round(savedPollIntervalMs));
+    } else if (fallbackPreset) {
+      pollIntervalMs.set(fallbackPreset.pollIntervalMs);
+    }
+
+    const savedAutomationIntervalSecs = await store.get("automationIntervalSecs");
+    if (typeof savedAutomationIntervalSecs === "number" && savedAutomationIntervalSecs >= MIN_AUTOMATION_INTERVAL_SECS && savedAutomationIntervalSecs <= MAX_AUTOMATION_INTERVAL_SECS) {
+      automationIntervalSecs.set(Math.round(savedAutomationIntervalSecs));
+    } else if (fallbackPreset) {
+      automationIntervalSecs.set(fallbackPreset.automationIntervalSecs);
+    }
+
+    const savedAiCacheTtlMinutes = await store.get("aiCacheTtlMinutes");
+    if (typeof savedAiCacheTtlMinutes === "number" && savedAiCacheTtlMinutes >= MIN_AI_CACHE_TTL_MINUTES && savedAiCacheTtlMinutes <= MAX_AI_CACHE_TTL_MINUTES) {
+      aiCacheTtlMinutes.set(Math.round(savedAiCacheTtlMinutes));
     }
 
     const savedTheme = await store.get("theme");
@@ -263,6 +382,11 @@ export async function savePreferences(): Promise<void> {
     await store.set("columnOrder", get(columnOrder));
     await store.set("aiProviderConfig", get(aiProviderConfig));
     await store.set("idleThreshold", get(idleThreshold));
+    await store.set("pollIntervalMs", get(pollIntervalMs));
+    await store.set("automationIntervalSecs", get(automationIntervalSecs));
+    await store.set("aiCacheTtlMinutes", get(aiCacheTtlMinutes));
+    await store.set("activeProfilePreset", get(activeProfilePreset));
+    await store.set("profilePresets", get(profilePresets));
     await store.set("theme", get(theme));
     await store.set("userMode", get(userMode));
     await store.set("tabPanelHeight", get(tabPanelHeight));
@@ -302,6 +426,11 @@ export function initPreferenceSubscriptions(): () => void {
     columnOrder.subscribe(() => debouncedSave()),
     aiProviderConfig.subscribe(() => debouncedSave()),
     idleThreshold.subscribe(() => debouncedSave()),
+    pollIntervalMs.subscribe(() => debouncedSave()),
+    automationIntervalSecs.subscribe(() => debouncedSave()),
+    aiCacheTtlMinutes.subscribe(() => debouncedSave()),
+    activeProfilePreset.subscribe(() => debouncedSave()),
+    profilePresets.subscribe(() => debouncedSave()),
     theme.subscribe(() => debouncedSave()),
     userMode.subscribe(() => debouncedSave()),
     tabPanelHeight.subscribe(() => debouncedSave()),
@@ -387,4 +516,14 @@ export {
   DEFAULT_AI_CHAT_HEIGHT,
   MIN_AI_CHAT_HEIGHT,
   MAX_AI_CHAT_HEIGHT,
+  DEFAULT_POLL_INTERVAL_MS,
+  MIN_POLL_INTERVAL_MS,
+  MAX_POLL_INTERVAL_MS,
+  DEFAULT_AUTOMATION_INTERVAL_SECS,
+  MIN_AUTOMATION_INTERVAL_SECS,
+  MAX_AUTOMATION_INTERVAL_SECS,
+  DEFAULT_AI_CACHE_TTL_MINUTES,
+  MIN_AI_CACHE_TTL_MINUTES,
+  MAX_AI_CACHE_TTL_MINUTES,
+  DEFAULT_PROFILE_PRESETS,
 };

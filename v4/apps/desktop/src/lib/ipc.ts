@@ -11,6 +11,7 @@ import type {
   NetworkData,
   PluginDescriptor,
   PluginMetric,
+  ToolResult,
 } from "./types";
 
 async function loggedInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -59,6 +60,42 @@ function assertObject(field: string, value: unknown): asserts value is Record<st
   if (value == null || typeof value !== "object" || Array.isArray(value)) {
     throw new IPCValidationError(field, value, `Expected object for "${field}"`);
   }
+}
+
+function assertIntegerInRange(field: string, value: unknown, min: number, max: number): asserts value is number {
+  assertFiniteNumber(field, value);
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new IPCValidationError(field, value, `Expected integer ${min}-${max} for "${field}"`);
+  }
+}
+
+function validateToolResult(raw: unknown, field: string): ToolResult {
+  assertObject(field, raw);
+  const r = raw as Record<string, unknown>;
+  assertString(`${field}.tool`, r.tool);
+  assertBoolean(`${field}.success`, r.success);
+  assertString(`${field}.details`, r.details);
+
+  if (!["kill_process", "kill_by_name", "close_tabs", "add_automation_rule", "remove_automation_rule", "get_process_details", "get_network_details", "run_security_scan", "explain_process", "get_system_summary"].includes(r.tool as string)) {
+    throw new IPCValidationError(`${field}.tool`, r.tool, `Unknown tool "${r.tool}"`);
+  }
+
+  if (r.payload !== undefined && r.payload !== null) {
+    assertObject(`${field}.payload`, r.payload);
+  }
+
+  return {
+    tool: r.tool as string,
+    success: r.success as boolean,
+    details: r.details as string,
+    ...(r.payload !== undefined && r.payload !== null
+      ? { payload: r.payload as Record<string, unknown> }
+      : {}),
+  };
+}
+
+function normalizeTextInput(value: string): string {
+  return value.normalize("NFKC").replace(/[\u0000-\u001f\u007f]/g, " ").trim();
 }
 
 function validateProcessEntry(raw: unknown, index: number): ProcessEntry {
@@ -167,6 +204,12 @@ export async function ipcKillProcess(pid: number): Promise<boolean> {
 
 /** Kills multiple processes by PID in batch. Returns an object with killed PIDs and failed PIDs with error messages. */
 export async function ipcKillProcesses(pids: number[]): Promise<KillProcessesResult> {
+  if (!Array.isArray(pids) || pids.length === 0 || pids.length > 50) {
+    throw new IPCValidationError("kill_processes args.pids", pids, "Expected 1-50 PIDs");
+  }
+  for (let i = 0; i < pids.length; i++) {
+    assertIntegerInRange(`kill_processes args.pids[${i}]`, pids[i], 1, 0x7fffffff);
+  }
   const result: unknown = await loggedInvoke("kill_processes", { pids });
 
   if (result == null || typeof result !== "object" || Array.isArray(result)) {
@@ -249,7 +292,11 @@ export async function ipcFocusBrowserTab(tabId: string, tabUrl: string, browser:
 
 /** Sends a free-form context string to the AI backend for analysis. Returns the AI response text. */
 export async function ipcAnalyzeContext(context: string, provider: string, model: string): Promise<string> {
-  const result: unknown = await loggedInvoke("analyze_context", { context, provider, model });
+  const normalizedContext = normalizeTextInput(context);
+  if (!normalizedContext || normalizedContext.length > 20_000) {
+    throw new IPCValidationError("analyze_context args.context", context, "Context must be 1-20000 chars");
+  }
+  const result: unknown = await loggedInvoke("analyze_context", { context: normalizedContext, provider, model });
   assertString("analyze_context result", result);
   return result;
 }
@@ -368,14 +415,41 @@ export async function ipcGetWindowVisible(): Promise<boolean> {
 
 /** Sends AI-generated rules payload to the Rust rules engine. Returns number of rules applied. */
 export async function ipcApplyAiRules(payload: string): Promise<number> {
+  if (payload.length === 0 || payload.length > 64 * 1024) {
+    throw new IPCValidationError("apply_ai_rules args.payload", payload.length, "Payload must be 1-65536 bytes");
+  }
   const result: unknown = await loggedInvoke("apply_ai_rules", { payload });
   assertFiniteNumber("apply_ai_rules result", result);
   return result;
 }
 
 /** Sends a chat message to the AI backend with tool calling support. */
-export async function ipcAiChat(message: string, provider: string, model: string, history: Array<[string, string]> = []): Promise<ChatResponse> {
-  const result: unknown = await loggedInvoke("ai_chat", { message, provider, model, history });
+export async function ipcAiChat(message: string, provider: string, model: string, history: Array<[string, string]> = [], cacheTtlMinutes = 5): Promise<ChatResponse> {
+  assertString("ai_chat args.message", message);
+  const normalizedMessage = normalizeTextInput(message);
+  if (!normalizedMessage || normalizedMessage.length > 4000) {
+    throw new IPCValidationError("ai_chat args.message", message, "Message must be 1-4000 chars");
+  }
+  assertIntegerInRange("ai_chat args.cacheTtlMinutes", cacheTtlMinutes, 0, 60);
+  if (!Array.isArray(history) || history.length > 24) {
+    throw new IPCValidationError("ai_chat args.history", history, "History must be an array up to 24 entries");
+  }
+  history.forEach((entry, index) => {
+    if (!Array.isArray(entry) || entry.length !== 2) {
+      throw new IPCValidationError(`ai_chat args.history[${index}]`, entry, "Expected [role, content] tuple");
+    }
+    assertString(`ai_chat args.history[${index}][0]`, entry[0]);
+    assertString(`ai_chat args.history[${index}][1]`, entry[1]);
+    if (!["system", "user", "assistant"].includes(entry[0])) {
+      throw new IPCValidationError(`ai_chat args.history[${index}][0]`, entry[0], "Invalid history role");
+    }
+    if (normalizeTextInput(entry[1]).length > 4000) {
+      throw new IPCValidationError(`ai_chat args.history[${index}][1]`, entry[1], "History entry exceeds 4000 chars");
+    }
+  });
+
+  const sanitizedHistory = history.map(([role, content]) => [role, normalizeTextInput(content)] as [string, string]);
+  const result: unknown = await loggedInvoke("ai_chat", { message: normalizedMessage, provider, model, history: sanitizedHistory, cacheTtlMinutes });
 
   if (result == null || typeof result !== "object") {
     throw new IPCValidationError("ai_chat result", result, "Expected object from ai_chat");
@@ -385,8 +459,15 @@ export async function ipcAiChat(message: string, provider: string, model: string
 
   return {
     reply: r.reply as string,
-    tool_call: r.tool_call as ChatResponse["tool_call"],
+    tool_call: r.tool_call == null ? null : validateToolResult(r.tool_call, "ai_chat result.tool_call"),
   };
+}
+
+export async function ipcClearAiCache(): Promise<void> {
+  const result: unknown = await loggedInvoke("clear_ai_cache");
+  if (result !== undefined && result !== null) {
+    throw new IPCValidationError("clear_ai_cache result", result, "Expected empty response from clear_ai_cache");
+  }
 }
 
 /** Retrieves the JSON schema contract for AI rules from the Rust backend. */

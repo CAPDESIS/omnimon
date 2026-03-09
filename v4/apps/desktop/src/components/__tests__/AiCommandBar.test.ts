@@ -34,6 +34,14 @@ vi.mock("../../stores/preferences", () => {
   const { writable } = require("svelte/store");
   return {
     idleThreshold: writable(1),
+    pollIntervalMs: writable(2000),
+    automationIntervalSecs: writable(5),
+    activeProfilePreset: writable("general"),
+    profilePresets: writable([
+      { id: "general", label: "General", idleThreshold: 1, pollIntervalMs: 2000, automationIntervalSecs: 5, aiProfile: "general" },
+    ]),
+    setProfilePresets: vi.fn(),
+    applyProfilePresetById: vi.fn(() => true),
     fontSize: writable(12),
     theme: writable("dark"),
     localePreference: writable("en"),
@@ -230,5 +238,12 @@ describe("AiCommandBar", () => {
   it("has aria-label for accessibility", () => {
     render(AiCommandBar);
     expect(screen.getByRole("region", { name: "AI Configuration" })).toBeInTheDocument();
+  });
+
+  it("fills the input when clicking a preset", async () => {
+    render(AiCommandBar);
+    await fireEvent.click(screen.getByRole("button", { name: /Rendimiento general/i }));
+    const input = screen.getByPlaceholderText(/Alert me if Chrome/i) as HTMLTextAreaElement;
+    expect(input.value).toMatch(/Analiza el rendimiento general del sistema/i);
   });
 });

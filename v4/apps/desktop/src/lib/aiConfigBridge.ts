@@ -8,6 +8,35 @@
 import type { AiProviderConfig } from "../stores/preferences";
 import type { AiRuleV1, AiRulesPayload, AiRuleKind } from "./types";
 
+const INJECTION_PATTERNS = [
+  /ignore\s+(all\s+)?(previous|above|prior)\s+(instructions|prompts)/i,
+  /disregard\s+(all\s+)?(previous|above)\s+(instructions|prompts)/i,
+  /forget\s+(all\s+)?(previous|your)\s+(instructions|rules)/i,
+  /you\s+are\s+now\s+/i,
+  /new\s+instructions?\s*:/i,
+  /system\s*prompt\s*:/i,
+  /\bDAN\b/,
+  /jailbreak/i,
+  /pretend\s+you/i,
+  /act\s+as\s+(if\s+)?you/i,
+  /what\s+are\s+your\s+(instructions|rules|prompts)/i,
+  /show\s+me\s+your\s+(system|initial)\s+(prompt|instructions)/i,
+  /repeat\s+(the\s+)?(above|previous|system)\s+(text|prompt|instructions)/i,
+  /output\s+(the|your)\s+(initial|system|first)\s+(prompt|message|instructions)/i,
+  /```[\s\S]*\b(eval|exec|system|spawn|fork)\b/i,
+  /\$\{[^}]+\}/,
+  /\{\{[^}]+\}\}/,
+  /\[INST\]/i,
+  /<<SYS>>/i,
+  /<\|im_start\|>/i,
+  /###\s*(System|Human|Assistant)/i,
+  /ignora\s+(todas\s+)?(las\s+)?instrucciones/i,
+  /olvida\s+(todas\s+)?(tus\s+)?instrucciones/i,
+  /muestrame\s+tu\s+(prompt|instrucciones)\s+(del\s+)?sistema/i,
+  /actua\s+como\s+si\s+fueras/i,
+  /prompt\s+interno/i,
+];
+
 /** Allowed config keys that the AI is permitted to modify. */
 const MUTABLE_KEYS = new Set([
   "idleThreshold",
@@ -17,6 +46,9 @@ const MUTABLE_KEYS = new Set([
   "locale",
   "columns",
   "columnOrder",
+  "pollIntervalMs",
+  "automationIntervalSecs",
+  "activeProfilePreset",
 ]);
 
 /** Config keys that must NEVER be modified via AI (security boundary). */
@@ -84,6 +116,14 @@ function validateValue(key: string, value: unknown): boolean {
       return typeof value === "string" && ["auto", "en", "es"].includes(value);
     case "aiProfile":
       return typeof value === "string" && ["general", "developer", "gaming", "battery"].includes(value);
+    case "pollIntervalMs":
+      return typeof value === "number" && Number.isInteger(value) && value >= 500 && value <= 10000;
+    case "automationIntervalSecs":
+      return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 300;
+    case "activeProfilePreset":
+      return typeof value === "string" && /^[a-z0-9_-]{1,32}$/.test(value);
+    case "profilePresets":
+      return Array.isArray(value);
     case "columns":
       return typeof value === "object" && value !== null && !Array.isArray(value);
     case "columnOrder":
@@ -138,16 +178,9 @@ export function validateAlertRule(rule: unknown): AlertRule {
  * Returns true if the input looks suspicious.
  */
 export function detectPromptInjection(input: string): boolean {
-  const lower = input.toLowerCase();
-  const patterns = [
-    /ignore\s+(all\s+)?previous\s+instructions/i,
-    /you\s+are\s+now\s+a/i,
-    /system\s*:\s*/i,
-    /\boverride\b.*\b(config|settings|security|api.?key)\b/i,
-    /\b(delete|drop|rm\s+-rf|exec|eval)\b.*\b(database|table|file|system)\b/i,
-    /\bset\s+(api.?key|token|secret|password)\b/i,
-  ];
-  return patterns.some((p) => p.test(lower));
+  const normalized = input.normalize("NFKC").replace(/[\u0000-\u001f\u007f]/g, " ").trim();
+  if (!normalized) return false;
+  return INJECTION_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
 // --- AI Rules Engine v1 ---
@@ -258,10 +291,13 @@ ${JSON.stringify(safe, null, 2)}
 
 Available settings you can modify:
 - idleThreshold (number 0.1-10.0): CPU% below which processes are considered idle
+- pollIntervalMs (integer 500-10000): refresh cadence for metrics polling
+- automationIntervalSecs (integer 1-300): cadence used by persistent automations
 - fontSize (integer 8-48): UI font size in pixels
 - theme ("auto"|"light"|"dark"|"cyberpunk"): UI theme
 - locale ("auto"|"en"|"es"): UI language
 - aiProfile ("general"|"developer"|"gaming"|"battery"): AI analysis profile
+- activeProfilePreset (string): shared preset id that coordinates thresholds and intervals
 - columns (object with boolean values): Which columns are visible
 - columnOrder (array of strings): Order of columns
 

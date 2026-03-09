@@ -1,11 +1,20 @@
 import { fireEvent, render, screen } from "@testing-library/svelte";
 import ProfilePanel from "../ProfilePanel.svelte";
 
-const { mockAiProfile, mockUserMode } = vi.hoisted(() => {
+const { mockAiProfile, mockUserMode, mockProfilePresets, mockActiveProfilePreset, mockApplyProfilePresetById, mockSyncAiProfileToPreset } = vi.hoisted(() => {
   const { writable } = require("svelte/store") as typeof import("svelte/store");
   return {
     mockAiProfile: writable("general"),
     mockUserMode: writable("pro"),
+    mockProfilePresets: writable([
+      { id: "general", label: "General", idleThreshold: 1, pollIntervalMs: 2000, automationIntervalSecs: 5, aiProfile: "general" },
+      { id: "developer", label: "Developer", idleThreshold: 0.6, pollIntervalMs: 1500, automationIntervalSecs: 3, aiProfile: "developer" },
+      { id: "gaming", label: "Gaming", idleThreshold: 0.4, pollIntervalMs: 1000, automationIntervalSecs: 2, aiProfile: "gaming" },
+      { id: "battery", label: "Battery Saver", idleThreshold: 2.0, pollIntervalMs: 4000, automationIntervalSecs: 10, aiProfile: "battery" },
+    ]),
+    mockActiveProfilePreset: writable("general"),
+    mockApplyProfilePresetById: vi.fn(() => true),
+    mockSyncAiProfileToPreset: vi.fn(),
   };
 });
 
@@ -15,28 +24,35 @@ vi.mock("../../stores/processes", () => ({
 
 vi.mock("../../stores/preferences", () => ({
   userMode: mockUserMode,
+  profilePresets: mockProfilePresets,
+  activeProfilePreset: mockActiveProfilePreset,
+  applyProfilePresetById: mockApplyProfilePresetById,
+  syncAiProfileToPreset: mockSyncAiProfileToPreset,
 }));
 
 describe("ProfilePanel", () => {
   beforeEach(() => {
     mockAiProfile.set("general");
     mockUserMode.set("pro");
+    mockApplyProfilePresetById.mockClear();
+    mockSyncAiProfileToPreset.mockClear();
   });
 
   it("renders profile options", () => {
     render(ProfilePanel);
     expect(screen.getAllByText("General").length).toBeGreaterThan(0);
-    expect(screen.getByText("Developer")).toBeInTheDocument();
-    expect(screen.getByText("Gaming")).toBeInTheDocument();
-    expect(screen.getByText("Battery Saver")).toBeInTheDocument();
+    expect(screen.getAllByText("Developer").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Gaming").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Battery Saver").length).toBeGreaterThan(0);
   });
 
   it("updates selected profile on click", async () => {
     render(ProfilePanel);
-    await fireEvent.click(screen.getByText("Gaming"));
+    await fireEvent.click(screen.getAllByText("Gaming")[0]);
     let value = "";
     mockAiProfile.subscribe((v) => { value = v; })();
     expect(value).toBe("gaming");
+    expect(mockSyncAiProfileToPreset).toHaveBeenCalledWith("gaming");
   });
 
   it("updates user mode on click", async () => {
