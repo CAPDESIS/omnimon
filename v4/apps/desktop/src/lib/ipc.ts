@@ -9,6 +9,7 @@ import type {
   KillProcessesResult,
   ChatResponse,
   NetworkData,
+  NetworkAlertRule,
   PluginDescriptor,
   PluginMetric,
   ToolResult,
@@ -505,6 +506,14 @@ export async function ipcGetNetworkData(): Promise<NetworkData> {
     capture_backend: d.capture_backend as string,
     dpi_active: d.dpi_active as boolean,
   };
+}
+
+export async function ipcSetNetworkAlertRules(rules: NetworkAlertRule[]): Promise<number> {
+  const result: unknown = await loggedInvoke("set_network_alert_rules", {
+    payloadJson: JSON.stringify(rules),
+  });
+  assertFiniteNumber("set_network_alert_rules result", result);
+  return result as number;
 }
 
 export async function ipcListPlugins(): Promise<PluginDescriptor[]> {

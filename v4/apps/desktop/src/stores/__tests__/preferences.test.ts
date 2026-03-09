@@ -10,6 +10,7 @@ import {
   aiCacheTtlMinutes,
   activeProfilePreset,
   profilePresets,
+  networkAlertRules,
   theme,
   userMode,
   tabPanelHeight,
@@ -28,6 +29,7 @@ import {
   DEFAULT_AUTOMATION_INTERVAL_SECS,
   DEFAULT_AI_CACHE_TTL_MINUTES,
   DEFAULT_PROFILE_PRESETS,
+  DEFAULT_NETWORK_ALERT_RULES,
   DEFAULT_USER_MODE,
   DEFAULT_LOCALE,
   MIN_IDLE_THRESHOLD,
@@ -66,6 +68,7 @@ beforeEach(() => {
   aiCacheTtlMinutes.set(DEFAULT_AI_CACHE_TTL_MINUTES);
   activeProfilePreset.set("general");
   profilePresets.set([...DEFAULT_PROFILE_PRESETS]);
+  networkAlertRules.set([...DEFAULT_NETWORK_ALERT_RULES]);
   theme.set("auto");
   tabPanelHeight.set(160);
   localePreference.set(DEFAULT_LOCALE);
@@ -170,6 +173,7 @@ describe("loadPreferences", () => {
       if (key === "userMode") return "basic";
       if (key === "tabPanelHeight") return 240;
       if (key === "aiCacheTtlMinutes") return 15;
+      if (key === "networkAlertRules") return DEFAULT_NETWORK_ALERT_RULES;
       return undefined;
     });
 
@@ -180,6 +184,7 @@ describe("loadPreferences", () => {
     expect(get(automationIntervalSecs)).toBe(10);
     expect(get(activeProfilePreset)).toBe("developer");
     expect(get(aiCacheTtlMinutes)).toBe(15);
+    expect(get(networkAlertRules)).toEqual(DEFAULT_NETWORK_ALERT_RULES);
     expect(get(theme)).toBe("dark");
     expect(get(userMode)).toBe("basic");
     expect(get(tabPanelHeight)).toBe(240);
@@ -238,6 +243,7 @@ describe("savePreferences", () => {
     expect(mockStore.set).toHaveBeenCalledWith("aiCacheTtlMinutes", 12);
     expect(mockStore.set).toHaveBeenCalledWith("activeProfilePreset", "developer");
     expect(mockStore.set).toHaveBeenCalledWith("userMode", "basic");
+    expect(mockStore.set).toHaveBeenCalledWith("networkAlertRules", expect.any(Array));
     expect(mockStore.save).toHaveBeenCalled();
   });
 

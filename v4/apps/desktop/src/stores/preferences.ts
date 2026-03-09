@@ -1,8 +1,9 @@
 import { writable, get } from "svelte/store";
 import type { LocaleCode } from "../lib/i18n";
 import type { CustomThemeOverrides } from "../lib/theme";
-import type { ProfilePreset } from "../lib/types";
+import type { NetworkAlertRule, ProfilePreset } from "../lib/types";
 import { setCustomThemeOverrides } from "../lib/theme";
+import { ipcSetNetworkAlertRules } from "../lib/ipc";
 
 export interface ColumnConfig {
   name: boolean;
@@ -86,6 +87,61 @@ const DEFAULT_AI_CACHE_TTL_MINUTES = 5;
 const MIN_AI_CACHE_TTL_MINUTES = 0;
 const MAX_AI_CACHE_TTL_MINUTES = 60;
 
+const DEFAULT_NETWORK_ALERT_RULES: NetworkAlertRule[] = [
+  {
+    id: "default-high-bandwidth",
+    name: "Alto bandwidth",
+    enabled: true,
+    condition: {
+      kind: "high_bandwidth",
+      threshold_mbps: 400,
+      direction: "upload",
+      process: null,
+    },
+    severity: "warning",
+    cooldown_seconds: 30,
+    notify_ai: false,
+  },
+  {
+    id: "default-suspicious-port",
+    name: "Conexion a puerto sospechoso",
+    enabled: true,
+    condition: {
+      kind: "unusual_port",
+      suspicious_ports: [4444, 6667, 8443, 31337],
+    },
+    severity: "critical",
+    cooldown_seconds: 45,
+    notify_ai: true,
+  },
+  {
+    id: "default-process-spike",
+    name: "Spike de proceso",
+    enabled: true,
+    condition: {
+      kind: "process_network_spike",
+      process_name: "chrome",
+      multiplier: 5,
+    },
+    severity: "warning",
+    cooldown_seconds: 60,
+    notify_ai: true,
+  },
+  {
+    id: "default-connection-count",
+    name: "Demasiadas conexiones",
+    enabled: true,
+    condition: {
+      kind: "connection_count_exceeded",
+      max_connections: 200,
+      process: null,
+    },
+    severity: "warning",
+    cooldown_seconds: 30,
+    notify_ai: false,
+  },
+];
+
 /** Current font size (in px) for the process table. */
 export const fontSize = writable(DEFAULT_FONT_SIZE);
 
@@ -144,6 +200,161 @@ export const customTheme = writable<CustomThemeOverrides | null>(null);
 
 /** User-facing workspace density mode. */
 export const userMode = writable<UserMode>(DEFAULT_USER_MODE);
+export const networkAlertRules = writable<NetworkAlertRule[]>([...DEFAULT_NETWORK_ALERT_RULES]);
+
+function sanitizePortList(raw: unknown): number[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((value): value is number => typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 65535)
+    .slice(0, 32);
+}
+
+function sanitizeStringList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .slice(0, 32);
+}
+
+function sanitizeNetworkAlertRule(raw: unknown): NetworkAlertRule | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const rule = raw as Record<string, unknown>;
+  const id = typeof rule.id === "string" ? rule.id.trim() : "";
+  const name = typeof rule.name === "string" ? rule.name.trim() : "";
+  const enabled = typeof rule.enabled === "boolean" ? rule.enabled : true;
+  const severity = rule.severity;
+  const cooldown = typeof rule.cooldown_seconds === "number" && Number.isFinite(rule.cooldown_seconds)
+    ? Math.max(0, Math.min(Math.round(rule.cooldown_seconds), 3600))
+    : 30;
+  const notifyAi = typeof rule.notify_ai === "boolean" ? rule.notify_ai : false;
+  const condition = rule.condition;
+
+  if (!id || !name || !condition || typeof condition !== "object" || Array.isArray(condition)) return null;
+  if (severity !== "info" && severity !== "warning" && severity !== "critical") return null;
+
+  const c = condition as Record<string, unknown>;
+  switch (c.kind) {
+    case "high_bandwidth": {
+      const threshold = typeof c.threshold_mbps === "number" && Number.isFinite(c.threshold_mbps) ? Math.max(0.1, c.threshold_mbps) : NaN;
+      const direction = c.direction;
+      if (!Number.isFinite(threshold)) return null;
+      if (direction !== "upload" && direction !== "download" && direction !== "both") return null;
+      return {
+        id,
+        name,
+        enabled,
+        severity,
+        cooldown_seconds: cooldown,
+        notify_ai: notifyAi,
+        condition: {
+          kind: "high_bandwidth",
+          threshold_mbps: threshold,
+          direction,
+          process: typeof c.process === "string" && c.process.trim() ? c.process.trim() : null,
+        },
+      };
+    }
+    case "new_external_connection":
+      return {
+        id,
+        name,
+        enabled,
+        severity,
+        cooldown_seconds: cooldown,
+        notify_ai: notifyAi,
+        condition: {
+          kind: "new_external_connection",
+          exclude_known: typeof c.exclude_known === "boolean" ? c.exclude_known : true,
+        },
+      };
+    case "unusual_port": {
+      const suspiciousPorts = sanitizePortList(c.suspicious_ports);
+      if (suspiciousPorts.length === 0) return null;
+      return {
+        id,
+        name,
+        enabled,
+        severity,
+        cooldown_seconds: cooldown,
+        notify_ai: notifyAi,
+        condition: {
+          kind: "unusual_port",
+          suspicious_ports: suspiciousPorts,
+        },
+      };
+    }
+    case "process_network_spike": {
+      const processName = typeof c.process_name === "string" ? c.process_name.trim() : "";
+      const multiplier = typeof c.multiplier === "number" && Number.isFinite(c.multiplier) ? Math.max(1.1, c.multiplier) : NaN;
+      if (!processName || !Number.isFinite(multiplier)) return null;
+      return {
+        id,
+        name,
+        enabled,
+        severity,
+        cooldown_seconds: cooldown,
+        notify_ai: notifyAi,
+        condition: {
+          kind: "process_network_spike",
+          process_name: processName,
+          multiplier,
+        },
+      };
+    }
+    case "connection_count_exceeded": {
+      const maxConnections = typeof c.max_connections === "number" && Number.isFinite(c.max_connections)
+        ? Math.max(1, Math.min(Math.round(c.max_connections), 100000))
+        : NaN;
+      if (!Number.isFinite(maxConnections)) return null;
+      return {
+        id,
+        name,
+        enabled,
+        severity,
+        cooldown_seconds: cooldown,
+        notify_ai: notifyAi,
+        condition: {
+          kind: "connection_count_exceeded",
+          max_connections: maxConnections,
+          process: typeof c.process === "string" && c.process.trim() ? c.process.trim() : null,
+        },
+      };
+    }
+    case "suspicious_destination": {
+      const patterns = sanitizeStringList(c.patterns);
+      if (patterns.length === 0) return null;
+      return {
+        id,
+        name,
+        enabled,
+        severity,
+        cooldown_seconds: cooldown,
+        notify_ai: notifyAi,
+        condition: {
+          kind: "suspicious_destination",
+          patterns,
+        },
+      };
+    }
+    default:
+      return null;
+  }
+}
+
+function sanitizeNetworkAlertRules(raw: unknown): NetworkAlertRule[] {
+  if (!Array.isArray(raw)) return [...DEFAULT_NETWORK_ALERT_RULES];
+  const seen = new Set<string>();
+  const rules: NetworkAlertRule[] = [];
+  for (const entry of raw) {
+    const rule = sanitizeNetworkAlertRule(entry);
+    if (!rule || seen.has(rule.id)) continue;
+    seen.add(rule.id);
+    rules.push(rule);
+  }
+  return rules.length > 0 ? rules : [...DEFAULT_NETWORK_ALERT_RULES];
+}
 
 function sanitizeProfilePreset(raw: unknown): ProfilePreset | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -266,6 +477,9 @@ export async function loadPreferences(): Promise<void> {
         model: typeof ai.model === "string" ? ai.model : DEFAULT_AI_CONFIG.model,
       });
     }
+
+    const savedNetworkAlertRules = await store.get("networkAlertRules");
+    networkAlertRules.set(sanitizeNetworkAlertRules(savedNetworkAlertRules));
 
     const savedProfilePresets = await store.get("profilePresets");
     const sanitizedPresets = sanitizeProfilePresets(savedProfilePresets);
@@ -394,6 +608,7 @@ export async function savePreferences(): Promise<void> {
     await store.set("aiChatPanelHeight", get(aiChatPanelHeight));
     await store.set("locale", get(localePreference));
     await store.set("customTheme", get(customTheme));
+    await store.set("networkAlertRules", get(networkAlertRules));
     
     await store.set("profilesCollapsed", get(profilesCollapsedStore));
     await store.set("mainTableCollapsed", get(mainTableCollapsedStore));
@@ -439,6 +654,12 @@ export function initPreferenceSubscriptions(): () => void {
     localePreference.subscribe(() => debouncedSave()),
     customTheme.subscribe((ct) => {
       setCustomThemeOverrides(ct);
+      debouncedSave();
+    }),
+    networkAlertRules.subscribe((rules) => {
+      void ipcSetNetworkAlertRules(rules).catch((err) => {
+        console.warn("[PREFERENCES] Failed to sync network alert rules:", err);
+      });
       debouncedSave();
     }),
     profilesCollapsedStore.subscribe(() => debouncedSave()),
@@ -526,4 +747,5 @@ export {
   MIN_AI_CACHE_TTL_MINUTES,
   MAX_AI_CACHE_TTL_MINUTES,
   DEFAULT_PROFILE_PRESETS,
+  DEFAULT_NETWORK_ALERT_RULES,
 };
