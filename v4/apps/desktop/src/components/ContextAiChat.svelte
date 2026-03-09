@@ -57,6 +57,12 @@
     input = "";
   }
 
+  export async function ask(question: string) {
+    if (!question || loading) return;
+    input = question;
+    await handleSubmit();
+  }
+
   async function handleSubmit() {
     const trimmed = input.trim();
     if (!trimmed || loading) return;

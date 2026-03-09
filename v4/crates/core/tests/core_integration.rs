@@ -1223,7 +1223,7 @@ fn integration_watcher_metrics_to_ai_prompt_pipeline() {
 
     assert!(state.total_memory_bytes > 0);
     assert!(prompt.contains("System State"));
-    assert!(prompt.contains("Top processes"));
+    assert!(prompt.contains("Top Memory/CPU processes"));
 }
 
 #[test]

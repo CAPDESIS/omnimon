@@ -39,7 +39,14 @@ export const AI_PRESETS: AiPreset[] = [
     id: "network-traffic",
     label: "Analizar tráfico de red",
     icon: "🌐",
-    prompt: "Analiza el tráfico de red actual. ¿Qué procesos están enviando o recibiendo más datos? ¿Hay conexiones sospechosas?",
+    prompt: "Analiza el tráfico de red actual. Dame las top 10 conexiones por ancho de banda, puertos abiertos relevantes, y procesos con más tráfico. Explica en lenguaje simple qué está pasando en mi red.",
+    category: "network",
+  },
+  {
+    id: "network-anomaly",
+    label: "Detección de anomalías",
+    icon: "🚨",
+    prompt: "Revisa estas conexiones y dime si hay algo sospechoso. Presta especial atención a conexiones a IPs desconocidas, puertos inusuales, procesos con mucho tráfico inesperado. Dame una lista estructurada de hallazgos con severidad y si aplica, recomiéndame cerrar la conexión.",
     category: "network",
   },
   {
