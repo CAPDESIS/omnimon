@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use core::ai as core_ai;
 use core::browser::{BrowserKind, BrowserTab, NativeTabProvider, TabProvider};
+use core::crypto;
 use core::killer;
 use core::metrics;
 use core::rules_engine;
@@ -70,6 +71,11 @@ enum Commands {
     Settings {
         #[command(subcommand)]
         command: SettingsCommands,
+    },
+    /// Manage cryptographic key configuration
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommands,
     },
     /// Manage Authentication (e.g., CrabNebula)
     Auth {
@@ -142,6 +148,12 @@ enum RulesCommands {
     },
     /// Print the expected JSON schema for AI rules payloads
     Schema,
+}
+
+#[derive(Subcommand)]
+enum ConfigCommands {
+    /// Rotate the scan encryption key (NIST SC-12 key rotation)
+    RotateKey,
 }
 
 #[derive(Subcommand)]
@@ -612,6 +624,93 @@ fn main() {
                     Ok(_) => println!("Setting '{}' updated to '{}'", key, value),
                     Err(e) => {
                         eprintln!("Failed to save settings: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+        },
+        Commands::Config { command } => match command {
+            ConfigCommands::RotateKey => {
+                println!("Rotating scan encryption key...");
+                let entry = match keyring::Entry::new("omnimon_security", "scan_encryption_key") {
+                    Ok(e) => e,
+                    Err(e) => {
+                        eprintln!("Error: cannot access OS keyring: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+
+                let old_key: [u8; 32] = match entry.get_password() {
+                    Ok(stored) => {
+                        use base64::Engine;
+                        let decoded = base64::engine::general_purpose::STANDARD
+                            .decode(&stored)
+                            .unwrap_or_default();
+                        if decoded.len() == 32 {
+                            let mut k = [0u8; 32];
+                            k.copy_from_slice(&decoded);
+                            k
+                        } else {
+                            eprintln!("Error: existing key in keyring is corrupted. Generating fresh key instead.");
+                            let new_key = crypto::generate_encryption_key();
+                            use base64::Engine as _;
+                            let encoded = base64::engine::general_purpose::STANDARD.encode(new_key);
+                            let _ = entry.set_password(&encoded);
+                            println!("New encryption key generated and stored in OS keyring.");
+                            return;
+                        }
+                    }
+                    Err(_) => {
+                        println!("No existing key found. Generating initial encryption key...");
+                        let new_key = crypto::generate_encryption_key();
+                        use base64::Engine;
+                        let encoded = base64::engine::general_purpose::STANDARD.encode(new_key);
+                        let _ = entry.set_password(&encoded);
+                        println!("Encryption key generated and stored in OS keyring.");
+                        return;
+                    }
+                };
+
+                // Generate new key and store it
+                let new_key = crypto::generate_encryption_key();
+                use base64::Engine;
+                let encoded = base64::engine::general_purpose::STANDARD.encode(new_key);
+                match entry.set_password(&encoded) {
+                    Ok(_) => {
+                        // Re-encrypt existing report if present
+                        let report_path = std::env::temp_dir().join("omnimon_scan_report.enc");
+                        if report_path.exists() {
+                            if let Ok(content) = std::fs::read_to_string(&report_path) {
+                                if let Ok(payload) =
+                                    serde_json::from_str::<crypto::EncryptedPayload>(&content)
+                                {
+                                    match crypto::decrypt_bytes(&old_key, &payload) {
+                                        Ok(plaintext) => {
+                                            if let Ok(re_enc) =
+                                                crypto::encrypt_bytes(&new_key, &plaintext)
+                                            {
+                                                if let Ok(json) =
+                                                    serde_json::to_string_pretty(&re_enc)
+                                                {
+                                                    let _ = std::fs::write(&report_path, json);
+                                                    println!("Existing report re-encrypted with new key.");
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            eprintln!(
+                                                "Warning: could not re-encrypt existing report: {}",
+                                                e
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        println!("Encryption key rotated successfully.");
+                    }
+                    Err(e) => {
+                        eprintln!("Error: failed to save new key to keyring: {}", e);
                         std::process::exit(1);
                     }
                 }

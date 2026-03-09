@@ -230,6 +230,30 @@ pub fn verify_update(
     verify_release(downloaded_bytes, &release_sig, trusted_public_key)
 }
 
+// ---------------------------------------------------------------------------
+// Key Rotation (NIST SC-12)
+// ---------------------------------------------------------------------------
+
+/// Generates a fresh 256-bit encryption key using the OS CSPRNG.
+pub fn generate_encryption_key() -> [u8; 32] {
+    let mut key = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut key);
+    key
+}
+
+/// Rotates an encryption key: generates a new key, re-encrypts `existing_payload`
+/// from `old_key` to the new key, and returns `(new_key, re_encrypted_payload)`.
+/// The caller is responsible for persisting the new key to the keyring.
+pub fn rotate_key(
+    old_key: &[u8; 32],
+    existing_payload: &EncryptedPayload,
+) -> Result<([u8; 32], EncryptedPayload), String> {
+    let plaintext = decrypt_bytes(old_key, existing_payload)?;
+    let new_key = generate_encryption_key();
+    let new_payload = encrypt_bytes(&new_key, &plaintext)?;
+    Ok((new_key, new_payload))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -392,5 +416,36 @@ mod tests {
         // Verify manual zeroize works
         key.zeroize();
         assert_eq!(key.as_bytes(), &[0u8; 32]);
+    }
+
+    // --- Key Rotation Tests (NIST SC-12) ---
+
+    #[test]
+    fn rotate_key_preserves_plaintext() {
+        let old_key = [1u8; 32];
+        let plaintext = b"data to survive rotation";
+        let encrypted = encrypt_bytes(&old_key, plaintext).expect("encrypt");
+
+        let (new_key, new_encrypted) = rotate_key(&old_key, &encrypted).expect("rotate");
+        assert_ne!(old_key, new_key);
+
+        let decrypted = decrypt_bytes(&new_key, &new_encrypted).expect("decrypt");
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn rotate_key_old_key_cannot_decrypt_new_payload() {
+        let old_key = [1u8; 32];
+        let encrypted = encrypt_bytes(&old_key, b"secret").expect("encrypt");
+
+        let (_, new_encrypted) = rotate_key(&old_key, &encrypted).expect("rotate");
+        assert!(decrypt_bytes(&old_key, &new_encrypted).is_err());
+    }
+
+    #[test]
+    fn generate_encryption_key_is_random() {
+        let k1 = generate_encryption_key();
+        let k2 = generate_encryption_key();
+        assert_ne!(k1, k2);
     }
 }
