@@ -37,7 +37,7 @@
         "https://cdn.crabnebula.app/update/chochy2001/omnimon/{{target}}-{{arch}}/{{current_version}}"
       ],
       "dialog": true,
-      "pubkey": ""
+      "pubkey": "TODO_GENERATE_WITH_tauri_signer_generate_BEFORE_RELEASE"
     }
   },
   "bundle": {

@@ -329,31 +329,55 @@ fn kill_processes(pids: Vec<u32>) -> Result<KillProcessesResult, String> {
     Ok(KillProcessesResult { killed, failed })
 }
 
-/// Store key name for the fallback API key file.
-const STORE_FILENAME: &str = "ai_keys.json";
+/// Legacy store filename — only used for migrating existing plain-text keys.
+const LEGACY_STORE_FILENAME: &str = "ai_keys.json";
 
-/// Try keyring first, then Tauri Store.
+/// Retrieve an API key from the OS keyring.
+///
+/// If a legacy Tauri Store key exists, it is migrated to the keyring and
+/// removed from the store.  Plain-text storage is never used for new keys.
 fn get_api_key_with_fallback(app: &AppHandle, provider: &str) -> Result<String, String> {
     let ai_provider = macmon_core::ai::AiProvider::from_str(provider)?;
 
-    // 1) Try OS keyring
+    // 1) Try OS keyring (secure path)
     if let Ok(key) = macmon_core::ai::get_api_key(ai_provider) {
         return Ok(key);
     }
 
-    // 2) Fallback: Tauri Store
-    let store = app.store(STORE_FILENAME).map_err(|e| e.to_string())?;
-    store
-        .get(ai_provider.keyring_service())
-        .and_then(|v| v.as_str().map(|s| s.to_string()))
-        .ok_or_else(|| "No API key found (keyring and store both empty)".to_string())
+    // 2) Check for legacy plain-text key and migrate it to keyring
+    if let Ok(store) = app.store(LEGACY_STORE_FILENAME) {
+        if let Some(legacy_key) = store
+            .get(ai_provider.keyring_service())
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
+        {
+            tracing::warn!(
+                "Migrating legacy plain-text API key for {} to OS keyring",
+                provider
+            );
+            if macmon_core::ai::save_api_key(ai_provider, &legacy_key).is_ok() {
+                store.delete(ai_provider.keyring_service());
+                let _ = store.save();
+                return Ok(legacy_key);
+            }
+            // Keyring still broken — return the legacy key this one time but warn
+            tracing::error!(
+                "OS keyring unavailable — legacy key used but migration failed for {}",
+                provider
+            );
+            return Ok(legacy_key);
+        }
+    }
+
+    Err(format!(
+        "No API key found for {provider}. Save one with the Settings panel or 'omnimon apikey'."
+    ))
 }
 
-/// IPC: Save AI Configuration — keyring first, Tauri Store as fallback.
+/// IPC: Save AI Configuration — keyring only, no plain-text fallback.
 #[tauri::command]
 #[tracing::instrument(skip_all)]
 fn save_ai_config(
-    app: AppHandle,
+    _app: AppHandle,
     provider: String,
     _model: String,
     key: String,
@@ -368,18 +392,12 @@ fn save_ai_config(
     }
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
 
-    // Try keyring first
-    if macmon_core::ai::save_api_key(ai_provider, &trimmed_key).is_ok() {
-        return Ok(());
-    }
-
-    // Fallback: persist in Tauri Store
-    let store = app.store(STORE_FILENAME).map_err(|e| e.to_string())?;
-    store.set(
-        ai_provider.keyring_service(),
-        serde_json::Value::String(trimmed_key),
-    );
-    Ok(())
+    macmon_core::ai::save_api_key(ai_provider, &trimmed_key).map_err(|e| {
+        format!(
+            "Failed to save API key to OS keyring: {e}. \
+             Ensure your OS keyring service is available."
+        )
+    })
 }
 
 /// IPC: Check whether an API key exists (keyring or store).
@@ -393,6 +411,10 @@ fn check_api_key(app: AppHandle, provider: String) -> Result<bool, String> {
 #[tauri::command]
 #[tracing::instrument(skip_all)]
 fn apply_ai_rules(payload: String) -> Result<usize, String> {
+    macmon_core::rate_limit::check_rate_limit(
+        "apply_ai_rules",
+        &macmon_core::rate_limit::profiles::AI,
+    )?;
     macmon_core::rules_engine::upsert_rules_from_ai_json(&payload)
 }
 
