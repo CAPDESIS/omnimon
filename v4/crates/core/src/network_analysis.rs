@@ -649,6 +649,7 @@ fn wait_with_timeout(
 /// Parse lsof -F output format.
 ///
 /// Fields: p=PID, c=command, t=type, T=TCP state, P=protocol, n=name
+#[cfg(any(target_os = "macos", test))]
 fn parse_lsof_output(text: &str) -> Result<Vec<NetworkConnection>, String> {
     let mut connections = Vec::new();
     let mut current_pid: u32 = 0;
@@ -715,6 +716,7 @@ fn parse_lsof_output(text: &str) -> Result<Vec<NetworkConnection>, String> {
 }
 
 /// Parse a single lsof "n" field like "10.0.0.1:443->8.8.8.8:443" or "*:80".
+#[cfg(any(target_os = "macos", test))]
 fn parse_lsof_name(
     name: &str,
     pid: u32,
