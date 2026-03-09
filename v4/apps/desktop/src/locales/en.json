@@ -271,7 +271,20 @@
     "noTabsMatched": "No tabs matched: {patterns}",
     "closedTabs": "Closed {count} tab(s){suffix}",
     "failedCloseTabs": "Failed to close {count} tab(s)",
-    "errorPrefix": "Error: {message}"
+    "errorPrefix": "Error: {message}",
+    "errorTimeout": "Connection Error: Timeout reached. Do you want to retry or use a local model (Ollama)?",
+    "errorApi": "API Error: Could not contact provider. If using Ollama, ensure it is running (`ollama serve`).",
+    "errorGeneric": "Error processing request: {msg}",
+    "killProcessDesc": "Kill process \"{name}\" (PID {pid})",
+    "killByNameDesc": "Kill {count} process(es) matching \"{name}\" (PIDs: {pids})",
+    "invalidPid": "Invalid PID: {pid}",
+    "killedProcess": "Killed process \"{name}\" (PID {pid})",
+    "processNotFound": "Process PID {pid} not found (may have already exited)",
+    "failedKill": "Failed to kill PID {pid}: {error}",
+    "noValidPids": "No valid PIDs for \"{name}\"",
+    "killedProcesses": "Killed {killed}/{total} processes matching \"{name}\"{failedText}",
+    "failedKillAny": "Failed to kill any processes matching \"{name}\"",
+    "failedKillMultiple": "Failed to kill processes: {error}"
   },
   "securityReport": {
     "title": "Security Report",
