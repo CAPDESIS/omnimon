@@ -588,4 +588,71 @@ mod tests {
         let alerts = evaluate_events(&events, &runtime);
         assert!(alerts.is_empty(), "disabled rule should not fire");
     }
+
+    #[test]
+    fn evaluate_events_uses_pid_fallback_default_mitre_and_protocol_filter() {
+        let payload = r#"{"schema_version":1,"rules":[
+            {"id":"udp-rule","name":"UDP match","enabled":true,"kind":"process_port","process_contains":"CHROME","country_code":null,"destination_ip":null,"destination_cidr":null,"destination_port":53,"protocol":"udp","process_memory_mb_gt":null,"mitre_technique_id":null,"temporal_correlation":null},
+            {"id":"fallback-rule","name":"Fallback match","enabled":true,"kind":"process_port","process_contains":null,"country_code":null,"destination_ip":null,"destination_cidr":null,"destination_port":53,"protocol":"udp","process_memory_mb_gt":null,"mitre_technique_id":null,"temporal_correlation":null},
+            {"id":"tcp-rule","name":"TCP match","enabled":true,"kind":"process_port","process_contains":"chrome","country_code":null,"destination_ip":null,"destination_cidr":null,"destination_port":53,"protocol":"tcp","process_memory_mb_gt":null,"mitre_technique_id":null,"temporal_correlation":null}
+        ]}"#;
+        upsert_rules_from_ai_json(payload).expect("load protocol rules");
+
+        let udp_event = crate::network::ProcessConnectionEvent {
+            pid: 404,
+            protocol: crate::network::TransportProtocol::Udp,
+            direction: crate::network::TrafficDirection::Outbound,
+            src_ip: "10.0.0.9".to_string(),
+            dst_ip: "8.8.8.8".to_string(),
+            src_port: 53000,
+            dst_port: 53,
+            bytes: 42,
+        };
+
+        let runtime = vec![ProcessRuntime {
+            pid: 404,
+            process_name: "chrome helper".to_string(),
+            memory_bytes: 128 * 1_048_576,
+        }];
+
+        let alerts = evaluate_events(&[udp_event.clone()], &runtime);
+        assert_eq!(alerts.len(), 2);
+        assert!(alerts.iter().any(|alert| alert.rule_id == "udp-rule"));
+        assert!(alerts
+            .iter()
+            .all(|alert| alert.mitre_technique_id == "T1571"));
+
+        let alerts_without_runtime = evaluate_events(&[udp_event], &[]);
+        assert_eq!(alerts_without_runtime.len(), 1);
+        assert_eq!(alerts_without_runtime[0].rule_id, "fallback-rule");
+        assert_eq!(alerts_without_runtime[0].process_name, "pid-404");
+    }
+
+    #[test]
+    fn replace_geoip_db_ignores_invalid_cidrs_and_normalizes_country_codes() {
+        let geo_json = r#"[
+            {"cidr":"100.0.0.0/8","country_code":"ru"},
+            {"cidr":"999.0.0.0/8","country_code":"xx"},
+            {"cidr":"10.0.0.0/99","country_code":"zz"}
+        ]"#;
+        let count = replace_geoip_db_from_json(geo_json).expect("replace geo db");
+        assert_eq!(count, 1);
+
+        let payload = r#"{"schema_version":1,"rules":[{"id":"geo-rule","name":"geo rule","enabled":true,"kind":"process_country","process_contains":null,"country_code":"RU","destination_ip":null,"destination_cidr":null,"destination_port":null,"protocol":"any","process_memory_mb_gt":null,"mitre_technique_id":null,"temporal_correlation":null}]}"#;
+        upsert_rules_from_ai_json(payload).expect("load geo rule");
+
+        let events = vec![crate::network::ProcessConnectionEvent {
+            pid: 11,
+            protocol: crate::network::TransportProtocol::Tcp,
+            direction: crate::network::TrafficDirection::Outbound,
+            src_ip: "10.0.0.1".to_string(),
+            dst_ip: "100.1.2.3".to_string(),
+            src_port: 40000,
+            dst_port: 443,
+            bytes: 10,
+        }];
+        let alerts = evaluate_events(&events, &[]);
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0].country_code.as_deref(), Some("RU"));
+    }
 }
