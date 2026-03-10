@@ -666,14 +666,18 @@ async fn ai_chat(
     let mut messages = history;
     messages.push(("user".to_string(), message));
 
-    // Send to LLM
-    let (ai_text, tool_call) = macmon_core::ai::chat_with_tools_ttl(
+    // Send to LLM with streaming — tokens are emitted as Tauri events
+    let app_for_stream = app.clone();
+    let (ai_text, tool_call) = macmon_core::ai::chat_with_tools_streaming(
         ai_provider,
         &model,
         &api_key,
         &messages,
         &system_prompt,
         cache_ttl_minutes.unwrap_or(5),
+        move |token| {
+            let _ = app_for_stream.emit("ai-stream-token", token);
+        },
     )
     .await
     .map_err(|e| e.to_string())?;

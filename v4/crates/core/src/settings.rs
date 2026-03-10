@@ -171,7 +171,7 @@ pub fn sanitize_settings(settings: &mut Settings) {
 }
 
 pub fn get_settings_path() -> PathBuf {
-    let mut path = dirs::data_dir().expect("Could not find data directory");
+    let mut path = dirs::data_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
     path.push("com.omnimon.desktop");
     path.push("preferences.json");
     path

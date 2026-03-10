@@ -1,5 +1,6 @@
 //! Artificial Intelligence integration module. Handles communication with various LLM providers (OpenAI, Anthropic, Gemini, OpenRouter) for predictive system optimization and context analysis.
 
+use futures_util::StreamExt;
 use keyring::Entry;
 use regex::Regex;
 use reqwest::Client;
@@ -1216,6 +1217,210 @@ pub async fn chat_with_tools_ttl(
 ) -> Result<(String, Option<RawToolCall>), Box<dyn Error + Send + Sync>> {
     set_ai_cache_ttl_minutes(cache_ttl_minutes.min(60));
     chat_with_tools(provider, model, api_key, messages, system_prompt).await
+}
+
+/// Streaming variant of `chat_with_tools_ttl`. Emits tokens via the `on_token`
+/// callback as they arrive from the LLM provider. Falls back to non-streaming
+/// for cached responses. Returns the same full response as the non-streaming version.
+pub async fn chat_with_tools_streaming<F>(
+    provider: AiProvider,
+    model: &str,
+    api_key: &str,
+    messages: &[(String, String)],
+    system_prompt: &str,
+    cache_ttl_minutes: u64,
+    on_token: F,
+) -> Result<(String, Option<RawToolCall>), Box<dyn Error + Send + Sync>>
+where
+    F: Fn(&str) + Send + Sync,
+{
+    set_ai_cache_ttl_minutes(cache_ttl_minutes.min(60));
+    validate_chat_messages(messages)?;
+    validate_prompt_input(system_prompt)?;
+    check_prompt_injection(system_prompt)?;
+
+    if let Some((_, last_user_msg)) = messages.last() {
+        check_prompt_injection(last_user_msg)?;
+    }
+
+    // Check cache first — if hit, return immediately (no streaming)
+    let cache_key = calculate_hash(&(provider as u8, model, messages, system_prompt));
+    if let Ok(cache) = get_ai_cache().read() {
+        if let Some(cached_response) = cache.get(&cache_key) {
+            if !is_cache_entry_expired(cached_response) {
+                let tool_call = parse_tool_call(&cached_response.value);
+                return Ok((cached_response.value.clone(), tool_call));
+            }
+        }
+    }
+
+    let client = build_client()?;
+
+    let msg_array: Vec<serde_json::Value> = messages
+        .iter()
+        .map(|(role, content)| json!({"role": role, "content": content}))
+        .collect();
+
+    let system_len = system_prompt.len();
+    let history_len: usize = messages.iter().map(|(r, c)| r.len() + c.len()).sum();
+    eprintln!(
+        "[ai-stream] provider={provider:?} model={model} system_prompt_len={system_len} history_msgs={} history_bytes={history_len}",
+        messages.len()
+    );
+
+    let full_text = if provider == AiProvider::Anthropic {
+        let body = json!({
+            "model": model,
+            "max_tokens": MAX_TOKENS_CHAT,
+            "system": system_prompt,
+            "messages": msg_array,
+            "stream": true
+        });
+        let resp = add_anthropic_headers(client.post(AiProvider::Anthropic.api_url()), api_key)
+            .json(&body)
+            .send()
+            .await?;
+        let status = resp.status();
+        if !status.is_success() {
+            let body_text = resp.text().await.unwrap_or_default();
+            return Err(format!(
+                "AI request failed (status {}): {}",
+                status.as_u16(),
+                body_text.chars().take(200).collect::<String>()
+            )
+            .into());
+        }
+        read_sse_stream_anthropic(resp, &on_token).await?
+    } else {
+        // OpenAI-compatible providers (OpenAI, OpenRouter, Gemini, Ollama)
+        let mut openai_msgs = vec![json!({"role": "system", "content": system_prompt})];
+        openai_msgs.extend(msg_array.iter().cloned());
+        let body = json!({
+            "model": model,
+            "messages": openai_msgs,
+            "stream": true
+        });
+        let mut req = client.post(provider.api_url());
+        if provider != AiProvider::Ollama {
+            req = req.header("Authorization", format!("Bearer {}", api_key));
+        }
+        if provider == AiProvider::OpenRouter {
+            req = add_openrouter_headers(req);
+        }
+        let resp = req.json(&body).send().await?;
+        let status = resp.status();
+        if !status.is_success() {
+            let body_text = resp.text().await.unwrap_or_default();
+            return Err(format!(
+                "AI request failed (status {}): {}",
+                status.as_u16(),
+                body_text.chars().take(200).collect::<String>()
+            )
+            .into());
+        }
+        read_sse_stream_openai(resp, &on_token).await?
+    };
+
+    eprintln!("[ai-stream] complete, total_len={}", full_text.len());
+
+    if let Ok(mut cache) = get_ai_cache().write() {
+        insert_cache_entry(&mut cache, cache_key, full_text.clone());
+    }
+
+    let tool_call = parse_tool_call(&full_text);
+    Ok((full_text, tool_call))
+}
+
+/// Reads an OpenAI-compatible SSE stream and emits tokens via the callback.
+/// Returns the full assembled text.
+async fn read_sse_stream_openai<F>(
+    resp: reqwest::Response,
+    on_token: &F,
+) -> Result<String, Box<dyn Error + Send + Sync>>
+where
+    F: Fn(&str) + Send + Sync,
+{
+    let mut full_text = String::new();
+    let mut buffer = String::new();
+    let mut stream = resp.bytes_stream();
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        buffer.push_str(&String::from_utf8_lossy(&chunk));
+
+        while let Some(pos) = buffer.find('\n') {
+            let line = buffer[..pos].trim_end().to_string();
+            buffer = buffer[pos + 1..].to_string();
+
+            if line.is_empty() {
+                continue;
+            }
+
+            if let Some(data) = line.strip_prefix("data: ") {
+                if data == "[DONE]" {
+                    return Ok(full_text);
+                }
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
+                    if let Some(content) = parsed
+                        .get("choices")
+                        .and_then(|c| c.get(0))
+                        .and_then(|c| c.get("delta"))
+                        .and_then(|d| d.get("content"))
+                        .and_then(|c| c.as_str())
+                    {
+                        full_text.push_str(content);
+                        on_token(content);
+                    }
+                }
+            }
+        }
+    }
+    Ok(full_text)
+}
+
+/// Reads an Anthropic SSE stream and emits tokens via the callback.
+/// Returns the full assembled text.
+async fn read_sse_stream_anthropic<F>(
+    resp: reqwest::Response,
+    on_token: &F,
+) -> Result<String, Box<dyn Error + Send + Sync>>
+where
+    F: Fn(&str) + Send + Sync,
+{
+    let mut full_text = String::new();
+    let mut buffer = String::new();
+    let mut stream = resp.bytes_stream();
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        buffer.push_str(&String::from_utf8_lossy(&chunk));
+
+        while let Some(pos) = buffer.find('\n') {
+            let line = buffer[..pos].trim_end().to_string();
+            buffer = buffer[pos + 1..].to_string();
+
+            if line.is_empty() {
+                continue;
+            }
+
+            if let Some(data) = line.strip_prefix("data: ") {
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
+                    let event_type = parsed.get("type").and_then(|t| t.as_str());
+                    if event_type == Some("content_block_delta") {
+                        if let Some(text) = parsed
+                            .get("delta")
+                            .and_then(|d| d.get("text"))
+                            .and_then(|t| t.as_str())
+                        {
+                            full_text.push_str(text);
+                            on_token(text);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(full_text)
 }
 
 fn parse_suggestions(
