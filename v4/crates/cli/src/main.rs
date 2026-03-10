@@ -524,7 +524,10 @@ fn print_network_json(state: &watcher::SystemState, view: NetworkView, filter: &
         }),
     };
 
-    println!("{}", serde_json::to_string_pretty(&output).unwrap());
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output).unwrap_or_default()
+    );
 }
 
 fn render_network_view(format: &Format, view: NetworkView, filter: &NetworkFilter) {
@@ -622,7 +625,10 @@ fn main() {
                         "top_processes": procs_json,
                         "grouped_processes": grouped_json
                     });
-                    println!("{}", serde_json::to_string_pretty(&output).unwrap());
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&output).unwrap_or_default()
+                    );
                 }
                 Format::Text => {
                     println!("omnimon status: running");
@@ -789,7 +795,13 @@ fn main() {
             }
             TabCommands::Close { browser, id, url } => {
                 use std::str::FromStr;
-                let kind = BrowserKind::from_str(browser).expect("Invalid browser");
+                let kind = match BrowserKind::from_str(browser) {
+                    Ok(k) => k,
+                    Err(e) => {
+                        eprintln!("Invalid browser '{}': {}", browser, e);
+                        std::process::exit(1);
+                    }
+                };
                 let tab = BrowserTab {
                     id: id.clone(),
                     url: url.clone(),
@@ -805,7 +817,13 @@ fn main() {
             }
             TabCommands::Focus { browser, id, url } => {
                 use std::str::FromStr;
-                let kind = BrowserKind::from_str(browser).expect("Invalid browser");
+                let kind = match BrowserKind::from_str(browser) {
+                    Ok(k) => k,
+                    Err(e) => {
+                        eprintln!("Invalid browser '{}': {}", browser, e);
+                        std::process::exit(1);
+                    }
+                };
                 let tab = BrowserTab {
                     id: id.clone(),
                     url: url.clone(),
@@ -1087,8 +1105,13 @@ fn main() {
         Commands::Auth { command } => match command {
             AuthCommands::Login { key } => {
                 println!("Validating and saving CrabNebula API Key...");
-                let entry = keyring::Entry::new("omnimon_crabnebula", "cn_api_key")
-                    .expect("Failed to create keyring entry");
+                let entry = match keyring::Entry::new("omnimon_crabnebula", "cn_api_key") {
+                    Ok(e) => e,
+                    Err(e) => {
+                        eprintln!("Failed to access OS keyring: {}", e);
+                        std::process::exit(1);
+                    }
+                };
                 match entry.set_password(key) {
                     Ok(_) => println!("CrabNebula API Key securely saved to the OS keyring."),
                     Err(e) => {
@@ -1104,8 +1127,13 @@ fn main() {
                     "Syncing security report {} to CrabNebula Cloud...",
                     report_path
                 );
-                let entry = keyring::Entry::new("omnimon_crabnebula", "cn_api_key")
-                    .expect("Failed to create keyring entry");
+                let entry = match keyring::Entry::new("omnimon_crabnebula", "cn_api_key") {
+                    Ok(e) => e,
+                    Err(e) => {
+                        eprintln!("Failed to access OS keyring: {}", e);
+                        std::process::exit(1);
+                    }
+                };
 
                 let _api_key = match entry.get_password() {
                     Ok(k) => k,
@@ -1438,7 +1466,13 @@ fn main() {
                 };
 
                 let sig = crypto::sign_release(&signing_key, &data, version);
-                let sig_json = serde_json::to_string_pretty(&sig).expect("serialize signature");
+                let sig_json = match serde_json::to_string_pretty(&sig) {
+                    Ok(j) => j,
+                    Err(e) => {
+                        eprintln!("Error serializing signature: {}", e);
+                        std::process::exit(1);
+                    }
+                };
 
                 let sig_path = format!("{}.sig.json", file);
                 if let Err(e) = std::fs::write(&sig_path, &sig_json) {
@@ -1577,8 +1611,13 @@ fn main() {
                 let manifest =
                     crypto::build_release_manifest(&signing_key, version, &date, artifacts);
 
-                let manifest_json =
-                    serde_json::to_string_pretty(&manifest).expect("serialize manifest");
+                let manifest_json = match serde_json::to_string_pretty(&manifest) {
+                    Ok(j) => j,
+                    Err(e) => {
+                        eprintln!("Error serializing manifest: {}", e);
+                        std::process::exit(1);
+                    }
+                };
 
                 let output_path = output
                     .clone()
