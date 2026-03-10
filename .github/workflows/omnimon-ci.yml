@@ -340,12 +340,22 @@ jobs:
       - name: Generate SHA-256 checksums
         run: |
           cd /tmp/release-artifacts
+          rm -f SHA256SUMS.txt
+          count=0
           for f in *; do
             [ -f "$f" ] || continue
+            case "$f" in
+              SHA256SUMS*|*.sig.json|releases.json) continue ;;
+            esac
             sha256sum "$f" >> SHA256SUMS.txt
+            count=$((count + 1))
           done
-          echo "Generated checksums:"
-          cat SHA256SUMS.txt
+          if [ "$count" -eq 0 ]; then
+            echo "::warning::No release artifacts found to checksum"
+          else
+            echo "Generated checksums for $count artifacts:"
+            cat SHA256SUMS.txt
+          fi
 
       - name: Sign artifacts with Ed25519
         if: env.ED25519_SIGNING_KEY != ''
