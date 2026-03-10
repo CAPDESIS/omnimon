@@ -817,11 +817,11 @@
               <div class="network-alerts">
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--fg-dim);">
                   <input type="checkbox" bind:checked={networkAlertsEnabled} />
-                  {t("network.enableAlerts") || "Activar Alertas de Descarga"}
+                  {t("network.enableAlerts")}
                 </label>
                 {#if networkAlertsEnabled && heavyDownloaders.length > 0}
                   <div class="network-warning" style="margin-top: 6px;">
-                    ⚠️ {heavyDownloaders.length} proceso(s) consumiendo mucho ancho de banda (ej. {heavyDownloaders[0].name}).
+                    {t("network.heavyDownloaders", { count: heavyDownloaders.length, name: heavyDownloaders[0].name })}
                   </div>
                 {/if}
               </div>

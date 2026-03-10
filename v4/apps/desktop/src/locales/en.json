@@ -107,7 +107,34 @@
     "userViewHelp": "Choose between a simplified view and the full Pro console.",
     "loadError": "Failed to load component",
     "ignore": "Ignore",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "retry": "Retry",
+    "rateLimited": "Rate limited"
+  },
+  "alerts": {
+    "title": "Alerts",
+    "buttonTitle": "Alerts ({count})",
+    "clearAll": "Clear All",
+    "clearNetwork": "Clear Network",
+    "close": "Close alerts",
+    "activeRules": "Active Rules",
+    "recentAlerts": "Recent Alerts",
+    "networkAlerts": "Network Alerts",
+    "removeRule": "Remove rule",
+    "searchPlaceholder": "Search process, destination, or rule",
+    "investigate": "Investigate",
+    "askAi": "Ask AI",
+    "system": "System",
+    "threshold": "threshold",
+    "noneFired": "No alerts fired yet.",
+    "filters": {
+      "all": "all"
+    },
+    "severity": {
+      "info": "info",
+      "warning": "warning",
+      "critical": "critical"
+    }
   },
   "settings": {
     "title": "OmniMon Settings",
@@ -375,7 +402,87 @@
     "basicSummary": "Basic mode keeps this view focused on the map. Switch to SRE/Pro for connection tables, traffic charts, and AI context.",
     "throughput": "Live throughput",
     "hosts": "Active hosts",
-    "mapReady": "Topology ready"
+    "mapReady": "Topology ready",
+    "enableAlerts": "Enable download alerts",
+    "heavyDownloaders": "{count} process(es) consuming high bandwidth (e.g. {name})."
+  },
+  "networkConnections": {
+    "protocolFilter": "Filter by protocol",
+    "allProtocols": "All protocols",
+    "filterByProcess": "Filter by process...",
+    "filterByHost": "Filter by domain/IP...",
+    "hideLocalhost": "Hide localhost",
+    "onlyEstablished": "Established only",
+    "minSpeed": "Min KB/s",
+    "unknownProcess": "Unknown",
+    "totalUp": "Total Up:",
+    "totalDown": "Total Down:",
+    "columns": {
+      "process": "Process",
+      "protocol": "Protocol",
+      "local": "Local",
+      "remote": "Remote",
+      "hostname": "Hostname",
+      "uploadSpeed": "Upload Speed",
+      "downloadSpeed": "Download Speed",
+      "state": "State"
+    }
+  },
+  "networkAlerts": {
+    "eyebrow": "Network alerts",
+    "title": "Configurable rules",
+    "addRule": "Add rule",
+    "edit": "Edit",
+    "delete": "Delete",
+    "editRule": "Edit rule",
+    "newRule": "New rule",
+    "newRuleFallback": "New rule",
+    "name": "Name",
+    "namePlaceholder": "My network alert",
+    "type": "Type",
+    "severity": "Severity",
+    "thresholdMbps": "Threshold Mbps",
+    "processOptional": "Optional process",
+    "excludeKnown": "Exclude already known destinations",
+    "ports": "Ports",
+    "multiplier": "Multiplier",
+    "maxConnections": "Max connections",
+    "regexPatterns": "Regex/patterns",
+    "cooldownLabel": "Cooldown (s)",
+    "cooldown": "Cooldown: {seconds}s",
+    "notifyAi": "Notify AI",
+    "enabled": "Rule enabled",
+    "cancel": "Cancel",
+    "saveRule": "Save rule",
+    "aiEnabled": " - AI on",
+    "anyProcess": "any process",
+    "directions": {
+      "upload": "upload",
+      "download": "download",
+      "both": "both"
+    },
+    "severities": {
+      "info": "info",
+      "warning": "warning",
+      "critical": "critical"
+    },
+    "types": {
+      "high_bandwidth": "High bandwidth",
+      "new_external_connection": "New external connection",
+      "unusual_port": "Suspicious port",
+      "process_network_spike": "Process spike",
+      "connection_count_exceeded": "Connection count",
+      "suspicious_destination": "Suspicious destination"
+    },
+    "summaries": {
+      "highBandwidth": "{threshold} Mbps {direction} - {process}",
+      "newExternalKnown": "new destinations only",
+      "newExternalAny": "any external destination",
+      "unusualPort": "Ports: {ports}",
+      "processSpike": "{process} > {multiplier}x average",
+      "connectionCount": ">{max} - {process}",
+      "suspiciousDestination": "Patterns: {patterns}"
+    }
   },
   "processView": {
     "basicHint": "Basic mode keeps only the most relevant process details visible.",

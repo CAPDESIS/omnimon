@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../lib/i18n";
   import {
     getNetworkState,
     getFilteredConnections,
@@ -7,7 +8,7 @@
   const networkState = getNetworkState();
 
   let sortColumn = $state("bytes_up");
-  let sortDirection = $state(-1); // -1 for desc, 1 for asc
+  let sortDirection = $state(-1);
   let expandedRow = $state<number | null>(null);
 
   function toggleSort(col: string) {
@@ -22,8 +23,8 @@
   const sortedConnections = $derived.by(() => {
     const connections = getFilteredConnections();
     return [...connections].sort((a, b) => {
-      let valA = a[sortColumn as keyof typeof a];
-      let valB = b[sortColumn as keyof typeof b];
+      const valA = a[sortColumn as keyof typeof a];
+      const valB = b[sortColumn as keyof typeof b];
 
       if (typeof valA === "string" && typeof valB === "string") {
         return valA.localeCompare(valB) * sortDirection;
@@ -42,53 +43,53 @@
   }
 
   function getSpeedColor(bytesPerSec: number) {
-    if (bytesPerSec > 1024 * 1024) return "text-red-500"; // > 1MB/s
-    if (bytesPerSec > 100 * 1024) return "text-yellow-500"; // > 100KB/s
+    if (bytesPerSec > 1024 * 1024) return "text-red-500";
+    if (bytesPerSec > 100 * 1024) return "text-yellow-500";
     return "text-green-500";
   }
 </script>
 
 <div class="connections-table-container">
   <div class="network-filters">
-    <select bind:value={networkState.filter.protocol}>
-      <option value="">Todos los protocolos</option>
+    <select bind:value={networkState.filter.protocol} aria-label={t("networkConnections.protocolFilter")}>
+      <option value="">{t("networkConnections.allProtocols")}</option>
       <option value="TCP">TCP</option>
       <option value="UDP">UDP</option>
     </select>
 
-    <input type="text" placeholder="Filtrar por proceso..." bind:value={networkState.filter.process} />
-    <input type="text" placeholder="Filtrar por dominio/IP..." bind:value={networkState.filter.host} />
+    <input type="text" placeholder={t("networkConnections.filterByProcess")} bind:value={networkState.filter.process} />
+    <input type="text" placeholder={t("networkConnections.filterByHost")} bind:value={networkState.filter.host} />
 
     <label>
       <input type="checkbox" bind:checked={networkState.filter.hideLocalhost} />
-      Ocultar localhost
+      {t("networkConnections.hideLocalhost")}
     </label>
 
     <label>
       <input type="checkbox" bind:checked={networkState.filter.onlyEstablished} />
-      Solo establecidas
+      {t("networkConnections.onlyEstablished")}
     </label>
 
-    <input type="number" placeholder="Min KB/s" bind:value={networkState.filter.minSpeed} />
+    <input type="number" placeholder={t("networkConnections.minSpeed")} bind:value={networkState.filter.minSpeed} />
   </div>
 
   <table class="connections-table">
     <thead>
       <tr>
-        <th onclick={() => toggleSort('process_name')}>Proceso</th>
-        <th onclick={() => toggleSort('protocol')}>Protocolo</th>
-        <th onclick={() => toggleSort('local_address')}>Local</th>
-        <th onclick={() => toggleSort('remote_address')}>Remoto</th>
-        <th onclick={() => toggleSort('remote_hostname')}>Hostname</th>
-        <th onclick={() => toggleSort('bytes_per_sec_up')}>↑ Speed</th>
-        <th onclick={() => toggleSort('bytes_per_sec_down')}>↓ Speed</th>
-        <th onclick={() => toggleSort('state')}>Estado</th>
+        <th onclick={() => toggleSort("process_name")}>{t("networkConnections.columns.process")}</th>
+        <th onclick={() => toggleSort("protocol")}>{t("networkConnections.columns.protocol")}</th>
+        <th onclick={() => toggleSort("local_address")}>{t("networkConnections.columns.local")}</th>
+        <th onclick={() => toggleSort("remote_address")}>{t("networkConnections.columns.remote")}</th>
+        <th onclick={() => toggleSort("remote_hostname")}>{t("networkConnections.columns.hostname")}</th>
+        <th onclick={() => toggleSort("bytes_per_sec_up")}>{t("networkConnections.columns.uploadSpeed")}</th>
+        <th onclick={() => toggleSort("bytes_per_sec_down")}>{t("networkConnections.columns.downloadSpeed")}</th>
+        <th onclick={() => toggleSort("state")}>{t("networkConnections.columns.state")}</th>
       </tr>
     </thead>
     <tbody>
       {#each sortedConnections as conn}
         <tr onclick={() => expandedRow = expandedRow === conn.process_id ? null : conn.process_id}>
-          <td>{conn.process_name || 'Unknown'} ({conn.process_id})</td>
+          <td>{conn.process_name || t("networkConnections.unknownProcess")} ({conn.process_id})</td>
           <td>{conn.protocol}</td>
           <td>{conn.local_address}:{conn.local_port}</td>
           <td>{conn.remote_address}:{conn.remote_port}</td>
@@ -101,8 +102,8 @@
           <tr class="expanded-row">
             <td colspan="8">
               <div class="expanded-details">
-                <p><strong>Total Up:</strong> {(conn.bytes_up / 1024).toFixed(2)} KB</p>
-                <p><strong>Total Down:</strong> {(conn.bytes_down / 1024).toFixed(2)} KB</p>
+                <p><strong>{t("networkConnections.totalUp")}</strong> {(conn.bytes_up / 1024).toFixed(2)} KB</p>
+                <p><strong>{t("networkConnections.totalDown")}</strong> {(conn.bytes_down / 1024).toFixed(2)} KB</p>
               </div>
             </td>
           </tr>

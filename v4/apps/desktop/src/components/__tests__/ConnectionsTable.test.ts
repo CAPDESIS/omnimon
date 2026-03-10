@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import ConnectionsTable from "../ConnectionsTable.svelte";
 
+import { locale } from "../../lib/i18n";
+
 const { mockState, mockConnections } = vi.hoisted(() => ({
   mockState: {
     filter: {
@@ -57,6 +59,7 @@ describe("ConnectionsTable", () => {
   });
 
   beforeEach(() => {
+    locale.set("es");
     mockState.filter = {
       protocol: "",
       process: "",
@@ -93,7 +96,7 @@ describe("ConnectionsTable", () => {
 
     await fireEvent.click(screen.getByText(/Chrome/));
 
-    expect(screen.getByText("Total Up:")).toBeInTheDocument();
+    expect(screen.getByText("Total subida:")).toBeInTheDocument();
     expect(screen.getByText("4.00 KB")).toBeInTheDocument();
     expect(screen.getByText("8.00 KB")).toBeInTheDocument();
   });

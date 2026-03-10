@@ -65,7 +65,7 @@ describe("NetworkDashboard", () => {
     expect(screen.getByText("Conexiones activas")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(mockInitNetworkListener).toHaveBeenCalled();
-    expect(screen.getByPlaceholderText("Filtrar por proceso...")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Filter by process...")).toBeInTheDocument();
   });
 
   it("switches to process tab", async () => {
@@ -74,6 +74,6 @@ describe("NetworkDashboard", () => {
     await fireEvent.click(screen.getByText("Vista por Proceso"));
 
     expect(screen.getByText("Uso de red por proceso")).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("Filtrar por proceso...")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Filter by process...")).not.toBeInTheDocument();
   });
 });

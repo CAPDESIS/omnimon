@@ -17,6 +17,7 @@ describe("i18n", () => {
     locale.set("es");
     expect(t("settings.title")).toBe("Ajustes de OmniMon");
     expect(t("toolbar.aiAnalyze")).toBe("Analizar IA");
+    expect(t("networkAlerts.types.new_external_connection")).toBe("Nueva conexión externa");
   });
 
   it("falls back to key when translation does not exist", () => {

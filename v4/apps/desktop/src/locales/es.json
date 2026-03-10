@@ -107,7 +107,34 @@
     "userViewHelp": "Elige entre una vista simplificada y la consola completa Pro.",
     "loadError": "No se pudo cargar el componente",
     "ignore": "Ignorar",
-    "dismiss": "Descartar"
+    "dismiss": "Descartar",
+    "retry": "Reintentar",
+    "rateLimited": "Límite de velocidad alcanzado"
+  },
+  "alerts": {
+    "title": "Alertas",
+    "buttonTitle": "Alertas ({count})",
+    "clearAll": "Limpiar todo",
+    "clearNetwork": "Limpiar red",
+    "close": "Cerrar alertas",
+    "activeRules": "Reglas activas",
+    "recentAlerts": "Alertas recientes",
+    "networkAlerts": "Alertas de red",
+    "removeRule": "Eliminar regla",
+    "searchPlaceholder": "Buscar proceso, destino o regla",
+    "investigate": "Investigar",
+    "askAi": "Preguntarle a IA",
+    "system": "Sistema",
+    "threshold": "umbral",
+    "noneFired": "Aún no se disparó ninguna alerta.",
+    "filters": {
+      "all": "todas"
+    },
+    "severity": {
+      "info": "info",
+      "warning": "warning",
+      "critical": "critical"
+    }
   },
   "settings": {
     "title": "Ajustes de OmniMon",
@@ -375,7 +402,87 @@
     "basicSummary": "El modo básico mantiene esta vista enfocada en el mapa. Cambia a SRE/Pro para tablas de conexiones, gráficas de tráfico y contexto IA.",
     "throughput": "Throughput en vivo",
     "hosts": "Hosts activos",
-    "mapReady": "Topología lista"
+    "mapReady": "Topología lista",
+    "enableAlerts": "Activar alertas de descarga",
+    "heavyDownloaders": "{count} proceso(s) consumiendo mucho ancho de banda (ej. {name})."
+  },
+  "networkConnections": {
+    "protocolFilter": "Filtrar por protocolo",
+    "allProtocols": "Todos los protocolos",
+    "filterByProcess": "Filtrar por proceso...",
+    "filterByHost": "Filtrar por dominio/IP...",
+    "hideLocalhost": "Ocultar localhost",
+    "onlyEstablished": "Solo establecidas",
+    "minSpeed": "Mín KB/s",
+    "unknownProcess": "Desconocido",
+    "totalUp": "Total subida:",
+    "totalDown": "Total bajada:",
+    "columns": {
+      "process": "Proceso",
+      "protocol": "Protocolo",
+      "local": "Local",
+      "remote": "Remoto",
+      "hostname": "Hostname",
+      "uploadSpeed": "Velocidad subida",
+      "downloadSpeed": "Velocidad bajada",
+      "state": "Estado"
+    }
+  },
+  "networkAlerts": {
+    "eyebrow": "Alertas de red",
+    "title": "Reglas configurables",
+    "addRule": "Agregar regla",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "editRule": "Editar regla",
+    "newRule": "Nueva regla",
+    "newRuleFallback": "Nueva regla",
+    "name": "Nombre",
+    "namePlaceholder": "Mi alerta de red",
+    "type": "Tipo",
+    "severity": "Severidad",
+    "thresholdMbps": "Umbral Mbps",
+    "processOptional": "Proceso opcional",
+    "excludeKnown": "Excluir destinos ya conocidos",
+    "ports": "Puertos",
+    "multiplier": "Multiplicador",
+    "maxConnections": "Máx. conexiones",
+    "regexPatterns": "Regex/patrones",
+    "cooldownLabel": "Cooldown (s)",
+    "cooldown": "Cooldown: {seconds}s",
+    "notifyAi": "Notificar a IA",
+    "enabled": "Regla habilitada",
+    "cancel": "Cancelar",
+    "saveRule": "Guardar regla",
+    "aiEnabled": " - IA activada",
+    "anyProcess": "cualquier proceso",
+    "directions": {
+      "upload": "subida",
+      "download": "bajada",
+      "both": "ambas"
+    },
+    "severities": {
+      "info": "info",
+      "warning": "warning",
+      "critical": "critical"
+    },
+    "types": {
+      "high_bandwidth": "Alto ancho de banda",
+      "new_external_connection": "Nueva conexión externa",
+      "unusual_port": "Puerto sospechoso",
+      "process_network_spike": "Pico de proceso",
+      "connection_count_exceeded": "Conteo de conexiones",
+      "suspicious_destination": "Destino sospechoso"
+    },
+    "summaries": {
+      "highBandwidth": "{threshold} Mbps {direction} - {process}",
+      "newExternalKnown": "solo destinos nuevos",
+      "newExternalAny": "cualquier destino externo",
+      "unusualPort": "Puertos: {ports}",
+      "processSpike": "{process} > {multiplier}x promedio",
+      "connectionCount": ">{max} - {process}",
+      "suspiciousDestination": "Patrones: {patterns}"
+    }
   },
   "processView": {
     "basicHint": "El modo básico mantiene visibles solo los detalles más relevantes del proceso.",

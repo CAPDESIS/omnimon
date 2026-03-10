@@ -2,6 +2,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import { get, writable } from "svelte/store";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { locale } from "../../lib/i18n";
+
 const mockNetworkAlertRules = writable([
   {
     id: "rule-1",
@@ -20,6 +22,7 @@ vi.mock("../../stores/preferences", () => ({
 
 describe("NetworkAlertConfig", () => {
   beforeEach(async () => {
+    locale.set("es");
     mockNetworkAlertRules.set([
       {
         id: "rule-1",
@@ -43,7 +46,7 @@ describe("NetworkAlertConfig", () => {
 
     expect(screen.getByText("Reglas configurables")).toBeInTheDocument();
     expect(screen.getByText("Puerto sospechoso")).toBeInTheDocument();
-    expect(screen.getByText("4444, 6667")).toBeInTheDocument();
+    expect(screen.getByText("Puertos: 4444, 6667")).toBeInTheDocument();
   });
 
   it("creates a new rule from the modal", async () => {
