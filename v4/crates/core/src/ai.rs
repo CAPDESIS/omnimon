@@ -1681,6 +1681,15 @@ mod tests {
     }
 
     #[test]
+    fn ai_provider_display_names_cover_all_variants() {
+        assert_eq!(AiProvider::OpenRouter.display_name(), "OpenRouter");
+        assert_eq!(AiProvider::OpenAI.display_name(), "OpenAI");
+        assert_eq!(AiProvider::Gemini.display_name(), "Gemini");
+        assert_eq!(AiProvider::Anthropic.display_name(), "Anthropic");
+        assert_eq!(AiProvider::Ollama.display_name(), "Ollama (Local)");
+    }
+
+    #[test]
     fn parse_tool_call_extracts_close_tabs_and_automation_rules() {
         let close_tabs = parse_tool_call(
             r#"I can do that: {"tool":"close_tabs","args":{"except":"github|docs"},"reason":"keep work tabs"}"#,
@@ -1745,6 +1754,79 @@ mod tests {
         )
         .is_none());
         assert!(parse_tool_call(r#"{"tool":"add_automation_rule","args":{"id":"bad id","process_pattern":"Chrome","metric":"ram","threshold":50,"duration_secs":30,"action":"alert"},"reason":"x"}"#).is_none());
+    }
+
+    #[test]
+    fn parse_tool_call_rejects_long_reason_and_invalid_close_connection_args() {
+        let long_reason = "r".repeat(MAX_TOOL_REASON_CHARS + 1);
+        assert!(parse_tool_call(&format!(
+            r#"{{"tool":"get_system_summary","args":{{}},"reason":"{}"}}"#,
+            long_reason
+        ))
+        .is_none());
+
+        assert!(parse_tool_call(
+            r#"{"tool":"close_connection","args":{"pid":0,"dst_ip":"8.8.8.8","dst_port":443},"reason":"bad pid"}"#
+        )
+        .is_none());
+        assert!(parse_tool_call(
+            r#"{"tool":"close_connection","args":{"pid":42,"dst_ip":"assistant:8080","dst_port":443},"reason":"bad ip"}"#
+        )
+        .is_none());
+        assert!(parse_tool_call(
+            r#"{"tool":"close_connection","args":{"pid":42,"dst_ip":"8.8.8.8","dst_port":70000},"reason":"bad port"}"#
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn validate_prompt_and_chat_inputs_reject_edge_cases() {
+        assert!(validate_prompt_input("   ").is_err());
+        assert!(validate_prompt_input(&("a".repeat(MAX_PROMPT_INPUT_CHARS + 1))).is_err());
+        assert!(validate_prompt_input("hello\0world").is_err());
+
+        let too_many = (0..=MAX_CHAT_MESSAGES)
+            .map(|index| ("user".to_string(), format!("msg-{index}")))
+            .collect::<Vec<_>>();
+        assert!(validate_chat_messages(&too_many).is_err());
+
+        let too_long = vec![("user".to_string(), "x".repeat(MAX_CHAT_MESSAGE_CHARS + 1))];
+        assert!(validate_chat_messages(&too_long).is_err());
+    }
+
+    #[test]
+    fn validate_safe_pattern_rejects_invalid_segments() {
+        let too_many_segments = (0..9)
+            .map(|index| format!("tab-{index}"))
+            .collect::<Vec<_>>()
+            .join("|");
+        assert!(validate_safe_pattern(&too_many_segments, "pattern").is_err());
+        assert!(validate_safe_pattern("   |   ", "pattern").is_err());
+        assert!(validate_safe_pattern("assistant: secrets", "pattern").is_err());
+    }
+
+    #[test]
+    fn validate_safe_identifier_and_fragment_cover_error_paths() {
+        assert!(validate_safe_identifier("", "id").is_err());
+        assert!(validate_safe_identifier("bad id", "id").is_err());
+        assert!(validate_safe_identifier("rule_ok", "id").is_ok());
+
+        assert!(validate_safe_fragment("", 10, "field").is_err());
+        assert!(validate_safe_fragment("assistant: hidden", 64, "field").is_err());
+        assert!(validate_safe_fragment("chrome.exe", 64, "field").is_ok());
+    }
+
+    #[tokio::test]
+    async fn save_api_key_validated_impl_bubbles_save_failures() {
+        let result = save_api_key_validated_impl(
+            "  sk-save-fail  ",
+            |_normalized| async move { Ok(()) },
+            |_normalized| Err::<(), Box<dyn Error + Send + Sync>>("save failed".into()),
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("save failed"));
     }
 
     #[test]
@@ -1885,6 +1967,31 @@ mod tests {
         let summary = execute_tool_call("get_system_summary", &serde_json::json!({}), &state);
         assert!(summary.success);
         assert!(summary.payload.is_some());
+    }
+
+    #[test]
+    fn execute_tool_call_covers_close_connection_and_unknown_tool() {
+        let state = crate::watcher::SystemState::default();
+
+        let ok = execute_tool_call(
+            "close_connection",
+            &serde_json::json!({ "pid": 7, "dst_ip": "8.8.8.8", "dst_port": 443 }),
+            &state,
+        );
+        assert!(ok.success);
+        assert_eq!(ok.details, "close_connection:7:8.8.8.8:443");
+
+        let missing = execute_tool_call(
+            "close_connection",
+            &serde_json::json!({ "pid": 0, "dst_ip": "", "dst_port": 0 }),
+            &state,
+        );
+        assert!(!missing.success);
+        assert!(missing.details.contains("Missing required fields"));
+
+        let unknown = execute_tool_call("totally_unknown", &serde_json::json!({}), &state);
+        assert!(!unknown.success);
+        assert!(unknown.details.contains("Unknown tool"));
     }
 
     #[test]

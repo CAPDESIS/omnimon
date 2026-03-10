@@ -480,4 +480,23 @@ mod tests {
         assert!(!state.net_dpi_active);
         assert!(state.updated_at_unix_ms > 0);
     }
+
+    #[test]
+    fn network_history_and_filtered_connections_return_empty_without_snapshot() {
+        let history = get_network_history(30);
+        assert!(history.is_empty());
+
+        let filtered = get_filtered_connections(&crate::network_analysis::NetworkFilter::default());
+        assert!(filtered.is_empty());
+    }
+
+    #[test]
+    fn system_state_default_has_expected_empty_fields() {
+        let state = SystemState::default();
+        assert!(state.top_network_processes.is_empty());
+        assert!(state.recent_network_connections.is_empty());
+        assert!(state.cached_process_info.is_empty());
+        assert!(state.network_snapshot.is_none());
+        assert!(state.security_heartbeat.is_none());
+    }
 }

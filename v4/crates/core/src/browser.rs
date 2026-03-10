@@ -963,4 +963,27 @@ mod tests {
             "Invalid tab ID"
         );
     }
+
+    #[test]
+    fn cdp_list_tabs_for_non_success_with_specific_browser_is_empty() {
+        let mut server = Server::new();
+        let _mock = server
+            .mock("GET", "/json/list")
+            .with_status(503)
+            .with_body("unavailable")
+            .create();
+
+        let tabs = cdp_list_tabs_for(&server.url(), BrowserKind::Arc)
+            .expect("non-success should map to empty vec");
+        assert!(tabs.is_empty());
+    }
+
+    #[test]
+    fn sanitize_tab_url_accepts_browser_specific_schemes() {
+        assert!(sanitize_tab_url("chrome-extension://abc/index.html").is_ok());
+        assert!(sanitize_tab_url("safari-web-extension://bundle/page.html").is_ok());
+        assert!(sanitize_tab_url("brave://settings").is_ok());
+        assert!(sanitize_tab_url("edge://favorites").is_ok());
+        assert!(sanitize_tab_url("arc://bookmarks").is_ok());
+    }
 }

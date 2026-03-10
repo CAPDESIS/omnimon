@@ -2,8 +2,9 @@ import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/sv
 import AiCommandBar from "../AiCommandBar.svelte";
 import { writable } from "svelte/store";
 
-const { mockAnalyze, mockAddAlertRule, mockToast } = vi.hoisted(() => ({
+const { mockAnalyze, mockApplyAiRules, mockAddAlertRule, mockToast, mockSetProfilePresets, mockApplyProfilePresetById } = vi.hoisted(() => ({
   mockAnalyze: vi.fn(async () => ""),
+  mockApplyAiRules: vi.fn(async () => 2),
   mockAddAlertRule: vi.fn(),
   mockToast: {
     info: vi.fn(),
@@ -11,6 +12,8 @@ const { mockAnalyze, mockAddAlertRule, mockToast } = vi.hoisted(() => ({
     warning: vi.fn(),
     error: vi.fn(),
   },
+  mockSetProfilePresets: vi.fn(),
+  mockApplyProfilePresetById: vi.fn(() => true),
 }));
 
 vi.mock("../../lib/ipc", async (importOriginal) => {
@@ -18,6 +21,7 @@ vi.mock("../../lib/ipc", async (importOriginal) => {
   return {
     ...actual,
     ipcAnalyzeContext: mockAnalyze,
+    ipcApplyAiRules: mockApplyAiRules,
   };
 });
 
@@ -40,8 +44,8 @@ vi.mock("../../stores/preferences", () => {
     profilePresets: writable([
       { id: "general", label: "General", idleThreshold: 1, pollIntervalMs: 2000, automationIntervalSecs: 5, aiProfile: "general" },
     ]),
-    setProfilePresets: vi.fn(),
-    applyProfilePresetById: vi.fn(() => true),
+    setProfilePresets: mockSetProfilePresets,
+    applyProfilePresetById: mockApplyProfilePresetById,
     fontSize: writable(12),
     theme: writable("dark"),
     localePreference: writable("en"),
@@ -67,9 +71,13 @@ describe("AiCommandBar", () => {
   beforeEach(() => {
     mockAnalyze.mockReset();
     mockAnalyze.mockResolvedValue("");
+    mockApplyAiRules.mockReset();
+    mockApplyAiRules.mockResolvedValue(2);
     mockAddAlertRule.mockClear();
     mockToast.success.mockClear();
     mockToast.error.mockClear();
+    mockSetProfilePresets.mockClear();
+    mockApplyProfilePresetById.mockClear();
   });
 
   it("renders input with placeholder", () => {
@@ -245,5 +253,136 @@ describe("AiCommandBar", () => {
     await fireEvent.click(screen.getByRole("button", { name: /Rendimiento general/i }));
     const input = screen.getByPlaceholderText(/Alert me if Chrome/i) as HTMLTextAreaElement;
     expect(input.value).toMatch(/Analiza el rendimiento general del sistema/i);
+  });
+
+  it("aplica reglas AI al confirmar el preview", async () => {
+    mockAnalyze.mockResolvedValue(JSON.stringify({
+      ai_rules: [{
+        id: "block-cn",
+        name: "Block CN",
+        enabled: true,
+        kind: "process_country",
+        process_contains: "chrome",
+        country_code: "CN",
+        destination_ip: null,
+        destination_cidr: null,
+        destination_port: null,
+        protocol: "tcp",
+        process_memory_mb_gt: null,
+        mitre_technique_id: "T1071",
+        temporal_correlation: null,
+      }],
+    }));
+
+    render(AiCommandBar);
+    const input = screen.getByPlaceholderText(/Alert me if Chrome/i);
+    await fireEvent.input(input, { target: { value: "block china traffic" } });
+    await fireEvent.click(screen.getByText("Run"));
+
+    await waitFor(() => expect(screen.getByText("Security Rules")).toBeInTheDocument());
+    expect(screen.getByText(/process: chrome/i)).toBeInTheDocument();
+    expect(screen.getByText(/country: CN/i)).toBeInTheDocument();
+
+    await fireEvent.click(screen.getByText("Apply"));
+
+    await waitFor(() => {
+      expect(mockApplyAiRules).toHaveBeenCalledOnce();
+      expect(screen.getByText(/Applied 2 security rule\(s\)/)).toBeInTheDocument();
+    });
+  });
+
+  it("muestra errores de reglas AI invalidas pero mantiene las validas", async () => {
+    mockAnalyze.mockResolvedValue(JSON.stringify({
+      ai_rules: [
+        { id: "", name: "Broken", enabled: true, kind: "process_country" },
+        {
+          id: "allow-us",
+          name: "Allow US",
+          enabled: false,
+          kind: "process_country",
+          process_contains: null,
+          country_code: "US",
+          destination_ip: null,
+          destination_cidr: null,
+          destination_port: null,
+          protocol: "any",
+          process_memory_mb_gt: null,
+          mitre_technique_id: null,
+          temporal_correlation: null,
+        },
+      ],
+    }));
+
+    render(AiCommandBar);
+    const input = screen.getByPlaceholderText(/Alert me if Chrome/i);
+    await fireEvent.input(input, { target: { value: "mix valid and invalid ai rules" } });
+    await fireEvent.click(screen.getByText("Run"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Invalid security rule/i)).toBeInTheDocument();
+      expect(screen.getByText("Security Rules")).toBeInTheDocument();
+      expect(screen.getByText("Allow US")).toBeInTheDocument();
+      expect(screen.getByText("OFF")).toBeInTheDocument();
+    });
+  });
+
+  it("muestra errores de reglas de alerta invalidas sin perder las validas", async () => {
+    mockAnalyze.mockResolvedValue(JSON.stringify({
+      alerts: [
+        { metric: "cpu", operator: ">", threshold: 80, action: "toast", processName: "Chrome" },
+        { metric: "gpu", operator: ">", threshold: 10, action: "toast" },
+      ],
+    }));
+
+    render(AiCommandBar);
+    const input = screen.getByPlaceholderText(/Alert me if Chrome/i);
+    await fireEvent.input(input, { target: { value: "add mixed alerts" } });
+    await fireEvent.click(screen.getByText("Run"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Invalid alert rule/i)).toBeInTheDocument();
+      expect(screen.getByText("Alert Rules")).toBeInTheDocument();
+      expect(screen.getByText(/Chrome: cpu > 80/)).toBeInTheDocument();
+    });
+  });
+
+  it("cae a texto plano cuando el JSON embebido es invalido", async () => {
+    mockAnalyze.mockResolvedValue("Respuesta mixta { invalid json } con texto libre");
+    render(AiCommandBar);
+    const input = screen.getByPlaceholderText(/Alert me if Chrome/i);
+    await fireEvent.input(input, { target: { value: "broken json" } });
+    await fireEvent.click(screen.getByText("Run"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Respuesta mixta/)).toBeInTheDocument();
+    });
+  });
+
+  it("aplica cambios de profile preset cuando vienen en config patch", async () => {
+    mockAnalyze.mockResolvedValue(JSON.stringify({
+      activeProfilePreset: "general",
+    }));
+
+    render(AiCommandBar);
+    const input = screen.getByPlaceholderText(/Alert me if Chrome/i);
+    await fireEvent.input(input, { target: { value: "refresh presets" } });
+    await fireEvent.click(screen.getByText("Run"));
+    await waitFor(() => expect(screen.getByText("Apply")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByText("Apply"));
+
+    expect(mockApplyProfilePresetById).toHaveBeenCalledWith("general");
+  });
+
+  it("muestra error de seguridad cuando la respuesta toca claves protegidas", async () => {
+    mockAnalyze.mockResolvedValue('{"provider":"openai"}');
+    render(AiCommandBar);
+    const input = screen.getByPlaceholderText(/Alert me if Chrome/i);
+    await fireEvent.input(input, { target: { value: "try protected key" } });
+    await fireEvent.click(screen.getByText("Run"));
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Security violation/i).length).toBeGreaterThan(0);
+    });
   });
 });

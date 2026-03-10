@@ -578,6 +578,18 @@ describe("virtual scrolling", () => {
     expect(document.querySelectorAll("tr.spacer").length).toBe(0);
   });
 
+  it("omite filas de proceso faltantes cuando el pid cacheado ya no existe", async () => {
+    const procs = Array.from({ length: 80 }, (_, i) => makeProc({ pid: i + 1, ram_mb: 500 - i }));
+    const view = render(ProcessTable, { props: { processes: procs } });
+    const wrap = document.querySelector(".table-wrap") as HTMLDivElement;
+    wrap.scrollTop = 420;
+    await fireEvent.scroll(wrap);
+
+    await view.rerender({ processes: procs.filter((proc) => proc.pid !== 1) });
+
+    expect(screen.queryByText(/^1$/)).not.toBeInTheDocument();
+  });
+
   it("re-evaluates grouping paths when grouping prop changes", async () => {
     const procs = [makeProc({ pid: 1, name: "Same" }), makeProc({ pid: 2, name: "Same" })];
     const view = render(ProcessTable, { props: { processes: procs, grouping: true } });
@@ -592,6 +604,18 @@ describe("column drag and drop", () => {
   it("moves a column directly to a target index", () => {
     moveColumnToIndex("ram", 1);
     expect(get(columnOrder)[1]).toBe("ram");
+  });
+
+  it("dragging same column onto itself keeps order unchanged", async () => {
+    render(ProcessTable, { props: { processes: [makeProc({ pid: 1 })] } });
+    const cpuHeader = screen.getByText("CPU").closest("th")!;
+    const before = [...get(columnOrder)];
+
+    await fireEvent.dragStart(cpuHeader);
+    await fireEvent.dragOver(cpuHeader);
+    await fireEvent.drop(cpuHeader);
+
+    expect(get(columnOrder)).toEqual(before);
   });
 });
 

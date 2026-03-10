@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   themes,
   applyThemeTokens,
@@ -54,12 +54,19 @@ describe("themes", () => {
 });
 
 describe("applyThemeTokens", () => {
+  const originalMatchMedia = window.matchMedia;
+
   beforeEach(() => {
     // Reset document state
     document.documentElement.removeAttribute("data-theme");
     for (const prop of Object.keys(themes.dark)) {
       document.documentElement.style.removeProperty(prop);
     }
+  });
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+    setCustomThemeOverrides(null);
   });
 
   it("applies dark theme tokens to root element", () => {
@@ -84,6 +91,23 @@ describe("applyThemeTokens", () => {
     document.documentElement.setAttribute("data-theme", "dark");
     applyThemeTokens("auto");
     expect(document.documentElement.hasAttribute("data-theme")).toBe(false);
+  });
+
+  it("auto mode usa dark cuando el sistema prefiere oscuro", () => {
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as typeof window.matchMedia;
+
+    applyThemeTokens("auto");
+
+    expect(document.documentElement.style.getPropertyValue("--bg")).toBe(themes.dark["--bg"]);
+    expect(document.documentElement.hasAttribute("data-theme")).toBe(false);
+  });
+
+  it("auto mode usa light cuando el sistema no prefiere oscuro", () => {
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as typeof window.matchMedia;
+
+    applyThemeTokens("auto");
+
+    expect(document.documentElement.style.getPropertyValue("--bg")).toBe(themes.light["--bg"]);
   });
 
   it("falls back to dark for unknown theme id", () => {
@@ -152,6 +176,17 @@ describe("custom theme overrides", () => {
     applyThemeTokens("custom");
     expect(document.documentElement.style.getPropertyValue("--bg")).toBe(themes.dark["--bg"]);
   });
+
+  it("resolveCustomTheme cae a dark si la base no existe", () => {
+    const resolved = resolveCustomTheme({
+      name: "Broken",
+      base: "unknown" as "dark",
+      overrides: { "--accent": "#123456" },
+    });
+
+    expect(resolved["--bg"]).toBe(themes.dark["--bg"]);
+    expect(resolved["--accent"]).toBe("#123456");
+  });
 });
 
 describe("getCurrentThemeTokens", () => {
@@ -164,8 +199,35 @@ describe("getCurrentThemeTokens", () => {
 });
 
 describe("detectPlatform", () => {
-  it("returns a valid platform string", () => {
-    const result = detectPlatform();
-    expect(["macos", "windows", "linux"]).toContain(result);
+  const originalUserAgent = navigator.userAgent;
+
+  afterEach(() => {
+    Object.defineProperty(window.navigator, "userAgent", {
+      value: originalUserAgent,
+      configurable: true,
+    });
+  });
+
+  it("detecta macos desde userAgent", () => {
+    Object.defineProperty(window.navigator, "userAgent", {
+      value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)",
+      configurable: true,
+    });
+
+    expect(detectPlatform()).toBe("macos");
+  });
+
+  it("detecta windows y linux", () => {
+    Object.defineProperty(window.navigator, "userAgent", {
+      value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      configurable: true,
+    });
+    expect(detectPlatform()).toBe("windows");
+
+    Object.defineProperty(window.navigator, "userAgent", {
+      value: "Mozilla/5.0 (X11; Linux x86_64)",
+      configurable: true,
+    });
+    expect(detectPlatform()).toBe("linux");
   });
 });

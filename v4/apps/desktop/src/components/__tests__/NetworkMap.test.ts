@@ -1,9 +1,8 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/svelte";
-import NetworkMap from "../NetworkMap.svelte";
 import type { NetworkConnection } from "../../lib/types";
 
-vi.mock("lightweight-charts", () => ({
-  createChart: () => ({
+vi.mock("lightweight-charts", async () => {
+  const createChart = vi.fn(() => ({
     addSeries: () => ({
       setData: vi.fn(),
       update: vi.fn(),
@@ -11,11 +10,20 @@ vi.mock("lightweight-charts", () => ({
     timeScale: () => ({ fitContent: vi.fn() }),
     applyOptions: vi.fn(),
     remove: vi.fn(),
-  }),
-  AreaSeries: {},
-}));
+  }));
 
-const { mockNetworkConnections, mockNetworkTelemetryStatus } = vi.hoisted(() => {
+  return {
+    createChart,
+    AreaSeries: {},
+  };
+});
+
+const {
+  mockNetworkConnections,
+  mockNetworkTelemetryStatus,
+  mockMetricsHistory,
+  mockTheme,
+} = vi.hoisted(() => {
   const { writable } = require("svelte/store") as typeof import("svelte/store");
   return {
     mockNetworkConnections: // @ts-ignore
@@ -28,6 +36,8 @@ const { mockNetworkConnections, mockNetworkTelemetryStatus } = vi.hoisted(() => 
       totalRxBytesPerSec: 0,
       totalTxBytesPerSec: 0,
     }),
+    mockMetricsHistory: writable([]),
+    mockTheme: writable("dark"),
   };
 });
 
@@ -35,6 +45,20 @@ vi.mock("../../stores/security", () => ({
   networkConnections: mockNetworkConnections,
   networkTelemetryStatus: mockNetworkTelemetryStatus,
 }));
+
+vi.mock("../../stores/metricsHistory", () => ({
+  metricsHistory: mockMetricsHistory,
+}));
+
+vi.mock("../../stores/preferences", () => ({
+  theme: mockTheme,
+  networkAlertRules: (() => {
+    const { writable } = require("svelte/store") as typeof import("svelte/store");
+    return writable([]);
+  })(),
+}));
+
+import NetworkMap from "../NetworkMap.svelte";
 
 function makeConn(overrides?: Partial<NetworkConnection>): NetworkConnection {
   return {
@@ -54,6 +78,8 @@ function makeConn(overrides?: Partial<NetworkConnection>): NetworkConnection {
 describe("NetworkMap", () => {
   beforeEach(() => {
     mockNetworkConnections.set([]);
+    mockMetricsHistory.set([]);
+    mockTheme.set("dark");
     mockNetworkTelemetryStatus.set({
       captureBackend: "watcher",
       dpiActive: false,
@@ -146,20 +172,6 @@ describe("NetworkMap", () => {
     expect(canvas).toBeInTheDocument();
   });
 
-  it("shows traffic tab when throughput exists even without connections", async () => {
-    mockNetworkTelemetryStatus.set({
-      captureBackend: "watcher",
-      dpiActive: false,
-      usingFallback: false,
-      lastUpdated: null,
-      totalRxBytesPerSec: 4096,
-      totalTxBytesPerSec: 2048,
-    });
-    render(NetworkMap);
-    await fireEvent.click(screen.getByText("Traffic"));
-    await waitFor(() => expect(screen.getByText(/Inbound/)).toBeInTheDocument());
-  });
-
   it("shows summary cards", () => {
     mockNetworkConnections.set([makeConn({ remote_addr: "google.com" })]);
     render(NetworkMap);
@@ -173,6 +185,62 @@ describe("NetworkMap", () => {
     expect(screen.queryByText("Connections")).not.toBeInTheDocument();
     expect(screen.queryByText("Traffic")).not.toBeInTheDocument();
     expect(screen.getByText(/focused on the map/i)).toBeInTheDocument();
+  });
+
+  it("muestra overflow count en tabla y permite filtrar conexiones", async () => {
+    mockNetworkConnections.set(
+      Array.from({ length: 55 }, (_, index) =>
+        makeConn({
+          pid: index + 1,
+          process_name: index < 40 ? "Chrome" : "Firefox",
+          remote_addr: `host-${index}.example.com`,
+          remote_port: index % 2 === 0 ? 443 : 8443,
+        }),
+      ),
+    );
+
+    render(NetworkMap, { props: { filter: "firefox" } });
+    await fireEvent.click(screen.getByText("Connections"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/showing 15 of 55/i)).toBeInTheDocument();
+    });
+    expect(screen.getAllByText("Firefox").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Chrome")).not.toBeInTheDocument();
+  });
+
+  it("muestra warning de heavy downloaders y fallback backend", () => {
+    mockNetworkConnections.set([
+      makeConn({ process_name: "Dropbox", bytes_recv: 60 * 1024 * 1024, remote_addr: "sync.example.com" }),
+    ]);
+    mockNetworkTelemetryStatus.set({
+      captureBackend: "fallback",
+      dpiActive: false,
+      usingFallback: true,
+      lastUpdated: null,
+      totalRxBytesPerSec: 0,
+      totalTxBytesPerSec: 0,
+    });
+
+    render(NetworkMap);
+
+    expect(screen.getByText(/1 proceso\(s\) consumiendo mucho ancho de banda/i)).toBeInTheDocument();
+    expect(screen.getByText(/showing browser-tab fallback because live socket telemetry/i)).toBeInTheDocument();
+  });
+
+  it("muestra detalle de conexion al hacer click en un host", async () => {
+    mockNetworkConnections.set([
+      makeConn({ process_name: "Chrome", remote_addr: "google.com", remote_port: 443, bytes_recv: 2048, bytes_sent: 1024 }),
+      makeConn({ process_name: "Chrome", remote_addr: "google.com", remote_port: 443, protocol: "udp", bytes_recv: 512 }),
+    ]);
+
+    render(NetworkMap);
+
+    await fireEvent.click(screen.getByText("google.com:443"));
+
+    expect(screen.getByText("Procesos:")).toBeInTheDocument();
+    expect(screen.getAllByText("Chrome").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 
 });

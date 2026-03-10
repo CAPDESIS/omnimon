@@ -907,6 +907,160 @@ mod tests {
         assert_eq!(alerts[0].connection_count, Some(3));
     }
 
+    #[test]
+    fn disabled_rules_and_rule_clear_reset_consecutive_matches() {
+        reset_network_alert_state_for_tests();
+        let disabled_rule = NetworkAlertRule {
+            id: "disabled".to_string(),
+            name: "Disabled".to_string(),
+            enabled: false,
+            condition: AlertCondition::UnusualPort {
+                suspicious_ports: vec![4444],
+            },
+            severity: AlertSeverity::Warning,
+            cooldown_seconds: 0,
+            notify_ai: false,
+        };
+
+        let mut snapshot = sample();
+        snapshot.recent_connections = vec![make_event(42, "8.8.8.8", 4444)];
+        assert!(evaluate_network_alerts(&snapshot, None, &[disabled_rule], &[]).is_empty());
+
+        let rule = NetworkAlertRule {
+            id: "toggle".to_string(),
+            name: "Toggle".to_string(),
+            enabled: true,
+            condition: AlertCondition::UnusualPort {
+                suspicious_ports: vec![4444],
+            },
+            severity: AlertSeverity::Warning,
+            cooldown_seconds: 0,
+            notify_ai: false,
+        };
+
+        assert!(evaluate_network_alerts(&snapshot, None, &[rule.clone()], &[]).is_empty());
+        let no_match_snapshot = sample();
+        assert!(evaluate_network_alerts(&no_match_snapshot, None, &[rule.clone()], &[]).is_empty());
+        let second_match = evaluate_network_alerts(&snapshot, None, &[rule], &[]);
+        assert!(second_match.is_empty());
+    }
+
+    #[test]
+    fn connection_count_without_matching_process_or_regexless_destination_do_not_alert() {
+        reset_network_alert_state_for_tests();
+        let count_rule = NetworkAlertRule {
+            id: "conn-specific".to_string(),
+            name: "Specific process".to_string(),
+            enabled: true,
+            condition: AlertCondition::ConnectionCountExceeded {
+                max_connections: 1,
+                process: Some("firefox".to_string()),
+            },
+            severity: AlertSeverity::Warning,
+            cooldown_seconds: 0,
+            notify_ai: false,
+        };
+
+        let mut snapshot = sample();
+        snapshot.recent_connections = vec![
+            make_event(42, "8.8.8.8", 443),
+            make_event(42, "1.1.1.1", 80),
+        ];
+        assert!(evaluate_network_alerts(&snapshot, None, &[count_rule], &[]).is_empty());
+
+        let regex_rule = NetworkAlertRule {
+            id: "bad-regex".to_string(),
+            name: "Bad regex".to_string(),
+            enabled: true,
+            condition: AlertCondition::SuspiciousDestination {
+                patterns: vec!["[".to_string()],
+            },
+            severity: AlertSeverity::Critical,
+            cooldown_seconds: 0,
+            notify_ai: false,
+        };
+        assert!(evaluate_network_alerts(&snapshot, None, &[regex_rule], &[]).is_empty());
+    }
+
+    #[test]
+    fn helpers_cover_direction_rounding_and_external_ip_logic() {
+        assert_eq!(direction_label(Direction::Upload), "upload");
+        assert_eq!(direction_label(Direction::Download), "download");
+        assert_eq!(direction_label(Direction::Both), "trafico total");
+        assert_eq!(round2(1.234), 1.23);
+        assert_eq!(round2(1.235), 1.24);
+
+        assert!(is_external_ip("8.8.8.8"));
+        assert!(!is_external_ip("127.0.0.1"));
+        assert!(!is_external_ip("10.0.0.1"));
+        assert!(!is_external_ip("::1"));
+        assert!(!is_external_ip("not-an-ip"));
+    }
+
+    #[test]
+    fn cooldown_allows_retrigger_after_window_expires() {
+        reset_network_alert_state_for_tests();
+        let rules = vec![NetworkAlertRule {
+            id: "cooldown-expire".to_string(),
+            name: "Cooldown expire".to_string(),
+            enabled: true,
+            condition: AlertCondition::UnusualPort {
+                suspicious_ports: vec![4444],
+            },
+            severity: AlertSeverity::Warning,
+            cooldown_seconds: 5,
+            notify_ai: false,
+        }];
+
+        let mut snapshot = sample();
+        snapshot.recent_connections = vec![make_event(42, "8.8.8.8", 4444)];
+
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        snapshot.captured_at_unix_ms += 2_000;
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        snapshot.captured_at_unix_ms += 2_000;
+        assert_eq!(
+            evaluate_network_alerts(&snapshot, None, &rules, &[]).len(),
+            1
+        );
+
+        snapshot.captured_at_unix_ms += 6_000;
+        assert_eq!(
+            evaluate_network_alerts(&snapshot, None, &rules, &[]).len(),
+            1
+        );
+    }
+
+    #[test]
+    fn high_bandwidth_system_rule_covers_download_path() {
+        reset_network_alert_state_for_tests();
+        let rules = vec![NetworkAlertRule {
+            id: "system-download".to_string(),
+            name: "System download".to_string(),
+            enabled: true,
+            condition: AlertCondition::HighBandwidth {
+                threshold_mbps: 10.0,
+                direction: Direction::Download,
+                process: None,
+            },
+            severity: AlertSeverity::Info,
+            cooldown_seconds: 0,
+            notify_ai: false,
+        }];
+
+        let mut snapshot = sample();
+        snapshot.net_rx_bytes_per_sec = 5_000_000;
+
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        snapshot.captured_at_unix_ms += 2_000;
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        snapshot.captured_at_unix_ms += 2_000;
+        let alerts = evaluate_network_alerts(&snapshot, None, &rules, &[]);
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0].process_name, None);
+        assert!(alerts[0].message.contains("download"));
+    }
+
     fn make_event(pid: u32, dst_ip: &str, dst_port: u16) -> ProcessConnectionEvent {
         ProcessConnectionEvent {
             pid,

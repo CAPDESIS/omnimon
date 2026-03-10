@@ -15,6 +15,11 @@ import {
   userMode,
   tabPanelHeight,
   localePreference,
+  customTheme,
+  moveColumnToIndex,
+  applyProfilePresetById,
+  syncAiProfileToPreset,
+  setProfilePresets,
   loadPreferences,
   savePreferences,
   initPreferenceSubscriptions,
@@ -38,6 +43,15 @@ import {
   MAX_FONT_SIZE,
 } from "../preferences";
 import { load } from "@tauri-apps/plugin-store";
+import { getCustomThemeOverrides } from "../../lib/theme";
+
+vi.mock("../../lib/ipc", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/ipc")>("../../lib/ipc");
+  return {
+    ...actual,
+    ipcSetNetworkAlertRules: vi.fn().mockResolvedValue(1),
+  };
+});
 
 // Mock the tauri store
 const mockStore = {
@@ -73,6 +87,7 @@ beforeEach(() => {
   tabPanelHeight.set(160);
   localePreference.set(DEFAULT_LOCALE);
   userMode.set(DEFAULT_USER_MODE);
+  customTheme.set(null);
 });
 
 describe("loadPreferences", () => {
@@ -207,6 +222,178 @@ describe("loadPreferences", () => {
     expect(get(aiProviderConfig)).toEqual(DEFAULT_AI_CONFIG);
   });
 
+  it("sanitiza reglas de alertas de red invalidas y deduplica ids", async () => {
+    mockStore.get.mockImplementation((key: string) => {
+      if (key === "networkAlertRules") {
+        return [
+          {
+            id: "dup",
+            name: "Bandwidth",
+            enabled: true,
+            severity: "warning",
+            cooldown_seconds: 12.3,
+            notify_ai: true,
+            condition: {
+              kind: "high_bandwidth",
+              threshold_mbps: 0.01,
+              direction: "both",
+              process: " chrome ",
+            },
+          },
+          {
+            id: "dup",
+            name: "Duplicate should be ignored",
+            enabled: true,
+            severity: "warning",
+            cooldown_seconds: 20,
+            notify_ai: false,
+            condition: {
+              kind: "new_external_connection",
+              exclude_known: false,
+            },
+          },
+          {
+            id: "bad",
+            name: "",
+            enabled: true,
+            severity: "wat",
+            cooldown_seconds: 10,
+            notify_ai: false,
+            condition: { kind: "unusual_port", suspicious_ports: [] },
+          },
+        ];
+      }
+      return undefined;
+    });
+
+    await loadPreferences();
+
+    expect(get(networkAlertRules)).toHaveLength(1);
+    expect(get(networkAlertRules)[0].condition.kind).toBe("high_bandwidth");
+    if (get(networkAlertRules)[0].condition.kind === "high_bandwidth") {
+      expect(get(networkAlertRules)[0].condition.threshold_mbps).toBe(0.1);
+      expect(get(networkAlertRules)[0].condition.process).toBe("chrome");
+    }
+  });
+
+  it("sanitiza suspicious_destination y connection_count_exceeded", async () => {
+    mockStore.get.mockImplementation((key: string) => {
+      if (key === "networkAlertRules") {
+        return [
+          {
+            id: "dest",
+            name: "Destination",
+            enabled: true,
+            severity: "critical",
+            cooldown_seconds: 10,
+            notify_ai: true,
+            condition: {
+              kind: "suspicious_destination",
+              patterns: [" evil ", "", 42],
+            },
+          },
+          {
+            id: "conn",
+            name: "Connections",
+            enabled: true,
+            severity: "warning",
+            cooldown_seconds: 10,
+            notify_ai: false,
+            condition: {
+              kind: "connection_count_exceeded",
+              max_connections: 200.8,
+              process: " Safari ",
+            },
+          },
+        ];
+      }
+      return undefined;
+    });
+
+    await loadPreferences();
+
+    expect(get(networkAlertRules)).toHaveLength(2);
+    expect(get(networkAlertRules)[0].condition.kind).toBe("suspicious_destination");
+    expect(get(networkAlertRules)[1].condition.kind).toBe("connection_count_exceeded");
+    if (get(networkAlertRules)[0].condition.kind === "suspicious_destination") {
+      expect(get(networkAlertRules)[0].condition.patterns).toEqual(["evil"]);
+    }
+    if (get(networkAlertRules)[1].condition.kind === "connection_count_exceeded") {
+      expect(get(networkAlertRules)[1].condition.max_connections).toBe(201);
+      expect(get(networkAlertRules)[1].condition.process).toBe("Safari");
+    }
+  });
+
+  it("cae a defaults cuando profilePresets sanitizados quedan vacios", async () => {
+    mockStore.get.mockImplementation((key: string) => {
+      if (key === "profilePresets") {
+        return [
+          { id: "", label: "Bad", idleThreshold: 1, pollIntervalMs: 1, automationIntervalSecs: 1, aiProfile: "general" },
+        ];
+      }
+      return undefined;
+    });
+
+    await loadPreferences();
+
+    expect(get(profilePresets)).toEqual(DEFAULT_PROFILE_PRESETS);
+    expect(get(activeProfilePreset)).toBe("general");
+  });
+
+  it("carga customTheme valido y lo sincroniza", async () => {
+    mockStore.get.mockImplementation((key: string) => {
+      if (key === "customTheme") {
+        return {
+          name: "Ocean",
+          base: "light",
+          overrides: { "--accent": "#0055ff" },
+        };
+      }
+      return undefined;
+    });
+
+    await loadPreferences();
+
+    expect(get(customTheme)).toEqual({
+      name: "Ocean",
+      base: "light",
+      overrides: { "--accent": "#0055ff" },
+    });
+    expect(getCustomThemeOverrides()).toEqual({
+      name: "Ocean",
+      base: "light",
+      overrides: { "--accent": "#0055ff" },
+    });
+  });
+
+  it("carga alturas y colapsados validos", async () => {
+    mockStore.get.mockImplementation((key: string) => {
+      if (key === "networkPanelHeight") return 333;
+      if (key === "aiChatPanelHeight") return 444;
+      if (key === "locale") return "es";
+      if (key === "profilesCollapsed") return true;
+      if (key === "mainTableCollapsed") return true;
+      if (key === "networkMapCollapsed") return true;
+      if (key === "browserTabsCollapsed") return true;
+      if (key === "aiChatCollapsed") return true;
+      if (key === "aiConfigCollapsed") return true;
+      return undefined;
+    });
+
+    const prefs = await import("../preferences");
+    await prefs.loadPreferences();
+
+    expect(get(prefs.localePreference)).toBe("es");
+    expect(get(prefs.networkPanelHeight)).toBe(333);
+    expect(get(prefs.aiChatPanelHeight)).toBe(444);
+    expect(get(prefs.profilesCollapsedStore)).toBe(true);
+    expect(get(prefs.mainTableCollapsedStore)).toBe(true);
+    expect(get(prefs.networkMapCollapsedStore)).toBe(true);
+    expect(get(prefs.browserTabsCollapsedStore)).toBe(true);
+    expect(get(prefs.aiChatCollapsedStore)).toBe(true);
+    expect(get(prefs.aiConfigCollapsedStore)).toBe(true);
+  });
+
   it("handles plugin-store unavailability gracefully", async () => {
     mockLoad.mockRejectedValueOnce(new Error("plugin not available"));
     await expect(loadPreferences()).resolves.toBeUndefined();
@@ -284,6 +471,24 @@ describe("initPreferenceSubscriptions", () => {
     unsub();
     vi.useRealTimers();
   });
+
+  it("customTheme subscription sincroniza overrides", () => {
+    const unsub = initPreferenceSubscriptions();
+
+    customTheme.set({
+      name: "Night",
+      base: "dark",
+      overrides: { "--accent": "#abc123" },
+    });
+
+    expect(getCustomThemeOverrides()).toEqual({
+      name: "Night",
+      base: "dark",
+      overrides: { "--accent": "#abc123" },
+    });
+
+    unsub();
+  });
 });
 
 describe("font size helpers", () => {
@@ -339,6 +544,24 @@ describe("column ordering helpers", () => {
     moveColumnDown("missing" as never);
     expect(get(columnOrder)).toEqual(before);
   });
+
+  it("moveColumnToIndex mueve y clamp target index", () => {
+    columnOrder.set(["name", "detail", "group", "ram", "cpu", "energy", "network", "uptime", "pid", "state"]);
+    moveColumnToIndex("cpu", 1);
+    expect(get(columnOrder).slice(0, 4)).toEqual(["name", "cpu", "detail", "group"]);
+
+    moveColumnToIndex("name", 999);
+    expect(get(columnOrder).at(-1)).toBe("name");
+  });
+
+  it("moveColumnToIndex no-op when key missing or target igual", () => {
+    const before = get(columnOrder);
+    moveColumnToIndex("missing" as never, 2);
+    expect(get(columnOrder)).toEqual(before);
+
+    moveColumnToIndex("name", 0);
+    expect(get(columnOrder)).toEqual(before);
+  });
 });
 
 describe("idle threshold bounds", () => {
@@ -364,5 +587,52 @@ describe("module fallback paths", () => {
     const prefs = await import("../preferences");
     await expect(prefs.loadPreferences()).resolves.toBeUndefined();
     await expect(prefs.savePreferences()).resolves.toBeUndefined();
+  });
+});
+
+describe("profile preset helpers", () => {
+  it("applyProfilePresetById actualiza stores y devuelve true", () => {
+    expect(applyProfilePresetById("developer")).toBe(true);
+    expect(get(activeProfilePreset)).toBe("developer");
+    expect(get(idleThreshold)).toBe(DEFAULT_PROFILE_PRESETS[1].idleThreshold);
+    expect(get(pollIntervalMs)).toBe(DEFAULT_PROFILE_PRESETS[1].pollIntervalMs);
+  });
+
+  it("applyProfilePresetById devuelve false para preset inexistente", () => {
+    expect(applyProfilePresetById("missing")).toBe(false);
+  });
+
+  it("syncAiProfileToPreset aplica preset asociado cuando existe", () => {
+    syncAiProfileToPreset("battery");
+    expect(get(activeProfilePreset)).toBe("battery");
+  });
+
+  it("setProfilePresets sanitiza y usa fallback cuando activo no existe", () => {
+    activeProfilePreset.set("missing");
+    setProfilePresets([
+      {
+        id: " custom ",
+        label: "Custom preset",
+        idleThreshold: 99,
+        pollIntervalMs: 999_999,
+        automationIntervalSecs: 0,
+        aiProfile: "developer",
+      },
+      {
+        id: "custom",
+        label: "Duplicate",
+        idleThreshold: 0.2,
+        pollIntervalMs: 1000,
+        automationIntervalSecs: 5,
+        aiProfile: "general",
+      },
+    ] as any);
+
+    expect(get(profilePresets)).toHaveLength(1);
+    expect(get(profilePresets)[0].id).toBe("custom");
+    expect(get(profilePresets)[0].idleThreshold).toBe(MAX_IDLE_THRESHOLD);
+    expect(get(profilePresets)[0].pollIntervalMs).toBe(10_000);
+    expect(get(profilePresets)[0].automationIntervalSecs).toBe(1);
+    expect(get(activeProfilePreset)).toBe("custom");
   });
 });

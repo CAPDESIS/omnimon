@@ -14,6 +14,7 @@ import {
   selectedCount,
   selectedRamMB,
   fetchMetrics,
+  handleMetricsUpdate,
   killSelected,
   killSingle,
   toggleSelect,
@@ -134,6 +135,14 @@ describe("applyDiff", () => {
   it("handles empty arrays", () => {
     expect(applyDiff([], [])).toEqual([]);
   });
+
+  it("creates new object when grouping metadata changes", () => {
+    const proc = makeProc({ pid: 1, grouped_name: "Chrome", process_count: 1, group_identity_type: "browser_family" });
+    const incoming = makeProc({ pid: 1, grouped_name: "Chromium", process_count: 2, group_identity_type: "normalized_name" });
+    const result = applyDiff([proc], [incoming]);
+    expect(result[0]).not.toBe(proc);
+    expect(result[0].grouped_name).toBe("Chromium");
+  });
 });
 
 // --- fetchMetrics ---
@@ -253,6 +262,16 @@ describe("fetchMetrics", () => {
     mockInvoke.mockRejectedValue(new Error("network"));
     await fetchMetrics();
     expect(get(processes)).toHaveLength(1);
+  });
+
+  it("shows toast after repeated metrics failures", async () => {
+    mockInvoke.mockRejectedValue(new Error("backend down"));
+
+    await fetchMetrics();
+    await fetchMetrics();
+    await fetchMetrics();
+
+    expect(get(loading)).toBe(false);
   });
 });
 
@@ -433,6 +452,23 @@ describe("derived stores", () => {
     search.set("chrome");
     expect(get(filtered)).toHaveLength(1);
     expect(get(filtered)[0].name).toBe("Chrome");
+  });
+
+  it("filtered matches by pid and group and reuses cached filter result", () => {
+    processes.set([
+      makeProc({ pid: 10, name: "Alpha", group: "Browser" }),
+      makeProc({ pid: 25, name: "Beta", group: "Utilities" }),
+    ]);
+
+    search.set("25");
+    expect(get(filtered)).toHaveLength(1);
+    expect(get(filtered)[0].pid).toBe(25);
+
+    search.set("browser");
+    const first = get(filtered);
+    const second = get(filtered);
+    expect(first).toEqual(second);
+    expect(first[0].pid).toBe(10);
   });
 
   it("filtered supports special characters and emoji names", () => {
@@ -636,5 +672,71 @@ describe("polling", () => {
 
     expect(browserCallsAfter).toBeGreaterThanOrEqual(browserCallsBefore);
     expect(networkCalls).toBeGreaterThanOrEqual(1);
+  });
+
+  it("setPollingTarget no-op when state does not change", async () => {
+    startPolling(1000);
+    const callsBefore = mockInvoke.mock.calls.length;
+    setPollingTarget("network", false);
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(mockInvoke.mock.calls.length).toBe(callsBefore);
+  });
+
+  it("stopPolling is safe before startPolling", () => {
+    expect(() => stopPolling()).not.toThrow();
+  });
+});
+
+describe("handleMetricsUpdate", () => {
+  it("keeps stats reference when changes are below threshold", () => {
+    const initialStats = {
+      ram_total_gb: 16,
+      ram_used_pct: 50,
+      swap_used_mb: 200,
+      total_processes: 1,
+      net_rx_bytes_per_sec: 1000,
+      net_tx_bytes_per_sec: 1000,
+    };
+    const proc = makeProc({ pid: 1 });
+
+    stats.set(initialStats);
+    processes.set([proc]);
+
+    handleMetricsUpdate({
+      processes: [makeProc({ pid: 1 })],
+      stats: {
+        ...initialStats,
+        net_rx_bytes_per_sec: 1050,
+        net_tx_bytes_per_sec: 1090,
+      },
+    });
+
+    expect(get(stats)).toBe(initialStats);
+  });
+
+  it("sets loading false even when downstream analysis throws", async () => {
+    const alertsModule = await import("../alerts");
+    const spy = vi.spyOn(alertsModule, "evaluateAlerts").mockImplementation(() => {
+      throw new Error("alert failure");
+    });
+
+    loading.set(true);
+
+    expect(() =>
+      handleMetricsUpdate({
+        processes: [makeProc({ pid: 3 })],
+        stats: {
+          ram_total_gb: 16,
+          ram_used_pct: 20,
+          swap_used_mb: 0,
+          total_processes: 1,
+          net_rx_bytes_per_sec: 0,
+          net_tx_bytes_per_sec: 0,
+        },
+      }),
+    ).toThrow("alert failure");
+
+    expect(get(loading)).toBe(false);
+    spy.mockRestore();
   });
 });

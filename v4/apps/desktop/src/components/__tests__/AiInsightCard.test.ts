@@ -62,6 +62,7 @@ function makeCve(pid: number, severity = "critical") {
 describe("AiInsightCard", () => {
   beforeEach(() => {
     mockSecurityMap.set(new Map());
+    mockDynamicAlerts.set([]);
   });
 
   it("renders nothing when no findings", () => {
@@ -166,5 +167,110 @@ describe("AiInsightCard", () => {
     mockSecurityMap.set(map);
     render(AiInsightCard);
     expect(screen.getByRole("region", { name: "AI Security Insights" })).toBeInTheDocument();
+  });
+
+  it("traduce CVE de severidad baja a mensaje generico", () => {
+    const map = new Map<number, ProcessSecurityInfo>();
+    map.set(50, { pid: 50, threats: [], cves: [makeCve(50, "low")] });
+    mockSecurityMap.set(map);
+
+    render(AiInsightCard);
+
+    expect(screen.getByText(/A known vulnerability was found in Apache Log4j/)).toBeInTheDocument();
+  });
+
+  it("usa texto y confianza por defecto para amenazas no mapeadas", async () => {
+    const map = new Map<number, ProcessSecurityInfo>();
+    map.set(77, {
+      pid: 77,
+      threats: [{
+        pid: 77,
+        process_name: "unknown-agent",
+        indicator: "SuspiciousNetworkConnection",
+        mitre_techniques: [],
+        confidence: 0.4,
+      }],
+      cves: [],
+    });
+    mockSecurityMap.set(map);
+
+    render(AiInsightCard);
+
+    const header = screen.getByText(/shows unusual behavior/).closest("button")!;
+    await fireEvent.click(header);
+
+    expect(screen.getByText("Confidence: Low")).toBeInTheDocument();
+    expect(screen.getByText(/Anomalous behavior detected by the security engine/)).toBeInTheDocument();
+    expect(screen.getByText(/Investigate this process and verify it's operating within expected parameters/)).toBeInTheDocument();
+  });
+
+  it("muestra insight de regla con explicacion de descarga y fallback de headline", async () => {
+    mockDynamicAlerts.set([
+      {
+        rule_id: "rule-download",
+        rule_name: "Large download detected",
+        pid: 90,
+        process_name: "Dropbox",
+        dst_ip: "8.8.8.8",
+        dst_port: 443,
+        country_code: null,
+        mitre_technique_id: "T1105",
+        message: "",
+      },
+    ]);
+
+    render(AiInsightCard);
+
+    const header = screen.getByText(/triggered rule "Large download detected"/).closest("button")!;
+    await fireEvent.click(header);
+
+    expect(screen.getByText(/parece estar actualizando o sincronizando archivos/)).toBeInTheDocument();
+    expect(screen.getByText(/RULE:\s*T1105/)).toBeInTheDocument();
+  });
+
+  it("muestra explicacion de memoria para reglas con memory en el nombre", async () => {
+    mockDynamicAlerts.set([
+      {
+        rule_id: "rule-memory",
+        rule_name: "Memory pressure",
+        pid: 91,
+        process_name: "node",
+        dst_ip: "10.0.0.2",
+        dst_port: 8080,
+        country_code: null,
+        mitre_technique_id: "T1055",
+        message: "Memory rule fired",
+      },
+    ]);
+
+    render(AiInsightCard);
+
+    const header = screen.getByText("Memory rule fired").closest("button")!;
+    await fireEvent.click(header);
+
+    expect(screen.getByText(/consumiendo m.s memoria de lo normal/)).toBeInTheDocument();
+  });
+
+  it("muestra explicacion por pais cuando la regla no coincide con descarga ni memoria", async () => {
+    mockDynamicAlerts.set([
+      {
+        rule_id: "rule-country",
+        rule_name: "Unexpected outbound",
+        pid: 92,
+        process_name: "curl",
+        dst_ip: "203.0.113.5",
+        dst_port: 22,
+        country_code: "DE",
+        mitre_technique_id: "T1041",
+        message: "Outbound connection detected",
+      },
+    ]);
+
+    render(AiInsightCard);
+
+    const header = screen.getByText("Outbound connection detected").closest("button")!;
+    await fireEvent.click(header);
+
+    expect(screen.getByText(/intent. conectarse a un servidor en DE/)).toBeInTheDocument();
   });
 });
