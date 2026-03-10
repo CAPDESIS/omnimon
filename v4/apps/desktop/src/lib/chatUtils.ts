@@ -6,6 +6,13 @@
 export interface ChatMessage {
   role: "user" | "assistant" | "system" | "tool";
   text: string;
+  metadata?: {
+    toolCalls?: { name: string; args: any; result?: string }[];
+    thought?: string;
+    responseTimeMs?: number;
+    model?: string;
+    tokens?: number;
+  };
 }
 
 /**

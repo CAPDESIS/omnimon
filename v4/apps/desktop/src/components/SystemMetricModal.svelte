@@ -6,6 +6,7 @@
   import { filtered, stats } from "../stores/processes";
   import type { UserMode } from "../stores/preferences";
   import { t } from "../lib/i18n";
+  import { askAiRequest } from "../stores/uiActions";
   import type { ProcessEntry } from "../lib/types";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
   import Button from "./Button.svelte";
@@ -150,7 +151,15 @@
         <div class="eyebrow">{t("status.deepDive")}</div>
         <h2 id="metric-modal-title">{metricTitle(metric)}</h2>
       </div>
-      <IconButton class="close-btn" onclick={onclose} ariaLabel={t("common.close")} title={t("common.close")}>×</IconButton>
+      <div class="header-actions">
+        <Button class="ask-ai-btn" variant="secondary" size="sm" onclick={() => {
+          askAiRequest.set(`¿Qué está pasando con ${metric}?`);
+          onclose();
+        }}>
+          ✨ ¿Qué está pasando con {metric}?
+        </Button>
+        <IconButton class="close-btn" onclick={onclose} ariaLabel={t("common.close")} title={t("common.close")}>×</IconButton>
+      </div>
     </div>
 
     <div class="body">
@@ -251,6 +260,16 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+  }
+
+  
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .ask-ai-btn {
+    font-size: calc(var(--base-font-size, 12px) * 0.9);
   }
 
   .close-btn {
