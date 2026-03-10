@@ -79,6 +79,7 @@
     browserTabsCollapsedStore,
     aiChatCollapsedStore,
     aiConfigCollapsedStore,
+    layoutModeStore,
   } from "./stores/preferences";
   import { ipcValidateApiKey, ipcCheckApiKey, ipcClearAiCache } from "./lib/ipc";
   import { listen } from "@tauri-apps/api/event";
@@ -873,6 +874,16 @@
         <div class="settings-divider"></div>
         <div class="settings-section-label">{t("settings.appearance")}</div>
         <div class="settings-row">
+          <label class="settings-label" for="layout-mode-select">Layout Mode</label>
+          <div class="settings-field-stack">
+            <select id="layout-mode-select" class="settings-select" value={$layoutModeStore} onchange={(e) => { $layoutModeStore = (e.target as HTMLSelectElement).value as "tabs" | "split"; }}>
+              <option value="tabs">Tabs</option>
+              <option value="split">Split</option>
+            </select>
+            <span class="settings-hint">Choose between single panel or split view.</span>
+          </div>
+        </div>
+        <div class="settings-row">
           <label class="settings-label" for="user-mode-select">{t("common.userView")}</label>
           <div class="settings-field-stack">
             <select
@@ -1245,4 +1256,24 @@
     flex-direction: column;
     gap: 8px;
   }
+
+  .divider {
+    height: 6px;
+    cursor: row-resize;
+    background: var(--border-color, var(--border));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    user-select: none;
+  }
+  .divider:hover {
+    background: var(--accent, var(--accent-color));
+  }
+  .divider-handle {
+    color: var(--text-muted, #888);
+    font-size: 10px;
+    letter-spacing: 2px;
+  }
+
 </style>
