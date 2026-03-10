@@ -694,3 +694,332 @@ pub fn remove_plugin(app: AppHandle, plugin_id: String) -> Result<(), String> {
     )?;
     engine(&app)?.remove_plugin(&plugin_id)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- sanitize_file_stem ---
+
+    #[test]
+    fn sanitize_valid_lua_file() {
+        assert_eq!(sanitize_file_stem("my-plugin.lua").unwrap(), "my-plugin");
+    }
+
+    #[test]
+    fn sanitize_uppercase_extension() {
+        assert_eq!(sanitize_file_stem("Hello.LUA").unwrap(), "hello");
+    }
+
+    #[test]
+    fn sanitize_special_chars_replaced() {
+        assert_eq!(
+            sanitize_file_stem("my cool_plugin!@#.lua").unwrap(),
+            "my-cool-plugin"
+        );
+    }
+
+    #[test]
+    fn sanitize_consecutive_dashes_collapsed() {
+        assert_eq!(sanitize_file_stem("a---b___c   d.lua").unwrap(), "a-b-c-d");
+    }
+
+    #[test]
+    fn sanitize_leading_trailing_dashes_trimmed() {
+        assert_eq!(sanitize_file_stem("--name--.lua").unwrap(), "name");
+    }
+
+    #[test]
+    fn sanitize_rejects_non_lua_extension() {
+        let err = sanitize_file_stem("script.py").unwrap_err();
+        assert!(err.contains(".lua"));
+    }
+
+    #[test]
+    fn sanitize_rejects_no_extension() {
+        let err = sanitize_file_stem("noext").unwrap_err();
+        assert!(err.contains(".lua"));
+    }
+
+    #[test]
+    fn sanitize_rejects_empty_stem() {
+        let err = sanitize_file_stem("!@#.lua").unwrap_err();
+        assert!(err.contains("ASCII"));
+    }
+
+    // --- humanize_plugin_id ---
+
+    #[test]
+    fn humanize_simple_id() {
+        assert_eq!(humanize_plugin_id("my-plugin"), "My Plugin");
+    }
+
+    #[test]
+    fn humanize_single_word() {
+        assert_eq!(humanize_plugin_id("monitor"), "Monitor");
+    }
+
+    #[test]
+    fn humanize_empty_string() {
+        assert_eq!(humanize_plugin_id(""), "");
+    }
+
+    #[test]
+    fn humanize_skips_empty_segments() {
+        assert_eq!(humanize_plugin_id("a--b"), "A B");
+    }
+
+    #[test]
+    fn humanize_lowercases_rest() {
+        assert_eq!(humanize_plugin_id("CPU-MONITOR"), "Cpu Monitor");
+    }
+
+    // --- truncate_string ---
+
+    #[test]
+    fn truncate_none_returns_none() {
+        assert_eq!(truncate_string(None), None);
+    }
+
+    #[test]
+    fn truncate_empty_returns_none() {
+        assert_eq!(truncate_string(Some("".to_string())), None);
+    }
+
+    #[test]
+    fn truncate_whitespace_only_returns_none() {
+        assert_eq!(truncate_string(Some("   ".to_string())), None);
+    }
+
+    #[test]
+    fn truncate_normal_string() {
+        assert_eq!(
+            truncate_string(Some("hello world".to_string())),
+            Some("hello world".to_string())
+        );
+    }
+
+    #[test]
+    fn truncate_strips_non_printable() {
+        assert_eq!(
+            truncate_string(Some("abc\x00def\x01ghi".to_string())),
+            Some("abcdefghi".to_string())
+        );
+    }
+
+    #[test]
+    fn truncate_respects_max_length() {
+        let long = "a".repeat(200);
+        let result = truncate_string(Some(long)).unwrap();
+        assert!(result.len() <= MAX_TEXT_FIELD_BYTES);
+    }
+
+    // --- validate_metrics ---
+
+    fn make_metric_input(name: &str, value: f64) -> PluginMetricInput {
+        PluginMetricInput {
+            name: name.to_string(),
+            label: None,
+            kind: None,
+            value,
+            unit: None,
+            tags: BTreeMap::new(),
+        }
+    }
+
+    #[test]
+    fn validate_empty_metrics() {
+        let result = validate_metrics(vec![]);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn validate_valid_metric() {
+        let metrics = validate_metrics(vec![make_metric_input("cpu_load", 42.5)]).unwrap();
+        assert_eq!(metrics.len(), 1);
+        assert_eq!(metrics[0].name, "cpu_load");
+        assert_eq!(metrics[0].value, 42.5);
+        assert_eq!(metrics[0].kind, "gauge"); // default kind
+    }
+
+    #[test]
+    fn validate_rejects_nan() {
+        let result = validate_metrics(vec![make_metric_input("bad", f64::NAN)]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("finite"));
+    }
+
+    #[test]
+    fn validate_rejects_infinity() {
+        let result = validate_metrics(vec![make_metric_input("bad", f64::INFINITY)]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("finite"));
+    }
+
+    #[test]
+    fn validate_rejects_too_many_metrics() {
+        let metrics: Vec<_> = (0..MAX_METRICS_PER_PLUGIN + 1)
+            .map(|i| make_metric_input(&format!("m{i}"), i as f64))
+            .collect();
+        let result = validate_metrics(metrics);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("too many"));
+    }
+
+    #[test]
+    fn validate_rejects_too_many_tags() {
+        let mut tags = BTreeMap::new();
+        for i in 0..MAX_TAGS_PER_METRIC + 1 {
+            tags.insert(format!("k{i}"), format!("v{i}"));
+        }
+        let input = PluginMetricInput {
+            name: "tagged".to_string(),
+            label: None,
+            kind: None,
+            value: 1.0,
+            unit: None,
+            tags,
+        };
+        let result = validate_metrics(vec![input]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("too many tags"));
+    }
+
+    #[test]
+    fn validate_rejects_unsupported_kind() {
+        let input = PluginMetricInput {
+            name: "test".to_string(),
+            label: None,
+            kind: Some("histogram".to_string()),
+            value: 1.0,
+            unit: None,
+            tags: BTreeMap::new(),
+        };
+        let result = validate_metrics(vec![input]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("unsupported kind"));
+    }
+
+    #[test]
+    fn validate_accepts_counter_kind() {
+        let input = PluginMetricInput {
+            name: "requests".to_string(),
+            label: None,
+            kind: Some("counter".to_string()),
+            value: 100.0,
+            unit: None,
+            tags: BTreeMap::new(),
+        };
+        let metrics = validate_metrics(vec![input]).unwrap();
+        assert_eq!(metrics[0].kind, "counter");
+    }
+
+    #[test]
+    fn validate_rounds_value_to_two_decimals() {
+        let metrics = validate_metrics(vec![make_metric_input("precise", 3.14159)]).unwrap();
+        assert!((metrics[0].value - 3.14).abs() < 0.01);
+    }
+
+    #[test]
+    fn validate_rejects_empty_metric_name() {
+        let input = PluginMetricInput {
+            name: "   ".to_string(),
+            label: None,
+            kind: None,
+            value: 1.0,
+            unit: None,
+            tags: BTreeMap::new(),
+        };
+        let result = validate_metrics(vec![input]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("empty"));
+    }
+
+    // --- descriptor_from ---
+
+    fn make_stored_plugin(id: &str) -> StoredPlugin {
+        StoredPlugin {
+            id: id.to_string(),
+            name: format!("Plugin {id}"),
+            file_name: format!("{id}.lua"),
+            script_path: format!("/tmp/{id}.lua"),
+            enabled: true,
+            description: Some("A test plugin".to_string()),
+            version: Some("1.0.0".to_string()),
+        }
+    }
+
+    #[test]
+    fn descriptor_from_with_runtime() {
+        let plugin = make_stored_plugin("cpu-monitor");
+        let runtime = PluginRunState {
+            status: "ok".to_string(),
+            last_error: None,
+            last_run_ms: Some(12345),
+            last_duration_ms: Some(50),
+            metrics: vec![],
+        };
+        let desc = descriptor_from(&plugin, Some(&runtime));
+        assert_eq!(desc.id, "cpu-monitor");
+        assert_eq!(desc.status, "ok");
+        assert!(desc.enabled);
+        assert_eq!(desc.last_run_ms, Some(12345));
+    }
+
+    #[test]
+    fn descriptor_from_without_runtime_enabled() {
+        let plugin = make_stored_plugin("test");
+        let desc = descriptor_from(&plugin, None);
+        assert_eq!(desc.status, "idle");
+        assert!(desc.last_error.is_none());
+    }
+
+    #[test]
+    fn descriptor_from_without_runtime_disabled() {
+        let mut plugin = make_stored_plugin("test");
+        plugin.enabled = false;
+        let desc = descriptor_from(&plugin, None);
+        assert_eq!(desc.status, "disabled");
+    }
+
+    // --- manifest persistence ---
+
+    #[test]
+    fn manifest_roundtrip() {
+        let dir = std::env::temp_dir().join("omnimon_test_manifest");
+        let _ = fs::create_dir_all(&dir);
+        let path = dir.join("test_index.json");
+
+        let plugins = vec![make_stored_plugin("alpha"), make_stored_plugin("beta")];
+        save_manifest(&path, &plugins).unwrap();
+
+        let loaded = load_manifest(&path);
+        assert_eq!(loaded.plugins.len(), 2);
+        assert_eq!(loaded.plugins[0].id, "alpha");
+        assert_eq!(loaded.plugins[1].id, "beta");
+        assert_eq!(loaded.schema_version, 1);
+
+        let _ = fs::remove_file(&path);
+        let _ = fs::remove_dir(&dir);
+    }
+
+    #[test]
+    fn load_missing_manifest_returns_default() {
+        let manifest = load_manifest(Path::new("/tmp/nonexistent_manifest_xyz.json"));
+        assert!(manifest.plugins.is_empty());
+        // default_manifest_schema() returns 1 but PluginManifest::default() uses
+        // serde's Default for u32 which is 0
+        assert_eq!(manifest.schema_version, 0);
+    }
+
+    // --- now_unix_ms ---
+
+    #[test]
+    fn now_unix_ms_returns_reasonable_value() {
+        let ms = now_unix_ms();
+        // Should be after 2020-01-01 and before 2100-01-01
+        assert!(ms > 1_577_836_800_000);
+        assert!(ms < 4_102_444_800_000);
+    }
+}

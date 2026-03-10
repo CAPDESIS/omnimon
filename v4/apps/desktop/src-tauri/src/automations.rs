@@ -144,6 +144,139 @@ pub fn remove_automation_rule(app: AppHandle, id: String) -> Result<(), String> 
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- AutomationRule serde ---
+
+    fn make_rule(id: &str, process: &str, metric: &str, threshold: f64) -> AutomationRule {
+        AutomationRule {
+            id: id.to_string(),
+            process_pattern: process.to_string(),
+            metric: metric.to_string(),
+            threshold,
+            duration_secs: 30,
+            action: "alert".to_string(),
+        }
+    }
+
+    #[test]
+    fn rule_serializes_to_json() {
+        let rule = make_rule("r1", "chrome", "cpu", 80.0);
+        let json = serde_json::to_string(&rule).unwrap();
+        assert!(json.contains("\"id\":\"r1\""));
+        assert!(json.contains("\"process_pattern\":\"chrome\""));
+        assert!(json.contains("\"metric\":\"cpu\""));
+        assert!(json.contains("\"threshold\":80.0"));
+    }
+
+    #[test]
+    fn rule_deserializes_from_json() {
+        let json = r#"{
+            "id": "r2",
+            "process_pattern": "node",
+            "metric": "ram",
+            "threshold": 2048.0,
+            "duration_secs": 60,
+            "action": "kill"
+        }"#;
+        let rule: AutomationRule = serde_json::from_str(json).unwrap();
+        assert_eq!(rule.id, "r2");
+        assert_eq!(rule.process_pattern, "node");
+        assert_eq!(rule.metric, "ram");
+        assert_eq!(rule.threshold, 2048.0);
+        assert_eq!(rule.duration_secs, 60);
+        assert_eq!(rule.action, "kill");
+    }
+
+    #[test]
+    fn rule_roundtrip_vec() {
+        let rules = vec![
+            make_rule("a", "chrome", "cpu", 50.0),
+            make_rule("b", "node", "ram", 1024.0),
+        ];
+        let json = serde_json::to_string(&rules).unwrap();
+        let restored: Vec<AutomationRule> = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.len(), 2);
+        assert_eq!(restored[0].id, "a");
+        assert_eq!(restored[1].id, "b");
+    }
+
+    // --- get_rules ---
+
+    #[test]
+    fn get_rules_returns_shared_lock() {
+        let arc1 = get_rules();
+        let arc2 = get_rules();
+        // Both references point to the same lock
+        assert!(std::sync::Arc::ptr_eq(&arc1, &arc2));
+    }
+
+    // --- lock recovery ---
+
+    #[test]
+    fn write_lock_recovers_from_poison() {
+        let lock = RwLock::new(42u32);
+        // Poison the lock by panicking while holding a write guard
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = lock.write().unwrap();
+            panic!("intentional panic to poison lock");
+        }));
+        // Should recover without panic
+        let guard = write_lock_or_recover(&lock);
+        assert_eq!(*guard, 42);
+    }
+
+    #[test]
+    fn read_lock_recovers_from_poison() {
+        let lock = RwLock::new(99u32);
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = lock.write().unwrap();
+            panic!("intentional panic to poison lock");
+        }));
+        let guard = read_lock_or_recover(&lock);
+        assert_eq!(*guard, 99);
+    }
+
+    // --- constants ---
+
+    #[test]
+    fn bytes_per_mb_is_correct() {
+        assert_eq!(BYTES_PER_MB, 1_048_576.0);
+    }
+
+    #[test]
+    fn default_interval_is_5_seconds() {
+        assert_eq!(DEFAULT_AUTOMATION_INTERVAL_SECS, 5);
+    }
+
+    // --- rule matching logic (isolated) ---
+
+    #[test]
+    fn process_pattern_matches_name_substring() {
+        let rule = make_rule("test", "Chrome", "cpu", 50.0);
+        let name = "Google Chrome Helper";
+        assert!(name.contains(&rule.process_pattern));
+    }
+
+    #[test]
+    fn metric_ram_computes_mb_correctly() {
+        let memory_bytes: u64 = 2_147_483_648; // 2 GB
+        let mb = (memory_bytes as f64) / BYTES_PER_MB;
+        assert!((mb - 2048.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn threshold_comparison_works() {
+        let rule = make_rule("test", "node", "ram", 1024.0);
+        let value_above = 1500.0;
+        let value_below = 512.0;
+        assert!(value_above > rule.threshold);
+        assert!(!(value_below > rule.threshold));
+    }
+}
+
 pub fn start_engine(app: AppHandle) {
     let _ = get_automation_rules(app.clone()); // Pre-load rules
 
