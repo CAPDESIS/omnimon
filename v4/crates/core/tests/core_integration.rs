@@ -9,6 +9,22 @@ fn rules_test_guard() -> std::sync::MutexGuard<'static, ()> {
     GUARD.get_or_init(|| Mutex::new(())).lock().unwrap()
 }
 
+fn wait_for_watcher_data() -> watcher::SystemState {
+    watcher::start_watcher();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(6);
+    loop {
+        let state = watcher::get_cached_state();
+        if state.total_memory_bytes > 0 && state.updated_at_unix_ms > 0 {
+            return state;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "watcher did not populate state before timeout"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
 // ===========================================================================
 // Metrics Module
 // ===========================================================================
@@ -430,9 +446,7 @@ fn integration_rules_geoip_invalid_json() {
 
 #[test]
 fn integration_watcher_cache_is_readable() {
-    watcher::start_watcher();
-    std::thread::sleep(std::time::Duration::from_millis(2300));
-    let state = watcher::get_cached_state();
+    let state = wait_for_watcher_data();
     assert!(state.total_memory_bytes > 0);
     assert!(state.updated_at_unix_ms > 0);
     assert!(!state.net_capture_backend.is_empty());
@@ -453,9 +467,7 @@ fn integration_watcher_idempotent_start() {
 
 #[test]
 fn integration_watcher_state_has_processes() {
-    watcher::start_watcher();
-    std::thread::sleep(std::time::Duration::from_millis(2500));
-    let state = watcher::get_cached_state();
+    let state = wait_for_watcher_data();
     assert!(
         !state.cached_process_info.is_empty(),
         "watcher should cache at least one process"
@@ -464,9 +476,7 @@ fn integration_watcher_state_has_processes() {
 
 #[test]
 fn integration_watcher_state_serializes() {
-    watcher::start_watcher();
-    std::thread::sleep(std::time::Duration::from_millis(2500));
-    let state = watcher::get_cached_state();
+    let state = wait_for_watcher_data();
     let json = serde_json::to_string(&state).expect("serialize SystemState");
     assert!(json.contains("total_memory_bytes"));
     assert!(json.contains("cached_process_info"));
@@ -1052,9 +1062,7 @@ fn integration_process_identity_resolve_name_only() {
 
 #[test]
 fn integration_telemetry_snapshot_returns_data() {
-    // Ensure watcher is started so cache is populated
-    watcher::start_watcher();
-    std::thread::sleep(std::time::Duration::from_millis(2500));
+    wait_for_watcher_data();
     let snapshot = telemetry::telemetry_snapshot(Some(10));
     assert!(snapshot.total_memory_bytes > 0);
     assert!(snapshot.processes.len() <= 10);
@@ -1062,8 +1070,7 @@ fn integration_telemetry_snapshot_returns_data() {
 
 #[test]
 fn integration_telemetry_snapshot_no_limit() {
-    watcher::start_watcher();
-    std::thread::sleep(std::time::Duration::from_millis(2500));
+    wait_for_watcher_data();
     let snapshot = telemetry::telemetry_snapshot(None);
     assert!(snapshot.total_memory_bytes > 0);
 }
@@ -1271,10 +1278,7 @@ fn integration_ai_ollama_does_not_require_key() {
 
 #[test]
 fn integration_full_pipeline_watcher_to_telemetry() {
-    // Start watcher, wait for data, then query telemetry
-    watcher::start_watcher();
-    std::thread::sleep(std::time::Duration::from_millis(2500));
-
+    wait_for_watcher_data();
     let snapshot = telemetry::telemetry_snapshot(Some(50));
     assert!(snapshot.total_memory_bytes > 0);
     assert!(!snapshot.processes.is_empty());
@@ -1330,10 +1334,7 @@ fn integration_crypto_to_audit_heartbeat_pipeline() {
 
 #[test]
 fn integration_watcher_metrics_to_ai_prompt_pipeline() {
-    watcher::start_watcher();
-    std::thread::sleep(std::time::Duration::from_millis(2500));
-
-    let state = watcher::get_cached_state();
+    let state = wait_for_watcher_data();
     let prompt = ai::build_chat_system_prompt(&state);
 
     assert!(state.total_memory_bytes > 0);

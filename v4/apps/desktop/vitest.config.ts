@@ -14,6 +14,12 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,svelte}"],
+      thresholds: {
+        lines: 85,
+        functions: 85,
+        statements: 85,
+        branches: 72,
+      },
       exclude: [
         "src/**/__tests__/**",
         "src/test-setup.ts",

@@ -278,6 +278,80 @@ describe("SystemMetricModal", () => {
     });
   });
 
+  it("ordena por PID, Net, State y Uptime", async () => {
+    render(SystemMetricModal, {
+      props: { metric: "ram", onclose: vi.fn() },
+    });
+
+    await fireEvent.click(screen.getByRole("button", { name: /PID/i }));
+    let rows = screen.getAllByRole("row").slice(1).map((row) => row.textContent ?? "");
+    expect(rows[0]).toContain("Safari");
+
+    await fireEvent.click(screen.getByRole("button", { name: /Net/i }));
+    rows = screen.getAllByRole("row").slice(1).map((row) => row.textContent ?? "");
+    expect(rows[0]).toContain("Chrome");
+
+    await fireEvent.click(screen.getByRole("button", { name: /State/i }));
+    rows = screen.getAllByRole("row").slice(1).map((row) => row.textContent ?? "");
+    expect(rows[0]).toContain("Node");
+
+    await fireEvent.click(screen.getByRole("button", { name: /State/i }));
+    rows = screen.getAllByRole("row").slice(1).map((row) => row.textContent ?? "");
+    expect(rows[0]).toContain("Safari");
+
+    await fireEvent.click(screen.getByRole("button", { name: /Uptime/i }));
+    rows = screen.getAllByRole("row").slice(1).map((row) => row.textContent ?? "");
+    expect(rows[0]).toContain("Node");
+  });
+
+  it("muestra fallbacks de estado y uptime cuando faltan", () => {
+    mockFiltered.set([
+      makeProc({ pid: 9, name: "Broken", state: null as unknown as string, uptime: null as unknown as string }),
+    ]);
+
+    render(SystemMetricModal, {
+      props: { metric: "ram", onclose: vi.fn() },
+    });
+
+    const placeholders = screen.getAllByText("—");
+    expect(placeholders.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("muestra metricas de red en MB/s cuando el throughput es alto", () => {
+    mockStats.set({
+      ram_total_gb: 16,
+      ram_used_pct: 42,
+      swap_used_mb: 64,
+      total_processes: 3,
+      net_rx_bytes_per_sec: 3 * 1024 * 1024,
+      net_tx_bytes_per_sec: 2 * 1024 * 1024,
+    });
+
+    render(SystemMetricModal, {
+      props: { metric: "network", onclose: vi.fn() },
+    });
+
+    expect(screen.getByText("3.00 MB/s")).toBeInTheDocument();
+    expect(screen.getByText("2.00 MB/s")).toBeInTheDocument();
+  });
+
+  it("usa 0 cuando faltan stats de red", () => {
+    mockStats.set({
+      ram_total_gb: 16,
+      ram_used_pct: 42,
+      swap_used_mb: 64,
+      total_processes: 0,
+      net_rx_bytes_per_sec: undefined,
+      net_tx_bytes_per_sec: undefined,
+    } as unknown as { ram_total_gb: number; ram_used_pct: number; swap_used_mb: number; total_processes: number; net_rx_bytes_per_sec: number; net_tx_bytes_per_sec: number });
+
+    render(SystemMetricModal, {
+      props: { metric: "network", onclose: vi.fn() },
+    });
+
+    expect(screen.getAllByText("0 B/s").length).toBeGreaterThanOrEqual(2);
+  });
+
   it("no renderiza SVG cuando la serie tiene un solo punto", () => {
     mockCpuSeries.set([{ time: 1, value: 10 }]);
 

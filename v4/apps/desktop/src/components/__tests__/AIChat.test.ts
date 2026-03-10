@@ -48,21 +48,34 @@ const {
   mockCloseBrowserTab,
   mockKillProcess,
   mockKillProcesses,
+  mockListen,
+  emitStreamToken,
   mockToast,
   mockInspectSet,
   mockDetectPromptInjection,
   mockProcesses,
+  mockAskAiRequest,
   mockAiProviderConfig,
   mockAiCacheTtlMinutes,
   mockUserMode,
 } = vi.hoisted(() => {
   const { writable } = require("svelte/store") as typeof import("svelte/store");
+  let streamHandler: ((event: { payload: string }) => void) | null = null;
   return {
     mockAiChat: vi.fn<(...args: unknown[]) => Promise<ChatResponse>>(),
     mockGetBrowserTabs: vi.fn(),
     mockCloseBrowserTab: vi.fn(),
     mockKillProcess: vi.fn(),
     mockKillProcesses: vi.fn(),
+    mockListen: vi.fn(async (_event: string, cb: (event: { payload: string }) => void) => {
+      streamHandler = cb;
+      return () => {
+        streamHandler = null;
+      };
+    }),
+    emitStreamToken: (payload: string) => {
+      streamHandler?.({ payload });
+    },
     mockToast: {
       success: vi.fn(),
       error: vi.fn(),
@@ -72,11 +85,16 @@ const {
     mockInspectSet: vi.fn(),
     mockDetectPromptInjection: vi.fn(() => false),
     mockProcesses: writable<ProcessEntry[]>([]),
+    mockAskAiRequest: writable<string | null>(null),
     mockAiProviderConfig: writable({ provider: "openrouter", model: "test-model" }),
     mockAiCacheTtlMinutes: writable(5),
     mockUserMode: writable("basic"),
   };
 });
+
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: mockListen,
+}));
 
 vi.mock("../../lib/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/ipc")>();
@@ -104,10 +122,7 @@ vi.mock("../../stores/uiActions", () => ({
   inspectProcessRequest: {
     set: mockInspectSet,
   },
-  askAiRequest: {
-    subscribe: (cb: any) => { cb(null); return () => {}; },
-    set: vi.fn(),
-  },
+  askAiRequest: mockAskAiRequest,
 }));
 
 vi.mock("../../stores/toasts", () => ({
@@ -143,6 +158,7 @@ describe("AIChat", () => {
     mockCloseBrowserTab.mockReset();
     mockKillProcess.mockReset();
     mockKillProcesses.mockReset();
+    mockListen.mockClear();
     mockToast.success.mockClear();
     mockToast.error.mockClear();
     mockToast.warning.mockClear();
@@ -150,6 +166,7 @@ describe("AIChat", () => {
     mockInspectSet.mockClear();
     mockDetectPromptInjection.mockClear();
     mockDetectPromptInjection.mockReturnValue(false);
+    mockAskAiRequest.set(null);
   });
 
   it("renderiza sin errores", () => {
@@ -212,6 +229,58 @@ describe("AIChat", () => {
       expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
       expect(screen.getByText("Done")).toBeInTheDocument();
     });
+  });
+
+  it("muestra tokens de streaming mientras espera la respuesta final", async () => {
+    const pending = deferred<ChatResponse>();
+    mockAiChat.mockReturnValueOnce(pending.promise);
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Stream the answer" } });
+    await fireEvent.click(screen.getByText("Send"));
+
+    emitStreamToken("Partial");
+    emitStreamToken(" reply");
+
+    await waitFor(() => {
+      expect(screen.getByText("Partial reply")).toBeInTheDocument();
+    });
+
+    pending.resolve({ reply: "Final reply", tool_call: null });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Partial reply")).not.toBeInTheDocument();
+      expect(screen.getByText("Final reply")).toBeInTheDocument();
+    });
+  });
+
+  it("autoenvia solicitudes recibidas desde askAiRequest store", async () => {
+    render(AIChat);
+
+    mockAskAiRequest.set("Analyze queued request");
+
+    await waitFor(() => {
+      expect(mockAiChat).toHaveBeenCalledWith(
+        "Analyze queued request",
+        "openrouter",
+        "test-model",
+        expect.any(Array),
+        5,
+      );
+    });
+  });
+
+  it("bloquea mensajes que exceden el maximo permitido", async () => {
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "x".repeat(4001) } });
+    await fireEvent.click(screen.getByText("Send"));
+
+    expect(mockAiChat).not.toHaveBeenCalled();
+    expect(mockToast.error).toHaveBeenCalledWith("Security", "Input exceeds 4000 characters.");
   });
 
   it("maneja error de API gracefulmente", async () => {
@@ -483,6 +552,37 @@ describe("AIChat", () => {
     });
   });
 
+  it("confirma close_tabs_except y deja abiertas solo coincidencias", async () => {
+    mockAiChat.mockResolvedValueOnce({
+      reply: "I can keep docs open.",
+      tool_call: {
+        tool: "close_tabs",
+        success: true,
+        details: "close_tabs_except:docs",
+      },
+    });
+    mockGetBrowserTabs.mockResolvedValueOnce([
+      { id: "tab-1", title: "Docs", url: "https://docs.example.com", browser: "Chrome" },
+      { id: "tab-2", title: "YouTube", url: "https://youtube.com/watch?v=1", browser: "Chrome" },
+      { id: "tab-3", title: "Mail", url: "https://mail.example.com", browser: "Chrome" },
+    ]);
+    mockCloseBrowserTab.mockResolvedValue(true);
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Close everything except docs" } });
+    await fireEvent.click(screen.getByText("Send"));
+    await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => {
+      expect(mockCloseBrowserTab).toHaveBeenCalledTimes(2);
+      expect(mockCloseBrowserTab).toHaveBeenCalledWith("tab-2", "https://youtube.com/watch?v=1", "Chrome");
+      expect(mockCloseBrowserTab).toHaveBeenCalledWith("tab-3", "https://mail.example.com", "Chrome");
+      expect(screen.getByText(/Closed 2 tab\(s\)/i)).toBeInTheDocument();
+    });
+  });
+
   it("muestra error cuando no hay tabs que coincidan al confirmar cierre", async () => {
     mockAiChat.mockResolvedValueOnce({
       reply: "I can close those tabs.",
@@ -578,6 +678,55 @@ describe("AIChat", () => {
       expect(screen.getByText('No valid PIDs for "Chrome"')).toBeInTheDocument();
       expect(mockKillProcesses).not.toHaveBeenCalled();
       expect(mockToast.error).toHaveBeenCalledWith("Action Failed", 'No valid PIDs for "Chrome"');
+    });
+  });
+
+  it("ejecuta kill_by_name con exito parcial y reporta fallos", async () => {
+    mockAiChat.mockResolvedValueOnce({
+      reply: "I can kill those processes.",
+      tool_call: {
+        tool: "kill_by_name",
+        success: true,
+        details: "kill_by_name:Chrome:101,102,103",
+      },
+    });
+    mockKillProcesses.mockResolvedValueOnce({ killed: [101, 102], failed: [103] });
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Kill Chrome group" } });
+    await fireEvent.click(screen.getByText("Send"));
+    await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => {
+      expect(mockKillProcesses).toHaveBeenCalledWith([101, 102, 103]);
+      expect(screen.getByText('Killed 2/3 processes matching "Chrome" \(1 failed\)')).toBeInTheDocument();
+      expect(mockToast.success).toHaveBeenCalledWith("Action", 'Killed 2/3 processes matching "Chrome" (1 failed)');
+    });
+  });
+
+  it("confirma close_connection y termina el PID asociado", async () => {
+    mockAiChat.mockResolvedValueOnce({
+      reply: "I can close that connection.",
+      tool_call: {
+        tool: "close_connection",
+        success: true,
+        details: "close_connection:101:8.8.8.8:443",
+      },
+    });
+    mockKillProcess.mockResolvedValueOnce(true);
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Close suspicious connection" } });
+    await fireEvent.click(screen.getByText("Send"));
+    await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => {
+      expect(mockKillProcess).toHaveBeenCalledWith(101);
+      expect(screen.getByText("Closed connection to 8.8.8.8:443 by terminating PID 101")).toBeInTheDocument();
     });
   });
 
