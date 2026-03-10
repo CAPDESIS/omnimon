@@ -463,5 +463,26 @@
     "alertsCreatedTitle": "Alertas creadas",
     "rulesAppliedTitle": "Reglas aplicadas",
     "rulesErrorTitle": "Error de reglas"
+  },
+  "profileSettings": {
+    "title": "Profile Settings",
+    "displayName": "Display Name",
+    "preset": "Preset",
+    "presetMinimal": "Minimal",
+    "presetBalanced": "Balanced",
+    "presetPower": "Power",
+    "layout": "Layout",
+    "layoutCompact": "Compact",
+    "layoutStandard": "Standard",
+    "layoutExpanded": "Expanded",
+    "refreshInterval": "Refresh Interval",
+    "notifications": "Notifications",
+    "notifOff": "Off",
+    "notifCritical": "Critical",
+    "notifAll": "All",
+    "favorites": "Favorite Processes",
+    "addFavorite": "Add",
+    "searchFavorite": "Search...",
+    "resetDefaults": "Reset to Defaults"
   }
 }

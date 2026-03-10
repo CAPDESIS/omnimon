@@ -4,7 +4,7 @@
   import type { ColumnConfig, ColumnKey } from "../stores/preferences";
   import { COLUMN_KEYS } from "../stores/preferences";
   import { toggleSelect, selectedPids, focusedPid, browserTabs } from "../stores/processes";
-  import { fontSize, moveColumnToIndex } from "../stores/preferences";
+  import { fontSize, moveColumnToIndex, favoriteProcesses } from "../stores/preferences";
   import { t } from "../lib/i18n";
   import { detectBrowser } from "../lib/browser";
   import SecurityBadge from "./SecurityBadge.svelte";
@@ -105,11 +105,15 @@
   let _sortedKey: SortKey = "ram_mb";
   let _sortedAsc = false;
   let _sortedPidsCache: number[] = [];
+  let _sortedFavsCache = "";
 
   let sortedPids = $derived.by((): number[] => {
+    const favs = $favoriteProcesses;
+    const favsStr = favs.join(',');
     const sameInputs =
       sortKey === _sortedKey &&
       sortAsc === _sortedAsc &&
+      favsStr === _sortedFavsCache &&
       processes.length === _sortedSnapshot.length &&
       processes.every((proc, index) => {
         const cached = _sortedSnapshot[index];
@@ -121,6 +125,15 @@
     }
 
     const sorted = [...processes].sort((a, b) => {
+      const aIsFav = $favoriteProcesses.includes(a.name);
+      const bIsFav = $favoriteProcesses.includes(b.name);
+      if (aIsFav && !bIsFav) return -1;
+      if (!aIsFav && bIsFav) return 1;
+      const aFav = favs.includes(a.name) || favs.includes(a.exec_name);
+      const bFav = favs.includes(b.name) || favs.includes(b.exec_name);
+      if (aFav && !bFav) return -1;
+      if (!aFav && bFav) return 1;
+
       const va = sortValue(a, sortKey);
       const vb = sortValue(b, sortKey);
       if (typeof va === "string" && typeof vb === "string") {
@@ -132,6 +145,7 @@
     _sortedSnapshot = processes.map((proc) => ({ pid: proc.pid, value: sortValue(proc, sortKey) }));
     _sortedKey = sortKey;
     _sortedAsc = sortAsc;
+    _sortedFavsCache = favsStr;
     _sortedPidsCache = sorted.map((proc) => proc.pid);
     return _sortedPidsCache;
   });

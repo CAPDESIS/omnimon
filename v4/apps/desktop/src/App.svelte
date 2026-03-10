@@ -10,6 +10,7 @@
   import AppStatusBar from "./components/layout/AppStatusBar.svelte";
   import NavigationTabs from "./components/layout/NavigationTabs.svelte";
   import AIConfigPanel from "./components/layout/AIConfigPanel.svelte";
+  import ProfileSettings from "./components/ProfileSettings.svelte";
 
   import Button from "./components/Button.svelte";
   import ConfirmDialog from "./components/ConfirmDialog.svelte";
@@ -52,7 +53,8 @@
     columnOrder,
     aiProviderConfig,
     idleThreshold,
-    pollIntervalMs,
+    refreshInterval,
+    profilePreset,
     automationIntervalSecs,
     aiCacheTtlMinutes,
     theme,
@@ -446,7 +448,7 @@
     loadPreferences().then(() => {
       console.debug("[APP] Preferences loaded, initializing i18n and polling.");
       initI18n($localePreference);
-      startPolling($pollIntervalMs);
+      startPolling($refreshInterval);
     });
     loadAutostartState();
     const unsubPrefs = initPreferenceSubscriptions();
@@ -458,7 +460,7 @@
     registerUnlistener(
       listen<boolean>("window-visibility", (event: { payload: boolean }) => {
         if (event.payload) {
-          startPolling($pollIntervalMs);
+          startPolling($refreshInterval);
         } else {
           stopPolling();
         }
@@ -658,6 +660,8 @@
 
   {#snippet main()}
     <NavigationTabs 
+      showNetwork={$profilePreset !== "minimal"}
+      showBrowser={$profilePreset === "power"}
       {activeTab} 
       ontabchange={(t) => {
         activeTab = t;
@@ -750,9 +754,9 @@
         <div class="tab-pane settings-pane">
           <!-- We can move the settings content here or just let the modal show -->
           <div style="padding: 24px; color: var(--text-secondary);">
-            {t("settings.title")} 
+            <ProfileSettings />
             <br/><br/>
-            <Button onclick={() => showSettings = true}>Open Settings Modal</Button>
+            <Button onclick={() => showSettings = true}>Open AI Settings Modal</Button>
           </div>
         </div>
       {/if}
@@ -931,11 +935,11 @@
             min="500"
             max="10000"
             step="100"
-            value={$pollIntervalMs}
+            value={$refreshInterval}
             oninput={(e: Event) => {
               const v = parseInt((e.target as HTMLInputElement).value, 10);
               if (!Number.isNaN(v) && v >= 500 && v <= 10000) {
-                $pollIntervalMs = v;
+                $refreshInterval = v;
               }
             }}
           />
