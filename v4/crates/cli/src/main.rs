@@ -538,6 +538,16 @@ fn render_network_view(format: &Format, view: NetworkView, filter: &NetworkFilte
     }
 }
 
+fn build_runtime() -> tokio::runtime::Runtime {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: failed to create async runtime: {}", e);
+            std::process::exit(1);
+        })
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -739,10 +749,7 @@ fn main() {
 
             let profile = target_name;
 
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("Failed to create async runtime");
+            let rt = build_runtime();
 
             match rt.block_on(core_ai::analyze_with_ai(
                 core_provider,
@@ -843,10 +850,7 @@ fn main() {
             let core_provider = ai.to_core_provider();
             let model = ai.default_model();
 
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("Failed to create async runtime");
+            let rt = build_runtime();
 
             let prompt_clone = prompt.clone();
             match rt.block_on(core_ai::analyze_context(
@@ -868,10 +872,7 @@ fn main() {
             let core_provider = ai.to_core_provider();
             let model = ai.default_model();
 
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("Failed to create async runtime");
+            let rt = build_runtime();
 
             match rt.block_on(core_ai::save_api_key_with_ping(core_provider, model, key)) {
                 Ok(()) => println!("API Key successfully validated and saved to native keyring."),
