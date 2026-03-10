@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Settings } from "lucide-svelte";
   import { t } from "../lib/i18n";
   import AlertPanel from "./AlertPanel.svelte";
   import Button from "./Button.svelte";
@@ -158,7 +159,7 @@
       </Button>
       <Button class="toolbar-action-button" variant="secondary" onclick={ontoggleautomations} title={t("toolbar.automations")}><span>●</span><span>{t("toolbar.automations")}</span></Button>
       <Button class="toolbar-action-button" variant="secondary" onclick={onopenplugins} title={t("toolbar.plugins")}><span>Lua</span><span>{t("toolbar.plugins")}</span></Button>
-      <Button class="toolbar-action-button" variant="secondary" onclick={onopensettings} title={t("toolbar.aiSettings")}><span>⚙</span><span>{t("toolbar.aiSettings")}</span></Button>
+      <Button class="toolbar-action-button" variant="secondary" onclick={onopensettings} title={t("toolbar.aiSettings")}><span><Settings size={14} /></span><span>{t("toolbar.aiSettings")}</span></Button>
       <Button class="toolbar-action-button" variant="secondary" onclick={onopenhelp} title={t("toolbar.helpCenter")}><span class="btn-icon-glyph">?</span><span>{t("toolbar.helpCenter")}</span></Button>
       <div class="font-controls">
         <Button variant="ghost" size="icon" onclick={ondecreasefont} title={t("toolbar.decreaseFont")} aria-label={t("toolbar.decreaseFontLabel")}>A-</Button>

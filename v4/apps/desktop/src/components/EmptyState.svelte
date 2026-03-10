@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+  import type { Snippet, ComponentType } from "svelte";
 
   import Button from "./Button.svelte";
 
   interface Props {
-    icon: string;        // SVG string o emoji
+    icon: ComponentType | string;
     title: string;
     description: string;
     actionLabel?: string;
@@ -16,7 +16,14 @@
 </script>
 
 <div class="empty-state">
-  <div class="empty-icon">{@html icon}</div>
+  <div class="empty-icon">
+    {#if typeof icon === "string"}
+      {@html icon}
+    {:else}
+      {@const Icon = icon}
+      <Icon size={48} />
+    {/if}
+  </div>
   <h3>{title}</h3>
   <p>{description}</p>
   {#if children}

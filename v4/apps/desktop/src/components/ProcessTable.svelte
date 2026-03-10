@@ -9,6 +9,7 @@
   import { detectBrowser } from "../lib/browser";
   import SecurityBadge from "./SecurityBadge.svelte";
   import EmptyState from "./EmptyState.svelte";
+  import { Search as SearchIcon } from "lucide-svelte";
   import { isNativeIconDataUrl, getProcessIconComponent } from "../lib/processIcons";
   import {
     PROCESS_TABLE_ROW_BUFFER,
@@ -483,7 +484,7 @@
 <div class="table-wrap" bind:this={wrapEl} onscroll={onScroll}>
   {#if processes.length === 0}
     <EmptyState 
-      icon="🔍" 
+      icon={SearchIcon} 
       title={t("table.emptyTitle")} 
       description={t("table.emptyDesc")} 
     />

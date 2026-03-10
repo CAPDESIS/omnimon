@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { AlertTriangle } from "lucide-svelte";
   import ContextAiChat from "./ContextAiChat.svelte";
   import ConnectionDetail from "./network/ConnectionDetail.svelte";
   import NetworkAlertConfig from "./NetworkAlertConfig.svelte";
@@ -821,7 +822,7 @@
                 </label>
                 {#if networkAlertsEnabled && heavyDownloaders.length > 0}
                   <div class="network-warning" style="margin-top: 6px;">
-                    ⚠️ {heavyDownloaders.length} proceso(s) consumiendo mucho ancho de banda (ej. {heavyDownloaders[0].name}).
+                    <AlertTriangle size={14} style="display:inline; vertical-align:text-bottom; margin-right:4px;" /> {heavyDownloaders.length} proceso(s) consumiendo mucho ancho de banda (ej. {heavyDownloaders[0].name}).
                   </div>
                 {/if}
               </div>

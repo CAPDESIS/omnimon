@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import EmptyState from "./EmptyState.svelte";
+  import { Settings } from "lucide-svelte";
   
   interface AutomationRule {
     id: string;
@@ -73,7 +74,7 @@
 
   <div class="rules-list">
     {#if rules.length === 0}
-      <EmptyState icon="⚙️" title="No Automations" description="Create a rule above to automate actions." />
+      <EmptyState icon={Settings} title="No Automations" description="Create a rule above to automate actions." />
     {:else}
       {#each rules as rule}
         <div class="rule-item">

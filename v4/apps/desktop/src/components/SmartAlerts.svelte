@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { AlertTriangle } from "lucide-svelte";
   import { slide, fade } from "svelte/transition";
 
   import Button from "./Button.svelte";
@@ -40,7 +41,7 @@
     {#each visibleAlerts as alert (alert.id)}
       <div class="smart-alert-card" transition:slide={{ duration: 250 }}>
         <div class="alert-header">
-          <span class="icon">⚠️</span>
+          <span class="icon"><AlertTriangle size={14} /></span>
           <strong>{t("smartAlerts.title")}</strong>
           {#if alert.updateCount && alert.updateCount > 1}
             <span class="update-badge">Actualizada {alert.updateCount}x</span>
