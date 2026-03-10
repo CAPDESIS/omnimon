@@ -1,4 +1,4 @@
-# OmniMon CLI Manual (v6.2.0)
+# OmniMon CLI Manual (v6.3.0)
 
 ## Overview
 
@@ -280,8 +280,8 @@ omnimon release generate-keypair
 Sign a release artifact.
 
 ```bash
-omnimon release sign --version 6.2.0 ./target/release/omnimon
-omnimon release sign --version 6.2.0 --key-file ./signing.key ./omnimon.dmg
+omnimon release sign --version 6.3.0 ./target/release/omnimon
+omnimon release sign --version 6.3.0 --key-file ./signing.key ./omnimon.dmg
 ```
 
 Produces a `.sig.json` file alongside the artifact.
@@ -306,8 +306,8 @@ omnimon release checksum ./omnimon
 Generate a release manifest (`releases.json`) for all artifacts in a directory. Auto-detects platform and architecture, signs each artifact, and creates a comprehensive manifest.
 
 ```bash
-omnimon release manifest --version 6.2.0 --dir ./dist
-omnimon release manifest --version 6.2.0 --dir ./dist --output ./releases.json
+omnimon release manifest --version 6.3.0 --dir ./dist
+omnimon release manifest --version 6.3.0 --dir ./dist --output ./releases.json
 ```
 
 #### `verify-manifest --pubkey <KEY> <FILE>`

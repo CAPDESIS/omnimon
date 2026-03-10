@@ -1,31 +1,55 @@
-# OmniMon v4 Release 🚀
+# OmniMon v6.3.0 Release Notes
 
-We are excited to announce the production release of OmniMon v4! This release finalizes the transition to a modern, zero-leak Rust architecture, complete with advanced security and automation capabilities.
+Release date: 2026-03-10
 
-## 🌟 Key Highlights
+## User Profiles
 
-### 🛡️ MITRE ATT&CK & Dynamic eBPF Detections
-This release includes major enhancements to our threat detection capabilities. The new **AiConfigBridge** allows the dynamic creation of rules (e.g., GeoIP matching), which the Rust backend processes in real-time. For Linux users, the eBPF (`aya`) collector now achieves full feature parity with macOS/Windows by resolving destination IPs directly from kernel maps.
+New profile presets system with three modes (minimal/balanced/power) that control dashboard section visibility, refresh intervals, and notification levels. Each user can pin favorite processes to the top of the process table and customize their dashboard layout.
 
-### ☁️ CrabNebula Cloud Integration
-OmniMon is now fully integrated with the CrabNebula backend. You can securely authenticate using your OS's native Keyring (`omnimon auth login`) and sync encrypted security reports using the new CLI commands. The Tauri Auto-Updater is also wired directly to CrabNebula's CDN to ensure you receive future updates securely and automatically.
+## E2E Testing with Playwright
 
-### ⚡ LTO & Hyper-Optimized Binaries
-Thanks to Link-Time Optimization (LTO) and strict build profiles (`codegen-units=1`, `opt-level=s`), the compiled binaries and payload sizes have been significantly reduced, preserving memory specifically for our native drivers (`libpcap` / `WinDivert`) and enforcing a true "Zero-Leak" runtime.
+Migrated from WebdriverIO/Tauri to standalone Playwright. Five E2E suites cover: app loading, process table interaction, navigation, settings, and AI chat. Reusable fixtures mock Tauri IPC for metrics, tabs, network, and AI.
 
----
+## Post-Sprint Audit
 
-## 🔒 Security Posture & NIST Compliance
-Every build runs an automated vulnerability scan using `Grype` matching the NIST SP 800-53 Framework guidelines.
-**Current Security Posture:** Scan data not available locally.
+- 29 dead imports removed across 12 components
+- NetworkMap onclick handler bug fixed (out-of-scope event)
+- 3 implicit `any` types resolved
+- Rate limiting added to 5 previously unprotected IPC commands
+- CSP hardened: `object-src 'none'; base-uri 'self'`
+- Virtual scroll buffer increased from 0 to 3 rows
 
----
+## Quality
 
-## 📝 Recent Commits since last release
+| Metric | Value |
+|--------|-------|
+| Total tests | 1083 (663 frontend + 413 Rust + 7 E2E) |
+| Statement coverage | 86.5% |
+| Branch coverage | 72% |
+| Function coverage | 87.7% |
 
-- feat(ci): universal macOS binary + RPM for Fedora/RHEL (4beb1d3)
-- fix(ci): auto-rename release assets to user-friendly platform names (f934f7f)
-- fix(ci): publish releases directly instead of creating drafts (aaa8146)
+## Documentation
 
-## 📥 Artifacts
-All platform artifacts (`.dmg`, `.exe`, `.deb`) have been generated and signed cryptographically by our CI/CD pipeline. Use `omnimon doctor` after installation to verify native driver health.
+- README.md rewritten for v6.3.0 with architecture diagram and badges
+- `docs/ARCHITECTURE.md`: 7 Mermaid diagrams, 13 modules documented
+- CONTRIBUTING.md updated with full workflow
+- COMMANDS_REFERENCE.md: +15 CLI commands, +3 IPC commands
+- CLI_MANUAL.md: 4 new sections (config, network, rules, release)
+
+## Install
+
+```bash
+# macOS
+brew tap chochy2001/omnimon && brew install --cask omnimon
+
+# Linux
+curl -fsSL https://raw.githubusercontent.com/chochy2001/omnimon/main/scripts/install-web.sh | bash
+
+# Windows — download .msi from GitHub Releases
+```
+
+## Artifacts
+
+All platform artifacts (`.dmg`, `.msi`, `.deb`, `.AppImage`, `.rpm`) are signed with Ed25519 and include SHA-256 checksums. Verify with `omnimon release verify`.
+
+See [CHANGELOG.md](CHANGELOG.md) for the full list of changes.

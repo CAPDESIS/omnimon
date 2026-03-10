@@ -4,9 +4,10 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| v5.0.x  | :white_check_mark: |
-| v4.0.x  | :x:                |
-| v3.x.x  | :x:                |
+| v6.3.x  | :white_check_mark: |
+| v6.2.x  | :white_check_mark: |
+| v6.1.x  | :x:                |
+| < v6.0  | :x:                |
 
 ## Reporting a Vulnerability
 
@@ -47,6 +48,16 @@ All interactions between the frontend and native backend pass through a secure I
 *   **AppleScript:** User-provided identifiers are never directly concatenated into AppleScript strings. They are passed as positional arguments, eliminating Remote Code Execution (RCE) vectors.
 *   **WebSockets (CDP):** Debugging session IDs are rigorously validated to prevent Path Traversal. Characters like `/`, `\`, `?`, and `#` are rejected.
 
+### 7. IPC Rate Limiting (v6.3.0+)
+All sensitive IPC commands are protected by a token bucket rate limiter (`rate_limit.rs`). This prevents internal DDoS from rapid frontend invocations:
+*   **KILL profile:** 10 burst, 5/sec refill — process termination commands
+*   **AI profile:** 10 burst, 2/sec refill — AI chat and analysis commands
+*   **BROWSER profile:** 30 burst, 10/sec refill — browser tab control
+*   **CONFIG profile:** 5 burst, 2/sec refill — configuration, automations, and plugin operations
+
+### 8. Content Security Policy Hardening (v6.3.0+)
+Strict CSP in `tauri.conf.json`: `object-src 'none'; base-uri 'self'`. Only `self` plus explicitly allowed LLM API domains (OpenAI, Anthropic, Gemini, OpenRouter) are permitted for network connections.
+
 ---
 
 # Política de Seguridad (Español)
@@ -55,9 +66,10 @@ All interactions between the frontend and native backend pass through a secure I
 
 | Versión | Soportada          |
 | ------- | ------------------ |
-| v5.0.x  | :white_check_mark: |
-| v4.0.x  | :x:                |
-| v3.x.x  | :x:                |
+| v6.3.x  | :white_check_mark: |
+| v6.2.x  | :white_check_mark: |
+| v6.1.x  | :x:                |
+| < v6.0  | :x:                |
 
 ## Reportar una Vulnerabilidad
 
@@ -97,3 +109,13 @@ Nuestro ciclo de CI/CD incluye herramientas de análisis estático como `cargo-a
 Todas las interacciones entre el frontend y el backend nativo pasan a través de un puente de IPC Seguro. Esto previene que datos maliciosos inyectados desde el frontend comprometan el sistema:
 *   **AppleScript:** Los identificadores proporcionados por el usuario (como IDs de pestañas o URLs) nunca se concatenan directamente en cadenas de AppleScript. En su lugar, se pasan como argumentos posicionales (vía `osascript -e` y `on run argv`), eliminando vectores de Remote Code Execution (RCE).
 *   **WebSockets (CDP):** Los IDs de sesión de depuración están rigurosamente validados para evitar el *Path Traversal*. Se rechazan los caracteres como `/`, `\`, `?` y `#`, lo que garantiza que las conexiones solo puedan abrirse contra los *endpoints* permitidos del Chrome Debugging Protocol.
+
+### 7. Rate Limiting en IPC (v6.3.0+)
+Todos los comandos IPC sensibles están protegidos por un rate limiter de tipo token bucket (`rate_limit.rs`). Esto previene DDoS interno desde invocaciones rápidas del frontend:
+*   **Perfil KILL:** 10 burst, 5/seg refill — comandos de terminación de procesos
+*   **Perfil AI:** 10 burst, 2/seg refill — chat y análisis con IA
+*   **Perfil BROWSER:** 30 burst, 10/seg refill — control de pestañas del navegador
+*   **Perfil CONFIG:** 5 burst, 2/seg refill — configuración, automatizaciones y operaciones de plugins
+
+### 8. Endurecimiento de CSP (v6.3.0+)
+CSP estricto en `tauri.conf.json`: `object-src 'none'; base-uri 'self'`. Solo `self` y los dominios de API de LLM explícitamente permitidos (OpenAI, Anthropic, Gemini, OpenRouter) se permiten para conexiones de red.

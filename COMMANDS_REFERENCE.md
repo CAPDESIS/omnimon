@@ -1,6 +1,6 @@
 # OmniMon Commands Reference
 
-Version: `6.2.0`
+Version: `6.3.0`
 
 ## AI Chat Actions
 
@@ -47,10 +47,10 @@ These are the backend-supported actions that can be triggered from the in-app AI
 | `omnimon rules remove <id>` | Remove a rule by ID | `omnimon rules remove proc-mem-004` |
 | `omnimon rules schema` | Print the expected JSON schema for rules | `omnimon rules schema` |
 | `omnimon release generate-keypair` | Generate Ed25519 signing keypair | `omnimon release generate-keypair` |
-| `omnimon release sign --version <VER> <file>` | Sign a release artifact with Ed25519 | `omnimon release sign --version 6.2.0 ./omnimon` |
+| `omnimon release sign --version <VER> <file>` | Sign a release artifact with Ed25519 | `omnimon release sign --version 6.3.0 ./omnimon` |
 | `omnimon release verify --sig <path> <file>` | Verify artifact signature | `omnimon release verify --sig ./omnimon.sig.json ./omnimon` |
 | `omnimon release checksum <file>` | Compute SHA-256 checksum | `omnimon release checksum ./omnimon` |
-| `omnimon release manifest --version <VER> --dir <dir>` | Generate release manifest with signatures | `omnimon release manifest --version 6.2.0 --dir ./dist` |
+| `omnimon release manifest --version <VER> --dir <dir>` | Generate release manifest with signatures | `omnimon release manifest --version 6.3.0 --dir ./dist` |
 | `omnimon release verify-manifest --pubkey <key> <file>` | Verify a release manifest | `omnimon release verify-manifest --pubkey <b64> releases.json` |
 
 ## Tauri IPC Commands

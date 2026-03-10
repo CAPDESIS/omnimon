@@ -1,6 +1,6 @@
 # OmniMon
 
-[![CI](https://github.com/chochy2001/omnimon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/omnimon/actions) [![Version](https://img.shields.io/badge/version-6.2.0-brightgreen)](#) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_2_+_Svelte_5-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-💖-ff69b4)](https://github.com/sponsors/chochy2001)
+[![CI](https://github.com/chochy2001/omnimon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/omnimon/actions) [![Version](https://img.shields.io/badge/version-6.3.0-brightgreen)](#) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_2_+_Svelte_5-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-💖-ff69b4)](https://github.com/sponsors/chochy2001)
 
 ```
   ___  __  __ _   _ ___ __  __  ___  _   _
@@ -21,6 +21,7 @@ OmniMon is a next-generation, cross-platform system monitor built with Rust and 
 - **Network intelligence** — Native packet capture (libpcap/eBPF/WinDivert), connection analysis, DNS enrichment, GeoIP, and MITRE ATT&CK correlation
 - **Browser tab control** — List, close, and focus tabs across Chrome, Safari, Brave, Edge, Arc, and Firefox via CDP and AppleScript
 - **Security & compliance** — CVE auditing, NIST SP 800-53 heartbeats, encrypted audit trails, Ed25519 release signing
+- **User profiles** — Preset configurations (minimal/balanced/power) with customizable dashboard layouts, refresh intervals, and favorite processes
 - **SRE automations** — User-defined rules for alerts and auto-actions with native OS notifications
 - **Plugin system** — Extend monitoring with Lua plugins (sandboxed, 150ms timeout, 1MB memory limit)
 - **Three interfaces** — Desktop GUI, CLI, and interactive TUI (htop-style)
@@ -80,7 +81,7 @@ omnimon network --alerts --watch                  # Live alert stream
 omnimon chat --ai openai "What is using the most RAM?"
 omnimon security-scan --cve-db ./cves.json        # CVE audit
 omnimon rules list                                # Security rules
-omnimon release sign --version 6.2.0 ./omnimon    # Sign binary
+omnimon release sign --version 6.3.0 ./omnimon    # Sign binary
 omnimon doctor                                    # Health check
 ```
 
@@ -168,6 +169,7 @@ OmniMon es un monitor de sistema multiplataforma de nueva generación construido
 - **Inteligencia de red** — Captura nativa (libpcap/eBPF/WinDivert), análisis de conexiones, DNS, GeoIP y correlación MITRE ATT&CK
 - **Control de pestañas** — Listar, cerrar y enfocar pestañas en Chrome, Safari, Brave, Edge, Arc y Firefox
 - **Seguridad y cumplimiento** — Auditoría CVE, heartbeats NIST SP 800-53, trails de auditoría cifrados, firma Ed25519
+- **Perfiles de usuario** — Presets configurables (minimal/balanced/power) con layouts de dashboard, intervalos de refresco y procesos favoritos
 - **Automatizaciones SRE** — Reglas definidas por el usuario para alertas y acciones automáticas
 - **Sistema de plugins** — Extiende el monitoreo con plugins Lua (sandboxed)
 - **Tres interfaces** — GUI de escritorio, CLI e interfaz TUI interactiva

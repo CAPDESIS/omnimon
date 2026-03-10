@@ -54,7 +54,7 @@
             <p>{t("helpCenter.aboutBody")}</p>
           </div>
           <div class="about-meta">
-            <span class="about-version">OmniMon 6.0.1</span>
+            <span class="about-version">OmniMon 6.4.0</span>
             <span>{t("helpCenter.createdBy")}</span>
           </div>
           <Button
@@ -144,8 +144,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(6px);
+    background: rgba(0, 0, 0, 0.7);
   }
 
   .modal {
@@ -203,9 +202,7 @@
     padding: 18px;
     border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
     border-radius: 16px;
-    background:
-      radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 16%, transparent), transparent 42%),
-      color-mix(in srgb, var(--bg-surface, var(--bg-alt)) 94%, white 2%);
+    background: var(--bg-surface, var(--bg-alt));
   }
 
   .about-meta {
@@ -243,7 +240,7 @@
   .card {
     border: 1px solid var(--border);
     border-radius: 12px;
-    background: rgba(255,255,255,0.02);
+    background: var(--bg-alt);
     padding: 12px;
     display: flex;
     flex-direction: column;

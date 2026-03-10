@@ -622,7 +622,7 @@
   td {
     height: calc(var(--base-font-size) * 1.667);
     padding: 0 6px;
-    border-bottom: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.15));
+    border-bottom: 1px solid var(--border-subtle, #2a2a3a);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -643,10 +643,10 @@
     outline-offset: -1px;
   }
   tr.system {
-    opacity: 0.7;
+    color: var(--fg-dim);
   }
   tr.system:hover {
-    opacity: 0.65;
+    color: var(--fg-dim);
   }
   tr.spacer td {
     padding: 0;
@@ -813,8 +813,8 @@
   }
 
   @keyframes rank-pulse {
-    0% { background: var(--accent-dim, rgba(59,130,246,0.15)); }
-    100% { background: transparent; }
+    0% { background: var(--accent-dim, #0d2847); }
+    100% { background: var(--bg, #0a0a0b); }
   }
 
   .badge {
@@ -829,12 +829,12 @@
     letter-spacing: 0.3px;
   }
   .badge.idle {
-    background: rgba(255, 193, 7, 0.15);
+    background: color-mix(in srgb, var(--warning) 15%, var(--bg));
     color: var(--warning);
   }
 
   .badge.grouped {
-    background: rgba(59, 130, 246, 0.14);
+    background: color-mix(in srgb, var(--accent) 14%, var(--bg));
     color: var(--accent);
   }
 

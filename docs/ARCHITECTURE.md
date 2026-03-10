@@ -1,6 +1,6 @@
 # OmniMon Architecture
 
-Version: 6.2.0
+Version: 6.3.0
 
 This document describes the high-level architecture of OmniMon, covering the Cargo workspace layout, data flow, key subsystems, and security design.
 
@@ -246,7 +246,22 @@ graph TD
 
 **Virtual scrolling:** The process table renders 2000+ processes at 60 FPS using windowed rendering.
 
-**i18n:** Internationalization support via locale files.
+**User profiles:** Three presets (minimal/balanced/power) control dashboard section visibility, refresh intervals, and notification levels. Favorite processes are pinned to the top of the process table.
+
+**i18n:** Internationalization support via locale files (EN/ES).
+
+## Testing Architecture
+
+**Unit tests (1083 total):**
+- Frontend: 663 tests via Vitest + Testing Library (45 test files)
+- Rust core: 367 tests (inline `#[cfg(test)]`)
+- Rust desktop: 46 tests (plugins, automations)
+- Coverage: 86.5% statements, 72% branches, 87.7% functions
+
+**E2E tests (7 total):**
+- Framework: Playwright (standalone, no Tauri WebDriver)
+- 5 suites: app-loads, process-table, navigation, settings, ai-chat
+- Fixtures mock Tauri IPC (metrics, tabs, network, AI)
 
 ## Security Design
 

@@ -253,8 +253,7 @@ end`;
   .plugins-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(7, 12, 20, 0.72);
-    backdrop-filter: blur(10px);
+    background: rgba(0, 0, 0, 0.7);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -271,9 +270,7 @@ end`;
     overflow: hidden;
     border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
     border-radius: 24px;
-    background:
-      radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 16%, transparent), transparent 32%),
-      linear-gradient(180deg, color-mix(in srgb, var(--bg-surface, var(--bg-alt)) 94%, white 2%), var(--bg));
+    background: var(--bg-surface, var(--bg-alt));
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
     padding: 20px;
   }
@@ -361,13 +358,13 @@ end`;
   }
 
   .banner.success {
-    background: color-mix(in srgb, var(--green) 18%, transparent);
+    background: color-mix(in srgb, var(--green) 18%, var(--bg));
     color: color-mix(in srgb, var(--green) 70%, white 12%);
   }
 
   .banner.error,
   .error-box {
-    background: color-mix(in srgb, var(--danger) 16%, transparent);
+    background: color-mix(in srgb, var(--danger) 16%, var(--bg));
     color: color-mix(in srgb, var(--danger) 78%, white 8%);
   }
 
@@ -441,7 +438,7 @@ end`;
     font-size: 11px;
     padding: 4px 6px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    background: color-mix(in srgb, var(--accent) 12%, var(--bg));
     color: var(--fg-dim);
   }
 
