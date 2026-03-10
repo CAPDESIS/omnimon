@@ -552,7 +552,7 @@
     background: var(--bg-selected);
   }
   .tab-item.closing {
-    opacity: 0.35;
+    opacity: 0.7;
     pointer-events: none;
   }
 

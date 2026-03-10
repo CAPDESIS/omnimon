@@ -109,7 +109,7 @@
 
   .close-all-btn {
     font-size: 12px;
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(1px);
   }
 
   .alert-header {

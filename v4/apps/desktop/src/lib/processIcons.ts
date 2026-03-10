@@ -83,33 +83,42 @@ export function iconForProcess(name: string, group?: string): string {
   return getProcessIconPath(getProcessCategory(name, group));
 }
 
-const PROCESS_ICONS: Record<string, string> = {
-  "Google Chrome": "🌐",
-  "chrome": "🌐",
-  "Firefox": "🦊",
-  "Safari": "🧭",
-  "Visual Studio Code": "💻",
-  "code": "💻",
-  "Terminal": "⬛",
-  "Finder": "📁",
-  "Spotify": "🎵",
-  "Slack": "💬",
-  "Discord": "🎮",
-  "docker": "🐳",
-  "node": "💚",
-  "python": "🐍",
-  "rust": "🦀",
-  "opencode": "🤖",
-  "claude": "🟣",
+import {
+  Globe, Terminal, Folder, Music, MessageSquare,
+  Gamepad2, Container, Hexagon, Code, Cpu,
+  Chrome, Shield, Cog, Monitor, Database, Wifi
+} from "lucide-svelte";
+import type { ComponentType } from "svelte";
+
+const PROCESS_ICONS: Record<string, ComponentType> = {
+  "chrome": Globe,
+  "google chrome": Globe,
+  "firefox": Globe,
+  "safari": Globe,
+  "code": Code,
+  "visual studio code": Code,
+  "terminal": Terminal,
+  "iterm": Terminal,
+  "finder": Folder,
+  "spotify": Music,
+  "slack": MessageSquare,
+  "discord": Gamepad2,
+  "docker": Container,
+  "node": Hexagon,
+  "python": Code,
+  "rust": Cog,
+  "opencode": Monitor,
+  "claude": Cpu,
 };
 
-export function getProcessIcon(name: string): string {
-  const baseName = name.toLowerCase();
+export function getProcessIconComponent(name: string): ComponentType {
+  const lower = name.toLowerCase();
   for (const [key, icon] of Object.entries(PROCESS_ICONS)) {
-    if (baseName.includes(key.toLowerCase())) return icon;
+    if (lower.includes(key)) return icon;
   }
-  return "⚙️";
+  return Cog; // Default
 }
+
 
 export function isNativeIconDataUrl(value?: string | null): value is string {
   return typeof value === "string" && value.startsWith("data:image/");

@@ -299,5 +299,5 @@
   }
   .network-alert-severity-info { background: rgba(59,130,246,0.14); color: var(--accent); }
   .network-alert-severity-warning { background: rgba(245,158,11,0.14); color: var(--yellow); }
-  .network-alert-severity-critical { background: rgba(239,68,68,0.14); color: var(--danger); }
+  .network-alert-severity-critical { background: rgba(239,68,68,0.6); color: var(--danger); }
 </style>

@@ -20,6 +20,7 @@
     "@tauri-apps/plugin-store": "^2",
     "dompurify": "^3.3.2",
     "lightweight-charts": "^5.1.0",
+    "lucide-svelte": "^0.577.0",
     "marked": "^17.0.4"
   },
   "devDependencies": {
