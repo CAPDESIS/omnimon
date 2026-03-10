@@ -1,5 +1,44 @@
 # Changelog
 
+## 6.3.0 (2026-03-10)
+
+### Perfiles de Usuario
+- Modelo expandido: displayName, profilePreset (minimal/balanced/power), dashboardLayout, refreshInterval, favoriteProcesses, notificationLevel
+- `ProfileSettings.svelte`: selector visual de presets, slider de intervalo, gestión de procesos favoritos, reset to defaults
+- Preset controla secciones visibles en el dashboard
+- Procesos favoritos pinneados al top de ProcessTable
+- Filtro de notificaciones por nivel (off/critical/all)
+- Persistencia automática con debounce 500ms
+- Traducciones EN/ES completas
+
+### E2E Tests
+- Migración de WebdriverIO/Tauri a Playwright standalone
+- 5 suites E2E: app-loads, process-table, navigation, settings, ai-chat
+- Fixtures con mocks de Tauri IPC (métricas, tabs, red, AI)
+- Helpers reutilizables para tabla, modales, navegación
+
+### Auditoría Post-Sprint
+- 29 imports muertos eliminados en 12 componentes
+- Bug corregido: NetworkMap onclick handler inválido fuera de scope
+- 3 implicit `any` resueltos (processes.ts, network.svelte.ts)
+- `ProcessNetworkThroughput.process_name` sincronizado con Rust
+- Rate limiting agregado a 5 IPC commands desprotegidos
+- CSP endurecido: `object-src 'none'; base-uri 'self'`
+- Virtual scroll buffer: 0 → 3 rows para evitar parpadeo
+
+### Calidad
+- 1037 tests (663 Frontend + 367 Rust + 7 E2E)
+- Coverage: statements 86.5%, branches 72%, functions 87.7%
+- +85 tests unitarios nuevos en 16 archivos
+- processIcons 62% → 92% branches, theme 68% → 86%, preferences 69% → 85%, alerts 62% → 87%
+
+### Documentación
+- README.md reescrito para v6.3.0 con arquitectura ASCII y badges
+- `docs/ARCHITECTURE.md` nuevo: 7 diagramas Mermaid, 13 módulos documentados
+- CONTRIBUTING.md actualizado con workflow completo
+- COMMANDS_REFERENCE.md: +15 comandos CLI, +3 IPC commands
+- CLI_MANUAL.md: 4 secciones nuevas (config, network, rules, release)
+
 ## 6.2.0 (2026-03-09)
 
 ### Red Avanzada
