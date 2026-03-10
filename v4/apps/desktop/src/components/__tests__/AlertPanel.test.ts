@@ -2,6 +2,8 @@ import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/sv
 import AlertPanel from "../AlertPanel.svelte";
 import { writable } from "svelte/store";
 
+import { locale } from "../../lib/i18n";
+
 type AlertRuleMock = {
   metric: string;
   operator: string;
@@ -66,6 +68,7 @@ describe("AlertPanel", () => {
   });
 
   beforeEach(() => {
+    locale.set("en");
     mockAlertRules.set([]);
     mockFiredAlerts.set([]);
     mockNetworkAlerts.set([]);
@@ -84,7 +87,7 @@ describe("AlertPanel", () => {
       { metric: "cpu", operator: ">", threshold: 80, action: "toast" },
     ]);
     render(AlertPanel);
-    expect(screen.getByText("\u2713")).toBeInTheDocument();
+    expect(screen.getByText("OK")).toBeInTheDocument();
   });
 
   it("shows warning icon and badge when alerts fired", () => {
@@ -98,7 +101,7 @@ describe("AlertPanel", () => {
       },
     ]);
     render(AlertPanel);
-    expect(screen.getByText("\u26A0")).toBeInTheDocument();
+    expect(screen.getByText("!")).toBeInTheDocument();
     expect(screen.getByText("1")).toBeInTheDocument();
   });
 

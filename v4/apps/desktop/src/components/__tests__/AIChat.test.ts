@@ -665,15 +665,15 @@ describe("AIChat", () => {
     await fireEvent.click(screen.getByText("Send"));
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /common\.retry/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Retry/i })).toBeInTheDocument();
     });
 
-    await fireEvent.click(screen.getByRole("button", { name: /common\.retry/i }));
+    await fireEvent.click(screen.getByRole("button", { name: /Retry/i }));
 
     await waitFor(() => {
       expect(mockAiChat).toHaveBeenCalledTimes(2);
       expect(screen.getByText("Recovered")).toBeInTheDocument();
-      expect(screen.queryByText(/common\.retry/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Retry/i })).not.toBeInTheDocument();
     });
   });
 
@@ -688,7 +688,7 @@ describe("AIChat", () => {
     await fireEvent.input(input, { target: { value: "Check browser health" } });
     await fireEvent.click(screen.getByText("Send"));
 
-    const retryButton = await screen.findByRole("button", { name: /common\.retry/i });
+    const retryButton = await screen.findByRole("button", { name: /Retry/i });
     await fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     await fireEvent.click(retryButton);
 

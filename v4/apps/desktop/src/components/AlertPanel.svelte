@@ -13,15 +13,17 @@
   } from "../stores/alerts";
   import { slide, fade } from "svelte/transition";
 
+  import { t } from "../lib/i18n";
   import Button from "./Button.svelte";
   import IconButton from "./IconButton.svelte";
 
   let showPanel = $state(false);
 
-  let alertCount = $derived($firedAlerts.length);
-  let networkAlertCount = $derived($networkAlerts.length);
-  let hasRules = $derived($alertRules.length > 0);
-  let filteredNetworkAlerts = $derived(
+  const alertCount = $derived($firedAlerts.length);
+  const networkAlertCount = $derived($networkAlerts.length);
+  const hasRules = $derived($alertRules.length > 0);
+  const totalAlertCount = $derived(alertCount + networkAlertCount);
+  const filteredNetworkAlerts = $derived(
     [...$networkAlerts].filter((alert) => matchesNetworkAlertFilter(alert, $networkAlertFilter)).reverse().slice(0, 25),
   );
 
@@ -32,20 +34,25 @@
   function togglePanel() {
     showPanel = !showPanel;
   }
+
+  function severityLabel(value: "all" | "info" | "warning" | "critical") {
+    if (value === "all") return t("alerts.filters.all");
+    return t(`alerts.severity.${value}`);
+  }
 </script>
 
 {#if hasRules || alertCount > 0 || networkAlertCount > 0}
   <div class="alert-trigger">
     <Button
-      class={`alert-btn ${alertCount + networkAlertCount > 0 ? "has-alerts" : ""}`}
+      class={`alert-btn ${totalAlertCount > 0 ? "has-alerts" : ""}`}
       onclick={togglePanel}
-      title="Alerts ({alertCount + networkAlertCount})"
+      title={t("alerts.buttonTitle", { count: totalAlertCount })}
       variant="secondary"
       size="sm"
     >
-      <span class="alert-icon">{alertCount + networkAlertCount > 0 ? "\u26A0" : "\u2713"}</span>
-      {#if alertCount + networkAlertCount > 0}
-        <span class="alert-badge">{alertCount + networkAlertCount}</span>
+      <span class="alert-icon" aria-hidden="true">{totalAlertCount > 0 ? "!" : "OK"}</span>
+      {#if totalAlertCount > 0}
+        <span class="alert-badge">{totalAlertCount}</span>
       {/if}
     </Button>
   </div>
@@ -54,28 +61,28 @@
 {#if showPanel}
   <div class="alert-panel" transition:slide={{ duration: 200 }}>
     <div class="alert-panel-header">
-      <span class="alert-panel-title">Alerts</span>
+      <span class="alert-panel-title">{t("alerts.title")}</span>
       <div class="alert-panel-actions">
         {#if alertCount > 0}
-          <Button class="btn-link" variant="ghost" size="sm" onclick={clearFiredAlerts}>Clear All</Button>
+          <Button class="btn-link" variant="ghost" size="sm" onclick={clearFiredAlerts}>{t("alerts.clearAll")}</Button>
         {/if}
         {#if networkAlertCount > 0}
-          <Button class="btn-link" variant="ghost" size="sm" onclick={clearNetworkAlerts}>Clear Network</Button>
+          <Button class="btn-link" variant="ghost" size="sm" onclick={clearNetworkAlerts}>{t("alerts.clearNetwork")}</Button>
         {/if}
-        <IconButton class="close-btn" onclick={togglePanel} ariaLabel="Close alerts" title="Close alerts" size="sm">&times;</IconButton>
+        <IconButton class="close-btn" onclick={togglePanel} ariaLabel={t("alerts.close")} title={t("alerts.close")} size="sm">&times;</IconButton>
       </div>
     </div>
 
     {#if $alertRules.length > 0}
       <div class="rules-section">
-        <span class="section-label">Active Rules</span>
+        <span class="section-label">{t("alerts.activeRules")}</span>
         {#each $alertRules as rule, i}
           <div class="rule-row">
             <span class="rule-text">
-              {rule.processName ? `${rule.processName}: ` : "System "}
+              {rule.processName ? `${rule.processName}: ` : `${t("alerts.system")}: `}
               {rule.metric} {rule.operator} {rule.threshold}
             </span>
-            <IconButton class="rule-remove" onclick={() => removeAlertRule(i)} ariaLabel="Remove rule" title="Remove rule" size="sm">&times;</IconButton>
+            <IconButton class="rule-remove" onclick={() => removeAlertRule(i)} ariaLabel={t("alerts.removeRule")} title={t("alerts.removeRule")} size="sm">&times;</IconButton>
           </div>
         {/each}
       </div>
@@ -83,28 +90,28 @@
 
     {#if $firedAlerts.length > 0}
       <div class="fired-section">
-        <span class="section-label">Recent Alerts</span>
+        <span class="section-label">{t("alerts.recentAlerts")}</span>
         {#each [...$firedAlerts].reverse().slice(0, 20) as alert (alert.id)}
           <div class="fired-row" transition:fade={{ duration: 150 }}>
             <span class="fired-time">{formatTime(alert.timestamp)}</span>
             <span class="fired-detail">
-              {alert.processName ?? "System"}: {alert.rule.metric} = {alert.value.toFixed(1)}
-              (threshold: {alert.rule.operator} {alert.rule.threshold})
+              {alert.processName ?? t("alerts.system")}: {alert.rule.metric} = {alert.value.toFixed(1)}
+              ({t("alerts.threshold")}: {alert.rule.operator} {alert.rule.threshold})
             </span>
           </div>
         {/each}
       </div>
     {:else}
-      <div class="no-alerts">No alerts fired yet.</div>
+      <div class="no-alerts">{t("alerts.noneFired")}</div>
     {/if}
 
     {#if networkAlertCount > 0}
       <div class="network-section">
-        <span class="section-label">Network Alerts</span>
+        <span class="section-label">{t("alerts.networkAlerts")}</span>
         <div class="network-filter-row">
           <input
             class="network-filter-input"
-            placeholder="Buscar proceso, destino o regla"
+            placeholder={t("alerts.searchPlaceholder")}
             value={$networkAlertFilter.query}
             oninput={(event: Event) => {
               const value = (event.target as HTMLInputElement).value;
@@ -119,17 +126,17 @@
               networkAlertFilter.update((filter: { severity: "all" | "info" | "warning" | "critical"; query: string }) => ({ ...filter, severity: value }));
             }}
           >
-            <option value="all">todas</option>
-            <option value="info">info</option>
-            <option value="warning">warning</option>
-            <option value="critical">critical</option>
+            <option value="all">{severityLabel("all")}</option>
+            <option value="info">{severityLabel("info")}</option>
+            <option value="warning">{severityLabel("warning")}</option>
+            <option value="critical">{severityLabel("critical")}</option>
           </select>
         </div>
 
         {#each filteredNetworkAlerts as alert (alert.id)}
           <div class="network-alert-row" transition:fade={{ duration: 150 }}>
             <div class="network-alert-copy">
-              <span class={`network-alert-severity network-alert-severity-${alert.severity}`}>{alert.severity}</span>
+              <span class={`network-alert-severity network-alert-severity-${alert.severity}`}>{severityLabel(alert.severity)}</span>
               <span class="fired-time">{formatTime(alert.triggered_at_unix_ms)}</span>
               <strong>{alert.rule_name}</strong>
               <span>{alert.process_name ?? alert.destination ?? alert.message}</span>
@@ -138,8 +145,8 @@
               {/if}
             </div>
             <div class="network-alert-actions">
-              <button class="btn-link" onclick={() => investigateNetworkAlert(alert)}>Investigar</button>
-              <button class="btn-link" onclick={() => askAiAboutNetworkAlert(alert)}>Preguntarle a IA</button>
+              <button class="btn-link" onclick={() => investigateNetworkAlert(alert)}>{t("alerts.investigate")}</button>
+              <button class="btn-link" onclick={() => askAiAboutNetworkAlert(alert)}>{t("alerts.askAi")}</button>
             </div>
           </div>
         {/each}
@@ -166,7 +173,7 @@
     color: var(--yellow);
   }
 
-  .alert-icon { font-size: calc(var(--base-font-size, 12px) * 0.917); }
+  .alert-icon { font-size: calc(var(--base-font-size, 12px) * 0.75); font-weight: 700; }
   .alert-badge {
     position: absolute;
     top: -4px;

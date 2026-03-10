@@ -1,18 +1,22 @@
 <script lang="ts">
   import Button from "./Button.svelte";
+  import { t } from "../lib/i18n";
   import { networkAlertRules } from "../stores/preferences";
-  import type { NetworkAlertCondition, NetworkAlertRule, NetworkAlertSeverity } from "../lib/types";
+  import type { NetworkAlertCondition, NetworkAlertDirection, NetworkAlertRule, NetworkAlertSeverity } from "../lib/types";
 
   type ConditionKind = NetworkAlertCondition["kind"];
 
-  const conditionOptions: Array<{ value: ConditionKind; label: string }> = [
-    { value: "high_bandwidth", label: "Alto bandwidth" },
-    { value: "new_external_connection", label: "Nueva conexion externa" },
-    { value: "unusual_port", label: "Puerto sospechoso" },
-    { value: "process_network_spike", label: "Spike de proceso" },
-    { value: "connection_count_exceeded", label: "Conteo de conexiones" },
-    { value: "suspicious_destination", label: "Destino sospechoso" },
+  const conditionOptions: ConditionKind[] = [
+    "high_bandwidth",
+    "new_external_connection",
+    "unusual_port",
+    "process_network_spike",
+    "connection_count_exceeded",
+    "suspicious_destination",
   ];
+
+  const severityOptions: NetworkAlertSeverity[] = ["info", "warning", "critical"];
+  const directionOptions: NetworkAlertDirection[] = ["upload", "download", "both"];
 
   let showModal = $state(false);
   let editId = $state<string | null>(null);
@@ -23,7 +27,7 @@
   let notifyAi = $state(false);
   let conditionKind = $state<ConditionKind>("high_bandwidth");
   let thresholdMbps = $state(400);
-  let direction = $state<"upload" | "download" | "both">("upload");
+  let direction = $state<NetworkAlertDirection>("upload");
   let process = $state("");
   let excludeKnown = $state(true);
   let suspiciousPorts = $state("4444, 6667, 8443, 31337");
@@ -31,6 +35,18 @@
   let multiplier = $state(5);
   let maxConnections = $state(200);
   let patterns = $state("(^198\\.51\\.100\\.)|malware|botnet");
+
+  function getConditionLabel(kind: ConditionKind): string {
+    return t(`networkAlerts.types.${kind}`);
+  }
+
+  function getSeverityLabel(level: NetworkAlertSeverity): string {
+    return t(`networkAlerts.severities.${level}`);
+  }
+
+  function getDirectionLabel(value: NetworkAlertDirection): string {
+    return t(`networkAlerts.directions.${value}`);
+  }
 
   function resetForm() {
     editId = null;
@@ -130,11 +146,6 @@
           kind: "suspicious_destination",
           patterns: patterns.split(",").map((value) => value.trim()).filter(Boolean),
         };
-      default:
-        return {
-          kind: "new_external_connection",
-          exclude_known: true,
-        };
     }
   }
 
@@ -142,7 +153,7 @@
     const condition = buildCondition();
     const nextRule: NetworkAlertRule = {
       id: editId ?? `net-rule-${Date.now()}`,
-      name: ruleName.trim() || conditionOptions.find((entry) => entry.value === conditionKind)?.label || "Nueva regla",
+      name: ruleName.trim() || getConditionLabel(conditionKind) || t("networkAlerts.newRuleFallback"),
       enabled,
       condition,
       severity,
@@ -173,17 +184,33 @@
   function conditionSummary(condition: NetworkAlertCondition): string {
     switch (condition.kind) {
       case "high_bandwidth":
-        return `${condition.threshold_mbps} Mbps ${condition.direction}${condition.process ? ` - ${condition.process}` : ""}`;
+        return t("networkAlerts.summaries.highBandwidth", {
+          threshold: condition.threshold_mbps,
+          direction: getDirectionLabel(condition.direction),
+          process: condition.process ?? t("networkAlerts.anyProcess"),
+        });
       case "new_external_connection":
-        return condition.exclude_known ? "solo destinos nuevos" : "cualquier destino externo";
+        return condition.exclude_known
+          ? t("networkAlerts.summaries.newExternalKnown")
+          : t("networkAlerts.summaries.newExternalAny");
       case "unusual_port":
-        return condition.suspicious_ports.join(", ");
+        return t("networkAlerts.summaries.unusualPort", {
+          ports: condition.suspicious_ports.join(", "),
+        });
       case "process_network_spike":
-        return `${condition.process_name} > ${condition.multiplier}x promedio`;
+        return t("networkAlerts.summaries.processSpike", {
+          process: condition.process_name,
+          multiplier: condition.multiplier,
+        });
       case "connection_count_exceeded":
-        return `>${condition.max_connections}${condition.process ? ` - ${condition.process}` : ""}`;
+        return t("networkAlerts.summaries.connectionCount", {
+          max: condition.max_connections,
+          process: condition.process ?? t("networkAlerts.anyProcess"),
+        });
       case "suspicious_destination":
-        return condition.patterns.join(", ");
+        return t("networkAlerts.summaries.suspiciousDestination", {
+          patterns: condition.patterns.join(", "),
+        });
     }
   }
 </script>
@@ -191,10 +218,10 @@
 <section class="network-alert-config">
   <div class="section-header">
     <div>
-      <div class="eyebrow">Alertas de red</div>
-      <h3>Reglas configurables</h3>
+      <div class="eyebrow">{t("networkAlerts.eyebrow")}</div>
+      <h3>{t("networkAlerts.title")}</h3>
     </div>
-    <Button variant="primary" size="sm" onclick={openCreate}>Agregar regla</Button>
+    <Button variant="primary" size="sm" onclick={openCreate}>{t("networkAlerts.addRule")}</Button>
   </div>
 
   <div class="rule-list">
@@ -205,13 +232,13 @@
             <input type="checkbox" checked={rule.enabled} onchange={() => toggleRule(rule.id)} />
             <span>{rule.name}</span>
           </label>
-          <span class={`severity severity-${rule.severity}`}>{rule.severity}</span>
+          <span class={`severity severity-${rule.severity}`}>{getSeverityLabel(rule.severity)}</span>
         </div>
         <div class="rule-meta">{conditionSummary(rule.condition)}</div>
-        <div class="rule-meta">Cooldown: {rule.cooldown_seconds}s {rule.notify_ai ? "- IA on" : ""}</div>
+        <div class="rule-meta">{t("networkAlerts.cooldown", { seconds: rule.cooldown_seconds })}{rule.notify_ai ? t("networkAlerts.aiEnabled") : ""}</div>
         <div class="rule-actions">
-          <Button size="sm" onclick={() => openEdit(rule)}>Editar</Button>
-          <Button size="sm" variant="ghost" onclick={() => removeRule(rule.id)}>Eliminar</Button>
+          <Button size="sm" onclick={() => openEdit(rule)}>{t("networkAlerts.edit")}</Button>
+          <Button size="sm" variant="ghost" onclick={() => removeRule(rule.id)}>{t("networkAlerts.delete")}</Button>
         </div>
       </article>
     {/each}
@@ -236,76 +263,83 @@
       onclick={(event: MouseEvent) => event.stopPropagation()}
       onkeydown={(event: KeyboardEvent) => event.stopPropagation()}
     >
-      <h3>{editId ? "Editar regla" : "Nueva regla"}</h3>
+      <h3>{editId ? t("networkAlerts.editRule") : t("networkAlerts.newRule")}</h3>
 
       <label>
-        <span>Nombre</span>
-        <input bind:value={ruleName} placeholder="Mi alerta de red" />
+        <span>{t("networkAlerts.name")}</span>
+        <input bind:value={ruleName} placeholder={t("networkAlerts.namePlaceholder")} />
       </label>
 
       <div class="grid two">
         <label>
-          <span>Tipo</span>
+          <span>{t("networkAlerts.type")}</span>
           <select bind:value={conditionKind}>
             {#each conditionOptions as option}
-              <option value={option.value}>{option.label}</option>
+              <option value={option}>{getConditionLabel(option)}</option>
             {/each}
           </select>
         </label>
         <label>
-          <span>Severidad</span>
+          <span>{t("networkAlerts.severity")}</span>
           <select bind:value={severity}>
-            <option value="info">info</option>
-            <option value="warning">warning</option>
-            <option value="critical">critical</option>
+            {#each severityOptions as level}
+              <option value={level}>{getSeverityLabel(level)}</option>
+            {/each}
           </select>
         </label>
       </div>
 
       {#if conditionKind === "high_bandwidth"}
         <div class="grid two">
-          <label><span>Threshold Mbps</span><input type="number" min="0.1" step="0.1" bind:value={thresholdMbps} /></label>
-          <label><span>Direccion</span><select bind:value={direction}><option value="upload">upload</option><option value="download">download</option><option value="both">both</option></select></label>
+          <label><span>{t("networkAlerts.thresholdMbps")}</span><input type="number" min="0.1" step="0.1" bind:value={thresholdMbps} /></label>
+          <label>
+            <span>{t("network.direction")}</span>
+            <select bind:value={direction}>
+              {#each directionOptions as option}
+                <option value={option}>{getDirectionLabel(option)}</option>
+              {/each}
+            </select>
+          </label>
         </div>
-        <label><span>Proceso opcional</span><input bind:value={process} placeholder="chrome" /></label>
+        <label><span>{t("networkAlerts.processOptional")}</span><input bind:value={process} placeholder="chrome" /></label>
       {/if}
 
       {#if conditionKind === "new_external_connection"}
-        <label class="inline-check"><input type="checkbox" bind:checked={excludeKnown} />Excluir destinos ya conocidos</label>
+        <label class="inline-check"><input type="checkbox" bind:checked={excludeKnown} />{t("networkAlerts.excludeKnown")}</label>
       {/if}
 
       {#if conditionKind === "unusual_port"}
-        <label><span>Puertos</span><input bind:value={suspiciousPorts} placeholder="4444, 6667, 8443" /></label>
+        <label><span>{t("networkAlerts.ports")}</span><input bind:value={suspiciousPorts} placeholder="4444, 6667, 8443" /></label>
       {/if}
 
       {#if conditionKind === "process_network_spike"}
         <div class="grid two">
-          <label><span>Proceso</span><input bind:value={processName} placeholder="chrome" /></label>
-          <label><span>Multiplicador</span><input type="number" min="1.1" step="0.1" bind:value={multiplier} /></label>
+          <label><span>{t("network.process")}</span><input bind:value={processName} placeholder="chrome" /></label>
+          <label><span>{t("networkAlerts.multiplier")}</span><input type="number" min="1.1" step="0.1" bind:value={multiplier} /></label>
         </div>
       {/if}
 
       {#if conditionKind === "connection_count_exceeded"}
         <div class="grid two">
-          <label><span>Max conexiones</span><input type="number" min="1" step="1" bind:value={maxConnections} /></label>
-          <label><span>Proceso opcional</span><input bind:value={process} placeholder="chrome" /></label>
+          <label><span>{t("networkAlerts.maxConnections")}</span><input type="number" min="1" step="1" bind:value={maxConnections} /></label>
+          <label><span>{t("networkAlerts.processOptional")}</span><input bind:value={process} placeholder="chrome" /></label>
         </div>
       {/if}
 
       {#if conditionKind === "suspicious_destination"}
-        <label><span>Regex/patrones</span><input bind:value={patterns} placeholder="malware, (^198\\.51\\.100\\.)" /></label>
+        <label><span>{t("networkAlerts.regexPatterns")}</span><input bind:value={patterns} placeholder="malware, (^198\.51\.100\.)" /></label>
       {/if}
 
       <div class="grid two">
-        <label><span>Cooldown (s)</span><input type="number" min="0" step="1" bind:value={cooldownSeconds} /></label>
-        <label class="inline-check"><input type="checkbox" bind:checked={notifyAi} />Notificar a IA</label>
+        <label><span>{t("networkAlerts.cooldownLabel")}</span><input type="number" min="0" step="1" bind:value={cooldownSeconds} /></label>
+        <label class="inline-check"><input type="checkbox" bind:checked={notifyAi} />{t("networkAlerts.notifyAi")}</label>
       </div>
 
-      <label class="inline-check"><input type="checkbox" bind:checked={enabled} />Regla habilitada</label>
+      <label class="inline-check"><input type="checkbox" bind:checked={enabled} />{t("networkAlerts.enabled")}</label>
 
       <div class="modal-actions">
-        <Button variant="ghost" onclick={() => (showModal = false)}>Cancelar</Button>
-        <Button variant="primary" onclick={submitRule}>Guardar regla</Button>
+        <Button variant="ghost" onclick={() => (showModal = false)}>{t("networkAlerts.cancel")}</Button>
+        <Button variant="primary" onclick={submitRule}>{t("networkAlerts.saveRule")}</Button>
       </div>
     </div>
   </div>

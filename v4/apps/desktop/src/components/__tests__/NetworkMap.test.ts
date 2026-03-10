@@ -224,7 +224,7 @@ describe("NetworkMap", () => {
 
     render(NetworkMap);
 
-    expect(screen.getByText(/1 proceso\(s\) consumiendo mucho ancho de banda/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 process\(es\) consuming high bandwidth/i)).toBeInTheDocument();
     expect(screen.getByText(/showing browser-tab fallback because live socket telemetry/i)).toBeInTheDocument();
   });
 
