@@ -13,6 +13,9 @@
   } from "../stores/alerts";
   import { slide, fade } from "svelte/transition";
 
+  import Button from "./Button.svelte";
+  import IconButton from "./IconButton.svelte";
+
   let showPanel = $state(false);
 
   let alertCount = $derived($firedAlerts.length);
@@ -33,17 +36,18 @@
 
 {#if hasRules || alertCount > 0 || networkAlertCount > 0}
   <div class="alert-trigger">
-    <button
-      class="alert-btn"
-      class:has-alerts={alertCount + networkAlertCount > 0}
+    <Button
+      class={`alert-btn ${alertCount + networkAlertCount > 0 ? "has-alerts" : ""}`}
       onclick={togglePanel}
       title="Alerts ({alertCount + networkAlertCount})"
+      variant="secondary"
+      size="sm"
     >
       <span class="alert-icon">{alertCount + networkAlertCount > 0 ? "\u26A0" : "\u2713"}</span>
       {#if alertCount + networkAlertCount > 0}
         <span class="alert-badge">{alertCount + networkAlertCount}</span>
       {/if}
-    </button>
+    </Button>
   </div>
 {/if}
 
@@ -53,12 +57,12 @@
       <span class="alert-panel-title">Alerts</span>
       <div class="alert-panel-actions">
         {#if alertCount > 0}
-          <button class="btn-link" onclick={clearFiredAlerts}>Clear All</button>
+          <Button class="btn-link" variant="ghost" size="sm" onclick={clearFiredAlerts}>Clear All</Button>
         {/if}
         {#if networkAlertCount > 0}
-          <button class="btn-link" onclick={clearNetworkAlerts}>Clear Network</button>
+          <Button class="btn-link" variant="ghost" size="sm" onclick={clearNetworkAlerts}>Clear Network</Button>
         {/if}
-        <button class="close-btn" onclick={togglePanel}>&times;</button>
+        <IconButton class="close-btn" onclick={togglePanel} ariaLabel="Close alerts" title="Close alerts" size="sm">&times;</IconButton>
       </div>
     </div>
 
@@ -71,7 +75,7 @@
               {rule.processName ? `${rule.processName}: ` : "System "}
               {rule.metric} {rule.operator} {rule.threshold}
             </span>
-            <button class="rule-remove" onclick={() => removeAlertRule(i)}>&times;</button>
+            <IconButton class="rule-remove" onclick={() => removeAlertRule(i)} ariaLabel="Remove rule" title="Remove rule" size="sm">&times;</IconButton>
           </div>
         {/each}
       </div>
@@ -145,23 +149,23 @@
 {/if}
 
 <style>
-  .alert-trigger { display: inline-flex; }
-  .alert-btn {
+  .alert-trigger {
+    display: inline-flex;
+  }
+
+  :global(.alert-btn) {
     position: relative;
-    padding: 2px 6px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm, 4px);
-    background: var(--bg);
-    color: var(--fg-dim);
     font-size: calc(var(--base-font-size, 12px) * 0.917);
-    cursor: pointer;
     display: flex;
     align-items: center;
     gap: 4px;
     height: calc(var(--base-font-size, 12px) * 1.667);
   }
-  .alert-btn:hover { background: var(--bg-hover); }
-  .alert-btn.has-alerts { border-color: var(--yellow); color: var(--yellow); }
+  :global(.alert-btn.has-alerts) {
+    border-color: var(--yellow);
+    color: var(--yellow);
+  }
+
   .alert-icon { font-size: calc(var(--base-font-size, 12px) * 0.917); }
   .alert-badge {
     position: absolute;
@@ -206,32 +210,25 @@
     letter-spacing: 0.5px;
     color: var(--yellow);
   }
-  .alert-panel-actions { display: flex; align-items: center; gap: 6px; }
-  .btn-link {
-    border: none;
-    background: none;
-    color: var(--accent);
-    font-size: calc(var(--base-font-size, 12px) * 0.75);
-    cursor: pointer;
-    text-decoration: underline;
-    padding: 0;
-  }
-  .btn-link:hover { color: var(--accent-hover, var(--accent)); }
-  .close-btn {
-    width: 18px;
-    height: 18px;
-    border: none;
-    background: transparent;
-    color: var(--fg-dim);
-    cursor: pointer;
+
+  .alert-panel-actions {
     display: flex;
     align-items: center;
-    justify-content: center;
-    border-radius: 3px;
+    gap: 6px;
+  }
+
+  :global(.btn-link) {
+    color: var(--accent);
+    font-size: calc(var(--base-font-size, 12px) * 0.75);
+    text-decoration: underline;
+  }
+  :global(.btn-link:hover) { color: var(--accent-hover, var(--accent)); }
+
+  :global(.close-btn) {
     font-size: 14px;
     padding: 0;
   }
-  .close-btn:hover { background: var(--bg-hover); color: var(--fg); }
+
   .section-label {
     display: block;
     font-size: calc(var(--base-font-size, 12px) * 0.667);
@@ -243,27 +240,27 @@
   }
   .rules-section, .fired-section, .network-section { border-bottom: 1px solid var(--border-subtle, var(--border)); }
   .rule-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px; }
-  .rule-row:hover, .fired-row:hover, .network-alert-row:hover { background: var(--bg-hover); }
+  .rule-row:hover, .network-alert-row:hover { background: var(--bg-hover); }
   .rule-text {
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     font-size: calc(var(--base-font-size, 12px) * 0.833);
   }
-  .rule-remove {
-    width: 16px;
-    height: 16px;
-    border: none;
-    background: transparent;
-    color: var(--fg-dim);
-    cursor: pointer;
-    border-radius: 2px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+
+  :global(.rule-remove) {
     font-size: 12px;
     padding: 0;
   }
-  .rule-remove:hover { color: var(--danger); background: var(--bg-hover); }
-  .fired-row { display: flex; align-items: baseline; gap: 8px; padding: 3px 12px; font-size: calc(var(--base-font-size, 12px) * 0.833); }
+  :global(.rule-remove:hover) { color: var(--danger); }
+
+  .fired-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 3px 12px;
+    font-size: calc(var(--base-font-size, 12px) * 0.833);
+  }
+  .fired-row:hover { background: var(--bg-hover); }
+
   .fired-time {
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     color: var(--fg-dim);
