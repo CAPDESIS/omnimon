@@ -1,6 +1,6 @@
 # OmniMon Commands Reference
 
-Version: `6.0.1`
+Version: `6.2.0`
 
 ## AI Chat Actions
 
@@ -18,7 +18,7 @@ These are the backend-supported actions that can be triggered from the in-app AI
 
 | Command | Purpose | Example |
 | --- | --- | --- |
-| `omnimon status [--format text|json]` | Show current system state and top processes | `omnimon status --format json` |
+| `omnimon status [--format text\|json]` | Show current system state and top processes | `omnimon status --format json` |
 | `omnimon kill <PID>` | Kill one process safely by PID | `omnimon kill 4242` |
 | `omnimon optimize --ai <provider> [--target <profile>]` | Ask an AI provider for process optimization suggestions | `omnimon optimize --ai openai --target browsers` |
 | `omnimon tabs list` | List open browser tabs | `omnimon tabs list` |
@@ -28,17 +28,30 @@ These are the backend-supported actions that can be triggered from the in-app AI
 | `omnimon apikey --ai <provider> <key>` | Validate and save an AI API key | `omnimon apikey --ai anthropic "sk-ant-..."` |
 | `omnimon settings get` | Read saved settings | `omnimon settings get` |
 | `omnimon settings set <key> <value>` | Update one setting | `omnimon settings set idle-threshold 2.5` |
+| `omnimon settings presets` | List all available profile presets | `omnimon settings presets` |
+| `omnimon settings use <id>` | Apply a shared profile preset by ID | `omnimon settings use battery-saver` |
 | `omnimon auth login <key>` | Save CrabNebula auth key | `omnimon auth login "cn_live_..."` |
 | `omnimon cloud sync --report-path <path>` | Upload an encrypted report | `omnimon cloud sync --report-path /tmp/omnimon_scan_report.enc` |
 | `omnimon security-scan [--cve-db <path>]` | Run a local security scan | `omnimon security-scan --cve-db ./cves.json` |
 | `omnimon doctor` | Check platform, drivers, and keyring health | `omnimon doctor` |
 | `omnimon tui` | Launch the terminal UI | `omnimon tui` |
-| `omnimon network [--format text|json]` | Show live network throughput per process | `omnimon network --top` |
+| `omnimon config rotate-key` | Rotate the scan encryption key (NIST SC-12) | `omnimon config rotate-key` |
+| `omnimon network [--format text\|json]` | Show live network throughput per process | `omnimon network --top` |
 | `omnimon network --connections` | Show filtered connection snapshots from network analysis | `omnimon network --connections` |
-| `omnimon network --filter <tcp|udp|icmp|other> --port <PORT>` | Filter connection snapshots by protocol and port | `omnimon network --filter tcp --port 443` |
+| `omnimon network --filter <tcp\|udp\|icmp\|other> --port <PORT>` | Filter connection snapshots by protocol and port | `omnimon network --filter tcp --port 443` |
 | `omnimon network --alerts` | Show evaluated network alerts from watcher state | `omnimon network --alerts` |
-| `omnimon network --top` | Force top-throughput view explicitly (top 10 procesos) | `omnimon network --top --format json` |
+| `omnimon network --top` | Force top-throughput view explicitly (top 10 processes) | `omnimon network --top --format json` |
 | `omnimon network --watch [--watch-interval-ms <MS>] [--watch-iterations <N>]` | Refresh the selected network view continuously | `omnimon network --watch --watch-interval-ms 1000` |
+| `omnimon rules list` | List all active AI security rules | `omnimon rules list` |
+| `omnimon rules load <path>` | Load rules from a JSON file (schema v1) | `omnimon rules load ./rules.json` |
+| `omnimon rules remove <id>` | Remove a rule by ID | `omnimon rules remove proc-mem-004` |
+| `omnimon rules schema` | Print the expected JSON schema for rules | `omnimon rules schema` |
+| `omnimon release generate-keypair` | Generate Ed25519 signing keypair | `omnimon release generate-keypair` |
+| `omnimon release sign --version <VER> <file>` | Sign a release artifact with Ed25519 | `omnimon release sign --version 6.2.0 ./omnimon` |
+| `omnimon release verify --sig <path> <file>` | Verify artifact signature | `omnimon release verify --sig ./omnimon.sig.json ./omnimon` |
+| `omnimon release checksum <file>` | Compute SHA-256 checksum | `omnimon release checksum ./omnimon` |
+| `omnimon release manifest --version <VER> --dir <dir>` | Generate release manifest with signatures | `omnimon release manifest --version 6.2.0 --dir ./dist` |
+| `omnimon release verify-manifest --pubkey <key> <file>` | Verify a release manifest | `omnimon release verify-manifest --pubkey <b64> releases.json` |
 
 ## Tauri IPC Commands
 
@@ -50,15 +63,17 @@ These are the backend-supported actions that can be triggered from the in-app AI
 | `get_network_history` | `seconds: number` | `NetworkSnapshot[]` for the requested recent interval |
 | `get_filtered_connections` | `filter: NetworkFilter` | `NetworkConnection[]` matching protocol/port/process/host filters |
 | `kill_process` | `pid: number` | `boolean` |
-| `kill_processes` | `pids: number[]` | `{ killed: number[], failed: [number, string][] }` |
+| `kill_processes` | `pids: number[]` (max 50) | `{ killed: number[], failed: [number, string][] }` |
 | `save_ai_config` | `provider: string`, `model: string`, `key: string` | `void` |
 | `check_api_key` | `provider: string` | `boolean` |
-| `apply_ai_rules` | `payload: string` | `number` of rules applied |
+| `apply_ai_rules` | `payload: string` (max 64KB) | `number` of rules applied |
 | `get_ai_rules_schema` | none | JSON schema string |
+| `set_network_alert_rules` | `payload_json: string` (max 128KB) | `number` of rules configured |
 | `validate_api_key` | `provider: string`, `key: string` | `boolean` |
 | `analyze_processes` | `profile: string`, `provider: string`, `model: string` | `ProcessSuggestion[]` |
 | `analyze_context` | `context: string`, `provider: string`, `model: string` | plain text `string` |
-| `ai_chat` | `message: string`, `provider: string`, `model: string`, `history: [string, string][]` | `ChatResponse` with `reply` and optional `tool_call` |
+| `ai_chat` | `message: string`, `provider: string`, `model: string`, `history: [string, string][]`, `cache_ttl_minutes?: number` | `ChatResponse` with `reply` and optional `tool_call` |
+| `clear_ai_cache` | none | `void` |
 | `get_browser_tabs` | none | `BrowserTab[]` |
 | `close_browser_tab` | `tabId: string`, `tabUrl: string`, `browser: string` | `boolean` |
 | `focus_browser_tab` | `tabId: string`, `tabUrl: string`, `browser: string` | `boolean` |
@@ -66,10 +81,10 @@ These are the backend-supported actions that can be triggered from the in-app AI
 | `save_cloud_key` | `key: string` | `void` |
 | `get_cloud_key` | none | `string` |
 | `get_automation_rules` | none | `AutomationRule[]` |
-| `add_automation_rule` | `rule: AutomationRule` or Tauri app + rule in Rust | `void` |
+| `add_automation_rule` | `rule: AutomationRule` | `void` |
 | `remove_automation_rule` | `id: string` | `void` |
 | `list_plugins` | none | `PluginDescriptor[]` |
-| `install_plugin` | `fileName: string`, `source: string` | `PluginDescriptor` |
+| `install_plugin` | `fileName: string`, `source: string` (max 256KB) | `PluginDescriptor` |
 | `set_plugin_enabled` | `pluginId: string`, `enabled: boolean` | `PluginDescriptor` |
 | `remove_plugin` | `pluginId: string` | `void` |
 

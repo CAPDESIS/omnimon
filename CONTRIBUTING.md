@@ -2,9 +2,14 @@
 
 Thanks for your interest in contributing to OmniMon! As an open source project, we rely on the community to improve, stabilize, and expand the tool across all platforms.
 
-## Development Environment
+## Prerequisites
 
-Setting up the cross-platform environment (Rust, Tauri, Svelte) is straightforward with our orchestration scripts.
+- **Rust** 1.75+ with `cargo`
+- **bun** (package manager — not npm/yarn)
+- **Tauri CLI** (`cargo install tauri-cli`)
+- **Platform deps:** WebView2 (Windows), libwebkit2gtk + libappindicator3 (Linux)
+
+## Development Environment
 
 1. **Clone the repository:**
    ```bash
@@ -13,47 +18,103 @@ Setting up the cross-platform environment (Rust, Tauri, Svelte) is straightforwa
    ```
 
 2. **Run the setup script:**
-   * macOS/Linux: `./v4/setup-dev.sh`
-   * Windows: `.\v4\setup-dev.ps1`
+   - macOS/Linux: `./v4/setup-dev.sh`
+   - Windows: `.\v4\setup-dev.ps1`
 
-   This script checks and/or installs Node.js, Rust, Cargo, and native OS dependencies like WebView2 (Windows) or libwebkit2gtk (Linux).
+   This checks and installs Rust, bun, Tauri CLI, and native OS dependencies.
 
 3. **Start development mode:**
    ```bash
    cd v4
    make dev
    ```
-   This compiles the Rust backend and launches the Tauri interface with Vite/Svelte hot-reloading.
+   Compiles the Rust backend and launches the Tauri app with Vite/Svelte hot-reloading.
+
+## Development Commands
+
+```bash
+cd v4
+
+# Development
+make dev                                    # Full-stack dev mode
+
+# Testing
+bun run test                                # Frontend unit tests (Vitest)
+bun run test:e2e                            # E2E tests (Playwright)
+cargo test --workspace                      # Rust tests
+make test-all                               # All: fmt + clippy + cargo test
+
+# Linting
+cargo fmt --check                           # Rust formatting
+cargo clippy -- -D warnings                 # Rust linting (zero warnings)
+
+# Build
+bun run build                               # Frontend build
+cargo check --workspace                     # Rust type check
+bun run tauri build -- --debug --no-bundle  # Quick full-stack validation
+```
 
 ## Cross-Platform Requirements
 
-OmniMon v5 is designed to run natively on **macOS, Windows, and Linux**. Any new feature or module (e.g. browser tab tracking, native OS interactions) **must** be supported on all three platforms, or degrade gracefully if the OS API doesn't support it.
+OmniMon runs natively on **macOS, Windows, and Linux**. All features must be supported on all three platforms or degrade gracefully.
 
-* Before proposing a new feature, ensure the code compiles and passes tests on all three environments.
-* Use Rust's `#[cfg(target_os = "...")]` typing for OS-specific implementations.
-* **CI/CD will automatically validate** your changes on Ubuntu, macOS, and Windows runners. If your Pull Request breaks the build on any platform, it cannot be merged.
+- Use `#[cfg(target_os = "...")]` for OS-specific Rust code.
+- CI/CD validates on Ubuntu, macOS, and Windows runners. PRs that break any platform cannot be merged.
 
 ## Workflow and Pull Requests
 
-1. Fork the project and work on a descriptive branch, e.g. `feat/my-new-feature` or `fix/bug-fix`.
-2. Implement your changes (avoid mixing frontend logic in native core crates without proper IPC justification).
-3. **Critical checkpoint:** Verify your code meets standards:
+1. Fork the project and work on a descriptive branch: `feat/my-feature` or `fix/my-fix`.
+2. Keep changes focused — avoid mixing frontend logic in native core crates without IPC justification.
+3. **Before submitting:** verify your code meets standards:
    ```bash
    cd v4
    make test-all
    ```
-   This runs `cargo fmt`, `cargo clippy --workspace -- -D warnings`, and `cargo test`. **Your PR will not be accepted if GitHub CI fails or detects warnings.**
-4. Open a Pull Request against the `main` branch clearly describing what problem your code solves and how to test it.
+4. Open a Pull Request against `main` describing what problem your code solves and how to test it.
+
+## Code Style
+
+### Rust
+- `cargo fmt` — no exceptions
+- `cargo clippy -- -D warnings` — zero warnings
+- Edition 2021
+- Use `#[cfg(target_os)]` for platform-specific code
+
+### TypeScript / Svelte
+- Strict TypeScript (`strict: true`)
+- Svelte 5 with runes (`$state`, `$derived`, `$effect`)
+- bun as package manager (never npm/yarn)
 
 ## Commit Convention (Conventional Commits)
 
-We require Conventional Commits to maintain a clean history and generate reliable changelogs.
-* `feat:` New features (e.g. `feat(ai): add Claude 3.5 support`).
-* `fix:` Bug fixes (e.g. `fix(core): prevent hang when reading nonexistent process`).
-* `docs:` Documentation-only changes (README, SECURITY, CONTRIBUTING, `/docs`).
-* `chore:` Infrastructure maintenance, dependencies, or release processes.
-* `refactor:` Code refactoring without altering observable behavior.
-* `test:` Adding or fixing tests.
+We require Conventional Commits for clean history and reliable changelogs:
+
+- `feat:` — New features (e.g. `feat(ai): add Claude 3.5 support`)
+- `fix:` — Bug fixes (e.g. `fix(core): prevent hang on nonexistent process`)
+- `docs:` — Documentation changes
+- `chore:` — Infrastructure, dependencies, release processes
+- `refactor:` — Code restructuring without behavior changes
+- `test:` — Adding or fixing tests
+- `perf:` — Performance improvements
+
+## Project Structure
+
+```
+v4/
+├── Cargo.toml               # Workspace (4 crates)
+├── Makefile                  # Dev shortcuts
+├── setup-dev.sh              # Dev environment setup
+├── crates/
+│   ├── core/                 # Native monitoring engine
+│   ├── cli/                  # CLI binary (17+ commands)
+│   └── tui/                  # Terminal UI (ratatui)
+└── apps/desktop/             # Tauri desktop app
+    ├── src/                  # Svelte 5 frontend
+    │   ├── components/       # 39+ UI components
+    │   ├── stores/           # Reactive state management
+    │   └── lib/              # Utilities, types, IPC wrappers
+    └── src-tauri/            # Rust Tauri backend
+```
 
 We're excited to review your contributions!
 
@@ -61,11 +122,16 @@ We're excited to review your contributions!
 
 # Contribuir a OmniMon (Español)
 
-¡Gracias por tu interés en contribuir a OmniMon! Como proyecto de código abierto, dependemos de la comunidad para mejorar, estabilizar y expandir la herramienta en todas las plataformas.
+¡Gracias por tu interés en contribuir a OmniMon!
+
+## Prerrequisitos
+
+- **Rust** 1.75+ con `cargo`
+- **bun** (gestor de paquetes — no npm/yarn)
+- **Tauri CLI** (`cargo install tauri-cli`)
+- **Deps de plataforma:** WebView2 (Windows), libwebkit2gtk + libappindicator3 (Linux)
 
 ## Entorno de Desarrollo
-
-Configurar el entorno multiplataforma (Rust, Tauri, Svelte) es sencillo con nuestros scripts de orquestación.
 
 1. **Clonar el repositorio:**
    ```bash
@@ -74,46 +140,50 @@ Configurar el entorno multiplataforma (Rust, Tauri, Svelte) es sencillo con nues
    ```
 
 2. **Ejecutar el script de configuración:**
-   * macOS/Linux: `./v4/setup-dev.sh`
-   * Windows: `.\v4\setup-dev.ps1`
+   - macOS/Linux: `./v4/setup-dev.sh`
+   - Windows: `.\v4\setup-dev.ps1`
 
-   Este script verifica y/o instala Node.js, Rust, Cargo y dependencias nativas del sistema operativo como WebView2 (Windows) o libwebkit2gtk (Linux).
-
-3. **Iniciar el modo de desarrollo:**
+3. **Iniciar modo desarrollo:**
    ```bash
    cd v4
    make dev
    ```
-   Esto compila el backend de Rust y lanza la interfaz de Tauri con recarga en caliente (hot-reloading) de Vite/Svelte.
+
+## Comandos de Desarrollo
+
+```bash
+cd v4
+
+make dev                                    # Modo desarrollo full-stack
+bun run test                                # Tests unitarios frontend
+cargo test --workspace                      # Tests Rust
+make test-all                               # Todo: fmt + clippy + tests
+cargo fmt --check                           # Formato Rust
+cargo clippy -- -D warnings                 # Lint Rust (cero warnings)
+```
 
 ## Requisitos Multiplataforma
 
-OmniMon v5 está diseñado para ejecutarse de forma nativa en **macOS, Windows y Linux**. Cualquier nueva característica o módulo (ej. seguimiento de pestañas del navegador, interacciones nativas del SO) **debe** ser compatible en las tres plataformas, o degradarse de manera elegante si la API del SO no lo soporta.
+OmniMon se ejecuta nativamente en **macOS, Windows y Linux**. Toda nueva funcionalidad debe ser compatible en las tres plataformas o degradarse de forma elegante.
 
-* Antes de proponer una nueva característica, asegúrate de que el código compile y pase las pruebas en los tres entornos.
-* Usa la directiva de Rust `#[cfg(target_os = "...")]` para implementaciones específicas por SO.
-* **El CI/CD validará automáticamente** tus cambios en entornos de Ubuntu, macOS y Windows. Si tu Pull Request rompe la compilación en alguna plataforma, no podrá ser fusionada.
+- Usa `#[cfg(target_os = "...")]` para código específico de plataforma.
+- El CI/CD valida en runners de Ubuntu, macOS y Windows.
 
-## Flujo de Trabajo y Pull Requests
+## Flujo de Trabajo
 
-1. Haz un Fork del proyecto y trabaja en una rama descriptiva, ej. `feat/nueva-funcion` o `fix/correccion-error`.
-2. Implementa tus cambios (evita mezclar lógica de frontend en los crates nativos sin una justificación clara de IPC).
-3. **Punto de control crítico:** Verifica que tu código cumpla con los estándares:
-   ```bash
-   cd v4
-   make test-all
-   ```
-   Esto ejecuta `cargo fmt`, `cargo clippy --workspace -- -D warnings` y `cargo test`. **Tu PR no será aceptada si el CI de GitHub falla o detecta advertencias (warnings).**
-4. Abre una Pull Request contra la rama `main` describiendo claramente qué problema resuelve tu código y cómo probarlo.
+1. Haz fork y trabaja en una rama descriptiva: `feat/nueva-funcion` o `fix/correccion`.
+2. Mantén los cambios enfocados.
+3. Verifica antes de enviar: `cd v4 && make test-all`
+4. Abre un Pull Request contra `main` describiendo qué problema resuelve.
 
-## Convención de Commits (Conventional Commits)
+## Convención de Commits
 
-Requerimos Conventional Commits para mantener un historial limpio y generar registros de cambios (changelogs) confiables.
-* `feat:` Nuevas funcionalidades (ej. `feat(ai): add Claude 3.5 support`).
-* `fix:` Corrección de errores (ej. `fix(core): prevent hang when reading nonexistent process`).
-* `docs:` Solo cambios en la documentación (README, SECURITY, CONTRIBUTING, `/docs`).
-* `chore:` Mantenimiento de infraestructura, dependencias o procesos de lanzamiento.
-* `refactor:` Refactorización de código sin alterar el comportamiento observable.
-* `test:` Añadir o arreglar pruebas.
+- `feat:` — Nuevas funcionalidades
+- `fix:` — Corrección de errores
+- `docs:` — Documentación
+- `chore:` — Infraestructura y dependencias
+- `refactor:` — Reestructuración sin cambio de comportamiento
+- `test:` — Tests
+- `perf:` — Mejoras de rendimiento
 
-¡Estamos emocionados de revisar tus contribuciones!
+¡Esperamos tus contribuciones!
