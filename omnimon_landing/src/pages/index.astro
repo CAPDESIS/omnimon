@@ -1,29 +1,53 @@
 ---
 import Layout from '../layouts/Layout.astro';
 
-const releaseVersion = '6.1.0';
-const releaseDate = '8 Mar 2026';
+const releaseVersion = '6.3.0';
+const releaseDate = '10 Mar 2026';
 const releaseUrl = 'https://github.com/chochy2001/omnimon/releases/latest';
 const docsUrl = 'https://github.com/chochy2001/omnimon#readme';
 const sponsorUrl = 'https://github.com/sponsors/chochy2001';
 const installScriptUrl = 'https://raw.githubusercontent.com/chochy2001/omnimon/main/scripts/install-web.sh';
 
+const downloadArtifacts = [
+	{
+		platform: 'macOS',
+		name: 'Universal DMG',
+		description: 'Descarga el release mas reciente para Apple Silicon e Intel desde GitHub Releases.',
+		accent: 'text-orange-200',
+		sha256: 'Disponible en SHA256SUMS.txt del release oficial'
+	},
+	{
+		platform: 'Windows',
+		name: 'MSI oficial',
+		description: 'Instala OmniMon desde el paquete MSI publicado en el ultimo release oficial.',
+		accent: 'text-sky-200',
+		sha256: 'Verifica el MSI con SHA256SUMS.txt antes de instalar'
+	},
+	{
+		platform: 'Linux',
+		name: 'Script + paquetes',
+		description: 'Usa el instalador web o descarga `.deb` y `.AppImage` desde el release mas reciente.',
+		accent: 'text-emerald-200',
+		sha256: 'Checksums SHA-256 publicados junto al `.deb` y `.AppImage`'
+	}
+];
+
 const releaseHighlights = [
 	{
+		title: 'Reality Fix de v6.3.0',
+		description: 'La 6.3.0 corrige paridad real entre UI, i18n, backend y calidad sin prometer features que aun no existen.'
+	},
+	{
+		title: 'Cobertura y validacion mas estricta',
+		description: 'La suite de frontend y Rust se endurece con thresholds, casos edge y menos espacio para tests flaky.'
+	},
+	{
+		title: 'Alertas y red mas consistentes',
+		description: 'Los paneles de alertas, tablas de conexiones y reglas de red se alinean con traducciones, estados y acciones reales.'
+	},
+	{
 		title: 'Distribucion verificable',
-		description: 'La 6.1.0 firma binarios con Ed25519 y publica checksums SHA-256 para reforzar la integridad de cada release.'
-	},
-	{
-		title: 'Observabilidad mas util',
-		description: 'Agrupacion de procesos, iconos nativos, dashboards clickeables y contexto de CPU corregido para diagnosticos reales.'
-	},
-	{
-		title: 'IA mas accionable',
-		description: 'Streaming de tokens, presets listos para usar y herramientas para inspeccionar procesos, red y resumen del sistema.'
-	},
-	{
-		title: 'Menos ruido, mas foco',
-		description: 'Alertas agrupadas por proceso, debounce de picos y mejoras visuales con temas, skeletons y estados vacios.'
+		description: 'Cada release mantiene firmas Ed25519 y checksums SHA-256 visibles para validar integridad antes de instalar.'
 	}
 ];
 
@@ -45,10 +69,33 @@ const productPillars = [
 	}
 ];
 
+const basicTutorial = [
+	{
+		step: '1',
+		title: 'Abre OmniMon y revisa el dashboard',
+		description: 'Empieza con CPU, RAM, red y procesos visibles para detectar rapidamente si el equipo esta estable o degradado.'
+	},
+	{
+		step: '2',
+		title: 'Filtra el ruido y enfoca el problema',
+		description: 'Usa busqueda, agrupacion y tablas de procesos o conexiones para aislar la app, host o pico que te interesa.'
+	},
+	{
+		step: '3',
+		title: 'Pide contexto a la IA o ejecuta un audit',
+		description: 'Puedes mantenerlo manual o apoyarte en IA/CLI para resumir consumo, explicar alertas y sugerir acciones.'
+	},
+	{
+		step: '4',
+		title: 'Verifica el release que instalas',
+		description: 'Antes de desplegar en mas equipos, valida el artefacto contra `SHA256SUMS.txt` y la firma publicada del release.'
+	}
+];
+
 const faqs = [
 	{
-		question: 'Que incluye la version 6.1.0?',
-		answer: 'Incluye firmas Ed25519 para releases, mejoras de seguridad en keyring y rate limiting, IA con streaming y tools, mejor agrupacion de alertas y una experiencia visual mas consistente.'
+		question: 'Que incluye la version 6.3.0?',
+		answer: 'Incluye Reality Fix sobre UI, i18n, backend y calidad: menos desajustes entre lo que OmniMon promete y lo que realmente ejecuta hoy.'
 	},
 	{
 		question: 'En que plataformas funciona OmniMon?',
@@ -59,15 +106,15 @@ const faqs = [
 		answer: 'No. Puedes usar OmniMon como monitor y panel de seguridad sin IA, o activar proveedores locales y cloud cuando necesites analisis asistido.'
 	},
 	{
-		question: 'Como se instala?',
-		answer: 'Puedes descargar el ultimo release desde GitHub, usar Homebrew en macOS o ejecutar el instalador web para Linux.'
+		question: 'Como verifico una descarga?',
+		answer: 'Descarga el artefacto desde GitHub Releases y compara su hash con `SHA256SUMS.txt`. Si necesitas mas garantia, valida tambien la firma del release.'
 	}
 ];
 ---
 
 <Layout
 	title={`OmniMon ${releaseVersion} | Observabilidad, seguridad e IA para tu sistema`}
-	description="Landing oficial de OmniMon 6.1.0 con novedades del release, descargas, documentacion y accesos rapidos para macOS, Windows y Linux."
+	description={`Landing oficial de OmniMon ${releaseVersion} con novedades del release, tutorial basico, descargas verificables y accesos rapidos para macOS, Windows y Linux.`}
 >
 	<main class="mx-auto flex w-full max-w-7xl flex-col gap-24 px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
 		<section class="grid-noise glass-panel relative overflow-hidden rounded-[2rem] px-6 py-12 sm:px-10 lg:px-12">
@@ -96,6 +143,9 @@ const faqs = [
 						</a>
 						<a href={docsUrl} target="_blank" rel="noreferrer" class="inline-flex items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 px-7 py-3.5 font-semibold text-white transition hover:border-sky-300/40 hover:bg-slate-900">
 							Ver documentacion
+						</a>
+						<a href={sponsorUrl} target="_blank" rel="noreferrer" class="inline-flex items-center justify-center rounded-full border border-orange-300/30 bg-orange-500/10 px-7 py-3.5 font-semibold text-orange-100 transition hover:border-orange-200/60 hover:bg-orange-500/20">
+							GitHub Sponsors
 						</a>
 					</div>
 
@@ -127,14 +177,14 @@ const faqs = [
 						<p><span class="text-emerald-300">$</span> omnimon status --format json</p>
 						<p class="text-sky-300">desktop: ready</p>
 						<p class="text-slate-400">security: signed releases, native keyring only</p>
-						<p class="text-slate-400">ai: token streaming, 7 presets, tools enabled</p>
-						<p class="text-slate-400">alerts: grouped + debounced</p>
+						<p class="text-slate-400">qa: frontend coverage gate + rust tests green</p>
+						<p class="text-slate-400">alerts: reality-fix applied</p>
 						<p class="text-orange-300">version: {releaseVersion}</p>
 					</div>
 					<div class="mt-5 grid gap-3 text-sm text-slate-300 sm:grid-cols-2">
 						<div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-							<p class="text-white">857 tests</p>
-							<p class="mt-1 text-slate-400">Cobertura y validaciones reforzadas en CI.</p>
+							<p class="text-white">QA reforzado</p>
+							<p class="mt-1 text-slate-400">Cobertura, ramas criticas y regresiones bajo control.</p>
 						</div>
 						<div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
 							<p class="text-white">CLI + GUI</p>
@@ -148,10 +198,10 @@ const faqs = [
 		<section class="space-y-8">
 			<div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
 				<div>
-					<p class="text-sm uppercase tracking-[0.24em] text-orange-200">Release 6.1.0</p>
+					<p class="text-sm uppercase tracking-[0.24em] text-orange-200">Release {releaseVersion}</p>
 					<h2 class="section-title mt-2 text-3xl font-bold text-white sm:text-4xl">Lo mas importante que cambia en esta version</h2>
 				</div>
-				<p class="max-w-2xl text-slate-400">La landing ahora refleja el release actual y corrige enlaces rotos, acciones sin destino y contenido desactualizado.</p>
+				<p class="max-w-2xl text-slate-400">Esta landing ya no arrastra contenido viejo: refleja el release actual, explica el estado real del producto y enlaza acciones verificables.</p>
 			</div>
 
 			<div class="grid gap-5 lg:grid-cols-2 xl:grid-cols-4">
@@ -211,29 +261,41 @@ const faqs = [
 			</div>
 		</section>
 
+		<section class="glass-panel rounded-[2rem] px-6 py-10 sm:px-8 lg:px-10">
+			<div class="flex flex-col gap-4 text-center">
+				<p class="text-sm uppercase tracking-[0.24em] text-emerald-200">Tutorial basico</p>
+				<h2 class="section-title text-3xl font-bold text-white sm:text-4xl">Primeros pasos para usar OmniMon sin perderte</h2>
+				<p class="mx-auto max-w-3xl text-slate-300">Si es tu primera vez, este recorrido corto te lleva desde el dashboard inicial hasta la validacion segura de una descarga.</p>
+			</div>
+
+			<div class="mt-8 grid gap-4 lg:grid-cols-4">
+				{basicTutorial.map((item) => (
+					<article class="rounded-3xl border border-slate-800 bg-slate-950/60 p-6 text-left">
+						<p class="text-sm uppercase tracking-[0.24em] text-sky-200">Paso {item.step}</p>
+						<h3 class="mt-3 text-xl font-semibold text-white">{item.title}</h3>
+						<p class="mt-3 text-sm leading-7 text-slate-300">{item.description}</p>
+					</article>
+				))}
+			</div>
+		</section>
+
 		<section id="download" class="glass-panel rounded-[2rem] px-6 py-10 sm:px-8 lg:px-10">
 			<div class="flex flex-col gap-4 text-center">
 				<p class="text-sm uppercase tracking-[0.24em] text-sky-200">Descarga e instalacion</p>
 				<h2 class="section-title text-3xl font-bold text-white sm:text-4xl">Instala OmniMon {releaseVersion} en minutos</h2>
-				<p class="mx-auto max-w-3xl text-slate-300">Se corrigieron los botones de descarga para que apunten a destinos reales y no a acciones vacias. Usa el ultimo release, Homebrew o el instalador web segun tu plataforma.</p>
+				<p class="mx-auto max-w-3xl text-slate-300">Usa el ultimo release, Homebrew o el instalador web segun tu plataforma. Antes de instalar, valida siempre el checksum publicado.</p>
 			</div>
 
 			<div class="mt-8 grid gap-4 lg:grid-cols-3">
-				<a href={releaseUrl} target="_blank" rel="noreferrer" class="rounded-3xl border border-slate-700 bg-slate-950/60 p-6 text-left transition hover:border-orange-400/50 hover:bg-slate-950">
-					<p class="text-sm uppercase tracking-[0.24em] text-orange-200">macOS</p>
-					<h3 class="mt-3 text-xl font-semibold text-white">Universal DMG</h3>
-					<p class="mt-2 text-sm leading-7 text-slate-300">Descarga el release mas reciente para Apple Silicon e Intel desde GitHub Releases.</p>
-				</a>
-				<a href={releaseUrl} target="_blank" rel="noreferrer" class="rounded-3xl border border-slate-700 bg-slate-950/60 p-6 text-left transition hover:border-sky-400/50 hover:bg-slate-950">
-					<p class="text-sm uppercase tracking-[0.24em] text-sky-200">Windows</p>
-					<h3 class="mt-3 text-xl font-semibold text-white">MSI oficial</h3>
-					<p class="mt-2 text-sm leading-7 text-slate-300">Instala OmniMon desde el paquete MSI publicado en el ultimo release oficial.</p>
-				</a>
-				<a href={installScriptUrl} target="_blank" rel="noreferrer" class="rounded-3xl border border-slate-700 bg-slate-950/60 p-6 text-left transition hover:border-emerald-400/50 hover:bg-slate-950">
-					<p class="text-sm uppercase tracking-[0.24em] text-emerald-200">Linux</p>
-					<h3 class="mt-3 text-xl font-semibold text-white">Script + paquetes</h3>
-					<p class="mt-2 text-sm leading-7 text-slate-300">Usa el instalador web o descarga `.deb` y `.AppImage` desde el release mas reciente.</p>
-				</a>
+				{downloadArtifacts.map((artifact) => (
+					<a href={artifact.platform === 'Linux' ? installScriptUrl : releaseUrl} target="_blank" rel="noreferrer" class="rounded-3xl border border-slate-700 bg-slate-950/60 p-6 text-left transition hover:border-orange-400/50 hover:bg-slate-950">
+						<p class={`text-sm uppercase tracking-[0.24em] ${artifact.accent}`}>{artifact.platform}</p>
+						<h3 class="mt-3 text-xl font-semibold text-white">{artifact.name}</h3>
+						<p class="mt-2 text-sm leading-7 text-slate-300">{artifact.description}</p>
+						<p class="mt-4 text-xs uppercase tracking-[0.24em] text-slate-500">SHA-256</p>
+						<p class="mt-2 text-sm leading-7 text-slate-300">{artifact.sha256}</p>
+					</a>
+				))}
 			</div>
 
 			<div class="mt-8 grid gap-4 lg:grid-cols-2">
@@ -243,9 +305,16 @@ const faqs = [
 brew install --cask omnimon</code></pre>
 				</div>
 				<div class="rounded-3xl border border-slate-800 bg-slate-950/70 p-6">
-					<p class="text-sm uppercase tracking-[0.24em] text-slate-500">Linux one-liner</p>
-					<pre class="mt-4 overflow-x-auto rounded-2xl bg-black/60 p-4 text-sm leading-7 text-slate-300"><code>{`curl -fsSL ${installScriptUrl} | bash`}</code></pre>
+					<p class="text-sm uppercase tracking-[0.24em] text-slate-500">Verificacion SHA-256</p>
+					<pre class="mt-4 overflow-x-auto rounded-2xl bg-black/60 p-4 text-sm leading-7 text-slate-300"><code>shasum -a 256 OmniMon-{releaseVersion}-macOS-Universal.dmg
+cat SHA256SUMS.txt</code></pre>
 				</div>
+			</div>
+
+			<div class="mt-6 rounded-3xl border border-orange-400/20 bg-orange-500/10 p-6 text-sm leading-7 text-orange-50">
+				<strong class="block text-base text-white">GitHub Sponsors</strong>
+				<p class="mt-2">Si OmniMon te ahorra tiempo en soporte, monitoreo o seguridad, puedes sostener el proyecto desde GitHub Sponsors para acelerar fixes, releases y documentacion.</p>
+				<a href={sponsorUrl} target="_blank" rel="noreferrer" class="mt-4 inline-flex items-center justify-center rounded-full bg-orange-500 px-5 py-2.5 font-semibold text-slate-950 transition hover:bg-orange-400">Apoyar en GitHub Sponsors</a>
 			</div>
 		</section>
 

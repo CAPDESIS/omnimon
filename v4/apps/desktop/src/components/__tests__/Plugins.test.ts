@@ -269,6 +269,48 @@ describe("Plugins", () => {
     });
   });
 
+  it("muestra tiempo relativo en segundos, minutos y horas", async () => {
+    const now = Date.now();
+    mockListPlugins.mockResolvedValueOnce([
+      makePlugin({ id: "seconds", name: "Seconds", last_run_ms: now - 10_000 }),
+      makePlugin({ id: "minutes", name: "Minutes", last_run_ms: now - 120_000 }),
+      makePlugin({ id: "hours", name: "Hours", last_run_ms: now - 7_200_000 }),
+    ]);
+
+    render(Plugins, { props: { onclose: vi.fn() } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Last run: 10s ago/)).toBeInTheDocument();
+      expect(screen.getByText(/Last run: 2m ago/)).toBeInTheDocument();
+      expect(screen.getByText(/Last run: 2h ago/)).toBeInTheDocument();
+    });
+  });
+
+  it("usa fallbacks para duracion nula y metricas sin unidad", async () => {
+    mockListPlugins.mockResolvedValueOnce([
+      makePlugin({
+        last_duration_ms: null,
+        metrics: [
+          {
+            name: "docker.containers.running",
+            label: "Running containers",
+            kind: "gauge",
+            value: 3,
+            unit: null,
+            tags: { source: "demo" },
+          },
+        ],
+      }),
+    ]);
+
+    render(Plugins, { props: { onclose: vi.fn() } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Duration: 0ms/)).toBeInTheDocument();
+      expect(screen.getByText(/^3$/)).toBeInTheDocument();
+    });
+  });
+
   it("no renderiza tags cuando metric.tags esta vacio", async () => {
     mockListPlugins.mockResolvedValueOnce([
       makePlugin({
