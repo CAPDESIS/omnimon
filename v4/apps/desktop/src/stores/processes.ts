@@ -418,9 +418,9 @@ export function startPolling(intervalMs = 2000): void {
   // reset it so the stopPolling doesn't unset isPollingActive permanently
   isPollingActive = true; 
   fetchMetrics();
-  listen<Metrics>("metrics-update", (event) => {
+  listen<Metrics>("metrics-update", (event: { payload: Metrics }) => {
     handleMetricsUpdate(event.payload);
-  }).then(unlisten => {
+  }).then((unlisten: () => void) => {
     if (isPollingActive) {
       metricsUnlisten = unlisten;
     } else {

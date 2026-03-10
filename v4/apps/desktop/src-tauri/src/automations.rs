@@ -122,16 +122,26 @@ pub fn get_automation_rules(app: AppHandle) -> Vec<AutomationRule> {
 
 #[tauri::command]
 #[tracing::instrument(skip_all)]
-pub fn add_automation_rule(app: AppHandle, rule: AutomationRule) {
+pub fn add_automation_rule(app: AppHandle, rule: AutomationRule) -> Result<(), String> {
+    macmon_core::rate_limit::check_rate_limit(
+        "add_automation_rule",
+        &macmon_core::rate_limit::profiles::CONFIG,
+    )?;
     let _ = get_automation_rules(app.clone()); // Ensure init
     add_rule(&app, rule);
+    Ok(())
 }
 
 #[tauri::command]
 #[tracing::instrument(skip_all)]
-pub fn remove_automation_rule(app: AppHandle, id: String) {
+pub fn remove_automation_rule(app: AppHandle, id: String) -> Result<(), String> {
+    macmon_core::rate_limit::check_rate_limit(
+        "remove_automation_rule",
+        &macmon_core::rate_limit::profiles::CONFIG,
+    )?;
     let _ = get_automation_rules(app.clone()); // Ensure init
     remove_rule(&app, &id);
+    Ok(())
 }
 
 pub fn start_engine(app: AppHandle) {

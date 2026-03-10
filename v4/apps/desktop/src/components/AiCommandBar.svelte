@@ -1,6 +1,6 @@
 <script lang="ts">
   import { get } from "svelte/store";
-  import { slide, fade } from "svelte/transition";
+  import { slide } from "svelte/transition";
   import {
     buildConfigPrompt,
     validateConfigPatch,
@@ -27,7 +27,7 @@
     columns,
     columnOrder,
   } from "../stores/preferences";
-  import { aiProfile, filtered } from "../stores/processes";
+  import { aiProfile } from "../stores/processes";
   import { addAlertRule } from "../stores/alerts";
   import { toast } from "../stores/toasts";
   import { t } from "../lib/i18n";

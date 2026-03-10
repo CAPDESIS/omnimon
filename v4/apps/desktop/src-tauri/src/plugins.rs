@@ -668,6 +668,10 @@ pub fn install_plugin(
     file_name: String,
     source: String,
 ) -> Result<PluginDescriptor, String> {
+    macmon_core::rate_limit::check_rate_limit(
+        "install_plugin",
+        &macmon_core::rate_limit::profiles::CONFIG,
+    )?;
     engine(&app)?.install_plugin(file_name, source)
 }
 
@@ -684,5 +688,9 @@ pub fn set_plugin_enabled(
 #[tauri::command]
 #[tracing::instrument(skip_all)]
 pub fn remove_plugin(app: AppHandle, plugin_id: String) -> Result<(), String> {
+    macmon_core::rate_limit::check_rate_limit(
+        "remove_plugin",
+        &macmon_core::rate_limit::profiles::CONFIG,
+    )?;
     engine(&app)?.remove_plugin(&plugin_id)
 }

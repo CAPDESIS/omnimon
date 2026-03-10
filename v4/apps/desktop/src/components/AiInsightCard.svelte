@@ -1,10 +1,9 @@
 <script lang="ts">
   import { fly, fade } from "svelte/transition";
   import { securityMap, severityColor } from "../stores/security";
-  import { processes } from "../stores/processes";
   import { dynamicAlerts } from "../stores/alerts";
   import { renderMarkdown } from "../lib/markdown";
-  import type { ProcessSecurityInfo, ProcessThreatLabel, CveMatch, DynamicAlert } from "../lib/types";
+  import type { ProcessThreatLabel, CveMatch } from "../lib/types";
 
   let insights = $derived.by((): InsightItem[] => {
     const items: InsightItem[] = [];

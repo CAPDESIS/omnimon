@@ -143,6 +143,7 @@ export interface NetworkConnection {
 
 export interface ProcessNetworkThroughput {
   pid: number;
+  process_name: string | null;
   rx_bytes_per_sec: number;
   tx_bytes_per_sec: number;
   tcp_packets_per_sec: number;

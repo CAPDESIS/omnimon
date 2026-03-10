@@ -5,7 +5,6 @@
  * Also generates AI Rules v1 payloads for the Rust rules engine.
  */
 
-import type { AiProviderConfig } from "../stores/preferences";
 import type { AiRuleV1, AiRulesPayload, AiRuleKind } from "./types";
 
 const INJECTION_PATTERNS = [

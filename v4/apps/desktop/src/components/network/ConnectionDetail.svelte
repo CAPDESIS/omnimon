@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { t } from "../../lib/i18n";
   import type { NetworkConnection } from "../../lib/types";
   import { fade } from "svelte/transition";
 

@@ -1,10 +1,5 @@
 <script lang="ts">
-  import type { ProcessEntry, AiProviderKind } from "../lib/types";
-  import type { LocaleCode } from "../lib/i18n";
-  import type { ThemeId, ThemeTokens } from "../lib/theme";
-  import type { ThemeMode } from "../stores/preferences";
   import { t } from "../lib/i18n";
-  import { AI_PROVIDERS } from "../lib/types";
   import AlertPanel from "./AlertPanel.svelte";
   import Button from "./Button.svelte";
   import InfoPopover from "./InfoPopover.svelte";

@@ -2,12 +2,11 @@
   import ContextAiChat from "./ContextAiChat.svelte";
   import ConnectionDetail from "./network/ConnectionDetail.svelte";
   import NetworkAlertConfig from "./NetworkAlertConfig.svelte";
-  import Skeleton from "./Skeleton.svelte";
   import { tick } from "svelte";
   import { networkConnections, networkTelemetryStatus } from "../stores/security";
   import { metricsHistory } from "../stores/metricsHistory";
   import { theme } from "../stores/preferences";
-  import { fade, slide } from "svelte/transition";
+  import { fade } from "svelte/transition";
   import type { MetricsSnapshot } from "../stores/metricsHistory";
   import type { NetworkConnection } from "../lib/types";
   import type { Time } from "lightweight-charts";
@@ -741,7 +740,7 @@
                 {:else}
                   <table class="conn-table" aria-label="Active connections">
                   <thead>
-                    <tr class="clickable-row" onclick={() => selectedNodeId = conn.remote_addr}>
+                    <tr>
                       <th class="sortable" scope="col"><button type="button" class="sort-button" onclick={() => setTableSort("process")} aria-label={sortHeaderLabel("process")}>{t("network.process")}<span aria-hidden="true">{sortArrow("process")}</span></button></th>
                       <th class="sortable" scope="col"><button type="button" class="sort-button" onclick={() => setTableSort("addr")} aria-label={sortHeaderLabel("addr")}>{t("network.destination")}<span aria-hidden="true">{sortArrow("addr")}</span></button></th>
                       <th class="sortable" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => setTableSort("port")} aria-label={sortHeaderLabel("port")}>{t("network.port")}<span aria-hidden="true">{sortArrow("port")}</span></button></th>

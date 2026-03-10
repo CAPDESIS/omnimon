@@ -9,7 +9,7 @@
   import { detectBrowser } from "../lib/browser";
   import SecurityBadge from "./SecurityBadge.svelte";
   import EmptyState from "./EmptyState.svelte";
-  import { iconForProcess, isNativeIconDataUrl, getProcessIcon } from "../lib/processIcons";
+  import { isNativeIconDataUrl, getProcessIcon } from "../lib/processIcons";
   import {
     PROCESS_TABLE_ROW_BUFFER,
     RAM_THRESHOLD_DANGER,

@@ -123,7 +123,7 @@ export function getTotalDown(): number {
 }
 
 export async function initNetworkListener() {
-  const unlisten = await listen<NetworkSnapshot>("network-update", (event) => {
+  const unlisten = await listen<NetworkSnapshot>("network-update", (event: { payload: NetworkSnapshot }) => {
     state.snapshot = event.payload;
     state.history = [...state.history.slice(-59), event.payload];
   });

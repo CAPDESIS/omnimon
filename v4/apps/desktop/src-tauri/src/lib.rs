@@ -530,6 +530,10 @@ async fn analyze_context(
 #[tauri::command]
 #[tracing::instrument(skip_all)]
 fn set_network_alert_rules(payload_json: String) -> Result<usize, String> {
+    macmon_core::rate_limit::check_rate_limit(
+        "set_network_alert_rules",
+        &macmon_core::rate_limit::profiles::CONFIG,
+    )?;
     if payload_json.len() > MAX_NETWORK_ALERT_RULES_PAYLOAD_BYTES {
         return Err("network alert rules payload too large".to_string());
     }

@@ -2,13 +2,8 @@
   import { onMount } from "svelte";
   import { get } from "svelte/store";
   import ProcessTable from "./components/ProcessTable.svelte";
-  import SystemDashboard from "./components/SystemDashboard.svelte";
   import ToastContainer from "./components/ToastContainer.svelte";
-  import AiCommandBar from "./components/AiCommandBar.svelte";
-  import AiInsightCard from "./components/AiInsightCard.svelte";
-  import InfoPopover from "./components/InfoPopover.svelte";
   import SmartAlerts from "./components/SmartAlerts.svelte";
-  import AppToolbar from "./components/AppToolbar.svelte";
   import AppLayout from "./components/layout/AppLayout.svelte";
   import AppHeader from "./components/layout/AppHeader.svelte";
   import AppSidebar from "./components/layout/AppSidebar.svelte";
@@ -17,7 +12,6 @@
   import AIConfigPanel from "./components/layout/AIConfigPanel.svelte";
 
   import Button from "./components/Button.svelte";
-  import ProfilePanel from "./components/ProfilePanel.svelte";
   import ConfirmDialog from "./components/ConfirmDialog.svelte";
   import Skeleton from "./components/Skeleton.svelte";
   import AIChat from "./components/AIChat.svelte";

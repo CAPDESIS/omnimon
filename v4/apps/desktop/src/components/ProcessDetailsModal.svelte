@@ -12,7 +12,6 @@
   import { aiProviderConfig, userMode } from "../stores/preferences";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
   import Button from "./Button.svelte";
-  import IconButton from "./IconButton.svelte";
   import ModalShell from "./ModalShell.svelte";
 
   interface Props {

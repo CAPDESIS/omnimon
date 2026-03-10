@@ -1,6 +1,5 @@
 <script lang="ts">
   import { securityMap, severityColor } from "../stores/security";
-  import type { ProcessSecurityInfo } from "../lib/types";
 
   interface Props {
     pid: number;

@@ -113,6 +113,6 @@
   }
   
   .tab-settings {
-    /* Optional: custom icon styling */
+    display: contents;
   }
 </style>

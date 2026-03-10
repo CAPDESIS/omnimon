@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { securityMap, totalFindings, flaggedPids, severityColor, severityRank } from "../stores/security";
+  import { securityMap, flaggedPids, severityColor, severityRank } from "../stores/security";
   import { processes } from "../stores/processes";
   import { slide } from "svelte/transition";
   import { t } from "../lib/i18n";
   import { renderMarkdown } from "../lib/markdown";
-  import type { ProcessSecurityInfo, NistFinding, NistSeverity } from "../lib/types";
+  import type { NistFinding, NistSeverity } from "../lib/types";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
   import EmptyState from "./EmptyState.svelte";
   import Button from "./Button.svelte";

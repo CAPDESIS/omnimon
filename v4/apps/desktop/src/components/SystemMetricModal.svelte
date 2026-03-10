@@ -2,7 +2,7 @@
   import { fade, scale } from "svelte/transition";
   import { fadeConfig, scaleConfig } from "../lib/transitions";
   import { onMount } from "svelte";
-  import { cpuSeries, ramSeries, netRxSeries, netTxSeries, swapSeries, metricsHistory } from "../stores/metricsHistory";
+  import { cpuSeries, ramSeries, swapSeries, metricsHistory } from "../stores/metricsHistory";
   import { filtered, stats } from "../stores/processes";
   import type { UserMode } from "../stores/preferences";
   import { t } from "../lib/i18n";
