@@ -20,6 +20,7 @@
   import Button from "./Button.svelte";
   import EmptyState from "./EmptyState.svelte";
   import { AI_CHAT_TIMEOUT_MS } from "../lib/constants";
+  import { AlertTriangle, Sparkles } from "lucide-svelte";
 
   interface ChatMessageWithTool extends ChatMessage {
     toolResult?: ToolResult;
@@ -560,7 +561,7 @@
       {#if pendingAction}
         <div class="action-preview">
           <div class="action-header">
-            <span class="action-icon">⚠</span>
+            <span class="action-icon"><AlertTriangle size={14} /></span>
             <strong>{t("aiChat.pendingAction")}: {pendingAction.tool}</strong>
           </div>
           <div class="action-details">{formatActionDetails(pendingAction.tool, pendingAction.details)}</div>
@@ -582,7 +583,7 @@
   {:else}
     <div class="chat-empty">
       <EmptyState
-        icon="sparkles"
+        icon={Sparkles}
         title={t("aiChat.title")}
         description={t("aiChat.emptyState")}
       >
@@ -628,7 +629,7 @@
                 onclick={() => applyPreset(preset.prompt)}
                 aria-label={`Preset ${preset.label}`}
               >
-                <span class="preset-icon">{preset.icon}</span>
+                <span class="preset-icon"><svelte:component this={preset.icon} size={14} /></span>
                 <span>{preset.label}</span>
               </button>
             {/each}

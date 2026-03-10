@@ -10,6 +10,7 @@
   } from "../lib/ipc";
   import Button from "./Button.svelte";
   import EmptyState from "./EmptyState.svelte";
+  import { Loader2, Puzzle } from "lucide-svelte";
 
   interface Props {
     onclose: () => void;
@@ -177,9 +178,9 @@ end`;
 
     <div class="plugins-body">
       {#if loading}
-        <EmptyState icon="⏳" title={t("common.loading")} description="" />
+        <EmptyState icon={Loader2} title={t("common.loading")} description="" />
       {:else if plugins.length === 0}
-        <EmptyState icon="🧩" title={t("plugins.emptyTitle")} description={t("plugins.emptyBody")}>
+        <EmptyState icon={Puzzle} title={t("plugins.emptyTitle")} description={t("plugins.emptyBody")}>
           <pre>{exampleScript}</pre>
         </EmptyState>
       {:else}

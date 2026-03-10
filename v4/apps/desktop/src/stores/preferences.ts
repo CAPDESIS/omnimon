@@ -207,6 +207,7 @@ export const networkAlertRules = writable<NetworkAlertRule[]>([...DEFAULT_NETWOR
 export const displayName = writable("User");
 export const profilePreset = writable<"minimal" | "balanced" | "power">("balanced");
 export const dashboardLayout = writable<"compact" | "standard" | "expanded">("standard");
+export const layoutModeStore = writable<"tabs" | "split">("tabs");
 
 export const refreshInterval = writable(2000);
 
@@ -598,6 +599,9 @@ export async function loadPreferences(): Promise<void> {
     const savedDashboardLayout = await store.get("dashboardLayout");
     if (savedDashboardLayout === "compact" || savedDashboardLayout === "standard" || savedDashboardLayout === "expanded") dashboardLayout.set(savedDashboardLayout);
 
+    const savedLayoutMode = await store.get("layoutMode");
+    if (savedLayoutMode === "tabs" || savedLayoutMode === "split") layoutModeStore.set(savedLayoutMode);
+
     const savedRefreshInterval = await store.get("refreshInterval");
     if (typeof savedRefreshInterval === "number") refreshInterval.set(savedRefreshInterval);
 
@@ -651,6 +655,7 @@ export async function savePreferences(): Promise<void> {
     await store.set("displayName", get(displayName));
     await store.set("profilePreset", get(profilePreset));
     await store.set("dashboardLayout", get(dashboardLayout));
+    await store.set("layoutMode", get(layoutModeStore));
         // Actually, Svelte's `get` works with any store that has a `.subscribe` method. 
     await store.set("refreshInterval", get(refreshInterval));
     await store.set("favoriteProcesses", get(favoriteProcesses));
@@ -694,6 +699,7 @@ export function initPreferenceSubscriptions(): () => void {
     displayName.subscribe(() => debouncedSave()),
     profilePreset.subscribe(() => debouncedSave()),
     dashboardLayout.subscribe(() => debouncedSave()),
+    layoutModeStore.subscribe(() => debouncedSave()),
     refreshInterval.subscribe(() => debouncedSave()),
     favoriteProcesses.subscribe(() => debouncedSave()),
     notificationLevel.subscribe(() => debouncedSave()),

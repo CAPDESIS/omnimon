@@ -135,6 +135,7 @@ vi.mock("../stores/preferences", () => {
     aiConfigCollapsedStore: writable(false),
     displayName: writable("User"),
     profilePreset: writable("balanced"),
+    layoutModeStore: writable("tabs"),
     dashboardLayout: writable("standard"),
     refreshInterval: writable(2000),
     favoriteProcesses: writable([]),

@@ -359,7 +359,7 @@
   .severity { text-transform: uppercase; font-size: 10px; letter-spacing: 0.08em; padding: 4px 8px; border-radius: 999px; font-weight: 700; }
   .severity-info { background: rgba(59,130,246,0.14); color: var(--accent); }
   .severity-warning { background: rgba(245,158,11,0.14); color: var(--yellow); }
-  .severity-critical { background: rgba(239,68,68,0.14); color: var(--danger); }
+  .severity-critical { background: rgba(239,68,68,0.6); color: var(--danger); }
   .modal-backdrop { position: fixed; inset: 0; background: rgba(8, 10, 16, 0.72); display: grid; place-items: center; z-index: 1200; padding: 20px; }
   .modal-card { width: min(720px, 100%); background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
   .grid { display: grid; gap: 10px; }

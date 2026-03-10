@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   categoryLabel,
   getProcessCategory,
-  getProcessIcon,
+  getProcessIconComponent,
   getProcessIconPath,
   iconForProcess,
   isNativeIconDataUrl,
@@ -42,14 +42,6 @@ describe("processIcons", () => {
     expect(getProcessIconPath("mail")).not.toBe(getProcessIconPath("default"));
   });
 
-  it("retorna iconos emoji por substring y fallback", () => {
-    expect(getProcessIcon("Google Chrome Helper")).toBe("🌐");
-    expect(getProcessIcon("Visual Studio Code")).toBe("💻");
-    expect(getProcessIcon("docker-desktop")).toBe("🐳");
-    expect(getProcessIcon("python3.12")).toBe("🐍");
-    expect(getProcessIcon("totally-unknown-app")).toBe("⚙️");
-  });
-
   it("categoryLabel cubre categorias restantes", () => {
     expect(categoryLabel("browser")).toBe("Browser");
     expect(categoryLabel("terminal")).toBe("Terminal");
@@ -69,3 +61,4 @@ describe("processIcons", () => {
     expect(isNativeIconDataUrl(undefined)).toBe(false);
   });
 });
+

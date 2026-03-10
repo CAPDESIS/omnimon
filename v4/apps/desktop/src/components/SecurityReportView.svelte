@@ -8,6 +8,7 @@
   import type { NistFinding, NistSeverity } from "../lib/types";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
   import EmptyState from "./EmptyState.svelte";
+  import { Shield } from "lucide-svelte";
   import Button from "./Button.svelte";
   import IconButton from "./IconButton.svelte";
   import ModalShell from "./ModalShell.svelte";
@@ -303,7 +304,7 @@
           {/each}
         </div>
       {:else}
-        <EmptyState icon="🛡️" title={t("securityReport.noFindings")} description={t("securityReport.noFindingsDesc")} />
+        <EmptyState icon={Shield} title={t("securityReport.noFindings")} description={t("securityReport.noFindingsDesc")} />
       {/if}
 
       <div class="meta-section">

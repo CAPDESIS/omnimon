@@ -4,6 +4,13 @@
  * Icons are 16x16 viewBox.
  */
 
+import {
+  Globe, Terminal, Folder, Music, MessageSquare,
+  Gamepad2, Container, Hexagon, Code, Cpu,
+  Shield, Cog, Monitor, Database, Wifi
+} from "lucide-svelte";
+import type { ComponentType } from "svelte";
+
 /** Category-based icon assignments. */
 const CATEGORY_ICONS: Record<string, string> = {
   // Browsers
@@ -83,34 +90,6 @@ export function iconForProcess(name: string, group?: string): string {
   return getProcessIconPath(getProcessCategory(name, group));
 }
 
-const PROCESS_ICONS: Record<string, string> = {
-  "Google Chrome": "🌐",
-  "chrome": "🌐",
-  "Firefox": "🦊",
-  "Safari": "🧭",
-  "Visual Studio Code": "💻",
-  "code": "💻",
-  "Terminal": "⬛",
-  "Finder": "📁",
-  "Spotify": "🎵",
-  "Slack": "💬",
-  "Discord": "🎮",
-  "docker": "🐳",
-  "node": "💚",
-  "python": "🐍",
-  "rust": "🦀",
-  "opencode": "🤖",
-  "claude": "🟣",
-};
-
-export function getProcessIcon(name: string): string {
-  const baseName = name.toLowerCase();
-  for (const [key, icon] of Object.entries(PROCESS_ICONS)) {
-    if (baseName.includes(key.toLowerCase())) return icon;
-  }
-  return "⚙️";
-}
-
 export function isNativeIconDataUrl(value?: string | null): value is string {
   return typeof value === "string" && value.startsWith("data:image/");
 }
@@ -130,4 +109,36 @@ export function categoryLabel(category: ProcessCategory): string {
     case "mail": return "Mail";
     default: return "Application";
   }
+}
+
+// --- Lucide component-based icons (for Svelte component rendering) ---
+
+const PROCESS_ICON_COMPONENTS: Record<string, ComponentType> = {
+  "chrome": Globe,
+  "google chrome": Globe,
+  "firefox": Globe,
+  "safari": Globe,
+  "code": Code,
+  "visual studio code": Code,
+  "terminal": Terminal,
+  "iterm": Terminal,
+  "finder": Folder,
+  "spotify": Music,
+  "slack": MessageSquare,
+  "discord": Gamepad2,
+  "docker": Container,
+  "node": Hexagon,
+  "python": Code,
+  "rust": Cog,
+  "opencode": Monitor,
+  "claude": Cpu,
+};
+
+export function getProcessIconComponent(name: string): ComponentType {
+  if (!name) return Cog;
+  const lower = name.toLowerCase();
+  for (const [key, icon] of Object.entries(PROCESS_ICON_COMPONENTS)) {
+    if (lower.includes(key)) return icon;
+  }
+  return Cog; // Default
 }

@@ -9,7 +9,8 @@
   import { detectBrowser } from "../lib/browser";
   import SecurityBadge from "./SecurityBadge.svelte";
   import EmptyState from "./EmptyState.svelte";
-  import { isNativeIconDataUrl, getProcessIcon } from "../lib/processIcons";
+  import { Search as SearchIcon } from "lucide-svelte";
+  import { isNativeIconDataUrl, getProcessIconComponent } from "../lib/processIcons";
   import {
     PROCESS_TABLE_ROW_BUFFER,
     RAM_THRESHOLD_DANGER,
@@ -404,7 +405,7 @@
       {#if isNativeIconDataUrl(proc.icon_data_url)}
         <img class="proc-icon native" src={proc.icon_data_url} alt="" aria-hidden="true" />
       {:else}
-        <span class="process-icon" aria-hidden="true">{getProcessIcon(proc.name)}</span>
+        <span class="process-icon" aria-hidden="true"><svelte:component this={getProcessIconComponent(proc.name)} size={16} /></span>
       {/if}
       <span class="name-text">{proc.name}</span>
       {#if !grouping && proc.process_count > 1}<span class="badge grouped">x{proc.process_count}</span>{/if}
@@ -483,7 +484,7 @@
 <div class="table-wrap" bind:this={wrapEl} onscroll={onScroll}>
   {#if processes.length === 0}
     <EmptyState 
-      icon="🔍" 
+      icon={SearchIcon} 
       title={t("table.emptyTitle")} 
       description={t("table.emptyDesc")} 
     />
@@ -642,7 +643,7 @@
     outline-offset: -1px;
   }
   tr.system {
-    opacity: 0.45;
+    opacity: 0.7;
   }
   tr.system:hover {
     opacity: 0.65;
