@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e:build": "bun run tauri build -- --debug --no-bundle",
-    "test:e2e": "bun ./e2e/run.mjs"
+    "test:e2e": "playwright test --project=chromium"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

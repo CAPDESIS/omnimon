@@ -1,34 +1,22 @@
-# E2E tests (Tauri + WebdriverIO)
+# E2E tests (Playwright + Vite)
 
-This suite launches the real Tauri desktop binary and drives it through `@crabnebula/tauri-driver`.
-
-## Prerequisites
-
-- macOS: `tauri-plugin-automation` enabled in Tauri app and `CN_API_KEY` exported
-- Linux: `webkit2gtk-driver` in PATH
-- Windows: `msedgedriver.exe` in PATH
+This suite runs the desktop frontend in standalone mode through Vite and mocks the Tauri APIs that are normally provided by the host shell.
 
 ## Run
 
 ```bash
-npm run test:e2e
+bun run test:e2e
 ```
 
-On macOS without `CN_API_KEY`, the runner skips by default. To enforce failure when prerequisites are missing:
+If you want the HTML report after execution:
 
 ```bash
-E2E_STRICT=1 npm run test:e2e
+bunx playwright show-report
 ```
 
-macOS example:
+## Notes
 
-```bash
-export CN_API_KEY="<your-crabnebula-key>"
-npm run test:e2e
-```
-
-Optional custom app path:
-
-```bash
-TAURI_E2E_APP_PATH="/absolute/path/to/omnimon-desktop" npm run test:e2e
-```
+- Base URL: `http://localhost:1420`
+- Browser target: Chromium only
+- The mocked fixture covers metrics, browser tabs, network data, store persistence, and AI missing-key failures
+- Playwright browsers are not installed automatically in CI yet
