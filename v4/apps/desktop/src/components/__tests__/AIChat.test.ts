@@ -54,6 +54,7 @@ const {
   mockProcesses,
   mockAiProviderConfig,
   mockAiCacheTtlMinutes,
+  mockUserMode,
 } = vi.hoisted(() => {
   const { writable } = require("svelte/store") as typeof import("svelte/store");
   return {
@@ -73,6 +74,7 @@ const {
     mockProcesses: writable<ProcessEntry[]>([]),
     mockAiProviderConfig: writable({ provider: "openrouter", model: "test-model" }),
     mockAiCacheTtlMinutes: writable(5),
+    mockUserMode: writable("basic"),
   };
 });
 
@@ -91,6 +93,7 @@ vi.mock("../../lib/ipc", async (importOriginal) => {
 vi.mock("../../stores/preferences", () => ({
   aiProviderConfig: mockAiProviderConfig,
   aiCacheTtlMinutes: mockAiCacheTtlMinutes,
+  userMode: mockUserMode,
 }));
 
 vi.mock("../../stores/processes", () => ({
@@ -133,6 +136,7 @@ describe("AIChat", () => {
     mockProcesses.set([makeProc()]);
     mockAiProviderConfig.set({ provider: "openrouter", model: "test-model" });
     mockAiCacheTtlMinutes.set(5);
+    mockUserMode.set("basic");
     mockAiChat.mockReset();
     mockAiChat.mockResolvedValue({ reply: "All good", tool_call: null });
     mockGetBrowserTabs.mockReset();

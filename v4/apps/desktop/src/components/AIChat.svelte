@@ -5,7 +5,7 @@
   import { slide } from "svelte/transition";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { ipcAiChat, ipcGetBrowserTabs, ipcCloseBrowserTab, ipcKillProcess, ipcKillProcesses } from "../lib/ipc";
-  import { aiProviderConfig, aiCacheTtlMinutes } from "../stores/preferences";
+  import { aiProviderConfig, aiCacheTtlMinutes, userMode } from "../stores/preferences";
   import { processes } from "../stores/processes";
   import { inspectProcessRequest, askAiRequest } from "../stores/uiActions";
   import { toast } from "../stores/toasts";
@@ -217,15 +217,24 @@
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(t("aiChat.timeoutError"))), AI_CHAT_TIMEOUT_MS)
       );
+      const startTime = performance.now();
       const response = await Promise.race([
         ipcAiChat(trimmed, cfg.provider, cfg.model, history, get(aiCacheTtlMinutes)),
         timeoutPromise,
       ]);
+      const responseTimeMs = performance.now() - startTime;
 
       if (token !== requestToken) return;
 
       streamingMessage = "";
-      messages = [...messages, { role: "assistant", text: response.reply }];
+      const tokens = Math.round((trimmed.length + response.reply.length) / 4);
+      const metadata = {
+        responseTimeMs,
+        model: cfg.model,
+        tokens,
+        toolCalls: response.tool_call ? [{ name: response.tool_call.tool, args: { details: response.tool_call.details } }] : undefined
+      };
+      messages = [...messages, { role: "assistant", text: response.reply, metadata }];
 
       if (response.tool_call) {
         const result = response.tool_call;
@@ -529,6 +538,23 @@
           <span class="chat-text">
             {#if msg.role === "assistant"}
               {@html renderMessage(msg.text)}
+              
+              {#if msg.metadata && $userMode === "pro"}
+                <details class="pro-metadata">
+                  <summary>Metadata (Pro)</summary>
+                  <div class="pro-metadata-content">
+                    <div><strong>Model:</strong> {msg.metadata.model}</div>
+                    <div><strong>Response time:</strong> {Math.round(msg.metadata.responseTimeMs ?? 0)}ms</div>
+                    <div><strong>Tokens (~):</strong> {msg.metadata.tokens ?? 0}</div>
+                    {#if msg.metadata.toolCalls}
+                      <div><strong>Tools:</strong> {JSON.stringify(msg.metadata.toolCalls)}</div>
+                    {/if}
+                    {#if msg.metadata.thought}
+                      <div><strong>Thought:</strong> {msg.metadata.thought}</div>
+                    {/if}
+                  </div>
+                </details>
+              {/if}
             {:else}
               {msg.text}
             {/if}
@@ -663,6 +689,7 @@
 </div>
 
 <style>
+
   .ai-chat {
     display: flex;
     flex-direction: column;
@@ -1027,4 +1054,29 @@
     color: var(--accent-hover, #1d4ed8);
     text-decoration-style: solid;
   }
+
+
+  /* existing styles should not be affected, appending new styles for pro-metadata */
+  .pro-metadata {
+    margin-top: 8px;
+    font-size: calc(var(--base-font-size, 12px) * 0.85);
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 8px;
+  }
+  .pro-metadata summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text-secondary);
+    user-select: none;
+  }
+  .pro-metadata-content {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--text-primary);
+  }
+
 </style>

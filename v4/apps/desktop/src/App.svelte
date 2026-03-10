@@ -84,7 +84,7 @@
   import { ipcValidateApiKey, ipcCheckApiKey, ipcClearAiCache } from "./lib/ipc";
   import { listen } from "@tauri-apps/api/event";
   import { t, locale, initI18n } from "./lib/i18n";
-  import { focusNetworkRequest, inspectProcessRequest } from "./stores/uiActions";
+  import { focusNetworkRequest, inspectProcessRequest, askAiRequest } from "./stores/uiActions";
   import type { LocaleCode } from "./lib/i18n";
   import { focusFirstFocusable, trapFocus, rememberActiveElement, restoreFocus } from "./lib/focusTrap";
 
@@ -238,6 +238,12 @@
       activeTab = "network";
       loadNetworkMap();
       focusNetworkRequest.set(null);
+    }
+  });
+
+  $effect(() => {
+    if ($askAiRequest !== null) {
+      activeTab = "aichat";
     }
   });
 
