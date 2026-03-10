@@ -198,9 +198,20 @@ export const localePreference = writable<LocaleCode>(DEFAULT_LOCALE);
 /** User-defined custom theme palette. Applied when theme === "custom". */
 export const customTheme = writable<CustomThemeOverrides | null>(null);
 
+
+
 /** User-facing workspace density mode. */
 export const userMode = writable<UserMode>(DEFAULT_USER_MODE);
 export const networkAlertRules = writable<NetworkAlertRule[]>([...DEFAULT_NETWORK_ALERT_RULES]);
+
+export const displayName = writable("User");
+export const profilePreset = writable<"minimal" | "balanced" | "power">("balanced");
+export const dashboardLayout = writable<"compact" | "standard" | "expanded">("standard");
+
+export const refreshInterval = writable(2000);
+
+export const favoriteProcesses = writable<string[]>([]);
+export const notificationLevel = writable<"off" | "critical" | "all">("all");
 
 function sanitizePortList(raw: unknown): number[] {
   if (!Array.isArray(raw)) return [];
@@ -555,7 +566,7 @@ export async function loadPreferences(): Promise<void> {
       aiChatPanelHeight.set(savedAiChatPanelHeight);
     }
 
-    const savedLocale = await store.get("locale");
+    const savedLocale = await store.get("localePreference");
     if (typeof savedLocale === "string" && (savedLocale === "en" || savedLocale === "es" || savedLocale === "auto")) {
       localePreference.set(savedLocale as LocaleCode);
     }
@@ -577,6 +588,24 @@ export async function loadPreferences(): Promise<void> {
 
     const savedAiConfigCollapsed = await store.get("aiConfigCollapsed");
     if (typeof savedAiConfigCollapsed === "boolean") aiConfigCollapsedStore.set(savedAiConfigCollapsed);
+
+    const savedDisplayName = await store.get("displayName");
+    if (typeof savedDisplayName === "string") displayName.set(savedDisplayName);
+
+    const savedProfilePreset = await store.get("profilePreset");
+    if (savedProfilePreset === "minimal" || savedProfilePreset === "balanced" || savedProfilePreset === "power") profilePreset.set(savedProfilePreset);
+
+    const savedDashboardLayout = await store.get("dashboardLayout");
+    if (savedDashboardLayout === "compact" || savedDashboardLayout === "standard" || savedDashboardLayout === "expanded") dashboardLayout.set(savedDashboardLayout);
+
+    const savedRefreshInterval = await store.get("refreshInterval");
+    if (typeof savedRefreshInterval === "number") refreshInterval.set(savedRefreshInterval);
+
+    const savedFavoriteProcesses = await store.get("favoriteProcesses");
+    if (Array.isArray(savedFavoriteProcesses)) favoriteProcesses.set(savedFavoriteProcesses.filter(s => typeof s === "string"));
+
+    const savedNotificationLevel = await store.get("notificationLevel");
+    if (savedNotificationLevel === "off" || savedNotificationLevel === "critical" || savedNotificationLevel === "all") notificationLevel.set(savedNotificationLevel);
 
   } catch (err) {
     console.warn("[PREFERENCES] Failed to read some preferences, falling back to defaults:", err);
@@ -606,7 +635,8 @@ export async function savePreferences(): Promise<void> {
     await store.set("tabPanelHeight", get(tabPanelHeight));
     await store.set("networkPanelHeight", get(networkPanelHeight));
     await store.set("aiChatPanelHeight", get(aiChatPanelHeight));
-    await store.set("locale", get(localePreference));
+    await store.set("localePreference", get(localePreference));
+
     await store.set("customTheme", get(customTheme));
     await store.set("networkAlertRules", get(networkAlertRules));
     
@@ -616,6 +646,15 @@ export async function savePreferences(): Promise<void> {
     await store.set("browserTabsCollapsed", get(browserTabsCollapsedStore));
     await store.set("aiChatCollapsed", get(aiChatCollapsedStore));
     await store.set("aiConfigCollapsed", get(aiConfigCollapsedStore));
+
+    // New profile stores
+    await store.set("displayName", get(displayName));
+    await store.set("profilePreset", get(profilePreset));
+    await store.set("dashboardLayout", get(dashboardLayout));
+        // Actually, Svelte's `get` works with any store that has a `.subscribe` method. 
+    await store.set("refreshInterval", get(refreshInterval));
+    await store.set("favoriteProcesses", get(favoriteProcesses));
+    await store.set("notificationLevel", get(notificationLevel));
 
     await store.save();
   } catch (err) {
@@ -652,6 +691,13 @@ export function initPreferenceSubscriptions(): () => void {
     networkPanelHeight.subscribe(() => debouncedSave()),
     aiChatPanelHeight.subscribe(() => debouncedSave()),
     localePreference.subscribe(() => debouncedSave()),
+    displayName.subscribe(() => debouncedSave()),
+    profilePreset.subscribe(() => debouncedSave()),
+    dashboardLayout.subscribe(() => debouncedSave()),
+    refreshInterval.subscribe(() => debouncedSave()),
+    favoriteProcesses.subscribe(() => debouncedSave()),
+    notificationLevel.subscribe(() => debouncedSave()),
+
     customTheme.subscribe((ct) => {
       setCustomThemeOverrides(ct);
       debouncedSave();

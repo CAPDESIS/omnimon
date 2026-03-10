@@ -4,7 +4,7 @@ import type { AlertRule } from "../lib/aiConfigBridge";
 import type { DynamicAlert, NetworkAlert, ProcessEntry, SystemStats } from "../lib/types";
 import { toast } from "./toasts";
 import { ipcAnalyzeContext } from "../lib/ipc";
-import { aiProviderConfig } from "./preferences";
+import { aiProviderConfig, notificationLevel } from "./preferences";
 import { askAiRequest, focusNetworkRequest } from "./uiActions";
 
 export interface FiredAlert {
@@ -172,10 +172,13 @@ export function evaluateAlerts(
       });
 
       if (rule.action === "toast") {
-        const label = rule.processName
-          ? `${rule.processName}: ${rule.metric} ${rule.operator} ${rule.threshold}`
-          : `System ${rule.metric} ${rule.operator} ${rule.threshold}`;
-        toast.warning("Alert", `${label} (current: ${value.toFixed(1)})`);
+        const level = get(notificationLevel);
+        if (level === "all") {
+          const label = rule.processName
+            ? `${rule.processName}: ${rule.metric} ${rule.operator} ${rule.threshold}`
+            : `System ${rule.metric} ${rule.operator} ${rule.threshold}`;
+          toast.warning("Alert", `${label} (current: ${value.toFixed(1)})`);
+        }
       }
     }
   }
@@ -358,10 +361,15 @@ export async function initSecurityAlertListener(): Promise<() => void> {
         const next = [...list, alert];
         return next.length > MAX_DYNAMIC ? next.slice(-MAX_DYNAMIC) : next;
       });
-      toast.warning(
-        `Rule: ${alert.rule_name}`,
-        alert.message || `${alert.process_name} (PID ${alert.pid}) triggered rule "${alert.rule_name}"`,
-      );
+      const level = get(notificationLevel);
+      // Assuming security alerts might have severity, otherwise treat as critical
+      const isCritical = (alert as any).severity === "critical" || true;
+      if (level === "all" || (level === "critical" && isCritical)) {
+        toast.warning(
+          `Rule: ${alert.rule_name}`,
+          alert.message || `${alert.process_name} (PID ${alert.pid}) triggered rule "${alert.rule_name}"`,
+        );
+      }
     });
 
     const networkUnlisten = await listen<NetworkAlert>("network-alert", (event: { payload: NetworkAlert }) => {
@@ -378,11 +386,14 @@ export async function initSecurityAlertListener(): Promise<() => void> {
         alert.destination,
       ].filter(Boolean).join(" - ");
 
-      toast.warning(
-        `Red: ${alert.rule_name}`,
-        details ? `${subject} - ${details}` : alert.message,
-        7000,
-      );
+      const level = get(notificationLevel);
+      if (level === "all" || (level === "critical" && alert.severity === "critical")) {
+        toast.warning(
+          `Red: ${alert.rule_name}`,
+          details ? `${subject} - ${details}` : alert.message,
+          7000,
+        );
+      }
     });
 
     unlisteners.push(securityUnlisten, networkUnlisten);

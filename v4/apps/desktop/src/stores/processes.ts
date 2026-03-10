@@ -4,7 +4,7 @@ import type { ProcessEntry, SystemStats, BrowserTab, ProcessSuggestion, Metrics 
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { confirmAction } from "../lib/confirm";
 import { t } from "../lib/i18n";
-import { idleThreshold, pollIntervalMs, activeProfilePreset, profilePresets } from "./preferences";
+import { idleThreshold, refreshInterval, activeProfilePreset, profilePresets } from "./preferences";
 import { pushMetrics } from "./metricsHistory";
 import { evaluateAlerts } from "./alerts";
 import { refreshSecurityAnalysis, refreshNetworkConnections } from "./security";
@@ -413,7 +413,7 @@ export function setPollingTarget(target: "browserTabs" | "network", active: bool
 /** Starts periodic polling for metrics (every intervalMs) and browser tabs (every 5s). */
 export function startPolling(intervalMs = 2000): void {
   isPollingActive = true;
-  pollingIntervalMs = intervalMs > 0 ? intervalMs : get(pollIntervalMs);
+  pollingIntervalMs = intervalMs > 0 ? intervalMs : get(refreshInterval);
   stopPolling();
   // reset it so the stopPolling doesn't unset isPollingActive permanently
   isPollingActive = true; 

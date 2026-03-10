@@ -370,7 +370,7 @@ describe("loadPreferences", () => {
     mockStore.get.mockImplementation((key: string) => {
       if (key === "networkPanelHeight") return 333;
       if (key === "aiChatPanelHeight") return 444;
-      if (key === "locale") return "es";
+      if (key === "localePreference") return "es";
       if (key === "profilesCollapsed") return true;
       if (key === "mainTableCollapsed") return true;
       if (key === "networkMapCollapsed") return true;
