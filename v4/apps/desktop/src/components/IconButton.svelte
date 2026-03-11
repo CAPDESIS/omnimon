@@ -96,7 +96,7 @@
   }
 
   .ui-icon-button--danger {
-    --icon-button-bg: color-mix(in srgb, var(--danger) 18%, var(--bg));
+    --icon-button-bg: color-mix(in srgb, var(--danger) 25%, var(--bg));
     --icon-button-bg-hover: color-mix(in srgb, var(--danger) 26%, var(--bg));
     --icon-button-border: color-mix(in srgb, var(--danger) 48%, var(--border));
     --icon-button-color: var(--danger);

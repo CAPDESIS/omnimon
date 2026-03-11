@@ -843,15 +843,15 @@
     letter-spacing: 0.3px;
     vertical-align: middle;
   }
-  .tool-badge.success { background: color-mix(in srgb, var(--success) 15%, var(--bg)); color: var(--success); }
-  .tool-badge.fail { background: color-mix(in srgb, var(--danger) 15%, var(--bg)); color: var(--danger); }
+  .tool-badge.success { background: color-mix(in srgb, var(--success) 28%, var(--bg)); color: var(--success); }
+  .tool-badge.fail { background: color-mix(in srgb, var(--danger) 28%, var(--bg)); color: var(--danger); }
 
   .action-preview {
     margin: 8px 0;
     padding: 10px 12px;
     border: 1px solid var(--warning, #eab308);
     border-radius: var(--radius, 6px);
-    background: color-mix(in srgb, var(--warning) 8%, var(--bg));
+    background: color-mix(in srgb, var(--warning) 25%, var(--bg));
   }
 
   .action-header {
@@ -962,7 +962,7 @@
   .preset-category.active {
     border-color: var(--accent);
     color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 14%, var(--bg));
+    background: color-mix(in srgb, var(--accent) 28%, var(--bg));
   }
 
   .preset-chip {
@@ -976,7 +976,7 @@
   .preset-chip:hover,
   .preset-chip:focus-visible {
     border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+    background: color-mix(in srgb, var(--accent) 25%, var(--bg));
   }
 
   .preset-icon {

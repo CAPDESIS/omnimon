@@ -417,7 +417,7 @@
     letter-spacing: 0.3px;
   }
   .btn-close-all:hover {
-    background: color-mix(in srgb, var(--danger) 10%, var(--bg));
+    background: color-mix(in srgb, var(--danger) 28%, var(--bg));
   }
 
   .tab-list {
@@ -548,7 +548,7 @@
     flex-shrink: 0;
   }
   .btn-kill:hover {
-    background: color-mix(in srgb, var(--danger) 15%, var(--bg));
+    background: color-mix(in srgb, var(--danger) 28%, var(--bg));
     color: var(--danger);
     border-color: var(--danger);
   }

@@ -813,7 +813,7 @@
   }
 
   @keyframes rank-pulse {
-    0% { background: var(--accent-dim, #0d2847); }
+    0% { background: color-mix(in srgb, var(--accent) 30%, var(--bg)); }
     100% { background: var(--bg, #0a0a0b); }
   }
 
@@ -829,12 +829,12 @@
     letter-spacing: 0.3px;
   }
   .badge.idle {
-    background: color-mix(in srgb, var(--warning) 15%, var(--bg));
+    background: color-mix(in srgb, var(--warning) 28%, var(--bg));
     color: var(--warning);
   }
 
   .badge.grouped {
-    background: color-mix(in srgb, var(--accent) 14%, var(--bg));
+    background: color-mix(in srgb, var(--accent) 28%, var(--bg));
     color: var(--accent);
   }
 

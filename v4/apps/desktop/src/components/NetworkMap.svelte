@@ -218,11 +218,19 @@
         const cx1 = leftMargin + (rightMargin - leftMargin) * 0.35;
         const cx2 = leftMargin + (rightMargin - leftMargin) * 0.65;
         ctx.bezierCurveTo(cx1, y, cx2, dy, rightMargin - 4, dy);
-        ctx.strokeStyle = border;
+        // Compute solid stroke color based on count (avoid transparency)
+        const factor = 0.4 + Math.min(domain.count * 0.1, 0.5);
+        const borderMatch = border.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+        if (borderMatch) {
+          const r = Math.round(parseInt(borderMatch[1]) * factor);
+          const g = Math.round(parseInt(borderMatch[2]) * factor);
+          const b = Math.round(parseInt(borderMatch[3]) * factor);
+          ctx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
+        } else {
+          ctx.strokeStyle = border;
+        }
         ctx.lineWidth = Math.min(domain.count, 3);
-        ctx.globalAlpha = 0.4 + Math.min(domain.count * 0.1, 0.5);
         ctx.stroke();
-        ctx.globalAlpha = 1;
       }
     }
 
@@ -919,6 +927,7 @@
     display: grid;
     min-height: 0;
     flex: 1;
+    position: relative;
   }
 
   .tab-main,
@@ -950,7 +959,7 @@
     border-radius: 6px;
     font-size: calc(var(--base-font-size, 12px) * 0.75);
     color: var(--yellow);
-    background: color-mix(in srgb, var(--yellow) 8%, var(--bg));
+    background: color-mix(in srgb, var(--yellow) 25%, var(--bg));
   }
 
   .side-resize-divider {

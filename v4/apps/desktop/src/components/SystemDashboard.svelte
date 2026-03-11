@@ -76,7 +76,16 @@
       }
       context.lineTo((slice.length - 1) * step, h);
       context.closePath();
-      context.fillStyle = color.replace(")", ",0.1)").replace("rgb", "rgba");
+      // Create solid fill by darkening the color (mix ~90% with black)
+      const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+      if (rgbMatch) {
+        const r = Math.round(parseInt(rgbMatch[1]) * 0.15);
+        const g = Math.round(parseInt(rgbMatch[2]) * 0.15);
+        const b = Math.round(parseInt(rgbMatch[3]) * 0.15);
+        context.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      } else {
+        context.fillStyle = color;
+      }
       context.fill();
 
       // Line
@@ -208,9 +217,9 @@
 <style>
   .dashboard {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr auto;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 8px;
-    padding: 8px 10px;
+    padding: 8px 12px;
     background: var(--bg-primary);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
@@ -333,9 +342,15 @@
     color: var(--text-primary);
   }
 
-  @media (max-width: 700px) {
+  @media (max-width: 600px) {
     .dashboard {
       grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  @media (max-width: 360px) {
+    .dashboard {
+      grid-template-columns: 1fr;
     }
   }
 </style>

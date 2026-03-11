@@ -72,7 +72,7 @@
   .ui-modal-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 230;
+    z-index: 1000;
     background: rgba(0, 0, 0, 0.7);
     display: flex;
     align-items: center;
@@ -85,7 +85,7 @@
     overflow: auto;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg, 12px);
-    background: var(--bg-surface, var(--bg-alt));
+    background: var(--bg-surface, var(--bg-alt, #121214));
     box-shadow: var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.5));
   }
 </style>

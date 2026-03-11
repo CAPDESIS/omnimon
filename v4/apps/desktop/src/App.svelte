@@ -6,9 +6,9 @@
   import SmartAlerts from "./components/SmartAlerts.svelte";
   import AppLayout from "./components/layout/AppLayout.svelte";
   import AppHeader from "./components/layout/AppHeader.svelte";
-  import AppSidebar from "./components/layout/AppSidebar.svelte";
   import AppStatusBar from "./components/layout/AppStatusBar.svelte";
   import NavigationTabs from "./components/layout/NavigationTabs.svelte";
+  import SystemDashboard from "./components/SystemDashboard.svelte";
   import AIConfigPanel from "./components/layout/AIConfigPanel.svelte";
   import ProfileSettings from "./components/ProfileSettings.svelte";
 
@@ -21,7 +21,7 @@
   import { initSecurityAlertListener } from "./stores/alerts";
   import type { ProcessEntry } from "./lib/types";
   import { AI_PROVIDERS, type AiProviderKind } from "./lib/types";
-  import { detectPlatform } from "./lib/theme";
+  import { detectPlatform, applyThemeTokens, type ThemeId } from "./lib/theme";
   import { applyTheme, getTheme } from "./lib/themes";
   import {
     processes,
@@ -357,8 +357,9 @@
     }
   }
 
-  // Apply theme engine
+  // Apply theme engine — both systems for full variable coverage
   $effect(() => {
+    applyThemeTokens($theme as ThemeId);
     applyTheme(getTheme($theme));
   });
 
@@ -476,6 +477,7 @@
 
     registerUnlistener(
       listen("open-settings", () => {
+        closeAllModals();
         showSettings = true;
       }),
     );
@@ -544,6 +546,18 @@
       return;
     }
     if (e.key === "Escape") {
+      if (showPlugins) {
+        showPlugins = false;
+        return;
+      }
+      if (showAutomations) {
+        showAutomations = false;
+        return;
+      }
+      if (showHelpCenter) {
+        showHelpCenter = false;
+        return;
+      }
       if (showSettings) {
         closeSettings();
         return;
@@ -564,7 +578,19 @@
     }
   }
 
+  /** Close every modal/overlay so only one is visible at a time. */
+  function closeAllModals() {
+    detailProcess = null;
+    showSecurityReport = false;
+    showAutomations = false;
+    showPlugins = false;
+    showHelpCenter = false;
+    activeMetricModal = null;
+    if (showSettings) closeSettings();
+  }
+
   function inspectProcess(proc: ProcessEntry) {
+    closeAllModals();
     loadProcessDetailsModal();
     detailProcess = proc;
   }
@@ -574,28 +600,35 @@
   }
 
   function openSecurityReport() {
+    closeAllModals();
     loadSecurityReportView();
     showSecurityReport = true;
   }
 
   function toggleAutomations() {
-    if (!showAutomations) {
-      loadAutomations();
+    if (showAutomations) {
+      showAutomations = false;
+      return;
     }
-    showAutomations = !showAutomations;
+    closeAllModals();
+    loadAutomations();
+    showAutomations = true;
   }
 
   function openPlugins() {
+    closeAllModals();
     loadPlugins();
     showPlugins = true;
   }
 
   function openHelpCenter() {
+    closeAllModals();
     loadHelpCenterModal();
     showHelpCenter = true;
   }
 
   function openMetricModal(metric: "cpu" | "ram" | "network" | "swap" | "processes") {
+    closeAllModals();
     loadSystemMetricModal();
     activeMetricModal = metric;
   }
@@ -650,26 +683,24 @@
       dashboardCollapsed={dashboardCollapsed}
       ontoggleautomations={toggleAutomations}
       onopenplugins={openPlugins}
-      onopensettings={() => { showSettings = true; activeTab = "settings"; }}
+      onopensettings={() => { closeAllModals(); showSettings = true; activeTab = "settings"; }}
       onopenhelp={openHelpCenter}
       ondecreasefont={decreaseFontSize}
       onincreasefont={increaseFontSize}
     />
   {/snippet}
 
-  {#snippet sidebar()}
-    <AppSidebar 
-      dashboardCollapsed={dashboardCollapsed}
-      userMode={$userMode}
+  {#snippet main()}
+    <SystemDashboard
+      collapsed={dashboardCollapsed}
+      mode={$userMode}
       onopenmetric={openMetricModal}
     />
-  {/snippet}
 
-  {#snippet main()}
-    <NavigationTabs 
+    <NavigationTabs
       showNetwork={$profilePreset !== "minimal"}
       showBrowser={$profilePreset === "power"}
-      {activeTab} 
+      {activeTab}
       ontabchange={(t) => {
         activeTab = t;
         if (t === "browser") loadChromeTabManager();
@@ -763,7 +794,7 @@
           <div style="padding: 24px; color: var(--text-secondary);">
             <ProfileSettings />
             <br/><br/>
-            <Button onclick={() => showSettings = true}>Open AI Settings Modal</Button>
+            <Button onclick={() => { closeAllModals(); showSettings = true; }}>Open AI Settings Modal</Button>
           </div>
         </div>
       {/if}
@@ -1051,7 +1082,7 @@
 {#if showAutomations}
   {#if automationsPromise}
     {#await automationsPromise then AutomationsModule}
-      <AutomationsModule.default />
+      <AutomationsModule.default onclose={() => showAutomations = false} />
     {/await}
   {/if}
 {/if}
@@ -1119,6 +1150,7 @@
     flex-direction: column;
     flex: 1;
     overflow-y: auto;
+    position: relative;
   }
 
   .aichat-pane {
@@ -1263,23 +1295,5 @@
     gap: 8px;
   }
 
-  .divider {
-    height: 6px;
-    cursor: row-resize;
-    background: var(--border-color, var(--border));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    user-select: none;
-  }
-  .divider:hover {
-    background: var(--accent, var(--accent-color));
-  }
-  .divider-handle {
-    color: var(--text-muted, #888);
-    font-size: 10px;
-    letter-spacing: 2px;
-  }
 
 </style>

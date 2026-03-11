@@ -161,7 +161,7 @@
 
   .profile-card.selected {
     border-color: var(--card-accent);
-    background: color-mix(in srgb, var(--card-accent) 14%, var(--bg));
+    background: color-mix(in srgb, var(--card-accent) 25%, var(--bg));
   }
 
   .profile-icon {

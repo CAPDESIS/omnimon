@@ -357,10 +357,10 @@
   .rule-meta { color: var(--fg-dim); font-size: 12px; }
   .rule-actions { display: flex; gap: 8px; }
   .severity { text-transform: uppercase; font-size: 10px; letter-spacing: 0.08em; padding: 4px 8px; border-radius: 999px; font-weight: 700; }
-  .severity-info { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--accent); }
-  .severity-warning { background: color-mix(in srgb, var(--yellow) 14%, var(--bg)); color: var(--yellow); }
+  .severity-info { background: color-mix(in srgb, var(--accent) 28%, var(--bg)); color: var(--accent); }
+  .severity-warning { background: color-mix(in srgb, var(--yellow) 28%, var(--bg)); color: var(--yellow); }
   .severity-critical { background: color-mix(in srgb, var(--danger) 60%, var(--bg)); color: #fff; }
-  .modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); display: grid; place-items: center; z-index: 1200; padding: 20px; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); display: grid; place-items: center; z-index: 1000; padding: 20px; }
   .modal-card { width: min(720px, 100%); background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
   .grid { display: grid; gap: 10px; }
   .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }

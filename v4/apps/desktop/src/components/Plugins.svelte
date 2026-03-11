@@ -258,7 +258,7 @@ end`;
     align-items: center;
     justify-content: center;
     padding: 24px;
-    z-index: 120;
+    z-index: 1000;
   }
 
   .plugins-dialog {
@@ -358,13 +358,13 @@ end`;
   }
 
   .banner.success {
-    background: color-mix(in srgb, var(--green) 18%, var(--bg));
+    background: color-mix(in srgb, var(--green) 28%, var(--bg));
     color: color-mix(in srgb, var(--green) 70%, white 12%);
   }
 
   .banner.error,
   .error-box {
-    background: color-mix(in srgb, var(--danger) 16%, var(--bg));
+    background: color-mix(in srgb, var(--danger) 28%, var(--bg));
     color: color-mix(in srgb, var(--danger) 78%, white 8%);
   }
 
@@ -438,7 +438,7 @@ end`;
     font-size: 11px;
     padding: 4px 6px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+    background: color-mix(in srgb, var(--accent) 25%, var(--bg));
     color: var(--fg-dim);
   }
 

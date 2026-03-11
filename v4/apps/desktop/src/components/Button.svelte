@@ -113,7 +113,7 @@
   }
 
   .ui-button.is-active {
-    background: color-mix(in srgb, var(--accent) 18%, var(--bg-surface, var(--bg-alt)) 82%);
+    background: color-mix(in srgb, var(--accent) 25%, var(--bg-surface, var(--bg-alt)) 75%);
     border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
     color: color-mix(in srgb, var(--accent) 70%, white 22%);
   }

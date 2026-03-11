@@ -141,7 +141,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    z-index: 220;
+    z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: center;

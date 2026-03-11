@@ -108,10 +108,6 @@
     font-weight: 500;
   }
 
-  .close-all-btn {
-    font-size: 12px;
-  }
-
   .alert-header {
     display: flex;
     align-items: center;
@@ -140,10 +136,6 @@
     color: var(--yellow);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-  }
-
-  .close-btn {
-    font-size: 14px;
   }
 
   .alert-body {
@@ -185,7 +177,4 @@
     background: var(--bg-alt);
   }
 
-  .action-btn {
-    font-size: 12px;
-  }
 </style>

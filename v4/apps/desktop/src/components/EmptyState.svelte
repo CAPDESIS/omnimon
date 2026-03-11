@@ -73,7 +73,4 @@
     display: flex;
     justify-content: center;
   }
-  .empty-action {
-    margin-top: 0.25rem;
-  }
 </style>

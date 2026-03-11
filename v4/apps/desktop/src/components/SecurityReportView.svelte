@@ -465,7 +465,7 @@
     flex-direction: column;
     gap: 12px;
     padding: 16px;
-    background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+    background: color-mix(in srgb, var(--accent) 25%, var(--bg));
     border: 1px solid var(--border);
     border-radius: var(--radius-md, 8px);
   }
@@ -602,8 +602,8 @@
     border-radius: 2px;
     font-weight: 600;
   }
-  .finding-tag.mitre { background: color-mix(in srgb, var(--danger) 12%, var(--bg)); color: var(--danger); }
-  .finding-tag.cve { background: color-mix(in srgb, var(--yellow) 12%, var(--bg)); color: var(--yellow); }
+  .finding-tag.mitre { background: color-mix(in srgb, var(--danger) 28%, var(--bg)); color: var(--danger); }
+  .finding-tag.cve { background: color-mix(in srgb, var(--yellow) 28%, var(--bg)); color: var(--yellow); }
 
   .finding-process {
     flex-shrink: 0;

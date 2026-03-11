@@ -260,6 +260,11 @@ describe("App AI Command Bar", () => {
     const { userMode } = await import("../stores/preferences");
     userMode.set("basic");
     render(App);
-    expect(screen.getAllByText(/unlock Network Map, deep diagnostics/i).length).toBeGreaterThan(0);
+    // Navigate to the network tab first (hint is only visible in network view)
+    const networkTab = screen.getByRole("tab", { name: /Network/i });
+    await fireEvent.click(networkTab);
+    await waitFor(() => {
+      expect(screen.getAllByText(/unlock Network Map, deep diagnostics/i).length).toBeGreaterThan(0);
+    });
   });
 });

@@ -64,34 +64,34 @@ describe("Automations", () => {
   });
 
   it("renderiza lista de reglas", async () => {
-    render(Automations);
+    render(Automations, { props: { onclose: vi.fn() } });
 
     await waitFor(() => {
-      expect(screen.getByText(/Chrome > 80 cpu for 60s -> alert/)).toBeInTheDocument();
-      expect(screen.getByText(/node > 1024 ram for 120s -> kill/)).toBeInTheDocument();
+      expect(screen.getByText(/Chrome > 80 cpu for 60s → alert/)).toBeInTheDocument();
+      expect(screen.getByText(/node > 1024 ram for 120s → kill/)).toBeInTheDocument();
     });
   });
 
   it("permite activar o desactivar una regla existente", async () => {
-    render(Automations);
+    render(Automations, { props: { onclose: vi.fn() } });
 
     await waitFor(() => {
-      expect(screen.getByText(/Chrome > 80 cpu for 60s -> alert/)).toBeInTheDocument();
+      expect(screen.getByText(/Chrome > 80 cpu for 60s → alert/)).toBeInTheDocument();
     });
 
     await fireEvent.click(screen.getAllByText("Delete")[0]);
 
     await waitFor(() => {
       expect(mockInvoke).toHaveBeenCalledWith("remove_automation_rule", { id: "rule-1" });
-      expect(screen.queryByText(/Chrome > 80 cpu for 60s -> alert/)).not.toBeInTheDocument();
-      expect(screen.getByText(/node > 1024 ram for 120s -> kill/)).toBeInTheDocument();
+      expect(screen.queryByText(/Chrome > 80 cpu for 60s → alert/)).not.toBeInTheDocument();
+      expect(screen.getByText(/node > 1024 ram for 120s → kill/)).toBeInTheDocument();
     });
   });
 
   it("muestra estado vacio cuando no hay reglas", async () => {
     rules = [];
 
-    const { container } = render(Automations);
+    const { container } = render(Automations, { props: { onclose: vi.fn() } });
 
     await waitFor(() => {
       expect(mockInvoke).toHaveBeenCalledWith("get_automation_rules");

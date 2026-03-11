@@ -2,8 +2,16 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import EmptyState from "./EmptyState.svelte";
+  import Button from "./Button.svelte";
   import { Settings } from "lucide-svelte";
-  
+  import { t } from "../lib/i18n";
+
+  interface Props {
+    onclose: () => void;
+  }
+
+  let { onclose }: Props = $props();
+
   interface AutomationRule {
     id: string;
     process_pattern: string;
@@ -47,48 +55,152 @@
   });
 </script>
 
-<div class="automations-container">
-  <div class="automations-header">
-    <h2>Automations Engine</h2>
-  </div>
-  
-  <div class="builder">
-    <input type="text" bind:value={process_pattern} placeholder="Process Name (Regex)" />
-    
-    <select bind:value={metric}>
-      <option value="ram">RAM (MB)</option>
-      <option value="cpu">CPU (%)</option>
-    </select>
-    
-    <input type="number" bind:value={threshold} placeholder="Threshold" />
-    
-    <input type="number" bind:value={duration_secs} placeholder="Duration (seconds)" />
-    
-    <select bind:value={action}>
-      <option value="alert">Alert</option>
-      <option value="kill">Kill Process</option>
-    </select>
-    
-    <button onclick={addRule}>Add Rule</button>
-  </div>
+<div
+  class="automations-backdrop"
+  role="presentation"
+  onclick={(event: MouseEvent) => {
+    if (event.target === event.currentTarget) onclose();
+  }}
+>
+  <div class="automations-dialog" role="dialog" aria-modal="true" aria-labelledby="automations-title">
+    <header class="automations-header">
+      <h2 id="automations-title">Automations Engine</h2>
+      <Button variant="ghost" size="icon" type="button" onclick={onclose} aria-label={t("common.close")}>×</Button>
+    </header>
 
-  <div class="rules-list">
-    {#if rules.length === 0}
-      <EmptyState icon={Settings} title="No Automations" description="Create a rule above to automate actions." />
-    {:else}
-      {#each rules as rule}
-        <div class="rule-item">
-          <span>{rule.process_pattern} > {rule.threshold} {rule.metric} for {rule.duration_secs}s -> {rule.action}</span>
-          <button onclick={() => removeRule(rule.id)}>Delete</button>
-        </div>
-      {/each}
-    {/if}
+    <div class="automations-body">
+      <div class="builder">
+        <input class="auto-input" type="text" bind:value={process_pattern} placeholder="Process Name (Regex)" />
+        <select class="auto-select" bind:value={metric}>
+          <option value="ram">RAM (MB)</option>
+          <option value="cpu">CPU (%)</option>
+        </select>
+        <input class="auto-input" type="number" bind:value={threshold} placeholder="Threshold" />
+        <input class="auto-input" type="number" bind:value={duration_secs} placeholder="Duration (seconds)" />
+        <select class="auto-select" bind:value={action}>
+          <option value="alert">Alert</option>
+          <option value="kill">Kill Process</option>
+        </select>
+        <Button variant="primary" type="button" onclick={addRule}>Add Rule</Button>
+      </div>
+
+      <div class="rules-list">
+        {#if rules.length === 0}
+          <EmptyState icon={Settings} title="No Automations" description="Create a rule above to automate actions." />
+        {:else}
+          {#each rules as rule}
+            <div class="rule-item">
+              <span class="rule-desc">{rule.process_pattern} &gt; {rule.threshold} {rule.metric} for {rule.duration_secs}s → {rule.action}</span>
+              <Button variant="danger" size="sm" type="button" onclick={() => removeRule(rule.id)}>Delete</Button>
+            </div>
+          {/each}
+        {/if}
+      </div>
+    </div>
   </div>
 </div>
 
 <style>
-  .automations-container { padding: 1rem; color: #e2e8f0; }
-  .automations-header { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
-  .builder { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-  .rule-item { display: flex; justify-content: space-between; padding: 0.5rem; background: #1e293b; margin-bottom: 0.5rem; }
+  .automations-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 1000;
+  }
+
+  .automations-dialog {
+    width: min(800px, 100%);
+    max-height: min(80vh, 640px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--bg-primary);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  }
+
+  .automations-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+  }
+
+  .automations-header h2 {
+    margin: 0;
+    font-size: calc(var(--base-font-size) * 1.2);
+    font-weight: 600;
+  }
+
+  .automations-body {
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .builder {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .auto-input,
+  .auto-select {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: var(--base-font-size);
+    flex: 1 1 120px;
+    min-width: 100px;
+  }
+
+  .rules-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .rule-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    gap: 12px;
+  }
+
+  .rule-desc {
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: calc(var(--base-font-size) * 0.9);
+    color: var(--text-primary);
+  }
+
+  @media (max-width: 600px) {
+    .automations-backdrop {
+      padding: 12px;
+    }
+
+    .builder {
+      flex-direction: column;
+    }
+
+    .auto-input,
+    .auto-select {
+      flex: 1 1 100%;
+    }
+  }
 </style>

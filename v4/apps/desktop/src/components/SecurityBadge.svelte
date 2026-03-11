@@ -54,7 +54,7 @@
   {#if cveCount > 0}
     <span
       class="sec-badge cve"
-      style="color: {severityColor(topSeverity)}; background: {severityColor(topSeverity)}1a"
+      style="color: {severityColor(topSeverity)}; background: color-mix(in srgb, {severityColor(topSeverity)} 28%, var(--bg))"
       title={cveTooltip}
       aria-label="{cveCount} CVE{cveCount > 1 ? 's' : ''} detected"
     >
@@ -84,7 +84,7 @@
   }
 
   .sec-badge.threat {
-    background: color-mix(in srgb, var(--danger) 15%, var(--bg));
+    background: color-mix(in srgb, var(--danger) 28%, var(--bg));
     color: var(--danger);
   }
 

@@ -1,17 +1,15 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
 
-  let { 
+  let {
     fontSize,
-    header, 
-    sidebar, 
-    main, 
+    header,
+    main,
     footer,
     modals
-  }: { 
+  }: {
     fontSize: number;
     header: Snippet;
-    sidebar: Snippet;
     main: Snippet;
     footer: Snippet;
     modals?: Snippet;
@@ -20,15 +18,9 @@
 
 <main style="--base-font-size: {fontSize}px">
   {@render header()}
-  
-  <div class="layout-body">
-    <aside class="layout-sidebar">
-      {@render sidebar()}
-    </aside>
-    
-    <div class="layout-content">
-      {@render main()}
-    </div>
+
+  <div class="layout-content">
+    {@render main()}
   </div>
 
   {@render footer()}
@@ -47,27 +39,11 @@
     background: var(--bg-primary, #0a0a0b);
     color: var(--text-primary, #ededef);
   }
-  
-  .layout-body {
-    display: flex;
-    flex: 1 1 auto;
-    overflow: hidden;
-    min-height: 0;
-  }
-  
-  .layout-sidebar {
-    width: 320px;
-    flex-shrink: 0;
-    border-right: 1px solid var(--border-subtle, #2a2a3a);
-    overflow-y: auto;
-    background: var(--bg-secondary, #121214);
-    display: flex;
-    flex-direction: column;
-  }
-  
+
   .layout-content {
-    flex: 1;
+    flex: 1 1 auto;
     overflow-y: auto;
+    min-height: 0;
     min-width: 0;
     display: flex;
     flex-direction: column;

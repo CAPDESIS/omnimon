@@ -364,7 +364,7 @@
       </div>
     </div>
     <div class="footer">
-      <span class="hint">{t("process.escToClose")}</span>
+      <Button variant="secondary" size="sm" onclick={onclose}>{t("common.close")}</Button>
       <button class="focus-sentinel" type="button" tabindex="0" aria-hidden="true"></button>
     </div>
   </div>
@@ -416,7 +416,7 @@
     padding: 10px 12px;
     border-radius: var(--radius-md, 10px);
     border: 1px solid var(--border-subtle, var(--border));
-    background: color-mix(in srgb, var(--bg) 94%, var(--accent) 3%);
+    background: color-mix(in srgb, var(--accent) 25%, var(--bg));
     color: var(--fg-dim);
     font-size: calc(var(--base-font-size) * 0.78);
     line-height: 1.5;
@@ -658,7 +658,7 @@
     margin: 6px 14px;
     border-radius: var(--radius-md, 10px);
     border: 1px solid var(--border-subtle, var(--border));
-    background: color-mix(in srgb, var(--bg) 94%, var(--accent) 3%);
+    background: color-mix(in srgb, var(--accent) 25%, var(--bg));
   }
 
   .ai-hint {
@@ -670,9 +670,12 @@
 
   /* ── Footer ── */
   .footer {
-    padding: 6px 14px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
     border-top: 1px solid var(--border-subtle, var(--border));
-    text-align: right;
   }
 
   .focus-sentinel {
@@ -684,8 +687,4 @@
     pointer-events: none;
   }
 
-  .hint {
-    font-size: calc(var(--base-font-size) * 0.7);
-    color: var(--fg-muted);
-  }
 </style>
