@@ -9,6 +9,7 @@
   import type { ChatMessage } from "../lib/chatUtils";
   import { AI_CHAT_TIMEOUT_MS } from "../lib/constants";
   import InfoPopover from "./InfoPopover.svelte";
+  import Button from "./Button.svelte";
 
   interface Props {
     title: string;
@@ -152,9 +153,9 @@
       onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
       style="resize: none;"
     ></textarea>
-    <button class="context-chat-send" onclick={handleSubmit} disabled={loading || !input.trim()}>
+    <Button class="context-chat-send" variant="primary" size="sm" onclick={handleSubmit} disabled={loading || !input.trim()}>
       {loading ? "..." : sendLabel}
-    </button>
+    </Button>
   </div>
 </div>
 
@@ -281,7 +282,7 @@
     flex: 1;
     min-width: 0;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 10px;
     background: var(--bg-alt);
     color: var(--fg);
     padding: 6px 10px;
@@ -293,21 +294,8 @@
     border-color: var(--accent);
   }
 
-  .context-chat-send {
-    border: none;
-    border-radius: 4px;
-    background: var(--accent);
-    color: white;
-    font-size: calc(var(--base-font-size, 12px) * 0.75);
-    font-weight: 700;
-    padding: 0 12px;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .context-chat-send:disabled {
-    color: var(--fg-muted);
-    cursor: default;
+  :global(.context-chat-send) {
+    flex-shrink: 0;
   }
 
   @keyframes blink {

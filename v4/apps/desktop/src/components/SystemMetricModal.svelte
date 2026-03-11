@@ -281,6 +281,9 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
   }
 
   .summary-row {
@@ -333,6 +336,8 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+    flex: 1;
+    min-height: 0;
   }
 
   .section-title {
@@ -341,9 +346,11 @@
   }
 
   .process-table-wrapper {
-    overflow-x: auto;
+    overflow: auto;
     border: 1px solid var(--border);
     border-radius: 8px;
+    flex: 1;
+    min-height: 0;
   }
 
   .process-table {

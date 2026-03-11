@@ -1,12 +1,13 @@
 <script lang="ts">
   import { t } from "../../lib/i18n";
+  import { APP_VERSION } from "../../lib/constants";
   import StatusBar from "../StatusBar.svelte";
 
-  let { 
-    filteredCount, 
-    totalCount, 
-    selectedCount, 
-    selectedRamMB 
+  let {
+    filteredCount,
+    totalCount,
+    selectedCount,
+    selectedRamMB
   } = $props();
 </script>
 
@@ -14,7 +15,7 @@
   <StatusBar />
   <footer class="app-footer">
     <span>
-      <span class="version-label">OmniMon v6.0.1</span> &nbsp;&middot;&nbsp;
+      <span class="version-label">OmniMon v{APP_VERSION}</span> &nbsp;&middot;&nbsp;
       {t("footer.processes", { count: filteredCount })}{#if filteredCount !== totalCount}
         &nbsp;{t("footer.filteredFrom", { count: totalCount })}{/if}
       {#if selectedCount > 0}

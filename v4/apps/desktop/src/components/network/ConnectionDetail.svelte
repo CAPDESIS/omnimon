@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { NetworkConnection } from "../../lib/types";
   import { fade } from "svelte/transition";
+  import Button from "../Button.svelte";
+  import IconButton from "../IconButton.svelte";
 
   interface Props {
     nodeId: string; // The hostname or IP
@@ -26,7 +28,7 @@
 <div class="connection-detail" transition:fade={{ duration: 150 }}>
   <div class="detail-header">
     <h3>{nodeId}</h3>
-    <button class="close-btn" onclick={onClose} aria-label="Close">&times;</button>
+    <IconButton onclick={onClose} ariaLabel="Close" title="Close">×</IconButton>
   </div>
   
   <div class="detail-body">
@@ -57,8 +59,8 @@
   </div>
 
   <div class="detail-actions">
-    <button class="action-btn ai-btn" onclick={() => onAskAi(nodeId)}>¿Qué es esto?</button>
-    <button class="action-btn block-btn" onclick={() => alert("Función de bloqueo (placeholder)")}>Bloquear</button>
+    <Button variant="primary" size="sm" onclick={() => onAskAi(nodeId)}>¿Qué es esto?</Button>
+    <Button variant="danger" size="sm" onclick={() => alert("Función de bloqueo (placeholder)")}>Bloquear</Button>
   </div>
 </div>
 
@@ -86,15 +88,6 @@
     margin: 0;
     font-size: 14px;
     color: var(--fg, #fff);
-  }
-
-  .close-btn {
-    background: none;
-    border: none;
-    color: var(--fg-dim, #aaa);
-    font-size: 18px;
-    cursor: pointer;
-    padding: 0 4px;
   }
 
   .detail-body {
@@ -127,25 +120,5 @@
     display: flex;
     gap: 8px;
     margin-top: 8px;
-  }
-
-  .action-btn {
-    flex: 1;
-    padding: 6px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  .ai-btn {
-    background: var(--accent, #3b82f6);
-    color: white;
-  }
-
-  .block-btn {
-    background: var(--red, #ef4444);
-    color: white;
   }
 </style>

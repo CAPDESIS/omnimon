@@ -1154,7 +1154,7 @@
   }
 
   .aichat-pane {
-    overflow: hidden;
+    overflow-y: auto;
   }
 
   /* ==============================

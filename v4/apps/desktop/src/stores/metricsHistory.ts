@@ -33,9 +33,9 @@ export function pushMetrics(stats: SystemStats, cpuAvg: number): void {
       swapMb: stats.swap_used_mb,
       processCount: stats.total_processes,
     };
-    const next = [...history, snap];
-    if (next.length > MAX_HISTORY) next.splice(0, next.length - MAX_HISTORY);
-    return next;
+    history.push(snap);
+    if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
+    return history;
   });
 }
 

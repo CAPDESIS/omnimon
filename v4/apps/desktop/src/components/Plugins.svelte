@@ -25,6 +25,24 @@
   let uploadBusy = $state(false);
   let refreshing = $state(false);
   let fileInput: HTMLInputElement | undefined = $state();
+  function highlightLua(code: string): string {
+    const keywords = /\b(function|return|end|local|if|then|else|elseif|for|while|do|repeat|until|in|and|or|not|true|false|nil)\b/g;
+    const strings = /("(?:[^"\\]|\\.)*")/g;
+    const numbers = /\b(\d+(?:\.\d+)?)\b/g;
+    const comments = /(--[^\n]*)/g;
+
+    let result = code
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    result = result.replace(comments, '<span class="lua-comment">$1</span>');
+    result = result.replace(strings, '<span class="lua-string">$1</span>');
+    result = result.replace(keywords, '<span class="lua-keyword">$1</span>');
+    result = result.replace(numbers, '<span class="lua-number">$1</span>');
+    return result;
+  }
+
   const exampleScript = `function manifest()
   return {
     name = "Docker Monitor",
@@ -47,6 +65,8 @@ function collect(ctx)
     }
   }
 end`;
+
+  const highlightedExample = highlightLua(exampleScript);
 
   const refreshIntervalMs = 4000;
 
@@ -181,7 +201,7 @@ end`;
         <EmptyState icon={Loader2} title={t("common.loading")} description="" />
       {:else if plugins.length === 0}
         <EmptyState icon={Puzzle} title={t("plugins.emptyTitle")} description={t("plugins.emptyBody")}>
-          <pre>{exampleScript}</pre>
+          <pre class="lua-code">{@html highlightedExample}</pre>
         </EmptyState>
       {:else}
         <div class="plugin-grid">
@@ -446,12 +466,33 @@ end`;
     width: 100%;
     overflow: auto;
     margin: 0;
-    padding: 14px;
+    padding: 16px 18px;
     border-radius: 14px;
-    background: #09111b;
-    color: #d7e6f7;
-    font-size: 12px;
-    line-height: 1.5;
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: "SF Mono", "Menlo", "Consolas", "Liberation Mono", monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    text-align: left;
+    tab-size: 2;
+  }
+
+  pre :global(.lua-keyword) {
+    color: #ff7b72;
+    font-weight: 600;
+  }
+
+  pre :global(.lua-string) {
+    color: #a5d6ff;
+  }
+
+  pre :global(.lua-number) {
+    color: #79c0ff;
+  }
+
+  pre :global(.lua-comment) {
+    color: #8b949e;
+    font-style: italic;
   }
 
   @media (max-width: 720px) {

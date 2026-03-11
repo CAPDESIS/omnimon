@@ -40,6 +40,11 @@
   let streamingMessage = $state("");
   let activePresetCategory = $state<(typeof AI_PRESETS)[number]["category"] | null>(null);
 
+  // Tab selection for close_tabs actions
+  interface SelectableTab { id: number; title: string; url: string; browser: string; selected: boolean; }
+  let pendingTabs = $state<SelectableTab[]>([]);
+  let pendingTabsLoading = $state(false);
+
   const MAX_CHAT_INPUT_CHARS = 4000;
   const presetGroups = Object.entries(
     AI_PRESETS.reduce((acc, preset) => {
@@ -241,7 +246,10 @@
         // For destructive actions, require confirmation
         if (result.tool === "close_tabs" || result.tool === "kill_process" || result.tool === "kill_by_name" || result.tool === "close_connection") {
           pendingAction = { tool: result.tool, details: result.details, result };
-          // Don't execute yet - wait for user confirmation
+          // Load tabs for selection UI
+          if (result.tool === "close_tabs") {
+            loadPendingTabs(result.details);
+          }
         } else {
           messages = [
             ...messages,
@@ -418,14 +426,85 @@
     }
   }
 
+  async function loadPendingTabs(details: string) {
+    pendingTabsLoading = true;
+    pendingTabs = [];
+    try {
+      const allTabs = await ipcGetBrowserTabs();
+      const isExcept = details.startsWith("close_tabs_except:");
+      const raw = details.replace(/^close_tabs(_except)?:/, "").trim();
+      const patterns = raw.split("|").map(p => p.trim().toLowerCase());
+
+      const matched = allTabs.filter(tab => {
+        const url = tab.url.toLowerCase();
+        const title = tab.title.toLowerCase();
+        const matches = patterns.some(p => url.includes(p) || title.includes(p));
+        return isExcept ? !matches : matches;
+      });
+
+      if (matched.length === 0) {
+        // No matching tabs — auto-dismiss with error
+        if (pendingAction) {
+          const errorMsg = `No tabs matched: ${raw}`;
+          pendingAction.result.details = errorMsg;
+          pendingAction.result.success = false;
+          messages = [...messages, { role: "tool", text: errorMsg, toolResult: pendingAction.result }];
+          toast.error(t("aiChat.actionErrorTitle"), errorMsg);
+          pendingAction = null;
+        }
+        return;
+      }
+
+      pendingTabs = matched.map(tab => ({
+        id: tab.id,
+        title: tab.title || tab.url,
+        url: tab.url,
+        browser: tab.browser,
+        selected: true,
+      }));
+    } catch {
+      pendingTabs = [];
+    } finally {
+      pendingTabsLoading = false;
+    }
+  }
+
+  function toggleTab(id: number) {
+    pendingTabs = pendingTabs.map(t => t.id === id ? { ...t, selected: !t.selected } : t);
+  }
+
+  function toggleAllTabs() {
+    const allSelected = pendingTabs.every(t => t.selected);
+    pendingTabs = pendingTabs.map(t => ({ ...t, selected: !allSelected }));
+  }
+
   async function confirmAction() {
     if (!pendingAction) return;
     loading = true;
     const { result } = pendingAction;
     if (result.tool === "close_tabs" && result.success) {
-      const executed = await executeCloseTabs(result.details);
-      result.details = executed.message;
-      result.success = executed.closed > 0;
+      // Use selected tabs if available
+      const selectedTabs = pendingTabs.filter(t => t.selected);
+      if (selectedTabs.length > 0) {
+        let closed = 0;
+        const failed: string[] = [];
+        for (const tab of selectedTabs) {
+          try {
+            await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
+            closed++;
+          } catch {
+            failed.push(tab.title);
+          }
+        }
+        result.details = closed > 0
+          ? t("aiChat.closedTabs", { count: closed, suffix: failed.length > 0 ? `, ${failed.length} failed` : "" })
+          : t("aiChat.failedCloseTabs", { count: failed.length });
+        result.success = closed > 0;
+      } else {
+        result.details = t("aiChat.noTabsSelected");
+        result.success = false;
+      }
+      pendingTabs = [];
     } else if (result.tool === "kill_process" && result.success) {
       const executed = await executeKillProcess(result.details);
       result.details = executed.message;
@@ -463,6 +542,7 @@
       { role: "system", text: t("aiChat.cancelled") },
     ];
     pendingAction = null;
+    pendingTabs = [];
     scrollToBottom();
   }
 
@@ -591,8 +671,31 @@
             <strong>{t("aiChat.pendingAction")}: {pendingAction.tool}</strong>
           </div>
           <div class="action-details">{formatActionDetails(pendingAction.tool, pendingAction.details)}</div>
+
+          {#if pendingAction.tool === "close_tabs" && pendingTabs.length > 0}
+            <div class="tab-select-list">
+              <label class="tab-select-all">
+                <input type="checkbox" checked={pendingTabs.every(t => t.selected)} onchange={toggleAllTabs} />
+                <strong>{t("aiChat.selectAll")} ({pendingTabs.filter(t => t.selected).length}/{pendingTabs.length})</strong>
+              </label>
+              {#each pendingTabs as tab (tab.id)}
+                <label class="tab-select-item" class:selected={tab.selected}>
+                  <input type="checkbox" checked={tab.selected} onchange={() => toggleTab(tab.id)} />
+                  <span class="tab-select-info">
+                    <span class="tab-select-title">{tab.title}</span>
+                    <span class="tab-select-url">{tab.url}</span>
+                  </span>
+                </label>
+              {/each}
+            </div>
+          {:else if pendingAction.tool === "close_tabs" && pendingTabsLoading}
+            <div class="tab-select-loading">{t("common.loading")}...</div>
+          {/if}
+
           <div class="action-buttons">
-            <Button class="confirm-btn" variant="primary" size="sm" onclick={confirmAction}>{t("aiChat.confirm")}</Button>
+            <Button class="confirm-btn" variant="primary" size="sm" onclick={confirmAction} disabled={pendingAction.tool === "close_tabs" && pendingTabs.filter(t => t.selected).length === 0}>
+              {t("aiChat.confirm")}{pendingAction.tool === "close_tabs" && pendingTabs.length > 0 ? ` (${pendingTabs.filter(t => t.selected).length})` : ""}
+            </Button>
             <Button class="reject-btn" variant="ghost" size="sm" onclick={rejectAction}>{t("aiChat.cancel")}</Button>
           </div>
         </div>
@@ -693,6 +796,8 @@
   .ai-chat {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
     border: 1px solid var(--border);
     border-radius: var(--radius, 6px);
     background: var(--bg-secondary);
@@ -732,7 +837,6 @@
   .chat-messages {
     flex: 1;
     min-height: 120px;
-    max-height: 300px;
     overflow-y: auto;
     padding: 8px 12px;
     display: flex;
@@ -884,6 +988,83 @@
     gap: 8px;
   }
 
+  .tab-select-list {
+    max-height: 220px;
+    overflow-y: auto;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-primary);
+  }
+
+  .tab-select-all {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: calc(var(--base-font-size, 12px) * 0.833);
+    cursor: pointer;
+  }
+
+  .tab-select-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--border-subtle, #2a2a3a);
+    font-size: calc(var(--base-font-size, 12px) * 0.833);
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+
+  .tab-select-item:last-child {
+    border-bottom: none;
+  }
+
+  .tab-select-item:hover {
+    background: var(--bg-hover);
+  }
+
+  .tab-select-item.selected {
+    background: color-mix(in srgb, var(--accent) 10%, var(--bg-primary));
+  }
+
+  .tab-select-item input[type="checkbox"] {
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+
+  .tab-select-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  .tab-select-title {
+    font-weight: 600;
+    color: var(--fg);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tab-select-url {
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: calc(var(--base-font-size, 12px) * 0.75);
+    color: var(--fg-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tab-select-loading {
+    padding: 8px 10px;
+    color: var(--fg-dim);
+    font-size: calc(var(--base-font-size, 12px) * 0.833);
+  }
+
   .error-actions {
     margin-top: 8px;
   }
@@ -903,6 +1084,9 @@
   }
 
   .chat-empty {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
     padding: 20px 12px;
     text-align: center;
     color: var(--text-secondary);

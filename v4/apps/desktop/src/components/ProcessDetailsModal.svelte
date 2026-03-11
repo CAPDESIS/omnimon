@@ -409,6 +409,11 @@
   /* ── Body ── */
   .body {
     padding: 8px 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    min-height: 0;
   }
 
   .mode-banner {

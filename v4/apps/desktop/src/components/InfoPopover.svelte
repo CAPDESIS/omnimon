@@ -46,11 +46,12 @@
   }
 
   :global(.info-trigger) {
-    width: 20px;
-    min-width: 20px;
-    height: 20px;
+    width: 22px;
+    min-width: 22px;
+    height: 22px;
     border-radius: 999px;
     color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
     font-size: 11px;
     font-weight: 700;
     line-height: 1;
@@ -60,6 +61,7 @@
   :global(.info-trigger:hover),
   :global(.info-trigger:focus-visible) {
     background: color-mix(in srgb, var(--accent) 25%, var(--bg));
+    border-color: var(--accent);
   }
 
   .info-trigger-glyph {

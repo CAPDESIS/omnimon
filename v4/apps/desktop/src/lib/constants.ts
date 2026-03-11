@@ -56,7 +56,7 @@ export const AI_DEFAULT_PROVIDER = "openrouter";
 export const AI_DEFAULT_MODEL = "meta-llama/llama-3.2-3b-instruct:free";
 
 /** Timeout (ms) for a single AI chat request before we abort. */
-export const AI_CHAT_TIMEOUT_MS = 45_000;
+export const AI_CHAT_TIMEOUT_MS = 120_000;
 
 // ---------------------------------------------------------------------------
 // Byte Conversion

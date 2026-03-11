@@ -82,10 +82,22 @@
   .ui-modal-panel {
     width: var(--modal-width);
     max-height: var(--modal-max-height);
+    min-width: 360px;
+    min-height: 200px;
     overflow: auto;
+    resize: both;
+    display: flex;
+    flex-direction: column;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg, 12px);
     background: var(--bg-surface, var(--bg-alt, #121214));
     box-shadow: var(--shadow-lg, 0 8px 32px rgba(0, 0, 0, 0.5));
+  }
+
+  .ui-modal-panel > :global(*) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
 </style>

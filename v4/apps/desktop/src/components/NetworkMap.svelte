@@ -3,7 +3,7 @@
   import ContextAiChat from "./ContextAiChat.svelte";
   import ConnectionDetail from "./network/ConnectionDetail.svelte";
   import NetworkAlertConfig from "./NetworkAlertConfig.svelte";
-  import { tick } from "svelte";
+  import { untrack } from "svelte";
   import { networkConnections, networkTelemetryStatus } from "../stores/security";
   import { metricsHistory } from "../stores/metricsHistory";
   import { theme } from "../stores/preferences";
@@ -40,7 +40,6 @@
   let dragStartX = 0;
   let dragStartWidth = NETWORK_SIDE_PANEL_DEFAULT_WIDTH;
   let chartLoadFailed = $state(false);
-  let pendingChartInit = 0;
   let proMode = $derived(mode === "pro");
   let aiChatRef: ReturnType<typeof ContextAiChat> | undefined = $state();
   let selectedNodeId = $state<string | null>(null);
@@ -109,6 +108,10 @@
   let totalConnections = $derived($networkConnections.length);
   let processCount = $derived(new Set($networkConnections.map((conn) => `${conn.process_name}:${conn.pid}`)).size);
   let hasTrafficData = $derived($metricsHistory.length > 0 || $networkTelemetryStatus.totalRxBytesPerSec > 0 || $networkTelemetryStatus.totalTxBytesPerSec > 0);
+
+  // Peak and session stats from history
+  let peakRx = $derived($metricsHistory.reduce((max, s) => Math.max(max, s.netRx), 0));
+  let peakTx = $derived($metricsHistory.reduce((max, s) => Math.max(max, s.netTx), 0));
   let hasAnyNetworkData = $derived(totalConnections > 0 || hasTrafficData);
   let summaryCards = $derived(
     collapsed
@@ -268,18 +271,50 @@
   let chartInstance: TrafficChartApi | undefined = $state(undefined);
   let rxSeriesInstance: TrafficSeriesApi | undefined = $state(undefined);
   let txSeriesInstance: TrafficSeriesApi | undefined = $state(undefined);
-  let trafficResizeObserver: ResizeObserver | undefined = $state(undefined);
   let lastTrafficPointTime = $state<number | null>(null);
   let lastTrafficHistoryIndex = $state(-1);
 
-  $effect(() => {
-    if (!trafficChartEl || collapsed || activeTab !== "traffic") return;
-    const token = ++pendingChartInit;
-    tick().then(() => {
-      if (token !== pendingChartInit || !trafficChartEl || collapsed || activeTab !== "traffic") return;
-      initTrafficChart(trafficChartEl);
-    });
-  });
+  function mountTrafficChart(node: HTMLDivElement) {
+    trafficChartEl = node;
+    if (node.clientWidth >= 10 && node.clientHeight >= 10) {
+      initTrafficChart(node);
+    } else {
+      let initObserver: ResizeObserver | null = new ResizeObserver((entries) => {
+        const rect = entries[0]?.contentRect;
+        if (rect && rect.width >= 10 && rect.height >= 10) {
+          initObserver?.disconnect();
+          initObserver = null;
+          initTrafficChart(node);
+        }
+      });
+      initObserver.observe(node);
+      return {
+        destroy() {
+          initObserver?.disconnect();
+          initObserver = null;
+          trafficChartEl = undefined;
+          destroyChart();
+        }
+      };
+    }
+    return {
+      destroy() {
+        trafficChartEl = undefined;
+        destroyChart();
+      }
+    };
+  }
+
+  function destroyChart() {
+    if (chartInstance) {
+      try { chartInstance.remove(); } catch {}
+    }
+    chartInstance = undefined;
+    rxSeriesInstance = undefined;
+    txSeriesInstance = undefined;
+    lastTrafficPointTime = null;
+    lastTrafficHistoryIndex = -1;
+  }
 
   function toTrafficPoint(snapshot: MetricsSnapshot, direction: "rx" | "tx"): TrafficPoint {
     return {
@@ -306,15 +341,13 @@
   async function initTrafficChart(container: HTMLDivElement) {
     try {
       const lc = await import("lightweight-charts");
-      if (chartInstance) return;
-      chartLoadFailed = false;
+      if (chartInstance || !container.isConnected) return;
 
       const getVar = (name: string) =>
         getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
       const chart = lc.createChart(container, {
-        width: container.clientWidth,
-        height: 180,
+        autoSize: true,
         layout: {
           background: { color: "transparent" } as any,
           textColor: getVar("--fg-dim") || "#71717a",
@@ -351,68 +384,50 @@
 
       rxSeriesInstance = rxSeries;
       txSeriesInstance = txSeries;
-      resetTrafficSeries($metricsHistory);
-
-      chart.timeScale().fitContent();
       chartInstance = chart as TrafficChartApi;
+      chartLoadFailed = false;
 
-      const ro = new ResizeObserver(() => {
-        chart.applyOptions({ width: container.clientWidth });
-      });
-      ro.observe(container);
-      trafficResizeObserver = ro;
+      untrack(() => resetTrafficSeries($metricsHistory));
+      chart.timeScale().fitContent();
     } catch (err) {
-      console.warn("[NetworkMap] Chart load failed", err);
+      console.warn("[NetworkMap] Chart init failed:", err);
       chartLoadFailed = true;
     }
   }
 
-  // Cleanup chart on collapse
+  // Cleanup chart on collapse — only track `collapsed`, read chartInstance without tracking
   $effect(() => {
-    if (collapsed && chartInstance) {
-      try { chartInstance.remove(); } catch {}
-      if (trafficResizeObserver) {
-        trafficResizeObserver.disconnect();
-        trafficResizeObserver = undefined;
-      }
-      chartInstance = undefined;
-      rxSeriesInstance = undefined;
-      txSeriesInstance = undefined;
-      lastTrafficPointTime = null;
-      lastTrafficHistoryIndex = -1;
-      chartLoadFailed = false;
+    if (collapsed) {
+      untrack(() => {
+        if (chartInstance) {
+          destroyChart();
+          chartLoadFailed = false;
+        }
+      });
     }
   });
 
-  // Recreate chart when theme changes
+  // Recreate chart when theme changes — ONLY track $theme
   $effect(() => {
-    const _ = $theme; // subscribe to theme changes
-    if (!trafficChartEl || collapsed || activeTab !== "traffic") return;
-    if (chartInstance) {
-      try { chartInstance.remove(); } catch {}
-      if (trafficResizeObserver) {
-        trafficResizeObserver.disconnect();
-        trafficResizeObserver = undefined;
-      }
-      chartInstance = undefined;
-      rxSeriesInstance = undefined;
-      txSeriesInstance = undefined;
-      lastTrafficPointTime = null;
-      lastTrafficHistoryIndex = -1;
-      chartLoadFailed = false;
-    }
-    // defer to allow CSS vars to update
-    requestAnimationFrame(() => {
-      if (trafficChartEl && !collapsed && activeTab === "traffic") {
-        initTrafficChart(trafficChartEl);
+    const _ = $theme;
+    untrack(() => {
+      if (!trafficChartEl || collapsed || activeTab !== "traffic") return;
+      if (chartInstance) {
+        destroyChart();
+        chartLoadFailed = false;
+        requestAnimationFrame(() => {
+          if (trafficChartEl && !collapsed && activeTab === "traffic") {
+            initTrafficChart(trafficChartEl);
+          }
+        });
       }
     });
   });
 
-  // Push traffic updates in real time using snapshot.time (handles sleep/wake gaps)
+  // Push traffic updates in real time
   $effect(() => {
     const history = $metricsHistory;
-    if (!rxSeriesInstance || !txSeriesInstance || !chartInstance) return;
+    if (!untrack(() => rxSeriesInstance) || !untrack(() => txSeriesInstance) || !untrack(() => chartInstance)) return;
     if (collapsed || activeTab !== "traffic") return;
     if (history.length === 0) {
       resetTrafficSeries(history);
@@ -632,6 +647,7 @@
 
   function setActiveTab(tab: "map" | "table" | "traffic") {
     activeTab = tab;
+    if (tab === "traffic") chartLoadFailed = false;
   }
 
   function sortHeaderLabel(key: typeof tableSortKey): string {
@@ -649,7 +665,7 @@
 
 <div class="netmap-section">
     {#if hasAnyNetworkData}
-      <div id="network-map-panel" class="netmap-body" style={`height:${panelHeight + extraHeight}px`}>
+      <div id="network-map-panel" class="netmap-body">
         <div class="summary-strip" transition:fade={{ duration: 180 }}>
           {#each summaryCards as card (card.label)}
             <div class="summary-card">
@@ -714,7 +730,6 @@
                   <canvas
                     bind:this={canvas}
                     class="netmap-canvas"
-                    height={Math.min(processNodes.length * 40 + 20, Math.max(panelHeight - 120, 220))}
                     aria-label={mapCanvasDescription()}
                   ></canvas>
                   <p class="sr-only">{mapCanvasDescription()}</p>
@@ -783,22 +798,31 @@
             <!-- Traffic Chart Tab -->
             {#if activeTab === "traffic"}
               <div class="tab-content traffic-content" id="network-panel-traffic" role="tabpanel" aria-labelledby="network-tab-traffic">
-                  <div class="network-help">{t("network.trafficHelp")}</div>
                   <div class="traffic-topline">
-                    <div class="traffic-stat"><span>RX</span><strong>{formatRate($networkTelemetryStatus.totalRxBytesPerSec)}</strong></div>
-                    <div class="traffic-stat"><span>TX</span><strong>{formatRate($networkTelemetryStatus.totalTxBytesPerSec)}</strong></div>
-                    <div class="traffic-stat"><span>{t("network.connections")}</span><strong>{totalConnections}</strong></div>
+                    <div class="traffic-stat rx-stat">
+                      <span class="stat-label"><span class="stat-arrow rx-arrow">&#9660;</span> {t("network.download")}</span>
+                      <strong>{formatRate($networkTelemetryStatus.totalRxBytesPerSec)}</strong>
+                      <span class="stat-peak">{t("network.peak")}: {formatRate(peakRx)}</span>
+                    </div>
+                    <div class="traffic-stat tx-stat">
+                      <span class="stat-label"><span class="stat-arrow tx-arrow">&#9650;</span> {t("network.upload")}</span>
+                      <strong>{formatRate($networkTelemetryStatus.totalTxBytesPerSec)}</strong>
+                      <span class="stat-peak">{t("network.peak")}: {formatRate(peakTx)}</span>
+                    </div>
+                    <div class="traffic-stat">
+                      <span class="stat-label">{t("network.connections")}</span>
+                      <strong>{totalConnections}</strong>
+                      <span class="stat-peak">{t("network.processes")}: {processCount}</span>
+                    </div>
                   </div>
-                  <div class="traffic-legend">
-                    <span class="legend-item rx">&#9660; {t("network.inbound")}</span>
-                    <span class="legend-item tx">&#9650; {t("network.outbound")}</span>
+                  <div class="traffic-chart-area">
+                    {#if chartLoadFailed}
+                      <div class="traffic-fallback">{t("network.chartUnavailable")}</div>
+                    {:else if !hasTrafficData}
+                      <div class="traffic-fallback">{t("network.waiting")}</div>
+                    {/if}
+                    <div class="traffic-chart" use:mountTrafficChart role="img" aria-label={t("network.trafficHelp")}></div>
                   </div>
-                  {#if chartLoadFailed}
-                    <div class="traffic-fallback">{t("network.chartUnavailable")}</div>
-                  {:else if !hasTrafficData}
-                    <div class="traffic-fallback">{t("network.waiting")}</div>
-                  {/if}
-                  <div class="traffic-chart" class:hidden={chartLoadFailed || !hasTrafficData} bind:this={trafficChartEl} role="img" aria-label={t("network.trafficHelp")}></div>
                 </div>
             {/if}
           </div>
@@ -871,7 +895,10 @@
 
   <style>
 .netmap-section {
-    flex-shrink: 0;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
     border-top: 1px solid var(--border);
     background: var(--bg-alt);
   }
@@ -879,6 +906,8 @@
   .netmap-body {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
   }
 
@@ -934,6 +963,8 @@
   .tab-side {
     min-height: 0;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
   }
 
   .tab-side {
@@ -1027,20 +1058,23 @@
 
   .tab-content {
     overflow: auto;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
   }
 
   /* Map content */
   .map-content {
     display: flex;
     gap: 0;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
   }
 
   .netmap-canvas {
     flex: 1;
     min-width: 0;
-    min-height: 220px;
+    min-height: 180px;
+    width: 100%;
   }
 
   .netmap-list {
@@ -1200,7 +1234,10 @@
   /* Traffic Chart */
   .traffic-content {
     padding: 8px 10px;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .traffic-topline {
@@ -1213,52 +1250,60 @@
   .traffic-stat {
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 8px;
+    padding: 8px 10px;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
     background: var(--bg-alt);
   }
 
-  .traffic-stat span {
+  .traffic-stat .stat-label {
     font-size: calc(var(--base-font-size, 12px) * 0.72);
     color: var(--fg-dim);
     text-transform: uppercase;
     letter-spacing: 0.4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
 
   .traffic-stat strong {
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    font-size: calc(var(--base-font-size, 12px) * 0.9);
+    font-size: calc(var(--base-font-size, 12px) * 1.05);
   }
 
-  .traffic-legend {
-    display: flex;
-    gap: 16px;
-    padding-bottom: 6px;
-    font-size: calc(var(--base-font-size, 12px) * 0.75);
+  .traffic-stat .stat-peak {
+    font-size: calc(var(--base-font-size, 12px) * 0.68);
+    color: var(--fg-dim);
   }
 
-  .legend-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-weight: 600;
-  }
-  .legend-item.rx { color: var(--chart-net-rx, var(--green)); }
-  .legend-item.tx { color: var(--chart-net-tx, var(--yellow)); }
+  .stat-arrow { font-size: calc(var(--base-font-size, 12px) * 0.65); }
+  .rx-arrow { color: var(--chart-net-rx, var(--green)); }
+  .tx-arrow { color: var(--chart-net-tx, var(--yellow)); }
 
-  .traffic-chart {
-    width: 100%;
-    height: calc(100% - 32px);
+  .rx-stat strong { color: var(--chart-net-rx, var(--green)); }
+  .tx-stat strong { color: var(--chart-net-tx, var(--yellow)); }
+
+  .traffic-chart-area {
+    position: relative;
+    flex: 1;
     min-height: 180px;
     border-radius: var(--radius-sm, 4px);
     overflow: hidden;
-    transition: opacity 0.18s ease, transform 0.18s ease;
   }
 
-  .traffic-chart.hidden {
-    display: none;
+  .traffic-chart-area .traffic-fallback {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+  }
+
+  .traffic-chart {
+    position: absolute;
+    inset: 0;
   }
 
   @keyframes side-enter {
@@ -1318,6 +1363,9 @@
   z-index: 100;
   min-width: 300px;
   max-width: 90%;
+  max-height: calc(100% - 60px);
+  overflow-y: auto;
+  border-radius: 8px;
 }
 
 

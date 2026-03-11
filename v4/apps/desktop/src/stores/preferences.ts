@@ -209,7 +209,7 @@ export const profilePreset = writable<"minimal" | "balanced" | "power">("balance
 export const dashboardLayout = writable<"compact" | "standard" | "expanded">("standard");
 export const layoutModeStore = writable<"tabs" | "split">("tabs");
 
-export const refreshInterval = writable(2000);
+export const refreshInterval = writable(3000);
 
 export const favoriteProcesses = writable<string[]>([]);
 export const notificationLevel = writable<"off" | "critical" | "all">("all");

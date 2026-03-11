@@ -241,29 +241,58 @@ pub struct NativeTabProvider;
 
 #[cfg(target_os = "macos")]
 impl NativeTabProvider {
+    /// Timeout for a single osascript invocation (prevents indefinite hangs).
+    const OSASCRIPT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
     fn run_osascript(script: &str, args: &[&str]) -> Result<String, String> {
-        use std::process::Command;
+        use std::process::{Command, Stdio};
 
-        let mut cmd = Command::new("osascript");
-        cmd.arg("-e");
-        cmd.arg(script);
-        for arg in args {
-            cmd.arg(arg);
+        let mut child = Command::new("osascript")
+            .arg("-e")
+            .arg(script)
+            .args(args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("osascript spawn failed: {e}"))?;
+
+        // Poll for completion with a timeout to avoid indefinite hangs.
+        let deadline = std::time::Instant::now() + Self::OSASCRIPT_TIMEOUT;
+        loop {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    let stdout = child.stdout.take().map(|mut r| {
+                        let mut s = String::new();
+                        std::io::Read::read_to_string(&mut r, &mut s).ok();
+                        s
+                    }).unwrap_or_default();
+                    let stderr = child.stderr.take().map(|mut r| {
+                        let mut s = String::new();
+                        std::io::Read::read_to_string(&mut r, &mut s).ok();
+                        s
+                    }).unwrap_or_default();
+
+                    if !status.success() {
+                        let msg = stderr.trim().to_string();
+                        return Err(if msg.is_empty() {
+                            "osascript returned non-zero status".to_string()
+                        } else {
+                            msg
+                        });
+                    }
+                    return Ok(stdout);
+                }
+                Ok(None) => {
+                    if std::time::Instant::now() >= deadline {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        return Err("osascript timed out (5s)".to_string());
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                Err(e) => return Err(format!("osascript wait failed: {e}")),
+            }
         }
-        let output = cmd
-            .output()
-            .map_err(|e| format!("osascript execution failed: {e}"))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            return Err(if stderr.is_empty() {
-                "osascript returned non-zero status".to_string()
-            } else {
-                stderr
-            });
-        }
-
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
 
     fn parse_lines(raw: &str, browser: BrowserKind) -> Vec<BrowserTab> {

@@ -70,7 +70,6 @@
     margin-top: 1rem;
     margin-bottom: 1rem;
     width: 100%;
-    display: flex;
-    justify-content: center;
+    text-align: left;
   }
 </style>

@@ -536,12 +536,13 @@ describe("AIChat", () => {
     await fireEvent.input(input, { target: { value: "Close YouTube tabs" } });
     await fireEvent.click(screen.getByText("Send"));
 
+    // Wait for pending action and tab selection UI to load
     await waitFor(() => {
       expect(screen.getByText(/Pending action/i)).toBeInTheDocument();
-      expect(screen.getByText(/Close tabs matching: youtube/i)).toBeInTheDocument();
+      expect(screen.getByText("https://youtube.com/watch?v=1")).toBeInTheDocument();
     });
 
-    await fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await fireEvent.click(screen.getByRole("button", { name: /Confirm/i }));
 
     await waitFor(() => {
       expect(mockGetBrowserTabs).toHaveBeenCalledTimes(1);
@@ -573,7 +574,12 @@ describe("AIChat", () => {
     const input = screen.getByPlaceholderText(/ask ai to act/i);
     await fireEvent.input(input, { target: { value: "Close everything except docs" } });
     await fireEvent.click(screen.getByText("Send"));
-    await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+    // Wait for tab selection to load
+    await waitFor(() => {
+      expect(screen.getByText("https://youtube.com/watch?v=1")).toBeInTheDocument();
+    });
+
+    await fireEvent.click(screen.getByRole("button", { name: /Confirm/i }));
 
     await waitFor(() => {
       expect(mockCloseBrowserTab).toHaveBeenCalledTimes(2);
@@ -601,8 +607,8 @@ describe("AIChat", () => {
     const input = screen.getByPlaceholderText(/ask ai to act/i);
     await fireEvent.input(input, { target: { value: "Close YouTube tabs" } });
     await fireEvent.click(screen.getByText("Send"));
-    await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
 
+    // No matching tabs — auto-dismissed with error (no manual confirm needed)
     await waitFor(() => {
       expect(screen.getByText("No tabs matched: youtube")).toBeInTheDocument();
       expect(mockToast.error).toHaveBeenCalledWith("Action Failed", "No tabs matched: youtube");

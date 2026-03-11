@@ -271,7 +271,7 @@ pub fn start_watcher() {
                 *guard = initial;
             }
 
-            let mut interval = tokio::time::interval(Duration::from_secs(2));
+            let mut interval = tokio::time::interval(Duration::from_secs(3));
             loop {
                 interval.tick().await;
 

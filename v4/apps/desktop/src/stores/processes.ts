@@ -375,7 +375,7 @@ let metricsUnlisten: UnlistenFn | null = null;
 let isPollingActive = false;
 let tabIntervalId: ReturnType<typeof setInterval> | null = null;
 let networkIntervalId: ReturnType<typeof setInterval> | null = null;
-let pollingIntervalMs = 2000;
+let pollingIntervalMs = 3000;
 
 const pollingTargets = {
   browserTabs: true,
@@ -389,7 +389,7 @@ function syncBrowserTabsPolling(): void {
   }
   if (!pollingTargets.browserTabs) return;
   fetchBrowserTabs();
-  tabIntervalId = setInterval(fetchBrowserTabs, 5000);
+  tabIntervalId = setInterval(fetchBrowserTabs, 10000);
 }
 
 function syncNetworkPolling(): void {
@@ -411,7 +411,7 @@ export function setPollingTarget(target: "browserTabs" | "network", active: bool
 }
 
 /** Starts periodic polling for metrics (every intervalMs) and browser tabs (every 5s). */
-export function startPolling(intervalMs = 2000): void {
+export function startPolling(intervalMs = 3000): void {
   isPollingActive = true;
   pollingIntervalMs = intervalMs > 0 ? intervalMs : get(refreshInterval);
   stopPolling();
