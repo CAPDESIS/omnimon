@@ -4,6 +4,13 @@
  */
 
 // ---------------------------------------------------------------------------
+// App Version (injected from package.json at build time via Vite define)
+// ---------------------------------------------------------------------------
+
+/** Application version — single source of truth for the frontend. */
+export const APP_VERSION: string = __APP_VERSION__;
+
+// ---------------------------------------------------------------------------
 // Process Table
 // ---------------------------------------------------------------------------
 

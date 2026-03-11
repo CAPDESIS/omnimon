@@ -4,6 +4,7 @@
   import { onMount } from "svelte";
   import { t } from "../lib/i18n";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
+  import { APP_VERSION } from "../lib/constants";
   import Button from "./Button.svelte";
 
   interface Props {
@@ -54,7 +55,7 @@
             <p>{t("helpCenter.aboutBody")}</p>
           </div>
           <div class="about-meta">
-            <span class="about-version">OmniMon 6.4.1</span>
+            <span class="about-version">OmniMon {APP_VERSION}</span>
             <span>{t("helpCenter.createdBy")}</span>
           </div>
           <Button

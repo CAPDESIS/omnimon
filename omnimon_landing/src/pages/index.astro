@@ -1,8 +1,9 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { OMNIMON_VERSION, RELEASE_DATE } from '../consts';
 
-const releaseVersion = '6.4.1';
-const releaseDate = '11 Mar 2026';
+const releaseVersion = OMNIMON_VERSION;
+const releaseDate = RELEASE_DATE;
 const releaseUrl = 'https://github.com/chochy2001/omnimon/releases/latest';
 const docsUrl = 'https://github.com/chochy2001/omnimon#readme';
 const sponsorUrl = 'https://github.com/sponsors/chochy2001';
@@ -94,7 +95,7 @@ const basicTutorial = [
 
 const faqs = [
 	{
-		question: 'Que incluye la version 6.4.1?',
+		question: `Que incluye la version ${releaseVersion}?`,
 		answer: 'Incluye el Sprint 4 Reality Fix: UI con colores solidos y sin transparencias, iconos Lucide SVG profesionales, streaming real de IA via SSE, i18n con 531 keys sincronizadas, Modo Profesional y coverage al 87%.'
 	},
 	{
