@@ -33,7 +33,18 @@ const canonicalUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site).toStri
 		<meta name="twitter:description" content={description} />
 		<title>{title}</title>
 	</head>
-	<body class="bg-slate-950 text-slate-200 font-sans antialiased min-h-screen selection:bg-indigo-500/30">
+	<body class="bg-slate-950 text-slate-200 font-sans antialiased min-h-screen selection:bg-indigo-500/30 pt-16">
+		<nav class="fixed inset-x-0 top-0 z-50 h-16 border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-sm">
+			<div class="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+				<a href="/" class="text-lg font-bold text-white tracking-tight">OmniMon</a>
+				<div class="flex items-center gap-6 text-sm text-slate-300">
+					<a href="/blog/" class="transition hover:text-white">Blog</a>
+					<a href="https://github.com/chochy2001/omnimon#readme" target="_blank" rel="noreferrer" class="transition hover:text-white">Docs</a>
+					<a href="https://github.com/chochy2001/omnimon" target="_blank" rel="noreferrer" class="transition hover:text-white">GitHub</a>
+					<a href="https://github.com/chochy2001/omnimon/releases/latest" target="_blank" rel="noreferrer" class="inline-flex items-center rounded-full bg-orange-500 px-4 py-1.5 font-semibold text-slate-950 transition hover:bg-orange-400">Descargar</a>
+				</div>
+			</div>
+		</nav>
 		<slot />
 	</body>
 </html>
