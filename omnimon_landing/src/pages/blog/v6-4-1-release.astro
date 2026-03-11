@@ -1,0 +1,94 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+const releaseUrl = 'https://github.com/chochy2001/omnimon/releases/latest';
+const installScriptUrl = 'https://raw.githubusercontent.com/chochy2001/omnimon/main/scripts/install-web.sh';
+---
+
+<Layout
+	title="OmniMon v6.4.1 — Reality Fix Release | Blog"
+	description="OmniMon v6.4.1 ships solid UI colors, Lucide SVG icons, real AI streaming, full i18n, Pro Mode and 87% test coverage."
+>
+	<main class="mx-auto flex w-full max-w-3xl flex-col gap-12 px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+		<article class="space-y-10">
+			<header class="space-y-4">
+				<div class="flex items-center gap-3 text-sm text-slate-400">
+					<a href="/blog/" class="transition hover:text-white">&larr; Blog</a>
+					<span>|</span>
+					<a href="/es/blog/v6-4-1-release-es/" class="transition hover:text-sky-300">Leer en espanol</a>
+				</div>
+				<h1 class="section-title text-4xl font-black tracking-tight text-white sm:text-5xl">OmniMon v6.4.1 — Reality Fix Release</h1>
+				<div class="flex items-center gap-4 text-sm text-slate-400">
+					<time>11 Mar 2026</time>
+					<span class="rounded-full bg-orange-500/20 px-3 py-1 text-orange-200">New release</span>
+				</div>
+			</header>
+
+			<section class="space-y-6 text-lg leading-8 text-slate-300">
+				<p>
+					Version 6.4.1 is the <strong class="text-white">Sprint 4 Reality Fix</strong>: a focused release that fixes three critical UI bugs found during a professional audit, adds real AI streaming, and raises quality across the board.
+				</p>
+
+				<h2 class="text-2xl font-bold text-white">What was fixed</h2>
+				<p>An external audit flagged three hard-to-miss problems in v6.3.0:</p>
+				<ul class="list-disc space-y-2 pl-6">
+					<li><strong class="text-white">Transparent backgrounds everywhere.</strong> Panels, cards and badges relied on <code>backdrop-filter: blur()</code> and <code>rgba()</code> backgrounds. When the OS compositing failed or the user disabled transparency, text became unreadable. v6.4.1 enforces solid colors from theme variables across all three themes (dark, light, high-contrast).</li>
+					<li><strong class="text-white">35+ emoji used as icons.</strong> Sidebar items, tab headers and alert badges used plain emoji instead of scalable vector icons. They rendered differently across platforms and broke visual hierarchy. All replaced with Lucide SVG icons that respect the current theme.</li>
+					<li><strong class="text-white">AI responses arrived as a single block.</strong> Users had to wait for the full response before seeing anything. Now OpenAI and Anthropic stream via Server-Sent Events, showing tokens as they arrive.</li>
+				</ul>
+
+				<h2 class="text-2xl font-bold text-white">What was added</h2>
+				<ul class="list-disc space-y-2 pl-6">
+					<li><strong class="text-white">Pro Mode</strong> — Toggle in the AI chat to show the active model, tool calls and token count for each response.</li>
+					<li><strong class="text-white">Resizable split layout</strong> — A draggable divider between the process table and side panels. The position persists across sessions.</li>
+					<li><strong class="text-white">Full i18n</strong> — 531 translation keys synchronized between Spanish and English, covering every label, tooltip, error message and placeholder.</li>
+				</ul>
+
+				<h2 class="text-2xl font-bold text-white">Quality improvements</h2>
+				<ul class="list-disc space-y-2 pl-6">
+					<li><strong class="text-white">Test coverage at 87%</strong> with automatic enforcement — the CI gate rejects PRs that drop below threshold.</li>
+					<li><strong class="text-white">CVE quinn-proto resolved</strong> (severity 8.7 HIGH) — dependency updated to patched version.</li>
+					<li>CSS audit: zero <code>backdrop-filter</code>, zero <code>rgba()</code> backgrounds (except modal overlays), zero <code>opacity</code> on content elements.</li>
+				</ul>
+
+				<h2 class="text-2xl font-bold text-white">Download</h2>
+				<div class="grid gap-4 sm:grid-cols-3">
+					<a href={releaseUrl} target="_blank" rel="noreferrer" class="rounded-2xl border border-slate-700 bg-slate-900/40 p-5 text-center transition hover:border-orange-400/50">
+						<p class="text-sm uppercase tracking-[0.24em] text-orange-200">macOS</p>
+						<p class="mt-2 font-semibold text-white">Universal DMG</p>
+					</a>
+					<a href={releaseUrl} target="_blank" rel="noreferrer" class="rounded-2xl border border-slate-700 bg-slate-900/40 p-5 text-center transition hover:border-orange-400/50">
+						<p class="text-sm uppercase tracking-[0.24em] text-sky-200">Windows</p>
+						<p class="mt-2 font-semibold text-white">MSI Installer</p>
+					</a>
+					<a href={installScriptUrl} target="_blank" rel="noreferrer" class="rounded-2xl border border-slate-700 bg-slate-900/40 p-5 text-center transition hover:border-orange-400/50">
+						<p class="text-sm uppercase tracking-[0.24em] text-emerald-200">Linux</p>
+						<p class="mt-2 font-semibold text-white">.deb / .AppImage</p>
+					</a>
+				</div>
+				<p class="text-sm text-slate-400">Always verify downloads against <code>SHA256SUMS.txt</code> published in the GitHub release.</p>
+
+				<div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
+					<p class="text-sm uppercase tracking-[0.24em] text-slate-500">Homebrew</p>
+					<pre class="mt-3 overflow-x-auto text-sm text-slate-300"><code>brew tap chochy2001/omnimon
+brew install --cask omnimon</code></pre>
+				</div>
+			</section>
+		</article>
+
+		<div class="flex items-center gap-4 text-sm text-slate-400">
+			<a href="/blog/" class="transition hover:text-white">&larr; All posts</a>
+		</div>
+	</main>
+
+	<footer class="mt-12 border-t border-slate-800/80 py-8 text-sm text-slate-400">
+		<div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+			<p>&copy; {new Date().getFullYear()} OmniMon. Open source under MIT.</p>
+			<div class="flex flex-wrap items-center gap-4">
+				<a href="https://github.com/chochy2001/omnimon" target="_blank" rel="noreferrer" class="transition hover:text-white">GitHub</a>
+				<a href="/" class="transition hover:text-white">Home</a>
+				<a href="/blog/" class="transition hover:text-white">Blog</a>
+			</div>
+		</div>
+	</footer>
+</Layout>

@@ -1,0 +1,94 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+
+const releaseUrl = 'https://github.com/chochy2001/omnimon/releases/latest';
+const installScriptUrl = 'https://raw.githubusercontent.com/chochy2001/omnimon/main/scripts/install-web.sh';
+---
+
+<Layout
+	title="OmniMon v6.4.1 — Reality Fix Release | Blog"
+	description="OmniMon v6.4.1 incluye colores solidos en la UI, iconos Lucide SVG, streaming real de IA, i18n completo, Modo Profesional y 87% de cobertura."
+>
+	<main class="mx-auto flex w-full max-w-3xl flex-col gap-12 px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+		<article class="space-y-10">
+			<header class="space-y-4">
+				<div class="flex items-center gap-3 text-sm text-slate-400">
+					<a href="/es/blog/" class="transition hover:text-white">&larr; Blog</a>
+					<span>|</span>
+					<a href="/blog/v6-4-1-release/" class="transition hover:text-sky-300">Read in English</a>
+				</div>
+				<h1 class="section-title text-4xl font-black tracking-tight text-white sm:text-5xl">OmniMon v6.4.1 — Reality Fix Release</h1>
+				<div class="flex items-center gap-4 text-sm text-slate-400">
+					<time>11 Mar 2026</time>
+					<span class="rounded-full bg-orange-500/20 px-3 py-1 text-orange-200">Nuevo release</span>
+				</div>
+			</header>
+
+			<section class="space-y-6 text-lg leading-8 text-slate-300">
+				<p>
+					La version 6.4.1 es el <strong class="text-white">Sprint 4 Reality Fix</strong>: un release enfocado que corrige tres bugs criticos de UI encontrados en una auditoria profesional, agrega streaming real de IA y sube la calidad en todos los frentes.
+				</p>
+
+				<h2 class="text-2xl font-bold text-white">Que se corrigio</h2>
+				<p>Una auditoria externa detecto tres problemas evidentes en v6.3.0:</p>
+				<ul class="list-disc space-y-2 pl-6">
+					<li><strong class="text-white">Fondos transparentes en toda la UI.</strong> Paneles, tarjetas y badges dependian de <code>backdrop-filter: blur()</code> y fondos <code>rgba()</code>. Cuando el compositing del OS fallaba o el usuario desactivaba transparencias, el texto se volvia ilegible. v6.4.1 impone colores solidos desde variables del tema en los 3 temas (dark, light, alto contraste).</li>
+					<li><strong class="text-white">35+ emojis usados como iconos.</strong> Items del sidebar, headers de tabs y badges de alertas usaban emojis en vez de iconos vectoriales. Se veian distinto en cada plataforma y rompian la jerarquia visual. Todos reemplazados por iconos Lucide SVG que respetan el tema activo.</li>
+					<li><strong class="text-white">Respuestas de IA llegaban como un bloque.</strong> Los usuarios tenian que esperar la respuesta completa antes de ver algo. Ahora OpenAI y Anthropic hacen streaming via Server-Sent Events, mostrando tokens conforme llegan.</li>
+				</ul>
+
+				<h2 class="text-2xl font-bold text-white">Que se agrego</h2>
+				<ul class="list-disc space-y-2 pl-6">
+					<li><strong class="text-white">Modo Profesional</strong> — Toggle en el chat de IA para mostrar el modelo activo, llamadas a herramientas y conteo de tokens por cada respuesta.</li>
+					<li><strong class="text-white">Layout split redimensionable</strong> — Un divisor arrastrable entre la tabla de procesos y los paneles laterales. La posicion persiste entre sesiones.</li>
+					<li><strong class="text-white">i18n completo</strong> — 531 keys de traduccion sincronizadas entre espanol e ingles, cubriendo cada label, tooltip, mensaje de error y placeholder.</li>
+				</ul>
+
+				<h2 class="text-2xl font-bold text-white">Mejoras de calidad</h2>
+				<ul class="list-disc space-y-2 pl-6">
+					<li><strong class="text-white">Cobertura de tests al 87%</strong> con enforcement automatico — el gate de CI rechaza PRs que bajen del umbral.</li>
+					<li><strong class="text-white">CVE quinn-proto resuelto</strong> (severity 8.7 HIGH) — dependencia actualizada a version parcheada.</li>
+					<li>Auditoria CSS: cero <code>backdrop-filter</code>, cero fondos <code>rgba()</code> (excepto overlays de modales), cero <code>opacity</code> en elementos de contenido.</li>
+				</ul>
+
+				<h2 class="text-2xl font-bold text-white">Descarga</h2>
+				<div class="grid gap-4 sm:grid-cols-3">
+					<a href={releaseUrl} target="_blank" rel="noreferrer" class="rounded-2xl border border-slate-700 bg-slate-900/40 p-5 text-center transition hover:border-orange-400/50">
+						<p class="text-sm uppercase tracking-[0.24em] text-orange-200">macOS</p>
+						<p class="mt-2 font-semibold text-white">Universal DMG</p>
+					</a>
+					<a href={releaseUrl} target="_blank" rel="noreferrer" class="rounded-2xl border border-slate-700 bg-slate-900/40 p-5 text-center transition hover:border-orange-400/50">
+						<p class="text-sm uppercase tracking-[0.24em] text-sky-200">Windows</p>
+						<p class="mt-2 font-semibold text-white">MSI Installer</p>
+					</a>
+					<a href={installScriptUrl} target="_blank" rel="noreferrer" class="rounded-2xl border border-slate-700 bg-slate-900/40 p-5 text-center transition hover:border-orange-400/50">
+						<p class="text-sm uppercase tracking-[0.24em] text-emerald-200">Linux</p>
+						<p class="mt-2 font-semibold text-white">.deb / .AppImage</p>
+					</a>
+				</div>
+				<p class="text-sm text-slate-400">Siempre verifica las descargas contra <code>SHA256SUMS.txt</code> publicado en el release de GitHub.</p>
+
+				<div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
+					<p class="text-sm uppercase tracking-[0.24em] text-slate-500">Homebrew</p>
+					<pre class="mt-3 overflow-x-auto text-sm text-slate-300"><code>brew tap chochy2001/omnimon
+brew install --cask omnimon</code></pre>
+				</div>
+			</section>
+		</article>
+
+		<div class="flex items-center gap-4 text-sm text-slate-400">
+			<a href="/es/blog/" class="transition hover:text-white">&larr; Todos los posts</a>
+		</div>
+	</main>
+
+	<footer class="mt-12 border-t border-slate-800/80 py-8 text-sm text-slate-400">
+		<div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+			<p>&copy; {new Date().getFullYear()} OmniMon. Open source bajo MIT.</p>
+			<div class="flex flex-wrap items-center gap-4">
+				<a href="https://github.com/chochy2001/omnimon" target="_blank" rel="noreferrer" class="transition hover:text-white">GitHub</a>
+				<a href="/" class="transition hover:text-white">Inicio</a>
+				<a href="/es/blog/" class="transition hover:text-white">Blog</a>
+			</div>
+		</div>
+	</footer>
+</Layout>

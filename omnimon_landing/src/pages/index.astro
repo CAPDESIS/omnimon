@@ -1,8 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
 
-const releaseVersion = '6.3.0';
-const releaseDate = '10 Mar 2026';
+const releaseVersion = '6.4.1';
+const releaseDate = '11 Mar 2026';
 const releaseUrl = 'https://github.com/chochy2001/omnimon/releases/latest';
 const docsUrl = 'https://github.com/chochy2001/omnimon#readme';
 const sponsorUrl = 'https://github.com/sponsors/chochy2001';
@@ -34,20 +34,20 @@ const downloadArtifacts = [
 
 const releaseHighlights = [
 	{
-		title: 'Reality Fix de v6.3.0',
-		description: 'La 6.3.0 corrige paridad real entre UI, i18n, backend y calidad sin prometer features que aun no existen.'
+		title: 'UI legible con colores solidos',
+		description: 'Se eliminaron transparencias y se aplicaron colores solidos en los 3 temas (dark, light, contrast). Todo el texto es legible sin depender de blur ni fondos semi-transparentes.'
 	},
 	{
-		title: 'Cobertura y validacion mas estricta',
-		description: 'La suite de frontend y Rust se endurece con thresholds, casos edge y menos espacio para tests flaky.'
+		title: 'Iconos profesionales Lucide SVG',
+		description: 'Mas de 35 emojis reemplazados por iconos Lucide SVG consistentes en toda la interfaz, incluyendo sidebar, tabs, alertas y proceso de kill.'
 	},
 	{
-		title: 'Alertas y red mas consistentes',
-		description: 'Los paneles de alertas, tablas de conexiones y reglas de red se alinean con traducciones, estados y acciones reales.'
+		title: 'Streaming real de IA (SSE)',
+		description: 'Respuestas de OpenAI y Anthropic ahora llegan en tiempo real via Server-Sent Events. Modo Profesional muestra herramientas, modelo y tokens usados.'
 	},
 	{
-		title: 'Distribucion verificable',
-		description: 'Cada release mantiene firmas Ed25519 y checksums SHA-256 visibles para validar integridad antes de instalar.'
+		title: 'i18n completo y layout mejorado',
+		description: '531 keys sincronizadas espanol/ingles, coverage al 87% con enforcement automatico, CVE quinn-proto resuelto (severity 8.7 HIGH) y layout split con divider redimensionable.'
 	}
 ];
 
@@ -94,8 +94,8 @@ const basicTutorial = [
 
 const faqs = [
 	{
-		question: 'Que incluye la version 6.3.0?',
-		answer: 'Incluye Reality Fix sobre UI, i18n, backend y calidad: menos desajustes entre lo que OmniMon promete y lo que realmente ejecuta hoy.'
+		question: 'Que incluye la version 6.4.1?',
+		answer: 'Incluye el Sprint 4 Reality Fix: UI con colores solidos y sin transparencias, iconos Lucide SVG profesionales, streaming real de IA via SSE, i18n con 531 keys sincronizadas, Modo Profesional y coverage al 87%.'
 	},
 	{
 		question: 'En que plataformas funciona OmniMon?',
@@ -340,6 +340,7 @@ cat SHA256SUMS.txt</code></pre>
 			<div class="flex flex-wrap items-center gap-4">
 				<a href="https://github.com/chochy2001/omnimon" target="_blank" rel="noreferrer" class="transition hover:text-white">GitHub</a>
 				<a href={docsUrl} target="_blank" rel="noreferrer" class="transition hover:text-white">Documentacion</a>
+				<a href="/blog/" class="transition hover:text-white">Blog</a>
 				<a href={releaseUrl} target="_blank" rel="noreferrer" class="transition hover:text-white">Releases</a>
 				<a href={sponsorUrl} target="_blank" rel="noreferrer" class="transition hover:text-orange-200">Patrocinar</a>
 			</div>

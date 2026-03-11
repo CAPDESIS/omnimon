@@ -5,6 +5,10 @@
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
+  const normalizeText = (value) => String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
   async function initBlogSearch() {
     const input = document.querySelector("[data-blog-search-input]");
@@ -17,7 +21,7 @@
     const locale = document.documentElement.lang === "es" ? "es" : "en";
     const strings = {
       en: { placeholder: "Search by version, title, feature, or text", empty: "No posts match your search.", all: "Showing all posts", result: "results", one: "result", clear: "Clear" },
-      es: { placeholder: "Buscar por versión, título, función o texto", empty: "No hay posts que coincidan con tu búsqueda.", all: "Mostrando todos los posts", result: "resultados", one: "resultado", clear: "Limpiar" },
+      es: { placeholder: "Buscar por versión, título, función o texto", empty: "No hay artículos que coincidan con tu búsqueda.", all: "Mostrando todos los artículos", result: "resultados", one: "resultado", clear: "Limpiar" },
     }[locale];
 
     input.setAttribute("placeholder", strings.placeholder);
@@ -61,14 +65,14 @@
     };
 
     const run = () => {
-      const query = input.value.trim().toLowerCase();
+      const query = normalizeText(input.value.trim());
       if (!query) {
         render(entries, "");
         return;
       }
       const terms = query.split(/\s+/).filter(Boolean);
       const filtered = entries.filter((item) => {
-        const haystack = [item.title, item.summary, item.content, item.version, ...(item.tags || [])].join(" ").toLowerCase();
+        const haystack = normalizeText([item.title, item.summary, item.content, item.version, ...(item.tags || [])].join(" "));
         return terms.every((term) => haystack.includes(term));
       });
       render(filtered, query);
