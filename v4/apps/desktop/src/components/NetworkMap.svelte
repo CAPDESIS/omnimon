@@ -717,10 +717,6 @@
 
         <div class="tab-grid" style={`grid-template-columns:${proMode ? `minmax(200px,1fr) 6px minmax(260px, ${sidePanelWidth}px)` : "minmax(0,1fr)"}`}>
           <div class="tab-main">
-            {#if totalConnections === 0 && activeTab !== "traffic"}
-              <div class="empty-state">{t("network.waiting")}</div>
-            {/if}
-
             <!-- Map Tab -->
             {#if activeTab === "map"}
               <div class="tab-content map-content" id="network-panel-map" role="tabpanel" aria-labelledby="network-tab-map">
