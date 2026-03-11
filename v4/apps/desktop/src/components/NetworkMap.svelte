@@ -539,7 +539,7 @@
 
   function onSideResizeMove(event: MouseEvent) {
     if (!sideDragMode) return;
-    sidePanelWidth = Math.max(260, Math.min(dragStartWidth - (event.clientX - dragStartX), 520));
+    sidePanelWidth = Math.max(260, Math.min(dragStartWidth - (event.clientX - dragStartX), 900));
   }
 
   function stopSideResize() {
@@ -552,7 +552,7 @@
     const step = event.shiftKey ? 32 : 16;
     if (event.key === "ArrowLeft") {
       event.preventDefault();
-      sidePanelWidth = Math.min(sidePanelWidth + step, 520);
+      sidePanelWidth = Math.min(sidePanelWidth + step, 900);
     } else if (event.key === "ArrowRight") {
       event.preventDefault();
       sidePanelWidth = Math.max(sidePanelWidth - step, 260);
@@ -715,7 +715,7 @@
           <div class="basic-banner">{t("network.basicSummary")}</div>
         {/if}
 
-        <div class="tab-grid" style={`grid-template-columns:${proMode ? `minmax(0,1fr) 6px minmax(260px, ${sidePanelWidth}px)` : "minmax(0,1fr)"}`}>
+        <div class="tab-grid" style={`grid-template-columns:${proMode ? `minmax(200px,1fr) 6px minmax(260px, ${sidePanelWidth}px)` : "minmax(0,1fr)"}`}>
           <div class="tab-main">
             {#if totalConnections === 0 && activeTab !== "traffic"}
               <div class="empty-state">{t("network.waiting")}</div>
@@ -843,27 +843,37 @@
 
           {#if proMode}
             <div class="tab-side">
-              <div class="capture-chip">{t("network.captureBackend", { backend: $networkTelemetryStatus.captureBackend })}</div>
-              <div class="capture-chip">RX {$networkTelemetryStatus.totalRxBytesPerSec > 0 ? formatRate($networkTelemetryStatus.totalRxBytesPerSec) : "0 B/s"}</div>
-              <div class="capture-chip">TX {$networkTelemetryStatus.totalTxBytesPerSec > 0 ? formatRate($networkTelemetryStatus.totalTxBytesPerSec) : "0 B/s"}</div>
-
-              <div class="network-alerts">
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--fg-dim);">
-                  <input type="checkbox" bind:checked={networkAlertsEnabled} />
-                  {t("network.enableAlerts")}
-                </label>
-                {#if networkAlertsEnabled && heavyDownloaders.length > 0}
-                  <div class="network-warning" style="margin-top: 6px;">
-                    <AlertTriangle size={14} style="display:inline; vertical-align:text-bottom; margin-right:4px;" /> {t("network.heavyDownloaders", { count: heavyDownloaders.length, name: heavyDownloaders[0].name })}
-                  </div>
-                {/if}
+              <div class="side-chips">
+                <div class="capture-chip">{t("network.captureBackend", { backend: $networkTelemetryStatus.captureBackend })}</div>
+                <div class="capture-chip">RX {$networkTelemetryStatus.totalRxBytesPerSec > 0 ? formatRate($networkTelemetryStatus.totalRxBytesPerSec) : "0 B/s"}</div>
+                <div class="capture-chip">TX {$networkTelemetryStatus.totalTxBytesPerSec > 0 ? formatRate($networkTelemetryStatus.totalTxBytesPerSec) : "0 B/s"}</div>
               </div>
 
-              <div class="network-help">{t("network.mapDeepInfo")}</div>
-              {#if $networkTelemetryStatus.usingFallback}
-                <div class="network-warning">{t("network.fallbackNotice")}</div>
-              {/if}
-              <NetworkAlertConfig />
+              <div class="side-responsive-content">
+                <div class="side-info-block">
+                  <div class="network-alerts">
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--fg-dim);">
+                      <input type="checkbox" bind:checked={networkAlertsEnabled} />
+                      {t("network.enableAlerts")}
+                    </label>
+                    {#if networkAlertsEnabled && heavyDownloaders.length > 0}
+                      <div class="network-warning" style="margin-top: 6px;">
+                        <AlertTriangle size={14} style="display:inline; vertical-align:text-bottom; margin-right:4px;" /> {t("network.heavyDownloaders", { count: heavyDownloaders.length, name: heavyDownloaders[0].name })}
+                      </div>
+                    {/if}
+                  </div>
+
+                  <div class="network-help">{t("network.mapDeepInfo")}</div>
+                  {#if $networkTelemetryStatus.usingFallback}
+                    <div class="network-warning">{t("network.fallbackNotice")}</div>
+                  {/if}
+                </div>
+
+                <div class="side-alerts-block">
+                  <NetworkAlertConfig />
+                </div>
+              </div>
+
               <ContextAiChat
                 bind:this={aiChatRef}
                 title={t("network.aiTitle")}
@@ -975,12 +985,42 @@
     gap: 8px;
     background: var(--bg-alt);
     animation: side-enter 180ms ease-out;
+    container-type: inline-size;
+  }
+
+  .side-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
   }
 
   .capture-chip {
     font-size: calc(var(--base-font-size, 12px) * 0.75);
     color: var(--fg-dim);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  }
+
+  .side-responsive-content {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  /* When sidebar is wide enough (>460px via container query), show 2 columns */
+  @container (min-width: 460px) {
+    .side-responsive-content {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .side-info-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .side-alerts-block {
+    min-width: 0;
   }
 
   .network-warning,

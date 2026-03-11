@@ -350,7 +350,7 @@
   .section-header { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
   .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); font-weight: 700; }
   h3 { margin: 4px 0 0; font-size: 16px; }
-  .rule-list { display: grid; gap: 10px; }
+  .rule-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
   .rule-card { padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: color-mix(in srgb, var(--bg-surface, var(--bg-alt)) 94%, white 3%); display: flex; flex-direction: column; gap: 8px; }
   .rule-topline { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
   .toggle-row { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
