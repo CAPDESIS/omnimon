@@ -65,8 +65,6 @@
     box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,0.3));
     font-size: calc(var(--base-font-size, 12px) * 0.917);
     color: var(--fg);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
   }
 
   .toast-info { border-left: 3px solid var(--accent); }

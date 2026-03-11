@@ -317,7 +317,7 @@
   }
 
   .browser-section {
-    border-bottom: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.1));
+    border-bottom: 1px solid var(--border-subtle, #2a2a3a);
   }
   .browser-section:last-child {
     border-bottom: none;
@@ -417,7 +417,7 @@
     letter-spacing: 0.3px;
   }
   .btn-close-all:hover {
-    background: rgba(211, 47, 47, 0.1);
+    background: color-mix(in srgb, var(--danger) 10%, var(--bg));
   }
 
   .tab-list {
@@ -436,7 +436,7 @@
     letter-spacing: 0.3px;
     color: var(--fg-dim);
     background: var(--bg-alt);
-    border-bottom: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.1));
+    border-bottom: 1px solid var(--border-subtle, #2a2a3a);
   }
 
   .sticky-header {
@@ -469,7 +469,7 @@
     padding: 0 8px 0 12px;
     min-height: calc(var(--base-font-size) * 1.833);
     font-size: calc(var(--base-font-size) * 0.917);
-    border-bottom: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.1));
+    border-bottom: 1px solid var(--border-subtle, #2a2a3a);
     cursor: pointer;
   }
   .tab-row:hover {
@@ -479,7 +479,7 @@
     background: var(--bg-selected);
   }
   .tab-row.closing {
-    opacity: 0.4;
+    color: var(--fg-muted);
     pointer-events: none;
   }
 
@@ -548,7 +548,7 @@
     flex-shrink: 0;
   }
   .btn-kill:hover {
-    background: rgba(211, 47, 47, 0.15);
+    background: color-mix(in srgb, var(--danger) 15%, var(--bg));
     color: var(--danger);
     border-color: var(--danger);
   }

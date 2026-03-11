@@ -48,7 +48,7 @@
     context.clearRect(0, 0, w, h);
 
     // Grid lines
-    const gridColor = getColor("--chart-grid") || "rgba(255,255,255,0.04)";
+    const gridColor = getColor("--chart-grid") || "#141418";
     context.strokeStyle = gridColor;
     context.lineWidth = 1;
     for (let i = 1; i <= 3; i++) {

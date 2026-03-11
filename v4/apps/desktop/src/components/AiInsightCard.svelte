@@ -245,7 +245,7 @@
     align-items: center;
     gap: 6px;
     padding: 6px 10px;
-    border-bottom: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
+    border-bottom: 1px solid var(--border-subtle, #2a2a3a);
   }
 
   .insight-icon {
@@ -275,7 +275,7 @@
   }
 
   .insight-card {
-    border-bottom: 1px solid var(--border-subtle, rgba(128,128,128,0.08));
+    border-bottom: 1px solid var(--border-subtle, #2a2a3a);
     will-change: transform, opacity;
   }
 

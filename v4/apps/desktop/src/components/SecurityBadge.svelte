@@ -84,12 +84,12 @@
   }
 
   .sec-badge.threat {
-    background: rgba(239, 68, 68, 0.15);
+    background: color-mix(in srgb, var(--danger) 15%, var(--bg));
     color: var(--danger);
   }
 
   .sec-icon {
     flex-shrink: 0;
-    opacity: 0.9;
+    color: var(--danger);
   }
 </style>

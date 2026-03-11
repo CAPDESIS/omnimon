@@ -110,7 +110,6 @@
 
   .close-all-btn {
     font-size: 12px;
-    backdrop-filter: blur(1px);
   }
 
   .alert-header {
@@ -182,7 +181,7 @@
     justify-content: flex-end;
     gap: 8px;
     padding: 10px 12px;
-    border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.05));
+    border-top: 1px solid var(--border-subtle, #2a2a3a);
     background: var(--bg-alt);
   }
 

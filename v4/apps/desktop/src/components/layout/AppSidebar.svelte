@@ -58,7 +58,7 @@
   .sidebar-section {
     display: flex;
     flex-direction: column;
-    border-bottom: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
+    border-bottom: 1px solid var(--border-subtle, #2a2a3a);
     padding-bottom: 8px;
   }
 
@@ -80,7 +80,7 @@
   }
 
   .section-header:hover {
-    background: var(--bg-hover, rgba(255,255,255,0.05));
+    background: var(--bg-hover, #1a1a1e);
   }
 
   .section-chevron {

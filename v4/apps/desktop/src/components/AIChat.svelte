@@ -788,14 +788,14 @@
     margin: 2px 0;
   }
   .chat-text :global(code) {
-    background: rgba(0, 0, 0, 0.15);
+    background: var(--bg-secondary);
     padding: 1px 5px;
     border-radius: 3px;
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     font-size: 0.9em;
   }
   .chat-text :global(pre) {
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--bg-primary);
     border-radius: 4px;
     padding: 8px 10px;
     margin: 6px 0;
@@ -843,15 +843,15 @@
     letter-spacing: 0.3px;
     vertical-align: middle;
   }
-  .tool-badge.success { background: rgba(34, 197, 94, 0.15); color: var(--success); }
-  .tool-badge.fail { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+  .tool-badge.success { background: color-mix(in srgb, var(--success) 15%, var(--bg)); color: var(--success); }
+  .tool-badge.fail { background: color-mix(in srgb, var(--danger) 15%, var(--bg)); color: var(--danger); }
 
   .action-preview {
     margin: 8px 0;
     padding: 10px 12px;
     border: 1px solid var(--warning, #eab308);
     border-radius: var(--radius, 6px);
-    background: rgba(234, 179, 8, 0.08);
+    background: color-mix(in srgb, var(--warning) 8%, var(--bg));
   }
 
   .action-header {
@@ -874,7 +874,7 @@
     white-space: pre-wrap;
     line-height: 1.5;
     padding: 6px 8px;
-    background: rgba(0, 0, 0, 0.1);
+    background: var(--bg-primary);
     border-radius: 4px;
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
   }
@@ -962,7 +962,7 @@
   .preset-category.active {
     border-color: var(--accent);
     color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    background: color-mix(in srgb, var(--accent) 14%, var(--bg));
   }
 
   .preset-chip {
@@ -976,7 +976,7 @@
   .preset-chip:hover,
   .preset-chip:focus-visible {
     border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    background: color-mix(in srgb, var(--accent) 10%, var(--bg));
   }
 
   .preset-icon {
@@ -1029,8 +1029,8 @@
     background: var(--bg-primary);
   }
 
-  .chat-input::placeholder { color: var(--text-secondary); opacity: 0.6; }
-  .chat-input:disabled { opacity: 0.5; }
+  .chat-input::placeholder { color: var(--fg-muted); }
+  .chat-input:disabled { color: var(--fg-muted); }
 
   .send-btn {
     text-transform: uppercase;
@@ -1060,7 +1060,7 @@
   .pro-metadata {
     margin-top: 8px;
     font-size: calc(var(--base-font-size, 12px) * 0.85);
-    background: rgba(0, 0, 0, 0.05);
+    background: var(--bg-alt);
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 4px 8px;

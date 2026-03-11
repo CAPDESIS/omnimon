@@ -183,9 +183,7 @@
     flex-direction: column;
     gap: 10px;
     padding: 10px 12px 12px;
-    background:
-      linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 42%),
-      var(--bg-alt);
+    background: var(--bg-alt);
     border-bottom: 1px solid var(--border);
   }
 
@@ -226,7 +224,7 @@
 
   .search:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, var(--bg));
     transform: translateY(-1px);
   }
 

@@ -551,7 +551,7 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    border-bottom: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
+    border-bottom: 1px solid var(--border-subtle, #2a2a3a);
   }
 
   .chat-msg {
@@ -592,14 +592,14 @@
   .chat-text :global(ul) { margin: 4px 0; padding-left: 18px; list-style: disc; }
   .chat-text :global(li) { margin: 2px 0; }
   .chat-text :global(code) {
-    background: rgba(0, 0, 0, 0.15);
+    background: var(--bg-secondary);
     padding: 1px 5px;
     border-radius: 3px;
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     font-size: 0.9em;
   }
   .chat-text :global(pre) {
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--bg-primary);
     border-radius: 4px;
     padding: 8px 10px;
     margin: 6px 0;
@@ -667,7 +667,7 @@
 
   .diff-table td {
     padding: 3px 8px 3px 0;
-    border-bottom: 1px solid var(--border-subtle, rgba(128,128,128,0.08));
+    border-bottom: 1px solid var(--border-subtle, #2a2a3a);
   }
 
   .diff-key {
@@ -676,9 +676,8 @@
   }
 
   .diff-old {
-    color: var(--fg-dim);
+    color: var(--fg-muted);
     text-decoration: line-through;
-    opacity: 0.7;
   }
 
   .diff-new {
@@ -716,7 +715,7 @@
     display: inline-block;
     padding: 0 4px;
     border-radius: 2px;
-    background: var(--accent-dim, rgba(59,130,246,0.15));
+    background: var(--accent-dim, #0d2847);
     color: var(--accent);
     font-size: calc(var(--base-font-size, 12px) * 0.667);
     text-transform: uppercase;
@@ -794,8 +793,8 @@
     resize: none;
     overflow-y: auto;
   }
-  .command-input::placeholder { color: var(--fg-dim); opacity: 0.6; }
-  .command-input:disabled { opacity: 0.5; }
+  .command-input::placeholder { color: var(--fg-muted); }
+  .command-input:disabled { color: var(--fg-muted); }
 
   .clear-btn {
     width: 28px;

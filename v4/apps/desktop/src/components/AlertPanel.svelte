@@ -304,7 +304,7 @@
     padding: 3px 6px;
     font-weight: 700;
   }
-  .network-alert-severity-info { background: rgba(59,130,246,0.14); color: var(--accent); }
-  .network-alert-severity-warning { background: rgba(245,158,11,0.14); color: var(--yellow); }
-  .network-alert-severity-critical { background: rgba(239,68,68,0.6); color: var(--danger); }
+  .network-alert-severity-info { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--accent); }
+  .network-alert-severity-warning { background: color-mix(in srgb, var(--yellow) 14%, var(--bg)); color: var(--yellow); }
+  .network-alert-severity-critical { background: color-mix(in srgb, var(--danger) 60%, var(--bg)); color: #fff; }
 </style>

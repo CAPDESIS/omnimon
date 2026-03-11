@@ -207,7 +207,7 @@
 
   .context-chat-messages {
     overflow-y: auto;
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+    border: 1px solid var(--border-subtle, #2a2a3a);
     border-radius: 4px;
     background: var(--bg-alt);
     padding: 8px;
@@ -246,7 +246,7 @@
   .context-chat-text :global(strong) { color: var(--fg); }
   .context-chat-text :global(ul) { margin: 4px 0; padding-left: 18px; }
   .context-chat-text :global(code) {
-    background: rgba(0, 0, 0, 0.18);
+    background: var(--bg-secondary);
     padding: 1px 4px;
     border-radius: 3px;
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
@@ -256,7 +256,7 @@
     padding: 8px;
     border-radius: 4px;
     overflow-x: auto;
-    background: rgba(0, 0, 0, 0.22);
+    background: var(--bg-primary);
   }
 
   .typing {
@@ -306,7 +306,7 @@
   }
 
   .context-chat-send:disabled {
-    opacity: 0.45;
+    color: var(--fg-muted);
     cursor: default;
   }
 

@@ -388,7 +388,7 @@
 
   .quick-scan-btn:disabled {
     cursor: progress;
-    opacity: 0.88;
+    filter: brightness(0.88);
   }
 
   .quick-scan-meta {
@@ -420,7 +420,7 @@
   }
 
   .scan-stat-skeleton {
-    border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+    border: 1px solid var(--border);
     border-radius: 10px;
     background: color-mix(in srgb, var(--bg-alt) 88%, white 2%);
   }
@@ -442,7 +442,7 @@
   .skeleton-block,
   .skeleton-line {
     display: block;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent), color-mix(in srgb, var(--border) 75%, transparent);
+    background: var(--border);
     background-size: 220px 100%, 100% 100%;
     animation: shimmer 1.2s linear infinite;
   }
@@ -465,7 +465,7 @@
     flex-direction: column;
     gap: 12px;
     padding: 16px;
-    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, transparent), var(--bg));
+    background: color-mix(in srgb, var(--accent) 8%, var(--bg));
     border: 1px solid var(--border);
     border-radius: var(--radius-md, 8px);
   }
@@ -570,7 +570,7 @@
   .report-close:focus-visible,
   .quick-scan-btn:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, var(--bg));
   }
 
   .finding-severity {
@@ -602,8 +602,8 @@
     border-radius: 2px;
     font-weight: 600;
   }
-  .finding-tag.mitre { background: rgba(239, 68, 68, 0.12); color: var(--danger); }
-  .finding-tag.cve { background: rgba(234, 179, 8, 0.12); color: var(--yellow); }
+  .finding-tag.mitre { background: color-mix(in srgb, var(--danger) 12%, var(--bg)); color: var(--danger); }
+  .finding-tag.cve { background: color-mix(in srgb, var(--yellow) 12%, var(--bg)); color: var(--yellow); }
 
   .finding-process {
     flex-shrink: 0;
@@ -626,7 +626,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    border-top: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
+    border-top: 1px solid var(--border-subtle, #2a2a3a);
   }
 
   .detail-section {

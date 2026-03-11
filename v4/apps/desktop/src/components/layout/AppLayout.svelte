@@ -58,7 +58,7 @@
   .layout-sidebar {
     width: 320px;
     flex-shrink: 0;
-    border-right: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
+    border-right: 1px solid var(--border-subtle, #2a2a3a);
     overflow-y: auto;
     background: var(--bg-secondary, #121214);
     display: flex;

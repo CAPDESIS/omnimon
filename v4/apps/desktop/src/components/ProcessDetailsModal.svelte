@@ -395,11 +395,10 @@
   }
 
   .pid {
-    color: var(--fg-dim);
+    color: var(--fg-muted);
     font-size: calc(var(--base-font-size) * 0.833);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     flex-shrink: 0;
-    opacity: 0.7;
   }
 
   .close-btn {
@@ -477,7 +476,6 @@
     height: 1px;
     background: var(--border-subtle, var(--border));
     margin: 8px 14px;
-    opacity: 0.6;
   }
 
   /* ── Tab section ── */
@@ -552,7 +550,7 @@
     background: var(--bg-selected);
   }
   .tab-item.closing {
-    opacity: 0.7;
+    color: var(--fg-muted);
     pointer-events: none;
   }
 
@@ -590,7 +588,7 @@
     color: var(--fg-dim);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
     font-size: calc(var(--base-font-size) * 0.7);
-    opacity: 0.65;
+    color: var(--fg-muted);
   }
 
   /* Tab close — ghost by default, danger on hover */
@@ -599,12 +597,12 @@
     min-width: 22px !important;
     height: 22px !important;
     flex-shrink: 0;
-    opacity: 0.4;
+    color: var(--fg-muted);
     transition: opacity 0.15s ease;
     font-size: calc(var(--base-font-size) * 0.75) !important;
   }
   .tab-item:hover :global(.btn-tab-kill) {
-    opacity: 1;
+    color: var(--fg);
   }
 
   .tab-empty {
@@ -666,9 +664,8 @@
   .ai-hint {
     padding: 4px 14px;
     font-size: calc(var(--base-font-size) * 0.75);
-    color: var(--fg-dim);
+    color: var(--fg-muted);
     font-style: italic;
-    opacity: 0.7;
   }
 
   /* ── Footer ── */
@@ -689,7 +686,6 @@
 
   .hint {
     font-size: calc(var(--base-font-size) * 0.7);
-    color: var(--fg-dim);
-    opacity: 0.6;
+    color: var(--fg-muted);
   }
 </style>

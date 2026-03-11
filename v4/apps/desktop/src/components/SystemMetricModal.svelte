@@ -293,7 +293,7 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px 12px;
-    background: rgba(255,255,255,0.02);
+    background: var(--bg-alt);
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -320,7 +320,7 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 8px 12px;
-    background: rgba(255,255,255,0.02);
+    background: var(--bg-alt);
     height: 48px;
   }
 
@@ -398,7 +398,7 @@
 
   .process-table td {
     padding: 6px 10px;
-    border-bottom: 1px solid rgba(128,128,128,0.08);
+    border-bottom: 1px solid var(--border-subtle, #2a2a3a);
   }
 
   .process-table tbody tr:hover {

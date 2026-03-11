@@ -51,7 +51,7 @@
   .empty-icon {
     font-size: 3rem;
     margin-bottom: 1rem;
-    opacity: 0.6;
+    color: var(--fg-muted);
     display: flex;
     align-items: center;
     justify-content: center;

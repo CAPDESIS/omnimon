@@ -59,7 +59,7 @@
 
   :global(.info-trigger:hover),
   :global(.info-trigger:focus-visible) {
-    background: rgba(59, 130, 246, 0.08);
+    background: color-mix(in srgb, var(--accent) 8%, var(--bg));
   }
 
   .info-trigger-glyph {

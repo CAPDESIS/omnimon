@@ -77,7 +77,7 @@
     display: flex;
     flex-direction: row;
     background: var(--bg-secondary, #121214);
-    border-bottom: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
+    border-bottom: 1px solid var(--border-subtle, #2a2a3a);
     padding: 0 8px;
     gap: 2px;
     flex-shrink: 0;
@@ -99,7 +99,7 @@
   
   .tab:hover {
     color: var(--text-primary, #ededef);
-    background: var(--bg-hover, rgba(255,255,255,0.05));
+    background: var(--bg-hover, #1a1a1e);
   }
   
   .tab.active {

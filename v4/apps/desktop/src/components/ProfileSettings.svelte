@@ -182,7 +182,7 @@
 
   .preset-card.active {
     border-color: var(--primary-color, #007bff);
-    background: var(--primary-color-alpha, rgba(0, 123, 255, 0.1));
+    background: color-mix(in srgb, var(--accent, #007bff) 10%, var(--bg));
   }
 
   .favorite-input {

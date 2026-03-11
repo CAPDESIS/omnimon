@@ -402,7 +402,7 @@ end`;
   }
 
   .status-pill.disabled {
-    opacity: 0.7;
+    color: var(--fg-muted);
   }
 
   .metrics-section {

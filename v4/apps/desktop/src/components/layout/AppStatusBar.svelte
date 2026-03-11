@@ -42,7 +42,7 @@
     align-items: center;
     padding: 2px 10px;
     background: var(--bg-secondary, #121214);
-    border-top: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
+    border-top: 1px solid var(--border-subtle, #2a2a3a);
     font-size: calc(var(--base-font-size) * 0.833);
     color: var(--text-secondary, #888);
     height: calc(var(--base-font-size) * 1.5);
@@ -55,8 +55,8 @@
   }
 
   .shortcuts kbd {
-    background: var(--bg-hover, rgba(255,255,255,0.05));
-    border: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
+    background: var(--bg-hover, #1a1a1e);
+    border: 1px solid var(--border-subtle, #2a2a3a);
     border-radius: 3px;
     padding: 0 3px;
     font-family: inherit;

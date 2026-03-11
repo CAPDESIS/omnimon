@@ -48,8 +48,8 @@
 <style>
   .ui-icon-button {
     --icon-button-bg: transparent;
-    --icon-button-bg-hover: color-mix(in srgb, var(--bg-hover) 75%, transparent);
-    --icon-button-border: color-mix(in srgb, var(--border) 70%, transparent);
+    --icon-button-bg-hover: var(--bg-hover);
+    --icon-button-border: var(--border);
     --icon-button-color: var(--fg-dim);
     appearance: none;
     display: inline-flex;
@@ -80,7 +80,7 @@
   }
 
   .ui-icon-button:disabled {
-    opacity: 0.45;
+    color: var(--fg-muted);
     cursor: default;
     pointer-events: none;
   }
@@ -96,8 +96,8 @@
   }
 
   .ui-icon-button--danger {
-    --icon-button-bg: color-mix(in srgb, var(--danger) 18%, transparent);
-    --icon-button-bg-hover: color-mix(in srgb, var(--danger) 26%, transparent);
+    --icon-button-bg: color-mix(in srgb, var(--danger) 18%, var(--bg));
+    --icon-button-bg-hover: color-mix(in srgb, var(--danger) 26%, var(--bg));
     --icon-button-border: color-mix(in srgb, var(--danger) 48%, var(--border));
     --icon-button-color: var(--danger);
   }

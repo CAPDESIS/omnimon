@@ -109,9 +109,7 @@
     padding: 14px;
     border: 1px solid var(--border);
     border-radius: 14px;
-    background:
-      radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 16%, transparent), transparent 42%),
-      var(--bg-surface, var(--bg-alt));
+    background: var(--bg-surface, var(--bg-alt));
   }
 
   .profile-header {
@@ -147,7 +145,7 @@
     padding: 12px;
     border: 1px solid var(--border);
     border-radius: 12px;
-    background: rgba(255,255,255,0.02);
+    background: var(--bg-alt);
     color: var(--fg);
     cursor: pointer;
     text-align: left;
@@ -163,7 +161,7 @@
 
   .profile-card.selected {
     border-color: var(--card-accent);
-    background: color-mix(in srgb, var(--card-accent) 14%, transparent);
+    background: color-mix(in srgb, var(--card-accent) 14%, var(--bg));
   }
 
   .profile-icon {
@@ -189,7 +187,7 @@
     justify-content: space-between;
     gap: 10px;
     padding: 12px;
-    border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+    border: 1px solid var(--border);
     border-radius: 12px;
     background: color-mix(in srgb, var(--bg) 90%, white 3%);
   }
@@ -227,9 +225,7 @@
     padding: 12px;
     border-radius: 12px;
     border: 1px solid var(--border);
-    background:
-      linear-gradient(160deg, color-mix(in srgb, var(--mode-accent) 10%, transparent), transparent 45%),
-      color-mix(in srgb, var(--bg-alt) 92%, white 2%);
+    background: var(--bg-alt);
     text-align: left;
     color: var(--fg);
     cursor: pointer;
@@ -245,7 +241,7 @@
 
   .mode-card.selected {
     border-color: var(--mode-accent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mode-accent) 45%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mode-accent);
   }
 
   .mode-name {

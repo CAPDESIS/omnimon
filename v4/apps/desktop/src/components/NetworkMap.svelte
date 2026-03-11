@@ -885,7 +885,7 @@
     padding: 10px 12px;
     border: 1px solid var(--border);
     border-radius: 14px;
-    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-surface, var(--bg-alt)) 92%, white 3%), transparent 140%);
+    background: var(--bg-surface, var(--bg-alt));
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -907,7 +907,7 @@
   .basic-banner {
     margin: 10px;
     padding: 10px 12px;
-    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border: 1px solid var(--border);
     border-radius: 12px;
     background: color-mix(in srgb, var(--bg) 92%, white 3%);
     color: var(--fg-dim);
@@ -933,7 +933,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    background: rgba(0, 0, 0, 0.06);
+    background: var(--bg-alt);
     animation: side-enter 180ms ease-out;
   }
 
@@ -950,7 +950,7 @@
     border-radius: 6px;
     font-size: calc(var(--base-font-size, 12px) * 0.75);
     color: var(--yellow);
-    background: rgba(245, 158, 11, 0.08);
+    background: color-mix(in srgb, var(--yellow) 8%, var(--bg));
   }
 
   .side-resize-divider {
@@ -1056,7 +1056,7 @@
   }
 
   .netmap-proc:hover {
-    background: color-mix(in srgb, var(--bg-hover) 92%, transparent);
+    background: var(--bg-hover);
     transform: translateX(2px);
   }
 
@@ -1090,7 +1090,7 @@
     border-radius: 3px;
     font-size: calc(var(--base-font-size, 12px) * 0.667);
     font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    background: var(--accent-dim, rgba(59,130,246,0.12));
+    background: var(--accent-dim, #0d2847);
     color: var(--accent);
     max-width: 120px;
     overflow: hidden;
@@ -1159,7 +1159,7 @@
 
   .conn-table td {
     padding: 3px 8px;
-    border-bottom: 1px solid var(--border-subtle, rgba(128,128,128,0.1));
+    border-bottom: 1px solid var(--border-subtle, #2a2a3a);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1208,7 +1208,7 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
-    background: rgba(255,255,255,0.02);
+    background: var(--bg-alt);
   }
 
   .traffic-stat span {
@@ -1298,7 +1298,7 @@
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
 .clickable-chip:hover {
-  opacity: 0.8;
+  filter: brightness(0.85);
   transform: translateY(-1px);
 }
 .connection-detail-overlay {

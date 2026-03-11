@@ -106,7 +106,7 @@
 
   .ui-button:disabled,
   .ui-button[aria-disabled="true"] {
-    opacity: 0.48;
+    filter: grayscale(0.4) brightness(0.7);
     cursor: default;
     pointer-events: none;
     box-shadow: none;
@@ -123,7 +123,7 @@
     --button-bg-hover: linear-gradient(180deg, color-mix(in srgb, var(--accent-hover, var(--accent)) 90%, white 8%), var(--accent-hover, var(--accent)));
     --button-border: color-mix(in srgb, var(--accent) 78%, black 12%);
     --button-color: white;
-    --button-shadow: 0 14px 26px color-mix(in srgb, var(--accent) 28%, transparent);
+    --button-shadow: 0 14px 26px color-mix(in srgb, var(--accent) 28%, var(--bg));
   }
 
   .ui-button--secondary {
@@ -136,13 +136,13 @@
     --button-bg-hover: linear-gradient(180deg, color-mix(in srgb, var(--danger-hover, var(--danger)) 90%, white 8%), var(--danger-hover, var(--danger)));
     --button-border: color-mix(in srgb, var(--danger) 82%, black 10%);
     --button-color: white;
-    --button-shadow: 0 14px 26px color-mix(in srgb, var(--danger) 22%, transparent);
+    --button-shadow: 0 14px 26px color-mix(in srgb, var(--danger) 22%, var(--bg));
   }
 
   .ui-button--ghost {
     --button-bg: transparent;
-    --button-bg-hover: color-mix(in srgb, var(--bg-hover) 70%, transparent);
-    --button-border: color-mix(in srgb, var(--border) 65%, transparent);
+    --button-bg-hover: var(--bg-hover);
+    --button-border: var(--border);
     --button-color: var(--fg-dim);
     box-shadow: none;
   }
