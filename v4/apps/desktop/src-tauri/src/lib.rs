@@ -203,7 +203,7 @@ fn refresh_tab_cache_if_stale() -> Arc<Vec<BrowserTab>> {
         for browser in BrowserKind::all() {
             match provider.list_tabs(*browser) {
                 Ok(t) => tabs.extend(t),
-                Err(e) => eprintln!(
+                Err(e) => tracing::error!(
                     "[tab-cache] {} tab listing failed: {}",
                     browser.display_name(),
                     e
@@ -216,7 +216,7 @@ fn refresh_tab_cache_if_stale() -> Arc<Vec<BrowserTab>> {
     let tabs = match result {
         Ok(t) => t,
         Err(_) => {
-            eprintln!("[tab-cache] panic during tab refresh — returning stale cache");
+            tracing::error!("[tab-cache] panic during tab refresh — returning stale cache");
             TAB_REFRESH_IN_PROGRESS.store(false, Ordering::SeqCst);
             let cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
             return Arc::clone(&cache.0);
@@ -812,6 +812,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             // --- macOS Application Menu Bar ---
             let about_metadata = AboutMetadata {
@@ -883,7 +884,12 @@ pub fn run() {
                                 continue;
                             }
                             dedupe.insert(key, now);
+                            // Emit to frontend for UI handling
                             let _ = app_for_alerts.emit("security-alert", alert);
+
+                            // TODO: Add notification actions when user clicks
+                            // tauri-plugin-notification supports actions on Windows/macOS
+                            // but requires frontend to handle the response via event listeners
                         }
 
                         for alert in state.network_alerts {
@@ -891,7 +897,12 @@ pub fn run() {
                                 continue;
                             }
                             dedupe.insert(alert.id.clone(), now);
+                            // Emit to frontend for UI handling
                             let _ = app_for_alerts.emit("network-alert", alert);
+
+                            // TODO: Add notification actions when user clicks
+                            // Example: Show "Terminate Process" and "Ignore" buttons
+                            // The frontend should register event listeners for these actions
                         }
                     }
                 });
@@ -923,7 +934,7 @@ pub fn run() {
 
             let menu = Menu::with_items(app, &[&show, &settings, &sep, &quit])?;
 
-            let _tray = TrayIconBuilder::new()
+            let tray_icon = TrayIconBuilder::new()
                 .menu(&menu)
                 .tooltip("OmniMon - System Monitor")
                 .on_menu_event(|app, event| match event.id.as_ref() {
@@ -949,6 +960,21 @@ pub fn run() {
                     _ => {}
                 })
                 .build(app)?;
+
+            // Update tray tooltip every 5 seconds with CPU/RAM stats
+            let tray_for_tooltip = tray_icon.clone();
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_secs(5));
+                if let Ok(metrics) = get_metrics(Some(1.0)) {
+                    let tooltip = format!(
+                        "OmniMon - CPU: {:.1}% | RAM: {:.1}GB ({:.0}%)",
+                        metrics.stats.cpu_usage_pct,
+                        metrics.stats.ram_total_gb * (metrics.stats.ram_used_pct as f64 / 100.0),
+                        metrics.stats.ram_used_pct
+                    );
+                    let _ = tray_for_tooltip.set_tooltip(Some(tooltip));
+                }
+            });
 
             // --- Window close behavior: Windows exits, macOS hides to tray ---
             if let Some(window) = app.get_webview_window("main") {
@@ -976,6 +1002,32 @@ pub fn run() {
                         }
                     }
                 });
+            }
+
+            // --- Global Hotkey: Ctrl+Alt+O to toggle window ---
+            // Only enable on Windows and Linux (macOS has system-wide shortcuts via Cmd+Space)
+            #[cfg(not(target_os = "macos"))]
+            {
+                use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
+                let app_handle = app.handle().clone();
+                let shortcut = "CommandOrControl+Alt+O".parse::<Shortcut>();
+
+                match shortcut {
+                    Ok(s) => {
+                        let register_result = app.global_shortcut().on_shortcut(s, move |_app, _shortcut, _event| {
+                            toggle_main_window(&app_handle);
+                        });
+
+                        if let Err(e) = register_result {
+                            tracing::error!("Failed to register global hotkey Ctrl+Alt+O: {}", e);
+                        } else {
+                            tracing::info!("Global hotkey Ctrl+Alt+O registered successfully");
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to parse global hotkey shortcut: {}", e);
+                    }
+                }
             }
 
             Ok(())

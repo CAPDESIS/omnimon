@@ -1104,15 +1104,15 @@ fn get_connections_windows() -> Result<Vec<NetworkConnection>, String> {
     // Try native Windows API first, fall back to netstat
     match get_connections_windows_native() {
         Ok(conns) if !conns.is_empty() => {
-            eprintln!("[network] Windows native API: got {} connections", conns.len());
+            tracing::debug!("[network] Windows native API: got {} connections", conns.len());
             Ok(conns)
         }
         Ok(_) => {
-            eprintln!("[network] Windows native API returned empty, falling back to netstat");
+            tracing::warn!("[network] Windows native API returned empty, falling back to netstat");
             get_connections_windows_netstat()
         }
         Err(e) => {
-            eprintln!("[network] Windows native API failed: {}, falling back to netstat", e);
+            tracing::error!("[network] Windows native API failed: {}, falling back to netstat", e);
             get_connections_windows_netstat()
         }
     }
@@ -1148,11 +1148,11 @@ fn get_connections_windows_native() -> Result<Vec<NetworkConnection>, String> {
 
     if first_result != 0 && first_result != 122 {
         // 122 = ERROR_INSUFFICIENT_BUFFER (expected for size query)
-        eprintln!("[network] GetExtendedTcpTable size query failed with error code: {}", first_result);
+        tracing::error!("[network] GetExtendedTcpTable size query failed with error code: {}", first_result);
     }
 
     if tcp_size > 0 {
-        eprintln!("[network] GetExtendedTcpTable buffer size: {} bytes", tcp_size);
+        tracing::debug!("[network] GetExtendedTcpTable buffer size: {} bytes", tcp_size);
         let mut tcp_buf = vec![0u8; tcp_size as usize];
         let result = unsafe {
             GetExtendedTcpTable(
@@ -1168,7 +1168,7 @@ fn get_connections_windows_native() -> Result<Vec<NetworkConnection>, String> {
         if result == 0 {
             let num_entries = u32::from_le_bytes(tcp_buf[0..4].try_into().unwrap_or([0; 4]));
             let entry_size = std::mem::size_of::<MIB_TCPROW_OWNER_PID>();
-            eprintln!("[network] Found {} TCP connections", num_entries);
+            tracing::debug!("[network] Found {} TCP connections", num_entries);
 
             for i in 0..num_entries as usize {
                 let offset = 4 + i * entry_size;
@@ -1238,7 +1238,7 @@ fn get_connections_windows_native() -> Result<Vec<NetworkConnection>, String> {
     }
 
     if udp_size > 0 {
-        eprintln!("[network] GetExtendedUdpTable buffer size: {} bytes", udp_size);
+        tracing::debug!("[network] GetExtendedUdpTable buffer size: {} bytes", udp_size);
         let mut udp_buf = vec![0u8; udp_size as usize];
         let result = unsafe {
             GetExtendedUdpTable(
@@ -1254,7 +1254,7 @@ fn get_connections_windows_native() -> Result<Vec<NetworkConnection>, String> {
         if result == 0 {
             let num_entries = u32::from_le_bytes(udp_buf[0..4].try_into().unwrap_or([0; 4]));
             let entry_size = std::mem::size_of::<MIB_UDPROW_OWNER_PID>();
-            eprintln!("[network] Found {} UDP connections", num_entries);
+            tracing::debug!("[network] Found {} UDP connections", num_entries);
 
             for i in 0..num_entries as usize {
                 let offset = 4 + i * entry_size;
@@ -1319,7 +1319,7 @@ fn build_pid_name_map_windows_sysinfo() -> HashMap<u32, String> {
 fn get_connections_windows_netstat() -> Result<Vec<NetworkConnection>, String> {
     use std::process::Command;
 
-    eprintln!("[network] Using netstat fallback for connections");
+    tracing::debug!("[network] Using netstat fallback for connections");
 
     let mut cmd = Command::new("netstat");
     cmd.args(["-ano"])
@@ -1335,20 +1335,20 @@ fn get_connections_windows_netstat() -> Result<Vec<NetworkConnection>, String> {
 
     let child = cmd.spawn()
         .map_err(|e| {
-            eprintln!("[network] Failed to spawn netstat: {}", e);
+            tracing::error!("[network] Failed to spawn netstat: {}", e);
             format!("failed to spawn netstat: {e}")
         })?;
 
     let output = wait_with_timeout(child, Duration::from_secs(COMMAND_TIMEOUT_SECS))
         .map_err(|e| {
-            eprintln!("[network] netstat timeout or error: {}", e);
+            tracing::error!("[network] netstat timeout or error: {}", e);
             format!("netstat failed: {e}")
         })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        eprintln!("[network] netstat command failed with exit code: {:?}", output.status.code());
-        eprintln!("[network] netstat stderr: {}", stderr);
+        tracing::error!("[network] netstat command failed with exit code: {:?}", output.status.code());
+        tracing::error!("[network] netstat stderr: {}", stderr);
         return Err(format!("netstat command failed: {}", stderr));
     }
 
@@ -1356,92 +1356,150 @@ fn get_connections_windows_netstat() -> Result<Vec<NetworkConnection>, String> {
     let pid_names = build_pid_name_map_windows_sysinfo();
     let result = parse_netstat_windows(&text, &pid_names);
     match &result {
-        Ok(conns) => eprintln!("[network] netstat parsed {} connections", conns.len()),
-        Err(e) => eprintln!("[network] netstat parsing failed: {}", e),
+        Ok(conns) => tracing::debug!("[network] netstat parsed {} connections", conns.len()),
+        Err(e) => tracing::error!("[network] netstat parsing failed: {}", e),
     }
     result
 }
 
 /// Parse `netstat -ano` output on Windows.
+///
+/// Handles different Windows versions and locales by being flexible with:
+/// - Column alignment (splits on whitespace, not fixed positions)
+/// - Line fragmentation (multi-line continuation for long addresses)
+/// - Missing/optional columns (graceful degradation)
 #[cfg(any(target_os = "windows", test))]
 fn parse_netstat_windows(
     text: &str,
     pid_names: &HashMap<u32, String>,
 ) -> Result<Vec<NetworkConnection>, String> {
     let mut connections = Vec::new();
+    let mut line_buffer = String::new();
+    let mut lines_processed = 0;
+    let mut lines_skipped = 0;
 
-    for line in text.lines() {
-        let cols: Vec<&str> = line.split_whitespace().collect();
-        if cols.len() < 4 {
+    for raw_line in text.lines() {
+        let line = raw_line.trim();
+
+        // Skip empty lines and headers
+        if line.is_empty() || line.starts_with("Active") || line.starts_with("Proto") {
             continue;
         }
 
-        let proto_str = cols[0].to_uppercase();
-        let protocol = match proto_str.as_str() {
-            "TCP" => Protocol::TCP,
-            "UDP" => Protocol::UDP,
-            _ => continue,
-        };
+        // Handle potential line fragmentation: if line doesn't start with a protocol,
+        // it might be a continuation of the previous line (rare but possible)
+        if !line.starts_with("TCP") && !line.starts_with("UDP") && !line_buffer.is_empty() {
+            line_buffer.push(' ');
+            line_buffer.push_str(line);
+            continue;
+        }
 
-        let local = cols[1];
-        let (local_addr, local_port) = match parse_addr_port(local) {
-            Some(v) => v,
-            None => continue,
-        };
-
-        let (remote_addr, remote_port, state, pid_col_idx) = if protocol == Protocol::TCP {
-            if cols.len() < 5 {
-                continue;
+        // If we had a buffered line, process it now
+        if !line_buffer.is_empty() {
+            if let Some(conn) = parse_netstat_line(&line_buffer, pid_names) {
+                connections.push(conn);
+                lines_processed += 1;
+            } else {
+                lines_skipped += 1;
+                tracing::debug!("[netstat] Skipped malformed line: {}", line_buffer);
             }
-            let remote = cols[2];
-            let (ra, rp) = match parse_addr_port(remote) {
-                Some(v) => v,
-                None => continue,
-            };
-            let st = ConnectionState::from_str_loose(cols[3]);
-            (ra, rp, st, 4)
-        } else {
-            // UDP has no state column
-            let remote = cols[2];
-            let (ra, rp) =
-                parse_addr_port(remote).unwrap_or((IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED), 0));
-            (ra, rp, ConnectionState::Unknown, 3)
-        };
+            line_buffer.clear();
+        }
 
-        let pid: u32 = if pid_col_idx < cols.len() {
-            cols[pid_col_idx].parse().unwrap_or(0)
-        } else {
-            0
-        };
-
-        let process_name = pid_names
-            .get(&pid)
-            .cloned()
-            .unwrap_or_else(|| "unknown".to_string());
-
-        let is_encrypted = detect_tls_port(remote_port);
-
-        connections.push(NetworkConnection {
-            pid,
-            process_name,
-            protocol,
-            local_addr,
-            local_port,
-            remote_addr,
-            remote_port,
-            remote_hostname: None,
-            state,
-            bytes_sent: 0,
-            bytes_received: 0,
-            bytes_per_sec_up: 0.0,
-            bytes_per_sec_down: 0.0,
-            established_at: 0,
-            country: None,
-            is_encrypted,
-        });
+        // Start buffering this line
+        line_buffer.push_str(line);
     }
 
+    // Process the last buffered line
+    if !line_buffer.is_empty() {
+        if let Some(conn) = parse_netstat_line(&line_buffer, pid_names) {
+            connections.push(conn);
+            lines_processed += 1;
+        } else {
+            lines_skipped += 1;
+            tracing::debug!("[netstat] Skipped malformed line: {}", line_buffer);
+        }
+    }
+
+    tracing::debug!(
+        "[netstat] Parsed {} connections, skipped {} invalid lines",
+        lines_processed,
+        lines_skipped
+    );
+
     Ok(connections)
+}
+
+/// Parse a single netstat output line into a NetworkConnection.
+/// Returns None if the line is malformed or unparseable.
+#[cfg(any(target_os = "windows", test))]
+fn parse_netstat_line(
+    line: &str,
+    pid_names: &HashMap<u32, String>,
+) -> Option<NetworkConnection> {
+    let cols: Vec<&str> = line.split_whitespace().collect();
+
+    // Minimum required: Proto LocalAddr RemoteAddr [State] PID
+    // TCP needs at least 5 columns, UDP needs at least 4
+    if cols.len() < 4 {
+        return None;
+    }
+
+    let proto_str = cols[0].to_uppercase();
+    let protocol = match proto_str.as_str() {
+        "TCP" => Protocol::TCP,
+        "UDP" => Protocol::UDP,
+        _ => return None,
+    };
+
+    // Parse local address:port
+    let (local_addr, local_port) = parse_addr_port(cols[1])?;
+
+    // Parse remote address:port and state (TCP only)
+    let (remote_addr, remote_port, state, pid_col_idx) = if protocol == Protocol::TCP {
+        if cols.len() < 5 {
+            return None;
+        }
+        let (ra, rp) = parse_addr_port(cols[2])?;
+        let st = ConnectionState::from_str_loose(cols[3]);
+        (ra, rp, st, 4)
+    } else {
+        // UDP: no state column, remote might be "*:*"
+        let (ra, rp) = parse_addr_port(cols[2])
+            .unwrap_or((IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED), 0));
+        (ra, rp, ConnectionState::Unknown, 3)
+    };
+
+    // Parse PID (last column)
+    let pid: u32 = cols.get(pid_col_idx)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+
+    let process_name = pid_names
+        .get(&pid)
+        .cloned()
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let is_encrypted = detect_tls_port(remote_port);
+
+    Some(NetworkConnection {
+        pid,
+        process_name,
+        protocol,
+        local_addr,
+        local_port,
+        remote_addr,
+        remote_port,
+        remote_hostname: None,
+        state,
+        bytes_sent: 0,
+        bytes_received: 0,
+        bytes_per_sec_up: 0.0,
+        bytes_per_sec_down: 0.0,
+        established_at: 0,
+        country: None,
+        is_encrypted,
+    })
 }
 
 // ---------------------------------------------------------------------------
