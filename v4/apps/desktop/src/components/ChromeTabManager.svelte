@@ -353,7 +353,18 @@
               </li>
               <li>Launch Chrome using this shortcut</li>
             </ol>
-            <p><strong>For other browsers:</strong></p>
+            <p><strong>Linux:</strong></p>
+            <ol>
+              <li>Close Chrome completely</li>
+              <li>Launch from terminal:<br/>
+                <code>google-chrome --remote-debugging-port=9222</code>
+              </li>
+            </ol>
+            <p><strong>macOS:</strong></p>
+            <p style="color: var(--fg-dim); font-style: italic;">
+              Tab detection uses AppleScript on macOS and should work automatically without configuration.
+            </p>
+            <p><strong>Other browsers (all platforms):</strong></p>
             <ul>
               <li>Brave: use port 9223</li>
               <li>Edge: use port 9224</li>
