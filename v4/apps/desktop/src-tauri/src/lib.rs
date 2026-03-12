@@ -299,6 +299,26 @@ fn focus_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result
     provider.focus_tab(kind, &tab)
 }
 
+/// IPC: Check if CDP (Chrome DevTools Protocol) is available for supported browsers.
+/// Returns a map of browser names to availability status.
+#[tauri::command]
+fn check_cdp_availability() -> std::collections::HashMap<String, bool> {
+    use macmon_core::browser::{cdp_is_available, BrowserKind};
+
+    let mut status = std::collections::HashMap::new();
+
+    for browser in BrowserKind::all() {
+        if browser.supports_cdp() {
+            let port = browser.cdp_port();
+            let base = format!("http://localhost:{}", port);
+            let available = cdp_is_available(&base);
+            status.insert(browser.display_name().to_string(), available);
+        }
+    }
+
+    status
+}
+
 /// IPC: Kill a single process by PID using the real OS-native killer.
 #[tauri::command]
 #[tracing::instrument(skip_all)]
@@ -964,6 +984,7 @@ pub fn run() {
             get_browser_tabs,
             close_browser_tab,
             focus_browser_tab,
+            check_cdp_availability,
             get_window_visible,
             save_cloud_key,
             get_cloud_key,

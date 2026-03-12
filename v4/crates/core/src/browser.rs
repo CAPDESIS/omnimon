@@ -177,6 +177,30 @@ fn map_cdp_targets_to_tabs(targets: Vec<CdpTabTarget>, browser: BrowserKind) -> 
         .collect()
 }
 
+/// Check if CDP is available on a given port by attempting a simple connection.
+/// Returns true if the endpoint responds, false otherwise.
+pub fn cdp_is_available(base_url: &str) -> bool {
+    let runtime = match build_runtime() {
+        Ok(r) => r,
+        Err(_) => return false,
+    };
+
+    runtime.block_on(async {
+        let client = match reqwest::Client::builder()
+            .timeout(Duration::from_millis(500))
+            .build()
+        {
+            Ok(c) => c,
+            Err(_) => return false,
+        };
+
+        match client.get(format!("{}/json/version", base_url)).send().await {
+            Ok(response) => response.status().is_success(),
+            Err(_) => false,
+        }
+    })
+}
+
 /// Lists open tabs via the Chrome DevTools Protocol, defaulting to [`BrowserKind::Chrome`].
 pub fn cdp_list_tabs(base_url: &str) -> Result<Vec<BrowserTab>, String> {
     cdp_list_tabs_for(base_url, BrowserKind::Chrome)

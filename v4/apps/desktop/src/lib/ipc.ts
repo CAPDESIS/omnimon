@@ -293,6 +293,15 @@ export async function ipcFocusBrowserTab(tabId: string, tabUrl: string, browser:
   return result;
 }
 
+/** Check CDP (Chrome DevTools Protocol) availability for browsers. Returns map of browser name -> availability. */
+export async function ipcCheckCdpAvailability(): Promise<Record<string, boolean>> {
+  const result: unknown = await loggedInvoke("check_cdp_availability");
+  if (result == null || typeof result !== "object") {
+    throw new IPCValidationError("check_cdp_availability", result, "Expected object");
+  }
+  return result as Record<string, boolean>;
+}
+
 /** Sends a free-form context string to the AI backend for analysis. Returns the AI response text. */
 export async function ipcAnalyzeContext(context: string, provider: string, model: string): Promise<string> {
   const normalizedContext = normalizeTextInput(context);

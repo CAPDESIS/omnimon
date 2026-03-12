@@ -1,12 +1,13 @@
 <script lang="ts">
 
   import type { BrowserTab } from "../lib/types";
-  import { ipcCloseBrowserTab, ipcFocusBrowserTab } from "../lib/ipc";
+  import { ipcCloseBrowserTab, ipcFocusBrowserTab, ipcCheckCdpAvailability } from "../lib/ipc";
   import { browserTabs, chromeProcesses } from "../stores/processes";
   import { confirmAction } from "../lib/confirm";
   import { t } from "../lib/i18n";
   import { detectBrowser } from "../lib/browser";
   import { toast } from "../stores/toasts";
+  import { onMount } from "svelte";
 
   interface Props {
     filter?: string;
@@ -17,6 +18,9 @@
   let expandedBrowsers = $state<Set<string>>(new Set(["Chrome", "Safari", "Brave", "Edge", "Arc", "Firefox"]));
   let closing = $state<Set<string>>(new Set());
   let selectedTabIds = $state<Set<string>>(new Set());
+  let cdpStatus = $state<Record<string, boolean>>({});
+  let showCdpHelp = $state(false);
+  let checkingCdp = $state(false);
 
 
   interface BrowserSection {
@@ -77,6 +81,36 @@
   });
 
   let selectedCount = $derived(selectedTabIds.size);
+
+  // Check if we should show CDP help (Windows/Linux with no tabs but browser processes running)
+  let shouldShowCdpHelp = $derived.by(() => {
+    if (checkingCdp) return false;
+    // If we have tabs, everything is working
+    if ($browserTabs.length > 0) return false;
+    // If we have browser processes but no tabs, might need CDP
+    if ($chromeProcesses.length === 0) return false;
+    // Check if any CDP-supported browser is running but not available
+    const cdpBrowsers = ["Chrome", "Brave", "Edge", "Arc"];
+    for (const browser of cdpBrowsers) {
+      const hasProcess = $chromeProcesses.some(p => detectBrowser(p) === browser);
+      const cdpAvailable = cdpStatus[browser] === true;
+      if (hasProcess && !cdpAvailable) {
+        return true;
+      }
+    }
+    return false;
+  });
+
+  onMount(async () => {
+    try {
+      checkingCdp = true;
+      cdpStatus = await ipcCheckCdpAvailability();
+    } catch (e) {
+      console.error("Failed to check CDP availability:", e);
+    } finally {
+      checkingCdp = false;
+    }
+  });
 
   function toggleBrowserExpanded(name: string) {
     const next = new Set(expandedBrowsers);
@@ -298,6 +332,40 @@
     {/if}
   </div>
 {/snippet}
+
+{#if shouldShowCdpHelp}
+  <div class="cdp-help-banner">
+    <div class="cdp-help-content">
+      <span class="cdp-help-icon">ℹ️</span>
+      <div class="cdp-help-text">
+        <strong>Browser tabs not showing?</strong>
+        <p>
+          Chrome and Chromium-based browsers need to be launched with remote debugging enabled to show tabs.
+        </p>
+        <details>
+          <summary>How to enable tab detection</summary>
+          <div class="cdp-help-details">
+            <p><strong>Windows:</strong></p>
+            <ol>
+              <li>Close Chrome completely</li>
+              <li>Create a shortcut with this target:<br/>
+                <code>"C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222</code>
+              </li>
+              <li>Launch Chrome using this shortcut</li>
+            </ol>
+            <p><strong>For other browsers:</strong></p>
+            <ul>
+              <li>Brave: use port 9223</li>
+              <li>Edge: use port 9224</li>
+              <li>Arc: use port 9225</li>
+            </ul>
+          </div>
+        </details>
+      </div>
+      <button class="cdp-help-dismiss" onclick={() => showCdpHelp = false} title="Dismiss">✕</button>
+    </div>
+  </div>
+{/if}
 
 {#if sections.length > 0}
   <div class="chrome-manager">
@@ -551,5 +619,112 @@
     background: color-mix(in srgb, var(--danger) 28%, var(--bg));
     color: var(--danger);
     border-color: var(--danger);
+  }
+
+  /* CDP Help Banner */
+  .cdp-help-banner {
+    padding: 12px;
+    background: color-mix(in srgb, var(--yellow) 15%, var(--bg));
+    border-bottom: 1px solid color-mix(in srgb, var(--yellow) 30%, var(--bg));
+    margin-bottom: 8px;
+  }
+
+  .cdp-help-content {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .cdp-help-icon {
+    font-size: calc(var(--base-font-size) * 1.5);
+    flex-shrink: 0;
+  }
+
+  .cdp-help-text {
+    flex: 1;
+    font-size: calc(var(--base-font-size) * 0.917);
+    line-height: 1.4;
+  }
+
+  .cdp-help-text strong {
+    color: var(--yellow);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .cdp-help-text p {
+    margin: 4px 0;
+    color: var(--fg);
+  }
+
+  .cdp-help-text details {
+    margin-top: 8px;
+  }
+
+  .cdp-help-text summary {
+    cursor: pointer;
+    color: var(--accent);
+    font-weight: 500;
+    user-select: none;
+  }
+
+  .cdp-help-text summary:hover {
+    text-decoration: underline;
+  }
+
+  .cdp-help-details {
+    margin-top: 8px;
+    padding: 8px;
+    background: var(--bg-alt);
+    border-radius: 4px;
+  }
+
+  .cdp-help-details p {
+    margin: 8px 0 4px 0;
+    font-weight: 600;
+    color: var(--fg);
+  }
+
+  .cdp-help-details ol,
+  .cdp-help-details ul {
+    margin: 4px 0 8px 20px;
+    color: var(--fg);
+  }
+
+  .cdp-help-details li {
+    margin: 4px 0;
+  }
+
+  .cdp-help-details code {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 4px 8px;
+    background: var(--bg);
+    border-radius: 3px;
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: calc(var(--base-font-size) * 0.833);
+    color: var(--accent);
+    word-break: break-all;
+  }
+
+  .cdp-help-dismiss {
+    background: none;
+    border: none;
+    color: var(--fg-dim);
+    font-size: calc(var(--base-font-size) * 1.2);
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: 3px;
+  }
+
+  .cdp-help-dismiss:hover {
+    background: color-mix(in srgb, var(--fg) 10%, var(--bg));
+    color: var(--fg);
   }
 </style>
