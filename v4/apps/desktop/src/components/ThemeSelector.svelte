@@ -1,13 +1,23 @@
 <script lang="ts">
   import { theme } from "../stores/preferences";
-  import { applyTheme, getTheme, themes } from "../lib/themes";
+  import { themes, type ThemeId } from "../lib/theme";
+
+  const THEME_OPTIONS: { id: ThemeId; name: string; accent: string; bg: string; border: string }[] = [
+    { id: "dark", name: "Dark", accent: "#3b82f6", bg: "#0a0a0b", border: "#27272a" },
+    { id: "light", name: "Light", accent: "#2563eb", bg: "#fafafa", border: "#e4e4e7" },
+    { id: "cyberpunk", name: "Cyberpunk", accent: "#c026d3", bg: "#0b0014", border: "#2d1b4e" },
+    { id: "auto", name: "Auto", accent: "#a855f7", bg: "linear-gradient(135deg, #0a0a0b 50%, #fafafa 50%)", border: "#71717a" },
+  ];
 
   let showDropdown = $state(false);
 
-  function selectTheme(id: string) {
-    theme.set(id as any);
-    applyTheme(getTheme(id));
+  function selectTheme(id: ThemeId) {
+    theme.set(id);
     showDropdown = false;
+  }
+
+  function currentName(): string {
+    return THEME_OPTIONS.find((t) => t.id === $theme)?.name ?? "Dark";
   }
 
   function toggleDropdown() {
@@ -34,15 +44,15 @@
       <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
       <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
     </svg>
-    <span class="theme-name">{getTheme($theme).name}</span>
+    <span class="theme-name">{currentName()}</span>
   </button>
 
   {#if showDropdown}
     <div class="dropdown">
-      {#each Object.values(themes) as t}
+      {#each THEME_OPTIONS as t}
         <button class="dropdown-item" class:active={$theme === t.id} onclick={() => selectTheme(t.id)}>
-          <span class="color-preview" style="background: {t.colors.bgPrimary}; border-color: {t.colors.border};">
-            <span class="color-dot" style="background: {t.colors.accent};"></span>
+          <span class="color-preview" style="background: {t.bg}; border-color: {t.border};">
+            <span class="color-dot" style="background: {t.accent};"></span>
           </span>
           {t.name}
         </button>
@@ -61,8 +71,8 @@
     align-items: center;
     gap: 0.5rem;
     background: transparent;
-    border: 1px solid var(--border, var(--border-subtle, #30363d));
-    color: var(--text-primary, var(--fg, #e6edf3));
+    border: 1px solid var(--border, #27272a);
+    color: var(--fg, #ededef);
     padding: 0.4rem 0.75rem;
     border-radius: 6px;
     cursor: pointer;
@@ -70,8 +80,8 @@
     transition: all 0.15s ease;
   }
   .selector-btn:hover {
-    background: var(--bg-hover, #292e36);
-    border-color: var(--border-hover, #484f58);
+    background: var(--bg-hover, #1a1a1e);
+    border-color: var(--border, #27272a);
   }
   .theme-name {
     font-weight: 500;
@@ -81,8 +91,8 @@
     top: 100%;
     right: 0;
     margin-top: 0.5rem;
-    background: var(--bg-card, var(--bg-surface, #1c2128));
-    border: 1px solid var(--border, #30363d);
+    background: var(--bg-card, #161618);
+    border: 1px solid var(--border, #27272a);
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.5);
     min-width: 150px;
@@ -99,7 +109,7 @@
     padding: 0.5rem 0.75rem;
     background: transparent;
     border: none;
-    color: var(--text-primary, var(--fg, #e6edf3));
+    color: var(--fg, #ededef);
     text-align: left;
     cursor: pointer;
     border-radius: 4px;
@@ -107,11 +117,11 @@
     transition: all 0.15s ease;
   }
   .dropdown-item:hover {
-    background: var(--bg-hover, #292e36);
+    background: var(--bg-hover, #1a1a1e);
   }
   .dropdown-item.active {
-    background: var(--bg-hover, #292e36);
-    color: var(--accent, #58a6ff);
+    background: var(--bg-hover, #1a1a1e);
+    color: var(--accent, #3b82f6);
   }
   .color-preview {
     display: inline-block;

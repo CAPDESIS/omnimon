@@ -9,6 +9,12 @@ import { pushMetrics } from "./metricsHistory";
 import { evaluateAlerts } from "./alerts";
 import { refreshSecurityAnalysis, refreshNetworkConnections } from "./security";
 import { toast } from "./toasts";
+import { detectBrowser } from "../lib/browser";
+import { askAiRequest } from "./uiActions";
+
+// --- Security analysis throttle ---
+const SECURITY_ANALYSIS_INTERVAL_MS = 5000;
+let lastSecurityAnalysisTime = 0;
 
 // --- Core stores ---
 
@@ -32,9 +38,12 @@ export const selectedPids = writable<Set<number>>(new Set());
 
 // --- Derived stores ---
 
-/** Derived store of processes filtered by the current search query (matches name, PID, or group). */
+/** Keywords that match idle/inactive processes in the search filter. */
+const IDLE_KEYWORDS = ["inact", "idle", "inactivo", "inactive", "inactivos"];
+
+/** Derived store of processes filtered by the current search query (matches name, PID, group, or idle status). */
 let lastFilterQuery = "";
-let lastFilterMeta: Array<{ pid: number; name: string; group: string }> = [];
+let lastFilterMeta: Array<{ pid: number; name: string; group: string; idle: boolean }> = [];
 let lastFilterMatches: number[] = [];
 export const filtered = derived([processes, search], ([$processes, $search]) => {
   const q = $search.trim().toLowerCase();
@@ -51,25 +60,29 @@ export const filtered = derived([processes, search], ([$processes, $search]) => 
     $processes.length === lastFilterMeta.length &&
     $processes.every((proc, index) => {
       const cached = lastFilterMeta[index];
-      return cached !== undefined && cached.pid === proc.pid && cached.name === proc.name && cached.group === proc.group;
+      return cached !== undefined && cached.pid === proc.pid && cached.name === proc.name && cached.group === proc.group && cached.idle === proc.idle;
     });
 
   if (sameMeta) {
     return lastFilterMatches.map((index) => $processes[index]).filter((proc): proc is ProcessEntry => proc !== undefined);
   }
 
+  // Check if the query is an idle-status filter (e.g. "inact", "idle", "inactivo")
+  const isIdleFilter = IDLE_KEYWORDS.some((k) => q === k || q === k + "s");
+
   const matches: number[] = [];
   const next = $processes.filter((proc, index) => {
-    const included =
-      proc.name.toLowerCase().includes(q) ||
-      String(proc.pid).includes(q) ||
-      proc.group.toLowerCase().includes(q);
+    const included = isIdleFilter
+      ? proc.idle
+      : proc.name.toLowerCase().includes(q) ||
+        String(proc.pid).includes(q) ||
+        proc.group.toLowerCase().includes(q);
     if (included) matches.push(index);
     return included;
   });
 
   lastFilterQuery = q;
-  lastFilterMeta = $processes.map((proc) => ({ pid: proc.pid, name: proc.name, group: proc.group }));
+  lastFilterMeta = $processes.map((proc) => ({ pid: proc.pid, name: proc.name, group: proc.group, idle: proc.idle }));
   lastFilterMatches = matches;
   return next;
 });
@@ -167,12 +180,15 @@ export function handleMetricsUpdate(data: Metrics): void {
     }
 
     // Feed time-series history & alert evaluation
-    const cpuAvg = updated.length > 0
-      ? updated.reduce((s, p) => s + p.cpu_pct, 0) / updated.length
-      : 0;
-    pushMetrics(data.stats, cpuAvg);
+    // System CPU from backend (sysinfo global_cpu_info, normalized 0-100%)
+    pushMetrics(data.stats, data.stats.cpu_usage_pct ?? 0);
     evaluateAlerts(data.stats, updated);
-    refreshSecurityAnalysis(updated);
+    // Throttle security analysis to avoid re-scanning every poll cycle
+    const now = Date.now();
+    if (now - lastSecurityAnalysisTime >= SECURITY_ANALYSIS_INTERVAL_MS) {
+      lastSecurityAnalysisTime = now;
+      refreshSecurityAnalysis(updated);
+    }
 
     // Prune selected PIDs that no longer exist
     const livePids = new Set(updated.map((p) => p.pid));
@@ -211,7 +227,42 @@ export async function fetchMetrics(): Promise<void> {
 export async function killSelected(): Promise<number[]> {
   const pids = Array.from(get(selectedPids));
   if (pids.length === 0) return [];
-  if (!(await confirmAction(t("processes.confirmKillSelected", { count: pids.length })))) return [];
+  const allProcs = get(processes);
+  const allTabs = get(browserTabs);
+  const seenBrowsers = new Set<string>();
+  const items = pids.map((pid) => {
+    const proc = allProcs.find((p) => p.pid === pid);
+    let subItems: string[] | undefined;
+    if (proc) {
+      const browser = detectBrowser(proc);
+      if (browser && !seenBrowsers.has(browser)) {
+        seenBrowsers.add(browser);
+        const tabs = allTabs.filter((t) => t.browser === browser);
+        if (tabs.length > 0) {
+          subItems = tabs.map((t) => t.title || t.url);
+        }
+      }
+    }
+    return {
+      label: proc?.name ?? `PID ${pid}`,
+      detail: proc ? `PID ${pid} · ${proc.cpu_pct.toFixed(1)}% CPU · ${proc.ram_mb.toFixed(0)} MB` : `PID ${pid}`,
+      icon: proc?.icon_data_url ?? null,
+      subItems,
+    };
+  });
+  const msg = pids.length === 1
+    ? t("processes.confirmKillSelectedSingle")
+    : t("processes.confirmKillSelected", { count: pids.length });
+
+  // Build context for AI analysis
+  const processNames = items.map((i) => i.label);
+  const onAskAi = () => {
+    const prompt = t("processes.aiKillQuestion", { processes: processNames.join(", ") })
+      || `Is it safe to terminate these processes? ${processNames.join(", ")}`;
+    askAiRequest.set(prompt);
+  };
+
+  if (!(await confirmAction(msg, items, onAskAi))) return [];
   try {
     const result = await ipcKillProcesses(pids);
     const killed = result.killed;
@@ -464,4 +515,5 @@ export function _resetForTest(): void {
   aiError.set(null);
   aiProfile.set("general");
   consecutiveErrors = 0;
+  lastSecurityAnalysisTime = 0;
 }

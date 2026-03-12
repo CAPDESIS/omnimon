@@ -14,6 +14,7 @@ import type { SystemStats } from "../../lib/types";
 
 function makeStats(overrides?: Partial<SystemStats>): SystemStats {
   return {
+    cpu_usage_pct: 25,
     ram_total_gb: 16,
     ram_used_pct: 45,
     swap_used_mb: 128,

@@ -55,6 +55,7 @@ vi.mock("../stores/processes", () => {
   const aiError = writable<string | null>(null);
   const aiProfile = writable("general");
   const stats = writable({
+    cpu_usage_pct: 25,
     ram_total_gb: 16,
     ram_used_pct: 40,
     swap_used_mb: 0,
@@ -113,12 +114,12 @@ vi.mock("../stores/preferences", () => {
     columnOrder: writable(["name", "detail", "group", "ram", "cpu", "energy", "network", "uptime", "pid", "state"]),
     aiProviderConfig: writable({ provider: "openrouter", model: "meta-llama/llama-3.2-3b-instruct:free" }),
     idleThreshold: writable(1),
-    pollIntervalMs: writable(2000),
+    pollIntervalMs: writable(500),
     automationIntervalSecs: writable(5),
     aiCacheTtlMinutes: writable(5),
     activeProfilePreset: writable("general"),
     profilePresets: writable([
-      { id: "general", label: "General", idleThreshold: 1, pollIntervalMs: 2000, automationIntervalSecs: 5, aiProfile: "general" },
+      { id: "general", label: "General", idleThreshold: 1, pollIntervalMs: 500, automationIntervalSecs: 5, aiProfile: "general" },
     ]),
     theme: writable("auto"),
     userMode: writable("pro"),
@@ -137,7 +138,7 @@ vi.mock("../stores/preferences", () => {
     profilePreset: writable("balanced"),
     layoutModeStore: writable("tabs"),
     dashboardLayout: writable("standard"),
-    refreshInterval: writable(2000),
+    refreshInterval: writable(500),
     favoriteProcesses: writable([]),
     notificationLevel: writable("all"),
     loadPreferences: vi.fn(async () => {}),

@@ -263,7 +263,7 @@
 
   // --- Virtual window ---
   let totalHeight = $derived(flatRows.length * ROW_HEIGHT);
-  let effectiveContainerHeight = $derived(containerHeight > 0 ? containerHeight : 600);
+  let effectiveContainerHeight = $derived(containerHeight > 100 ? containerHeight : 600);
 
   let visibleStartIdx = $derived(
     Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER),
@@ -560,7 +560,8 @@
 
 <style>
   .table-wrap {
-    flex: 1;
+    flex: 1 1 0%;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: auto;
   }

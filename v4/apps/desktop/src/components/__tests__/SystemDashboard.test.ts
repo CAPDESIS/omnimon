@@ -1,18 +1,18 @@
 import { render, screen } from "@testing-library/svelte";
 import SystemDashboard from "../SystemDashboard.svelte";
 import { writable } from "svelte/store";
-import type { MetricsSnapshot } from "../../stores/metricsHistory";
+import type { MetricPoint, MetricsSnapshot } from "../../stores/metricsHistory";
 import type { ProcessEntry, SystemStats } from "../../lib/types";
 
-const { mockStats, mockProcesses, mockHistory } = vi.hoisted(() => {
+const { mockStats, mockProcesses, mockCpuSeries, mockRamSeries, mockNetRxSeries, mockNetTxSeries } = vi.hoisted(() => {
   const { writable } = require("svelte/store") as typeof import("svelte/store");
   return {
-    mockStats: // @ts-ignore
-    writable<SystemStats | null>(null),
-    mockProcesses: // @ts-ignore
-    writable<ProcessEntry[]>([]),
-    mockHistory: // @ts-ignore
-    writable<MetricsSnapshot[]>([]),
+    mockStats: writable<SystemStats | null>(null),
+    mockProcesses: writable<ProcessEntry[]>([]),
+    mockCpuSeries: writable<MetricPoint[]>([]),
+    mockRamSeries: writable<MetricPoint[]>([]),
+    mockNetRxSeries: writable<MetricPoint[]>([]),
+    mockNetTxSeries: writable<MetricPoint[]>([]),
   };
 });
 
@@ -22,8 +22,12 @@ vi.mock("../../stores/processes", () => ({
 }));
 
 vi.mock("../../stores/metricsHistory", () => ({
-  metricsHistory: mockHistory,
+  cpuSeries: mockCpuSeries,
+  ramSeries: mockRamSeries,
+  netRxSeries: mockNetRxSeries,
+  netTxSeries: mockNetTxSeries,
 }));
+
 
 function makeProc(overrides?: Record<string, unknown>) {
   return {
@@ -42,7 +46,7 @@ function makeProc(overrides?: Record<string, unknown>) {
 
 function makeStats(overrides?: Record<string, unknown>) {
   return {
-    ram_total_gb: 16, ram_used_pct: 50, swap_used_mb: 0,
+    cpu_usage_pct: 25, ram_total_gb: 16, ram_used_pct: 50, swap_used_mb: 0,
     total_processes: 1, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0,
     ...overrides,
   };
@@ -52,7 +56,10 @@ describe("SystemDashboard", () => {
   beforeEach(() => {
     mockStats.set(null);
     mockProcesses.set([]);
-    mockHistory.set([]);
+    mockCpuSeries.set([]);
+    mockRamSeries.set([]);
+    mockNetRxSeries.set([]);
+    mockNetTxSeries.set([]);
   });
 
   it("renders nothing when stats is null", () => {
@@ -75,14 +82,14 @@ describe("SystemDashboard", () => {
     expect(screen.getByText("Network")).toBeInTheDocument();
   });
 
-  it("shows average CPU percentage", () => {
-    mockStats.set(makeStats({ total_processes: 2 }));
+  it("shows total CPU percentage", () => {
+    mockStats.set(makeStats({ cpu_usage_pct: 60, total_processes: 2 }));
     mockProcesses.set([
       makeProc({ pid: 1, cpu_pct: 20 }),
       makeProc({ pid: 2, cpu_pct: 40 }),
     ]);
     render(SystemDashboard);
-    expect(screen.getByText("30.0%")).toBeInTheDocument();
+    expect(screen.getByText("60.0%")).toBeInTheDocument();
   });
 
   it("shows RAM percentage and total", () => {
@@ -129,11 +136,14 @@ describe("SystemDashboard", () => {
     expect(screen.getByText("1")).toBeInTheDocument(); // 1 idle
   });
 
-  it("renders canvas elements for charts", () => {
+  it("renders chart containers for sparklines", () => {
     mockStats.set(makeStats());
     mockProcesses.set([makeProc()]);
+    mockCpuSeries.set([{ time: 1, value: 10 }, { time: 2, value: 20 }]);
+    mockRamSeries.set([{ time: 1, value: 30 }, { time: 2, value: 40 }]);
+    mockNetRxSeries.set([{ time: 1, value: 100 }, { time: 2, value: 200 }]);
     render(SystemDashboard);
-    const canvases = document.querySelectorAll("canvas");
-    expect(canvases.length).toBe(3);
+    const sparkContainers = document.querySelectorAll(".spark");
+    expect(sparkContainers.length).toBe(3);
   });
 });

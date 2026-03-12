@@ -1,147 +1,25 @@
 <script lang="ts">
   import { stats, processes } from "../stores/processes";
-  import { metricsHistory } from "../stores/metricsHistory";
-  import { theme } from "../stores/preferences";
+  import { cpuSeries, ramSeries, netRxSeries, netTxSeries } from "../stores/metricsHistory";
   import { t } from "../lib/i18n";
+  import TvChart from "./TvChart.svelte";
 
   interface Props {
     collapsed?: boolean;
     mode?: "basic" | "pro";
+    layout?: "compact" | "standard" | "expanded";
     onopenmetric?: (metric: "cpu" | "ram" | "network" | "swap" | "processes") => void;
   }
 
-  let { collapsed = false, mode = "pro", onopenmetric }: Props = $props();
+  let { collapsed = false, mode = "pro", layout = "standard", onopenmetric }: Props = $props();
   let proMode = $derived(mode === "pro");
-
-  let cpuCanvas: HTMLCanvasElement | undefined = $state();
-  let ramCanvas: HTMLCanvasElement | undefined = $state();
-  let netCanvas: HTMLCanvasElement | undefined = $state();
-
-  const CHART_H = 48;
-  const POINTS = 60; // show last 60 data points
-
-  function getColor(varName: string): string {
-    if (typeof document === "undefined") return "#3b82f6";
-    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || "#3b82f6";
-  }
-
-  function drawSparkline(
-    canvas: HTMLCanvasElement,
-    data: number[],
-    colorVar: string,
-    maxVal?: number,
-    secondData?: number[],
-    secondColorVar?: string,
-  ): void {
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const context = ctx;
-
-    const dpr = window.devicePixelRatio || 1;
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    context.scale(dpr, dpr);
-
-    // Clear
-    context.clearRect(0, 0, w, h);
-
-    // Grid lines
-    const gridColor = getColor("--chart-grid") || "#141418";
-    context.strokeStyle = gridColor;
-    context.lineWidth = 1;
-    for (let i = 1; i <= 3; i++) {
-      const y = (h / 4) * i;
-      context.beginPath();
-      context.moveTo(0, y);
-      context.lineTo(w, y);
-      context.stroke();
-    }
-
-    function drawLine(values: number[], color: string, max: number) {
-      if (values.length < 2) return;
-      const step = w / (POINTS - 1);
-      const startIdx = Math.max(0, values.length - POINTS);
-      const slice = values.slice(startIdx);
-
-      // Area fill
-      context.beginPath();
-      context.moveTo(0, h);
-      for (let i = 0; i < slice.length; i++) {
-        const x = i * step;
-        const y = h - (slice[i] / max) * (h - 2);
-        if (i === 0) context.lineTo(x, y);
-        else context.lineTo(x, y);
-      }
-      context.lineTo((slice.length - 1) * step, h);
-      context.closePath();
-      // Create solid fill by darkening the color (mix ~90% with black)
-      const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-      if (rgbMatch) {
-        const r = Math.round(parseInt(rgbMatch[1]) * 0.15);
-        const g = Math.round(parseInt(rgbMatch[2]) * 0.15);
-        const b = Math.round(parseInt(rgbMatch[3]) * 0.15);
-        context.fillStyle = `rgb(${r}, ${g}, ${b})`;
-      } else {
-        context.fillStyle = color;
-      }
-      context.fill();
-
-      // Line
-      context.beginPath();
-      for (let i = 0; i < slice.length; i++) {
-        const x = i * step;
-        const y = h - (slice[i] / max) * (h - 2);
-        if (i === 0) context.moveTo(x, y);
-        else context.lineTo(x, y);
-      }
-      context.strokeStyle = color;
-      context.lineWidth = 1.5;
-      context.lineJoin = "round";
-      context.stroke();
-    }
-
-    const max = maxVal ?? Math.max(...data, 1);
-    drawLine(data, getColor(colorVar), max);
-
-    if (secondData && secondColorVar) {
-      const max2 = maxVal ?? Math.max(...secondData, 1);
-      drawLine(secondData, getColor(secondColorVar), max2);
-    }
-  }
-
-  // Reactively redraw charts when history updates
-  $effect(() => {
-    const _t = $theme; // react to theme changes
-    const h = $metricsHistory;
-    if (collapsed || h.length < 2) return;
-
-    if (cpuCanvas) {
-      const avg = h[h.length - 1]?.cpuAvg || 0;
-      drawSparkline(cpuCanvas, h.map((s) => s.cpuAvg), colorVarForPct(avg), 100);
-    }
-    if (ramCanvas) {
-      const pct = h[h.length - 1]?.ramPct || 0;
-      drawSparkline(ramCanvas, h.map((s) => s.ramPct), colorVarForPct(pct), 100);
-    }
-    if (netCanvas) {
-      const rx = h.map((s) => s.netRx);
-      const tx = h.map((s) => s.netTx);
-      const maxNet = Math.max(...rx, ...tx, 1024);
-      drawSparkline(netCanvas, rx, "--chart-net-rx", maxNet, tx, "--chart-net-tx");
-    }
-  });
+  let showSparklines = $derived(layout !== "compact");
 
   function handleOpenMetric(metric: "cpu" | "ram" | "network" | "swap" | "processes") {
     onopenmetric?.(metric);
   }
 
-  let avgCpu = $derived(
-    $processes.length > 0
-      ? $processes.reduce((sum, p) => sum + p.cpu_pct, 0) / $processes.length
-      : 0,
-  );
+  let cpuPct = $derived($stats?.cpu_usage_pct ?? 0);
 
   function formatRate(bytesPerSec: number): string {
     if (bytesPerSec < 1024) return `${bytesPerSec} B/s`;
@@ -158,6 +36,13 @@
   function colorForPct(pct: number): string {
     return `var(${colorVarForPct(pct)})`;
   }
+
+  const cpuChartSeries = $derived([{ data: $cpuSeries, color: colorVarForPct(cpuPct) }]);
+  const ramChartSeries = $derived([{ data: $ramSeries, color: colorVarForPct($stats?.ram_used_pct ?? 0) }]);
+  const netChartSeries = $derived([
+    { data: $netRxSeries, color: "--chart-net-rx" },
+    { data: $netTxSeries, color: "--chart-net-tx" },
+  ]);
 </script>
 
 {#if $stats && !collapsed}
@@ -165,9 +50,15 @@
     <button class="metric-card metric-button" onclick={() => handleOpenMetric("cpu")}>
       <div class="metric-header">
         <span class="metric-label">CPU</span>
-        <span class="metric-value" style="color: {colorForPct(avgCpu)}">{avgCpu.toFixed(1)}%</span>
+        <span class="metric-value" style="color: {colorForPct(cpuPct)}">{cpuPct.toFixed(1)}%</span>
       </div>
-      <canvas bind:this={cpuCanvas} class="spark" height={CHART_H}></canvas>
+      {#if showSparklines}
+        <div class="spark" class:spark-expanded={layout === "expanded"}>
+          {#if $cpuSeries.length > 1}
+            <TvChart series={cpuChartSeries} sparkline />
+          {/if}
+        </div>
+      {/if}
     </button>
 
     <button class="metric-card metric-button" onclick={() => handleOpenMetric("ram")}>
@@ -177,7 +68,13 @@
           {$stats.ram_used_pct}% <span class="metric-sub">/ {$stats.ram_total_gb.toFixed(0)}GB</span>
         </span>
       </div>
-      <canvas bind:this={ramCanvas} class="spark" height={CHART_H}></canvas>
+      {#if showSparklines}
+        <div class="spark" class:spark-expanded={layout === "expanded"}>
+          {#if $ramSeries.length > 1}
+            <TvChart series={ramChartSeries} sparkline />
+          {/if}
+        </div>
+      {/if}
     </button>
 
     {#if proMode}
@@ -189,7 +86,13 @@
             <span class="net-tx">{formatRate($stats.net_tx_bytes_per_sec)}</span>
           </span>
         </div>
-        <canvas bind:this={netCanvas} class="spark" height={CHART_H}></canvas>
+        {#if showSparklines}
+          <div class="spark" class:spark-expanded={layout === "expanded"}>
+            {#if $netRxSeries.length > 1}
+              <TvChart series={netChartSeries} sparkline />
+            {/if}
+          </div>
+        {/if}
       </button>
     {/if}
 
@@ -302,6 +205,10 @@
     width: 100%;
     height: 48px;
     border-radius: 4px;
+  }
+
+  .spark-expanded {
+    height: 72px;
   }
 
   .metric-stats {

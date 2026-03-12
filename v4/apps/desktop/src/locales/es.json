@@ -11,7 +11,7 @@
     "deepDive": "Vista detallada"
   },
   "toolbar": {
-    "searchPlaceholder": "Filtrar por nombre, PID, grupo... (Cmd+F)",
+    "searchPlaceholder": "Filtrar por nombre, PID, grupo, \"inact\"... (Cmd+F)",
     "searchLabel": "Buscar procesos",
     "clearSearch": "Limpiar búsqueda",
     "groups": "Grupos",
@@ -94,6 +94,7 @@
     "no": "No",
     "untitled": "(Sin título)",
     "noMatchingTabs": "No hay pestañas coincidentes",
+    "more": "más",
     "resizeTabPanel": "Redimensionar panel de pestañas",
     "expand": "Expandir",
     "collapse": "Colapsar",
@@ -174,7 +175,8 @@
     "autostartUnavailable": "El inicio automático no está disponible en este entorno.",
     "autostartUpdateFailed": "No se pudo actualizar el ajuste de inicio automático.",
     "userView": "Modo del espacio",
-    "userViewHelp": "Elige entre una vista operativa simplificada y la consola completa SRE/Pro."
+    "userViewHelp": "Elige entre una vista operativa simplificada y la consola completa SRE/Pro.",
+    "openAiSettings": "Configuración del proveedor AI"
   },
   "process": {
     "section": "Proceso",
@@ -260,9 +262,13 @@
     "tabsOpenPlural": "{count} pestañas de {browser} abiertas"
   },
   "processes": {
-    "confirmKillSelected": "¿Terminar {count} proceso(s) seleccionado(s)?",
+    "confirmKillSelected": "¿Terminar {count} procesos?",
+    "confirmKillSelectedSingle": "¿Terminar este proceso?",
     "confirmKillSingle": "¿Terminar proceso \"{name}\" (PID {pid})?",
-    "noApiKey": "No hay clave API configurada. Ve a Ajustes para agregar tu clave API."
+    "noApiKey": "No hay clave API configurada. Ve a Ajustes para agregar tu clave API.",
+    "openTabs": "{count} pestañas abiertas:",
+    "askAiFirst": "Preguntar a la IA",
+    "aiKillQuestion": "¿Es seguro terminar estos procesos? {processes}. Analiza si alguno es crítico para el sistema o si cerrarlos podría causar pérdida de datos."
   },
   "aiChat": {
     "title": "Acciones AI",
@@ -529,7 +535,15 @@
     "faqQ2": "¿Por qué la sección Network puede verse vacía?",
     "faqA2": "Si no hay tráfico reciente o el sistema operativo aún no expone suficiente telemetría, la sección de red espera actividad real antes de mostrar datos.",
     "faqQ3": "¿Qué chat debo usar?",
-    "faqA3": "Usa Acciones IA para preguntas y acciones del sistema, Configuración IA para ajustes y reglas, y los chats contextuales dentro de paneles cuando quieras ayuda enfocada."
+    "faqA3": "Usa Acciones IA para preguntas y acciones del sistema, Configuración IA para ajustes y reglas, y los chats contextuales dentro de paneles cuando quieras ayuda enfocada.",
+    "licensesTitle": "Licencias de código abierto",
+    "licensesBody": "OmniMon utiliza las siguientes bibliotecas de código abierto:",
+    "licenseTv": "Lightweight Charts por TradingView, Inc. — Apache License 2.0",
+    "licenseTvDesc": "Biblioteca de gráficos financieros de alto rendimiento utilizada para la visualización de métricas del sistema.",
+    "licenseTauri": "Tauri por The Tauri Programme — Apache License 2.0 / MIT",
+    "licenseTauriDesc": "Framework para construir aplicaciones de escritorio ligeras con tecnologías web.",
+    "licenseSvelte": "Svelte por Rich Harris y colaboradores — MIT License",
+    "licenseSvelteDesc": "Framework de compilación frontend utilizado para la interfaz de la aplicación."
   },
   "plugins": {
     "eyebrow": "Runtime Lua embebido",

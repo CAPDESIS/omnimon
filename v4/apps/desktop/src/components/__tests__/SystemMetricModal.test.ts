@@ -9,6 +9,7 @@ import {
   metricSummaryLabel,
 } from "../../lib/systemMetricModal";
 
+
 const {
   mockFiltered,
   mockStats,
@@ -26,6 +27,7 @@ const {
   return {
     mockFiltered: writable<ProcessEntry[]>([]),
     mockStats: writable({
+      cpu_usage_pct: 25,
       ram_total_gb: 16,
       ram_used_pct: 42,
       swap_used_mb: 64,
@@ -51,7 +53,7 @@ const {
     ]),
     mockFocusFirstFocusable: vi.fn(),
     mockTrapFocus: vi.fn(),
-    mockLoadNetworkMap: vi.fn(async () => await import("../NetworkMap.svelte")),
+    mockLoadNetworkMap: vi.fn(async () => ({ default: function NetworkMapStub() {} })),
   };
 });
 
@@ -118,6 +120,7 @@ describe("SystemMetricModal", () => {
       makeProc({ pid: 3, name: "Safari", ram_mb: 100, cpu_pct: 5, uptime: "30m", state: "I", net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 }),
     ]);
     mockStats.set({
+      cpu_usage_pct: 25,
       ram_total_gb: 16,
       ram_used_pct: 42,
       swap_used_mb: 64,
@@ -142,7 +145,7 @@ describe("SystemMetricModal", () => {
     mockFocusFirstFocusable.mockClear();
     mockTrapFocus.mockClear();
     mockLoadNetworkMap.mockReset();
-    mockLoadNetworkMap.mockImplementation(async () => await import("../NetworkMap.svelte"));
+    mockLoadNetworkMap.mockImplementation(async () => ({ default: function NetworkMapStub() {} }));
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
       cb(0);
       return 1;
@@ -165,7 +168,7 @@ describe("SystemMetricModal", () => {
     expect(screen.getByRole("dialog", { name: "CPU" })).toBeInTheDocument();
     expect(screen.getByText("Deep Dive")).toBeInTheDocument();
     expect(screen.getByText(/Now 20.0%/)).toBeInTheDocument();
-    expect(document.querySelector("svg path")?.getAttribute("d")).toContain("M0.0");
+    expect(document.querySelector(".chart-container")).toBeInTheDocument();
   });
 
   it("ordena filas al hacer click en encabezados", async () => {
@@ -319,6 +322,7 @@ describe("SystemMetricModal", () => {
 
   it("muestra metricas de red en MB/s cuando el throughput es alto", () => {
     mockStats.set({
+      cpu_usage_pct: 25,
       ram_total_gb: 16,
       ram_used_pct: 42,
       swap_used_mb: 64,
@@ -337,13 +341,14 @@ describe("SystemMetricModal", () => {
 
   it("usa 0 cuando faltan stats de red", () => {
     mockStats.set({
+      cpu_usage_pct: 25,
       ram_total_gb: 16,
       ram_used_pct: 42,
       swap_used_mb: 64,
       total_processes: 0,
       net_rx_bytes_per_sec: undefined,
       net_tx_bytes_per_sec: undefined,
-    } as unknown as { ram_total_gb: number; ram_used_pct: number; swap_used_mb: number; total_processes: number; net_rx_bytes_per_sec: number; net_tx_bytes_per_sec: number });
+    } as unknown as { cpu_usage_pct: number; ram_total_gb: number; ram_used_pct: number; swap_used_mb: number; total_processes: number; net_rx_bytes_per_sec: number; net_tx_bytes_per_sec: number });
 
     render(SystemMetricModal, {
       props: { metric: "network", onclose: vi.fn() },
@@ -352,14 +357,14 @@ describe("SystemMetricModal", () => {
     expect(screen.getAllByText("0 B/s").length).toBeGreaterThanOrEqual(2);
   });
 
-  it("no renderiza SVG cuando la serie tiene un solo punto", () => {
+  it("no renderiza chart cuando la serie tiene menos de dos puntos", () => {
     mockCpuSeries.set([{ time: 1, value: 10 }]);
 
     render(SystemMetricModal, {
       props: { metric: "cpu", onclose: vi.fn() },
     });
 
-    expect(document.querySelector("svg")).toBeNull();
+    expect(document.querySelector(".chart-container")).toBeNull();
   });
 
   it("no muestra boton show more cuando filtered no supera el limite", () => {
@@ -412,7 +417,7 @@ describe("SystemMetricModal", () => {
     });
 
     expect(screen.getByText("—")).toBeInTheDocument();
-    expect(document.querySelector("svg")).toBeNull();
+    expect(document.querySelector(".chart-container")).toBeNull();
   });
 
   it("intenta enfocar el primer elemento al montar", () => {

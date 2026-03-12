@@ -160,6 +160,7 @@ function validateSystemStats(raw: unknown): SystemStats {
   }
   const r = raw as Record<string, unknown>;
 
+  assertFiniteNumber("stats.cpu_usage_pct", r.cpu_usage_pct);
   assertFiniteNumber("stats.ram_total_gb", r.ram_total_gb);
   assertFiniteNumber("stats.ram_used_pct", r.ram_used_pct);
   assertFiniteNumber("stats.swap_used_mb", r.swap_used_mb);
@@ -168,6 +169,7 @@ function validateSystemStats(raw: unknown): SystemStats {
   assertFiniteNumber("stats.net_tx_bytes_per_sec", r.net_tx_bytes_per_sec);
 
   return {
+    cpu_usage_pct: r.cpu_usage_pct as number,
     ram_total_gb: r.ram_total_gb as number,
     ram_used_pct: r.ram_used_pct as number,
     swap_used_mb: r.swap_used_mb as number,

@@ -111,8 +111,9 @@
   .tab-spacer {
     flex: 1;
   }
-  
+
   .tab-settings {
-    display: contents;
+    font-weight: 600;
+    color: var(--accent);
   }
 </style>

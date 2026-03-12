@@ -22,7 +22,6 @@
   import type { ProcessEntry } from "./lib/types";
   import { AI_PROVIDERS, type AiProviderKind } from "./lib/types";
   import { detectPlatform, applyThemeTokens, type ThemeId } from "./lib/theme";
-  import { applyTheme, getTheme } from "./lib/themes";
   import {
     processes,
     filtered,
@@ -80,6 +79,7 @@
     aiChatCollapsedStore,
     aiConfigCollapsedStore,
     layoutModeStore,
+    dashboardLayout,
   } from "./stores/preferences";
   import { ipcValidateApiKey, ipcCheckApiKey, ipcClearAiCache } from "./lib/ipc";
   import { listen } from "@tauri-apps/api/event";
@@ -357,10 +357,9 @@
     }
   }
 
-  // Apply theme engine — both systems for full variable coverage
+  // Apply theme engine — primary system handles all CSS variables
   $effect(() => {
     applyThemeTokens($theme as ThemeId);
-    applyTheme(getTheme($theme));
   });
 
   $effect(() => {
@@ -463,6 +462,15 @@
     const unsubLocale = localePreference.subscribe((val) => {
       locale.set(val);
     });
+    // Restart polling when refreshInterval changes dynamically
+    let lastInterval = $refreshInterval;
+    const unsubInterval = refreshInterval.subscribe((val) => {
+      if (val !== lastInterval) {
+        lastInterval = val;
+        stopPolling();
+        startPolling(val);
+      }
+    });
 
     registerUnlistener(initSecurityAlertListener());
     registerUnlistener(
@@ -502,6 +510,7 @@
       window.removeEventListener("mouseup", onAiChatDividerMouseup);
       unsubPrefs();
       unsubLocale();
+      unsubInterval();
       for (const unlisten of unlistenFns) {
         unlisten();
       }
@@ -694,6 +703,7 @@
     <SystemDashboard
       collapsed={dashboardCollapsed}
       mode={$userMode}
+      layout={$dashboardLayout}
       onopenmetric={openMetricModal}
     />
 
@@ -737,7 +747,7 @@
       {/if}
 
       {#if activeTab === "network"}
-        <div class="tab-pane" bind:this={networkMapHost}>
+        <div class="tab-pane scrollable-pane" bind:this={networkMapHost}>
           {#if basicModeNetworkHint}
             <div class="mode-hint-card" role="note" style="border: 1px solid var(--border); border-radius: 16px; background: color-mix(in srgb, var(--bg-card, var(--bg-secondary)) 92%, white 2%); padding: 14px 16px; margin: 12px 16px; display: flex; flex-direction: column; gap: 6px;">
               <span class="mode-hint-label" style="color: var(--accent); text-transform: uppercase; font-size: calc(var(--base-font-size) * 0.75); font-weight: 800; letter-spacing: 0.5px;">{t("common.userView")}</span>
@@ -761,7 +771,7 @@
       {/if}
 
       {#if activeTab === "browser"}
-        <div class="tab-pane" bind:this={chromeTabsHost}>
+        <div class="tab-pane scrollable-pane" bind:this={chromeTabsHost}>
           {#if chromeTabManagerPromise}
             {#await chromeTabManagerPromise then ChromeTabManagerModule}
               <ChromeTabManagerModule.default filter={searchValue} />
@@ -779,7 +789,7 @@
       {/if}
 
       {#if activeTab === "aichat"}
-        <div class="tab-pane aichat-pane" bind:this={aiChatHost}>
+        <div class="tab-pane scrollable-pane aichat-pane" bind:this={aiChatHost}>
           <AIConfigPanel 
             isCollapsed={$aiConfigCollapsedStore} 
             ontoggle={() => $aiConfigCollapsedStore = !$aiConfigCollapsedStore} 
@@ -789,12 +799,12 @@
       {/if}
 
       {#if activeTab === "settings"}
-        <div class="tab-pane settings-pane">
-          <!-- We can move the settings content here or just let the modal show -->
-          <div style="padding: 24px; color: var(--text-secondary);">
+        <div class="tab-pane scrollable-pane settings-pane">
+          <div class="settings-pane-content">
             <ProfileSettings />
-            <br/><br/>
-            <Button onclick={() => { closeAllModals(); showSettings = true; }}>Open AI Settings Modal</Button>
+            <div class="settings-pane-actions">
+              <Button variant="secondary" onclick={() => { closeAllModals(); showSettings = true; }}>{t("settings.openAiSettings")}</Button>
+            </div>
           </div>
         </div>
       {/if}
@@ -1106,7 +1116,7 @@
 {#if activeMetricModal}
   {#if systemMetricModalPromise}
     {#await systemMetricModalPromise then SystemMetricModalModule}
-      <SystemMetricModalModule.default metric={activeMetricModal} mode={$userMode} onclose={() => activeMetricModal = null} />
+      <SystemMetricModalModule.default metric={activeMetricModal} mode={$userMode} onclose={() => activeMetricModal = null} oninspect={(proc) => { activeMetricModal = null; inspectProcess(proc); }} />
     {/await}
   {/if}
 {/if}
@@ -1140,7 +1150,8 @@
   .main-content-area {
     display: flex;
     flex-direction: column;
-    flex: 1;
+    flex: 1 1 0%;
+    min-height: 0;
     overflow: hidden;
     background: var(--bg-primary, #0a0a0b);
   }
@@ -1148,9 +1159,14 @@
   .tab-pane {
     display: flex;
     flex-direction: column;
-    flex: 1;
-    overflow-y: auto;
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow: hidden;
     position: relative;
+  }
+
+  .tab-pane.scrollable-pane {
+    overflow-y: auto;
   }
 
   .aichat-pane {
@@ -1293,6 +1309,150 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+
+  /* ==============================
+     SETTINGS TAB PANE
+     ============================== */
+  .settings-pane-content {
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+  }
+
+  .settings-pane-actions {
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ==============================
+     SETTINGS MODAL — Missing styles
+     ============================== */
+  .settings-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+  }
+
+  .settings-section-label {
+    font-size: calc(var(--base-font-size) * 0.85);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-secondary);
+    margin-bottom: -4px;
+  }
+
+  .settings-select {
+    flex: 1;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: var(--base-font-size);
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 32px;
+  }
+
+  .settings-select:hover {
+    border-color: var(--accent);
+  }
+
+  .settings-select:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .settings-field-stack {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .settings-error {
+    color: var(--danger);
+    font-size: calc(var(--base-font-size) * 0.9);
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--danger) 12%, var(--bg-secondary));
+  }
+
+  .settings-success {
+    color: var(--success);
+    font-size: calc(var(--base-font-size) * 0.9);
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--success) 12%, var(--bg-secondary));
+  }
+
+  .settings-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: var(--base-font-size);
+    color: var(--text-primary);
+  }
+
+  .settings-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  /* Column reorder list */
+  .settings-columns-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+
+  .col-order-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    transition: background 0.15s;
+  }
+
+  .col-order-row:hover {
+    background: var(--bg-hover);
+  }
+
+  .col-order-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .col-order-name {
+    flex: 1;
+    font-size: var(--base-font-size);
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .col-order-btns {
+    display: flex;
+    gap: 2px;
   }
 
 

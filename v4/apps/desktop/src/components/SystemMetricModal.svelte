@@ -2,7 +2,7 @@
   import { fade, scale } from "svelte/transition";
   import { fadeConfig, scaleConfig } from "../lib/transitions";
   import { onMount } from "svelte";
-  import { cpuSeries, ramSeries, swapSeries, metricsHistory } from "../stores/metricsHistory";
+  import { cpuSeries, ramSeries, swapSeries, netRxSeries, netTxSeries, metricsHistory } from "../stores/metricsHistory";
   import { filtered, stats } from "../stores/processes";
   import type { UserMode } from "../stores/preferences";
   import { t } from "../lib/i18n";
@@ -12,13 +12,12 @@
   import Button from "./Button.svelte";
   import IconButton from "./IconButton.svelte";
   import ModalShell from "./ModalShell.svelte";
+  import TvChart from "./TvChart.svelte";
   import {
     activeSeriesForMetric,
     defaultSortKey,
-    getSparklineColor,
     loadNetworkMap,
     metricSummaryLabel,
-    sparklinePath,
   } from "../lib/systemMetricModal";
 
   type MetricKind = import("../lib/systemMetricModal").MetricKind;
@@ -28,9 +27,10 @@
     metric: MetricKind;
     mode?: UserMode;
     onclose: () => void;
+    oninspect?: (process: ProcessEntry) => void;
   }
 
-  let { metric, mode = "pro", onclose }: Props = $props();
+  let { metric, mode = "pro", onclose, oninspect }: Props = $props();
   let modalEl: HTMLDivElement | undefined = $state();
   let sortKey = $state<SortKey>("ram");
   let sortAsc = $state(false);
@@ -133,6 +133,76 @@
     });
   });
 
+  /** Dynamic color based on current usage: green (good) → yellow (warning) → red (danger) */
+  function colorVarForPct(pct: number): string {
+    if (pct >= 80) return "--danger";
+    if (pct >= 60) return "--yellow";
+    return "--green";
+  }
+
+  const currentCpuPct = $derived($stats?.cpu_usage_pct ?? 0);
+
+  const chartColorVar = $derived.by((): string => {
+    switch (metric) {
+      case "cpu": return colorVarForPct(currentCpuPct);
+      case "ram": return colorVarForPct($stats?.ram_used_pct ?? 0);
+      case "swap": {
+        const mb = $swapSeries.length > 0 ? $swapSeries[$swapSeries.length - 1].value : 0;
+        if (mb >= 4096) return "--danger";
+        if (mb >= 1024) return "--yellow";
+        return "--green";
+      }
+      case "processes": return colorVarForPct(currentCpuPct);
+      default: return "--accent";
+    }
+  });
+
+  function chartPriceFormat(kind: MetricKind): "percent" | "decimal" | "bytes" | "megabytes" {
+    if (kind === "cpu" || kind === "ram") return "percent";
+    if (kind === "swap") return "megabytes";
+    return "decimal";
+  }
+
+  const chartSeries = $derived.by(() => {
+    if (metric === "network") {
+      return [
+        { data: $netRxSeries, color: "--chart-net-rx", label: "RX" },
+        { data: $netTxSeries, color: "--chart-net-tx", label: "TX" },
+      ];
+    }
+    if (activeSeries.length < 2) return [];
+    return [{ data: activeSeries, color: chartColorVar, label: metricTitle(metric) }];
+  });
+
+  /** Dynamic Y-axis scaling — adapts to actual data so the chart always shows visible flow */
+  const chartMaxY = $derived.by((): number | undefined => {
+    if (metric === "cpu") {
+      if ($cpuSeries.length === 0) return 100;
+      let max = 0;
+      for (const p of $cpuSeries) if (p.value > max) max = p.value;
+      // Round up to nearest 10%, minimum 20%, capped at 100%
+      return Math.min(100, Math.max(20, Math.ceil(max * 1.3 / 10) * 10));
+    }
+    if (metric === "ram") {
+      if ($ramSeries.length === 0) return 100;
+      let max = 0;
+      for (const p of $ramSeries) if (p.value > max) max = p.value;
+      return Math.min(100, Math.max(30, Math.ceil(max * 1.2 / 10) * 10));
+    }
+    if (metric === "network") {
+      // Use P95 to avoid spike domination — normal traffic fills the chart
+      const allValues: number[] = [];
+      for (const p of $netRxSeries) allValues.push(p.value);
+      for (const p of $netTxSeries) allValues.push(p.value);
+      if (allValues.length === 0) return undefined;
+      allValues.sort((a, b) => a - b);
+      const p95 = allValues[Math.floor(allValues.length * 0.95)] ?? 0;
+      if (p95 <= 0) return undefined;
+      return Math.ceil(p95 * 2);
+    }
+    return undefined; // swap, processes: auto-scale
+  });
+
   const summaryLabel = $derived.by(() =>
     metricSummaryLabel(metric, {
       cpuSeries: $cpuSeries,
@@ -171,6 +241,16 @@
             <div class="summary-card"><span class="card-label">Samples</span><span class="card-value">{$metricsHistory.length}</span></div>
             <div class="summary-card"><span class="card-label">Processes</span><span class="card-value">{$stats?.total_processes ?? 0}</span></div>
           </div>
+          {#if chartSeries.length > 0}
+            <div class="chart-container">
+              <TvChart
+                series={chartSeries}
+                maxY={chartMaxY}
+                height="160px"
+                priceFormat="bytes"
+              />
+            </div>
+          {/if}
           {#if networkMapPromise}
             {#await networkMapPromise then NetworkMapModule}
               <NetworkMapModule.default mode={mode} />
@@ -192,12 +272,15 @@
           <div class="summary-card"><span class="card-label">Showing</span><span class="card-value">{topProcesses.length} / {$filtered.length}</span></div>
         </div>
 
-        <!-- Sparkline chart -->
-        {#if activeSeries.length > 1}
-          <div class="sparkline-container">
-            <svg viewBox="0 0 200 32" preserveAspectRatio="none" class="sparkline-svg" role="img" aria-label={summaryLabel}>
-              <path d={sparklinePath(activeSeries)} fill="none" stroke={getSparklineColor(metric, activeSeries)} stroke-width="1.5" />
-            </svg>
+        <!-- TradingView chart -->
+        {#if chartSeries.length > 0}
+          <div class="chart-container">
+            <TvChart
+              series={chartSeries}
+              maxY={chartMaxY}
+              height="180px"
+              priceFormat={chartPriceFormat(metric)}
+            />
           </div>
         {/if}
 
@@ -219,7 +302,7 @@
               </thead>
               <tbody>
                 {#each topProcesses as proc (proc.pid)}
-                  <tr>
+                  <tr class="process-row" class:clickable={!!oninspect} onclick={() => oninspect?.(proc)} title={oninspect ? `Inspect ${proc.name}` : undefined}>
                     <td class="td-name" title={proc.exec_name}>{proc.name}</td>
                     <td class="td-mono">{proc.pid}</td>
                     <td class="td-mono">{proc.cpu_pct.toFixed(1)}</td>
@@ -319,17 +402,11 @@
     font-size: calc(var(--base-font-size, 12px) * 0.917);
   }
 
-  .sparkline-container {
+  .chart-container {
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 8px 12px;
-    background: var(--bg-alt);
-    height: 48px;
-  }
-
-  .sparkline-svg {
-    width: 100%;
-    height: 100%;
+    overflow: hidden;
+    background: var(--chart-bg, var(--bg-primary));
   }
 
   .section {
@@ -410,6 +487,18 @@
 
   .process-table tbody tr:hover {
     background: var(--bg-hover);
+  }
+
+  .process-row.clickable {
+    cursor: pointer;
+  }
+
+  .process-row.clickable:hover {
+    background: var(--bg-selected, var(--bg-hover));
+  }
+
+  .process-row.clickable:active {
+    background: color-mix(in srgb, var(--accent) 15%, var(--bg-secondary));
   }
 
   .td-name {

@@ -22,6 +22,25 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
+// lightweight-charts uses Canvas APIs and color parsing not available in JSDOM
+vi.mock("lightweight-charts", () => {
+  const noop = () => {};
+  const mockSeries = { setData: noop, applyOptions: noop, update: noop };
+  return {
+    createChart: () => ({
+      addSeries: () => mockSeries,
+      timeScale: () => ({ fitContent: noop }),
+      priceScale: () => ({ applyOptions: noop }),
+      applyOptions: noop,
+      remove: noop,
+    }),
+    AreaSeries: "Area",
+    ColorType: { Solid: 0 },
+    CrosshairMode: { Hidden: 0, Normal: 1 },
+    LineStyle: { Dashed: 1 },
+  };
+});
+
 vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn(() => Promise.resolve(() => {})),
   emit: vi.fn(() => Promise.resolve()),

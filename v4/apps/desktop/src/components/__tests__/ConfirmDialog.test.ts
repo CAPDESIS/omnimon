@@ -4,10 +4,12 @@ import ConfirmDialog from "../ConfirmDialog.svelte";
 
 const { mockConfirmDialogState, mockResolveConfirmDialog } = vi.hoisted(() => {
   const { writable } = require("svelte/store") as typeof import("svelte/store");
+  type ConfirmItem = { label: string; detail?: string; icon?: string | null };
   return {
     mockConfirmDialogState: writable({
       open: false,
       message: "",
+      items: [] as ConfirmItem[],
       resolve: null,
     }),
     mockResolveConfirmDialog: vi.fn(),
@@ -28,6 +30,7 @@ describe("ConfirmDialog", () => {
     mockConfirmDialogState.set({
       open: true,
       message: "Delete process Chrome?",
+      items: [],
       resolve: null,
     });
     mockResolveConfirmDialog.mockClear();
@@ -64,5 +67,31 @@ describe("ConfirmDialog", () => {
     await fireEvent.keyDown(window, { key: "Escape" });
 
     expect(mockResolveConfirmDialog).toHaveBeenCalledWith(false);
+  });
+
+  it("muestra lista de procesos cuando hay items", () => {
+    mockConfirmDialogState.set({
+      open: true,
+      message: "Kill 2 processes?",
+      items: [
+        { label: "Chrome", detail: "PID 1234 · 5.2% CPU · 300 MB", icon: null },
+        { label: "Firefox", detail: "PID 5678 · 3.1% CPU · 200 MB", icon: null },
+      ],
+      resolve: null,
+    });
+
+    render(ConfirmDialog);
+
+    expect(screen.getByText("Kill 2 processes?")).toBeInTheDocument();
+    expect(screen.getByText("Chrome")).toBeInTheDocument();
+    expect(screen.getByText("Firefox")).toBeInTheDocument();
+    expect(screen.getByText("PID 1234 · 5.2% CPU · 300 MB")).toBeInTheDocument();
+    expect(screen.getByText("PID 5678 · 3.1% CPU · 200 MB")).toBeInTheDocument();
+  });
+
+  it("no muestra lista cuando items esta vacio", () => {
+    render(ConfirmDialog);
+
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 });

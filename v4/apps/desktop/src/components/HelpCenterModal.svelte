@@ -118,6 +118,25 @@
         </div>
       </section>
 
+      <section class="section licenses">
+        <h3>{t("helpCenter.licensesTitle")}</h3>
+        <p>{t("helpCenter.licensesBody")}</p>
+        <div class="license-list">
+          <div class="license-item">
+            <a class="license-name" href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">{t("helpCenter.licenseTv")}</a>
+            <span class="license-desc">{t("helpCenter.licenseTvDesc")}</span>
+          </div>
+          <div class="license-item">
+            <span class="license-name">{t("helpCenter.licenseTauri")}</span>
+            <span class="license-desc">{t("helpCenter.licenseTauriDesc")}</span>
+          </div>
+          <div class="license-item">
+            <span class="license-name">{t("helpCenter.licenseSvelte")}</span>
+            <span class="license-desc">{t("helpCenter.licenseSvelteDesc")}</span>
+          </div>
+        </div>
+      </section>
+
       <section class="section faq">
         <h3>{t("helpCenter.faqTitle")}</h3>
         <div class="faq-item">
@@ -274,6 +293,40 @@
   .faq-a,
   p,
   .bullet-list div {
+    color: var(--fg-dim);
+  }
+
+  .license-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .license-item {
+    border-left: 2px solid var(--fg-muted, #71717a);
+    padding-left: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .license-name {
+    font-weight: 600;
+    color: var(--fg);
+    font-size: calc(var(--base-font-size, 12px) * 0.917);
+  }
+
+  a.license-name {
+    text-decoration: none;
+  }
+
+  a.license-name:hover {
+    text-decoration: underline;
+    color: var(--accent);
+  }
+
+  .license-desc {
+    font-size: calc(var(--base-font-size, 12px) * 0.833);
     color: var(--fg-dim);
   }
 

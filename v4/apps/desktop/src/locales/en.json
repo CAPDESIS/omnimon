@@ -11,7 +11,7 @@
     "deepDive": "Deep Dive"
   },
   "toolbar": {
-    "searchPlaceholder": "Filter by name, PID, group... (Cmd+F)",
+    "searchPlaceholder": "Filter by name, PID, group, \"idle\"... (Cmd+F)",
     "searchLabel": "Search processes",
     "clearSearch": "Clear search",
     "groups": "Groups",
@@ -94,6 +94,7 @@
     "no": "No",
     "untitled": "(Untitled)",
     "noMatchingTabs": "No matching tabs",
+    "more": "more",
     "resizeTabPanel": "Resize tab panel",
     "expand": "Expand",
     "collapse": "Collapse",
@@ -174,7 +175,8 @@
     "autostartUnavailable": "Auto-start is unavailable in this runtime.",
     "autostartUpdateFailed": "Failed to update auto-start setting.",
     "userView": "Workspace mode",
-    "userViewHelp": "Choose between a simplified operator view and the full SRE/Pro console."
+    "userViewHelp": "Choose between a simplified operator view and the full SRE/Pro console.",
+    "openAiSettings": "AI Provider Settings"
   },
   "process": {
     "section": "Process",
@@ -260,9 +262,13 @@
     "tabsOpenPlural": "{count} {browser} tabs open"
   },
   "processes": {
-    "confirmKillSelected": "Kill {count} selected process(es)?",
+    "confirmKillSelected": "Kill {count} processes?",
+    "confirmKillSelectedSingle": "Kill this process?",
     "confirmKillSingle": "Kill process \"{name}\" (PID {pid})?",
-    "noApiKey": "No API key configured. Go to Settings to add your API key."
+    "noApiKey": "No API key configured. Go to Settings to add your API key.",
+    "openTabs": "{count} open tabs:",
+    "askAiFirst": "Ask AI first",
+    "aiKillQuestion": "Is it safe to terminate these processes? {processes}. Analyze if any are critical to the system or if closing them could cause data loss."
   },
   "aiChat": {
     "title": "AI Actions",
@@ -529,7 +535,15 @@
     "faqQ2": "Why can Network be empty?",
     "faqA2": "If there is no recent traffic or the OS has not exposed enough telemetry yet, the network section may wait for real activity before showing data.",
     "faqQ3": "Which chat should I use?",
-    "faqA3": "Use AI Actions for system questions and actions, AI Config for settings and alert rules, and contextual chats inside panels when you want focused help."
+    "faqA3": "Use AI Actions for system questions and actions, AI Config for settings and alert rules, and contextual chats inside panels when you want focused help.",
+    "licensesTitle": "Open source licenses",
+    "licensesBody": "OmniMon uses the following open source libraries:",
+    "licenseTv": "Lightweight Charts by TradingView, Inc. — Apache License 2.0",
+    "licenseTvDesc": "High-performance financial charting library used for system metric visualization.",
+    "licenseTauri": "Tauri by The Tauri Programme — Apache License 2.0 / MIT",
+    "licenseTauriDesc": "Framework for building lightweight desktop applications with web technologies.",
+    "licenseSvelte": "Svelte by Rich Harris & contributors — MIT License",
+    "licenseSvelteDesc": "Frontend compiler framework used for the application UI."
   },
   "plugins": {
     "eyebrow": "Embedded Lua runtime",

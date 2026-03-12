@@ -24,6 +24,7 @@ export interface ProcessEntry {
 }
 
 export interface SystemStats {
+  cpu_usage_pct: number;
   ram_total_gb: number;
   ram_used_pct: number;
   swap_used_mb: number;

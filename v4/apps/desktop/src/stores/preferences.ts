@@ -53,9 +53,9 @@ const DEFAULT_AI_CONFIG: AiProviderConfig = {
 };
 
 const DEFAULT_PROFILE_PRESETS: ProfilePreset[] = [
-  { id: "general", label: "General", idleThreshold: 1.0, pollIntervalMs: 2000, automationIntervalSecs: 5, aiProfile: "general" },
-  { id: "developer", label: "Developer", idleThreshold: 0.6, pollIntervalMs: 1500, automationIntervalSecs: 3, aiProfile: "developer" },
-  { id: "gaming", label: "Gaming", idleThreshold: 0.4, pollIntervalMs: 1000, automationIntervalSecs: 2, aiProfile: "gaming" },
+  { id: "general", label: "General", idleThreshold: 1.0, pollIntervalMs: 500, automationIntervalSecs: 5, aiProfile: "general" },
+  { id: "developer", label: "Developer", idleThreshold: 0.6, pollIntervalMs: 500, automationIntervalSecs: 3, aiProfile: "developer" },
+  { id: "gaming", label: "Gaming", idleThreshold: 0.4, pollIntervalMs: 500, automationIntervalSecs: 2, aiProfile: "gaming" },
   { id: "battery", label: "Battery Saver", idleThreshold: 2.0, pollIntervalMs: 4000, automationIntervalSecs: 10, aiProfile: "battery" },
 ];
 
@@ -77,7 +77,7 @@ const MAX_NETWORK_PANEL_HEIGHT = 720;
 const DEFAULT_AI_CHAT_HEIGHT = 220;
 const MIN_AI_CHAT_HEIGHT = 140;
 const MAX_AI_CHAT_HEIGHT = 640;
-const DEFAULT_POLL_INTERVAL_MS = 2000;
+const DEFAULT_POLL_INTERVAL_MS = 500;
 const MIN_POLL_INTERVAL_MS = 500;
 const MAX_POLL_INTERVAL_MS = 10_000;
 const DEFAULT_AUTOMATION_INTERVAL_SECS = 5;

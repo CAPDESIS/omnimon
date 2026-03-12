@@ -49,6 +49,7 @@ pub struct ProcessEntry {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SystemStats {
+    pub cpu_usage_pct: f64,
     pub ram_total_gb: f64,
     pub ram_used_pct: u32,
     pub swap_used_mb: u64,
@@ -102,7 +103,12 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
             let disk_write_mb = entry.disk_write_bytes as f64 / 1_048_576.0;
             let is_system = entry.is_system;
             let threshold = idle_threshold.unwrap_or(1.0);
-            let idle = cpu_pct < threshold && !is_system;
+            // Idle = no CPU activity AND no network activity AND not a system process.
+            // This prevents marking apps with active connections (Chrome, WhatsApp,
+            // Slack, etc.) as inactive even when their CPU is momentarily 0%.
+            let has_cpu = cpu_pct >= threshold;
+            let has_network = entry.net_rx_bytes_per_sec > 0 || entry.net_tx_bytes_per_sec > 0;
+            let idle = !is_system && !has_cpu && !has_network;
 
             ProcessEntry {
                 pid: entry.pid,
@@ -136,6 +142,7 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
     let total_procs = processes.len() as u32;
 
     let stats = SystemStats {
+        cpu_usage_pct: (snapshot.cpu_usage_percent as f64 * 10.0).round() / 10.0,
         ram_total_gb: (snapshot.total_memory_bytes as f64 / 1_073_741_824.0 * 10.0).round() / 10.0,
         ram_used_pct: if snapshot.total_memory_bytes > 0 {
             ((snapshot.used_memory_bytes as f64 / snapshot.total_memory_bytes as f64) * 100.0)

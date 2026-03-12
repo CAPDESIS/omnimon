@@ -16,7 +16,7 @@
     $displayName = "User";
     $profilePreset = "balanced";
     $dashboardLayout = "standard";
-    $refreshInterval = 2000;
+    $refreshInterval = 500;
     $favoriteProcesses = [];
     $notificationLevel = "all";
   }
@@ -41,50 +41,41 @@
       $notificationLevel = "off";
     } else if (preset === "balanced") {
       $dashboardLayout = "standard";
-      $refreshInterval = 2000;
+      $refreshInterval = 500;
       $notificationLevel = "all";
     } else if (preset === "power") {
       $dashboardLayout = "expanded";
-      $refreshInterval = 1000;
+      $refreshInterval = 500;
       $notificationLevel = "critical";
     }
   }
 </script>
 
 <div class="profile-settings">
-  <h2>{t("profileSettings.title")}</h2>
+  <h2>{$displayName !== "User" ? `${t("profileSettings.title")} — ${$displayName}` : t("profileSettings.title")}</h2>
 
-  <div class="form-group">
-    <label for="displayName">{t("profileSettings.displayName")}</label>
-    <input
-      id="displayName"
-      type="text"
-      bind:value={$displayName}
-    />
-  </div>
-
-  <div class="form-group presets">
+  <div class="form-group full-width presets">
     <h3>{t("profileSettings.preset")}</h3>
     <div class="preset-cards">
-      <button 
-        class="preset-card" 
-        class:active={$profilePreset === 'minimal'} 
+      <button
+        class="preset-card"
+        class:active={$profilePreset === 'minimal'}
         onclick={() => setPreset('minimal')}
       >
         <h4>{t("profileSettings.presetMinimal")}</h4>
         <p>Basic tracking</p>
       </button>
-      <button 
-        class="preset-card" 
-        class:active={$profilePreset === 'balanced'} 
+      <button
+        class="preset-card"
+        class:active={$profilePreset === 'balanced'}
         onclick={() => setPreset('balanced')}
       >
         <h4>{t("profileSettings.presetBalanced")}</h4>
         <p>Standard features</p>
       </button>
-      <button 
-        class="preset-card" 
-        class:active={$profilePreset === 'power'} 
+      <button
+        class="preset-card"
+        class:active={$profilePreset === 'power'}
         onclick={() => setPreset('power')}
       >
         <h4>{t("profileSettings.presetPower")}</h4>
@@ -93,37 +84,48 @@
     </div>
   </div>
 
-  <div class="form-group">
-    <label for="refreshInterval">{t("profileSettings.refreshInterval")} (ms): {$refreshInterval}</label>
-    <input
-      id="refreshInterval"
-      type="range"
-      min="1000"
-      max="10000"
-      step="1000"
-      bind:value={$refreshInterval}
-    />
+  <div class="form-grid">
+    <div class="form-group">
+      <label for="displayName">{t("profileSettings.displayName")}</label>
+      <input
+        id="displayName"
+        type="text"
+        bind:value={$displayName}
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="dashboardLayout">{t("profileSettings.layout")}</label>
+      <select id="dashboardLayout" bind:value={$dashboardLayout}>
+        <option value="compact">{t("profileSettings.layoutCompact")}</option>
+        <option value="standard">{t("profileSettings.layoutStandard")}</option>
+        <option value="expanded">{t("profileSettings.layoutExpanded")}</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="notificationLevel">{t("profileSettings.notifications")}</label>
+      <select id="notificationLevel" bind:value={$notificationLevel}>
+        <option value="off">{t("profileSettings.notifOff")}</option>
+        <option value="critical">{t("profileSettings.notifCritical")}</option>
+        <option value="all">{t("profileSettings.notifAll")}</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="refreshInterval">{t("profileSettings.refreshInterval")}: {$refreshInterval}ms</label>
+      <input
+        id="refreshInterval"
+        type="range"
+        min="500"
+        max="10000"
+        step="500"
+        bind:value={$refreshInterval}
+      />
+    </div>
   </div>
 
-  <div class="form-group">
-    <label for="dashboardLayout">{t("profileSettings.layout")}</label>
-    <select id="dashboardLayout" bind:value={$dashboardLayout}>
-      <option value="compact">{t("profileSettings.layoutCompact")}</option>
-      <option value="standard">{t("profileSettings.layoutStandard")}</option>
-      <option value="expanded">{t("profileSettings.layoutExpanded")}</option>
-    </select>
-  </div>
-
-  <div class="form-group">
-    <label for="notificationLevel">{t("profileSettings.notifications")}</label>
-    <select id="notificationLevel" bind:value={$notificationLevel}>
-      <option value="off">{t("profileSettings.notifOff")}</option>
-      <option value="critical">{t("profileSettings.notifCritical")}</option>
-      <option value="all">{t("profileSettings.notifAll")}</option>
-    </select>
-  </div>
-
-  <div class="form-group">
+  <div class="form-group full-width">
     <label for="favoriteSearch">{t("profileSettings.favorites")}</label>
     <div class="favorite-input">
       <input
@@ -135,17 +137,19 @@
       />
       <Button onclick={addFavorite} aria-label={t("profileSettings.addFavorite")}>{t("profileSettings.addFavorite")}</Button>
     </div>
-    <ul class="favorite-list">
-      {#each $favoriteProcesses as fav}
-        <li>
-          <span>{fav}</span>
-          <Button onclick={() => removeFavorite(fav)} variant="danger" aria-label="Remove">✕</Button>
-        </li>
-      {/each}
-    </ul>
+    {#if $favoriteProcesses.length > 0}
+      <ul class="favorite-list">
+        {#each $favoriteProcesses as fav}
+          <li>
+            <span>{fav}</span>
+            <Button onclick={() => removeFavorite(fav)} variant="danger" aria-label="Remove">✕</Button>
+          </li>
+        {/each}
+      </ul>
+    {/if}
   </div>
 
-  <div class="actions">
+  <div class="actions full-width">
     <Button onclick={resetToDefaults} variant="secondary">{t("profileSettings.resetDefaults")}</Button>
   </div>
 </div>
@@ -154,69 +158,178 @@
   .profile-settings {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
-    color: var(--text-color, #fff);
+    gap: 20px;
+    color: var(--text-primary);
+    width: 100%;
+  }
+
+  .profile-settings h2 {
+    font-size: calc(var(--base-font-size, 12px) * 1.25);
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-primary);
+  }
+
+  .profile-settings h3 {
+    font-size: calc(var(--base-font-size, 12px) * 0.85);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-secondary);
+    margin: 0 0 4px;
+  }
+
+  /* Responsive 2-column grid for form fields */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    width: 100%;
   }
 
   .form-group {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 8px;
+    width: 100%;
   }
 
+  .full-width {
+    grid-column: 1 / -1;
+  }
+
+  .form-group > label {
+    font-size: calc(var(--base-font-size, 12px) * 0.9);
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  /* Preset cards — full width, 3 columns */
   .preset-cards {
-    display: flex;
-    gap: 1rem;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: 100%;
   }
 
   .preset-card {
-    flex: 1;
-    padding: 1rem;
-    border: 1px solid var(--border-color, #444);
-    border-radius: 8px;
-    background: var(--bg-color-secondary, #222);
-    color: inherit;
+    padding: 14px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md, 8px);
+    background: var(--bg-card, var(--bg-secondary));
+    color: var(--text-primary);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: border-color 0.15s, background 0.15s;
+    text-align: center;
+  }
+
+  .preset-card:hover {
+    border-color: var(--accent);
+    background: var(--bg-hover);
   }
 
   .preset-card.active {
-    border-color: var(--primary-color, #007bff);
-    background: color-mix(in srgb, var(--accent, #007bff) 25%, var(--bg));
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 18%, var(--bg-secondary));
+  }
+
+  .preset-card h4 {
+    margin: 0 0 4px;
+    font-size: calc(var(--base-font-size, 12px) * 1.05);
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .preset-card:not(.active) h4 {
+    color: var(--text-primary);
+  }
+
+  .preset-card p {
+    margin: 0;
+    font-size: calc(var(--base-font-size, 12px) * 0.85);
+    color: var(--text-secondary);
   }
 
   .favorite-input {
     display: flex;
-    gap: 0.5rem;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .favorite-input input {
+    flex: 1;
   }
 
   .favorite-list {
     list-style: none;
     padding: 0;
     margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 4px;
   }
 
   .favorite-list li {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: var(--bg-color-tertiary, #333);
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: var(--base-font-size, 12px);
+    color: var(--text-primary);
   }
 
   input, select {
-    padding: 0.5rem;
-    border-radius: 4px;
-    border: 1px solid var(--border-color, #444);
-    background: var(--bg-color-secondary, #222);
-    color: inherit;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: var(--base-font-size, 12px);
+    font-family: inherit;
+    width: 100%;
+  }
+
+  input:hover, select:hover {
+    border-color: var(--accent);
+  }
+
+  input:focus-visible, select:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  input[type="range"] {
+    padding: 0;
+    accent-color: var(--accent);
+    height: 6px;
+    cursor: pointer;
+  }
+
+  select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 32px;
   }
 
   .actions {
-    margin-top: 1rem;
+    margin-top: 4px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Responsive: collapse to 1 column on narrow windows */
+  @media (max-width: 500px) {
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+    .preset-cards {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

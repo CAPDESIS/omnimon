@@ -7,9 +7,9 @@ const { mockAiProfile, mockUserMode, mockProfilePresets, mockActiveProfilePreset
     mockAiProfile: writable("general"),
     mockUserMode: writable("pro"),
     mockProfilePresets: writable([
-      { id: "general", label: "General", idleThreshold: 1, pollIntervalMs: 2000, automationIntervalSecs: 5, aiProfile: "general" },
-      { id: "developer", label: "Developer", idleThreshold: 0.6, pollIntervalMs: 1500, automationIntervalSecs: 3, aiProfile: "developer" },
-      { id: "gaming", label: "Gaming", idleThreshold: 0.4, pollIntervalMs: 1000, automationIntervalSecs: 2, aiProfile: "gaming" },
+      { id: "general", label: "General", idleThreshold: 1, pollIntervalMs: 500, automationIntervalSecs: 5, aiProfile: "general" },
+      { id: "developer", label: "Developer", idleThreshold: 0.6, pollIntervalMs: 500, automationIntervalSecs: 3, aiProfile: "developer" },
+      { id: "gaming", label: "Gaming", idleThreshold: 0.4, pollIntervalMs: 500, automationIntervalSecs: 2, aiProfile: "gaming" },
       { id: "battery", label: "Battery Saver", idleThreshold: 2.0, pollIntervalMs: 4000, automationIntervalSecs: 10, aiProfile: "battery" },
     ]),
     mockActiveProfilePreset: writable("general"),

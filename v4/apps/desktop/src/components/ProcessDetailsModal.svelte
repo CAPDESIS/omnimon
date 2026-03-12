@@ -268,7 +268,7 @@
         <span class="value mono">{process.uptime || "\u2014"}</span>
       </div>
 
-      {#if proMode && allBrowserTabs.length > 0}
+      {#if allBrowserTabs.length > 0}
         <div class="section-divider"></div>
         <div class="tabs-header">
           <div class="section-label">{t("process.browserTabs", { count: allBrowserTabs.length })}</div>

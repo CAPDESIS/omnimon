@@ -38,11 +38,11 @@ vi.mock("../../stores/preferences", () => {
   const { writable } = require("svelte/store");
   return {
     idleThreshold: writable(1),
-    pollIntervalMs: writable(2000),
+    pollIntervalMs: writable(500),
     automationIntervalSecs: writable(5),
     activeProfilePreset: writable("general"),
     profilePresets: writable([
-      { id: "general", label: "General", idleThreshold: 1, pollIntervalMs: 2000, automationIntervalSecs: 5, aiProfile: "general" },
+      { id: "general", label: "General", idleThreshold: 1, pollIntervalMs: 500, automationIntervalSecs: 5, aiProfile: "general" },
     ]),
     setProfilePresets: mockSetProfilePresets,
     applyProfilePresetById: mockApplyProfilePresetById,

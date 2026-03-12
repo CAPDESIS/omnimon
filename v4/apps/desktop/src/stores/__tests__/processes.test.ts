@@ -149,7 +149,7 @@ describe("applyDiff", () => {
 describe("fetchMetrics", () => {
   it("populates processes and stats on success", async () => {
     const proc = makeProc({ pid: 10 });
-    const st = { ram_total_gb: 16, ram_used_pct: 50, swap_used_mb: 128, total_processes: 1, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 };
+    const st = { cpu_usage_pct: 25, ram_total_gb: 16, ram_used_pct: 50, swap_used_mb: 128, total_processes: 1, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 };
     mockInvoke.mockResolvedValue({ processes: [proc], stats: st });
 
     await fetchMetrics();
@@ -179,7 +179,7 @@ describe("fetchMetrics", () => {
 
     mockInvoke.mockResolvedValue({
       processes: [makeProc({ pid: 2 })],
-      stats: { ram_total_gb: 16, ram_used_pct: 50, swap_used_mb: 0, total_processes: 1, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 },
+      stats: { cpu_usage_pct: 25, ram_total_gb: 16, ram_used_pct: 50, swap_used_mb: 0, total_processes: 1, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 },
     });
 
     await fetchMetrics();
@@ -193,7 +193,7 @@ describe("fetchMetrics", () => {
 
     mockInvoke.mockResolvedValue({
       processes: [makeProc({ pid: 1, cpu_pct: 5, ram_mb: 50, state: "R", idle: false })],
-      stats: { ram_total_gb: 16, ram_used_pct: 50, swap_used_mb: 0, total_processes: 1, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 },
+      stats: { cpu_usage_pct: 25, ram_total_gb: 16, ram_used_pct: 50, swap_used_mb: 0, total_processes: 1, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 },
     });
 
     await fetchMetrics();
@@ -203,7 +203,7 @@ describe("fetchMetrics", () => {
   it("does not crash on empty IPC response array", async () => {
     mockInvoke.mockResolvedValue({
       processes: [],
-      stats: { ram_total_gb: 16, ram_used_pct: 0, swap_used_mb: 0, total_processes: 0, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 },
+      stats: { cpu_usage_pct: 25, ram_total_gb: 16, ram_used_pct: 0, swap_used_mb: 0, total_processes: 0, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 },
     });
     await fetchMetrics();
     expect(get(processes)).toEqual([]);
@@ -216,7 +216,7 @@ describe("fetchMetrics", () => {
       }
       return Promise.resolve({
         processes: [makeProc({ pid: 7 })],
-        stats: { ram_total_gb: 16, ram_used_pct: 10, swap_used_mb: 0, total_processes: 1, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 },
+        stats: { cpu_usage_pct: 25, ram_total_gb: 16, ram_used_pct: 10, swap_used_mb: 0, total_processes: 1, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 },
       });
     });
 
@@ -238,7 +238,7 @@ describe("fetchMetrics", () => {
             else {
               resolve({
                 processes: [makeProc({ pid: 77, name: "Worker 🚀" })],
-                stats: { ram_total_gb: 16, ram_used_pct: 30, swap_used_mb: 5, total_processes: 1, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 },
+                stats: { cpu_usage_pct: 25, ram_total_gb: 16, ram_used_pct: 30, swap_used_mb: 5, total_processes: 1, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 },
               });
             }
           }, 120);
@@ -617,7 +617,7 @@ describe("polling", () => {
       if (cmd === "get_network_data") return Promise.resolve({ top_processes: [], recent_connections: [], net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0, capture_backend: "test", dpi_active: false });
       return Promise.resolve({
         processes: [],
-        stats: { ram_total_gb: 16, ram_used_pct: 0, swap_used_mb: 0, total_processes: 0, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 },
+        stats: { cpu_usage_pct: 25, ram_total_gb: 16, ram_used_pct: 0, swap_used_mb: 0, total_processes: 0, net_rx_bytes_per_sec: 0, net_tx_bytes_per_sec: 0 },
       });
     });
   });
@@ -690,6 +690,7 @@ describe("polling", () => {
 describe("handleMetricsUpdate", () => {
   it("keeps stats reference when changes are below threshold", () => {
     const initialStats = {
+      cpu_usage_pct: 25,
       ram_total_gb: 16,
       ram_used_pct: 50,
       swap_used_mb: 200,
@@ -726,6 +727,7 @@ describe("handleMetricsUpdate", () => {
       handleMetricsUpdate({
         processes: [makeProc({ pid: 3 })],
         stats: {
+          cpu_usage_pct: 25,
           ram_total_gb: 16,
           ram_used_pct: 20,
           swap_used_mb: 0,

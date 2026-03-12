@@ -56,6 +56,7 @@ function validProcess(overrides: Record<string, unknown> = {}) {
 
 function validStats(overrides: Record<string, unknown> = {}) {
   return {
+    cpu_usage_pct: 25,
     ram_total_gb: 16,
     ram_used_pct: 55.3,
     swap_used_mb: 128,

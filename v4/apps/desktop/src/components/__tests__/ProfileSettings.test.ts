@@ -16,7 +16,7 @@ describe("ProfileSettings", () => {
     displayName.set("Test User");
     profilePreset.set("balanced");
     dashboardLayout.set("standard");
-    refreshInterval.set(2000);
+    refreshInterval.set(500);
     favoriteProcesses.set(["chrome"]);
     notificationLevel.set("all");
   });
@@ -67,7 +67,7 @@ describe("ProfileSettings", () => {
     expect(get(displayName)).toBe("User");
     expect(get(profilePreset)).toBe("balanced");
     expect(get(dashboardLayout)).toBe("standard");
-    expect(get(refreshInterval)).toBe(2000);
+    expect(get(refreshInterval)).toBe(500);
     expect(get(favoriteProcesses)).toEqual([]);
     expect(get(notificationLevel)).toBe("all");
   });

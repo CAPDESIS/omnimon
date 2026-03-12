@@ -661,6 +661,8 @@
           {:else}
             <span class="chat-text typing">{t("aiChat.thinking")}<span class="dots"><span>.</span><span>.</span><span>.</span></span></span>
           {/if}
+        </div>
+        <div class="cancel-row">
           <Button class="cancel-btn" variant="danger" size="sm" onclick={cancelRequest}>{t("aiChat.cancel")}</Button>
         </div>
       {/if}
@@ -912,8 +914,15 @@
     white-space: pre;
   }
 
+  .cancel-row {
+    display: flex;
+    justify-content: flex-end;
+    padding: 2px 0;
+    position: sticky;
+    bottom: 0;
+  }
+
   .cancel-btn {
-    margin-left: auto;
     text-transform: uppercase;
     letter-spacing: 0.3px;
     flex-shrink: 0;
