@@ -30,6 +30,9 @@ v4/apps/desktop/coverage/
 *.xcworkspace/
 xcuserdata/
 
+# Landing page (has its own repo: chochy2001/omnimon_landing)
+omnimon_landing/
+
 # Logs
 *.log
 

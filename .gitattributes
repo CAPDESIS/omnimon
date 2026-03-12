@@ -1,0 +1,7 @@
+# Mark generated/vendored files so GitHub excludes them from language stats
+omnimon_landing/.deploy/** linguist-generated
+omnimon_landing/dist/** linguist-generated
+v4/apps/desktop/dist/** linguist-generated
+
+# Lock files
+*.lock linguist-generated

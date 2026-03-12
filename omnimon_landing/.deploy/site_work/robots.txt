@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://omnimon.com.mx/sitemap-index.xml
