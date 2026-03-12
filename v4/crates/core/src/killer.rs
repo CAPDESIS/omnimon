@@ -132,23 +132,26 @@ pub fn is_immutable_blocked_process_name(process_name: &str) -> bool {
 }
 
 fn path_is_trusted_for_blocked_process(exe_path: &Path) -> bool {
-    let path_lc = exe_path.to_string_lossy().to_ascii_lowercase();
+    // Normalize path separators for consistent comparison
+    let path_normalized = exe_path.to_string_lossy().replace('\\', "/").to_ascii_lowercase();
+
     if cfg!(target_os = "macos") {
-        path_lc.starts_with("/system/")
-            || path_lc.starts_with("/usr/libexec/")
-            || path_lc.starts_with("/usr/sbin/")
-            || path_lc == "/sbin/launchd"
+        path_normalized.starts_with("/system/")
+            || path_normalized.starts_with("/usr/libexec/")
+            || path_normalized.starts_with("/usr/sbin/")
+            || path_normalized == "/sbin/launchd"
     } else if cfg!(target_os = "windows") {
-        path_lc.starts_with("c:\\windows\\system32\\")
-            || path_lc.starts_with("c:\\windows\\syswow64\\")
-            || path_lc == "c:\\windows\\explorer.exe"
+        // Normalized paths with forward slashes for comparison
+        path_normalized.starts_with("c:/windows/system32/")
+            || path_normalized.starts_with("c:/windows/syswow64/")
+            || path_normalized == "c:/windows/explorer.exe"
     } else if cfg!(target_os = "linux") {
-        path_lc.starts_with("/sbin/")
-            || path_lc.starts_with("/usr/sbin/")
-            || path_lc.starts_with("/lib/systemd/")
-            || path_lc.starts_with("/usr/lib/systemd/")
-            || path_lc == "/usr/bin/xorg"
-            || path_lc == "/usr/lib/xorg/xorg"
+        path_normalized.starts_with("/sbin/")
+            || path_normalized.starts_with("/usr/sbin/")
+            || path_normalized.starts_with("/lib/systemd/")
+            || path_normalized.starts_with("/usr/lib/systemd/")
+            || path_normalized == "/usr/bin/xorg"
+            || path_normalized == "/usr/lib/xorg/xorg"
     } else {
         false
     }
