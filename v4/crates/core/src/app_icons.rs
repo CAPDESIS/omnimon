@@ -229,10 +229,17 @@ fn windows_icon_data_url(exe_path: Option<&str>) -> Option<String> {
             exe_path.replace('\'', "''"),
             output.display().to_string().replace('\'', "''")
         );
-        let status = Command::new("powershell")
-            .args(["-NoProfile", "-Command", &command])
-            .status()
-            .ok()?;
+        let mut cmd = Command::new("powershell");
+        cmd.args(["-NoProfile", "-Command", &command]);
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        let status = cmd.status().ok()?;
         if !status.success() {
             return None;
         }

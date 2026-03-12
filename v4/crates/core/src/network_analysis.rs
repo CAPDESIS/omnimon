@@ -1300,11 +1300,19 @@ fn build_pid_name_map_windows_sysinfo() -> HashMap<u32, String> {
 fn get_connections_windows_netstat() -> Result<Vec<NetworkConnection>, String> {
     use std::process::Command;
 
-    let child = Command::new("netstat")
-        .args(["-ano"])
+    let mut cmd = Command::new("netstat");
+    cmd.args(["-ano"])
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .spawn()
+        .stderr(std::process::Stdio::null());
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let child = cmd.spawn()
         .map_err(|e| format!("failed to spawn netstat: {e}"))?;
 
     let output = wait_with_timeout(child, Duration::from_secs(COMMAND_TIMEOUT_SECS))
