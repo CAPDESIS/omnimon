@@ -261,16 +261,24 @@ impl NativeTabProvider {
         loop {
             match child.try_wait() {
                 Ok(Some(status)) => {
-                    let stdout = child.stdout.take().map(|mut r| {
-                        let mut s = String::new();
-                        std::io::Read::read_to_string(&mut r, &mut s).ok();
-                        s
-                    }).unwrap_or_default();
-                    let stderr = child.stderr.take().map(|mut r| {
-                        let mut s = String::new();
-                        std::io::Read::read_to_string(&mut r, &mut s).ok();
-                        s
-                    }).unwrap_or_default();
+                    let stdout = child
+                        .stdout
+                        .take()
+                        .map(|mut r| {
+                            let mut s = String::new();
+                            std::io::Read::read_to_string(&mut r, &mut s).ok();
+                            s
+                        })
+                        .unwrap_or_default();
+                    let stderr = child
+                        .stderr
+                        .take()
+                        .map(|mut r| {
+                            let mut s = String::new();
+                            std::io::Read::read_to_string(&mut r, &mut s).ok();
+                            s
+                        })
+                        .unwrap_or_default();
 
                     if !status.success() {
                         let msg = stderr.trim().to_string();
