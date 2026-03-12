@@ -949,14 +949,30 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // --- Window close intercept: hide instead of quit ---
+            // --- Window close behavior: Windows exits, macOS hides to tray ---
             if let Some(window) = app.get_webview_window("main") {
                 let app_handle = app.handle().clone();
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        // Prevent the window from actually closing
-                        api.prevent_close();
-                        hide_main_window(&app_handle);
+                        #[cfg(target_os = "macos")]
+                        {
+                            // macOS: Hide to tray for better UX
+                            api.prevent_close();
+                            hide_main_window(&app_handle);
+                        }
+
+                        #[cfg(target_os = "windows")]
+                        {
+                            // Windows: Actually exit the application
+                            // This stops all background threads and processes
+                            app_handle.exit(0);
+                        }
+
+                        #[cfg(target_os = "linux")]
+                        {
+                            // Linux: Exit like Windows
+                            app_handle.exit(0);
+                        }
                     }
                 });
             }

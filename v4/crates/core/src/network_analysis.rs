@@ -1103,8 +1103,18 @@ fn parse_tcp_state_hex(hex: &str) -> ConnectionState {
 fn get_connections_windows() -> Result<Vec<NetworkConnection>, String> {
     // Try native Windows API first, fall back to netstat
     match get_connections_windows_native() {
-        Ok(conns) if !conns.is_empty() => Ok(conns),
-        _ => get_connections_windows_netstat(),
+        Ok(conns) if !conns.is_empty() => {
+            eprintln!("[network] Windows native API: got {} connections", conns.len());
+            Ok(conns)
+        }
+        Ok(_) => {
+            eprintln!("[network] Windows native API returned empty, falling back to netstat");
+            get_connections_windows_netstat()
+        }
+        Err(e) => {
+            eprintln!("[network] Windows native API failed: {}, falling back to netstat", e);
+            get_connections_windows_netstat()
+        }
     }
 }
 
@@ -1125,18 +1135,24 @@ fn get_connections_windows_native() -> Result<Vec<NetworkConnection>, String> {
     // --- TCP connections ---
     let mut tcp_size: u32 = 0;
     // First call to get required buffer size
-    unsafe {
-        let _ = GetExtendedTcpTable(
+    let first_result = unsafe {
+        GetExtendedTcpTable(
             None,
             &mut tcp_size,
             false,
             AF_INET.0 as u32,
             TCP_TABLE_OWNER_PID_ALL,
             0,
-        );
+        )
+    };
+
+    if first_result != 0 && first_result != 122 {
+        // 122 = ERROR_INSUFFICIENT_BUFFER (expected for size query)
+        eprintln!("[network] GetExtendedTcpTable size query failed with error code: {}", first_result);
     }
 
     if tcp_size > 0 {
+        eprintln!("[network] GetExtendedTcpTable buffer size: {} bytes", tcp_size);
         let mut tcp_buf = vec![0u8; tcp_size as usize];
         let result = unsafe {
             GetExtendedTcpTable(
@@ -1152,6 +1168,7 @@ fn get_connections_windows_native() -> Result<Vec<NetworkConnection>, String> {
         if result == 0 {
             let num_entries = u32::from_le_bytes(tcp_buf[0..4].try_into().unwrap_or([0; 4]));
             let entry_size = std::mem::size_of::<MIB_TCPROW_OWNER_PID>();
+            eprintln!("[network] Found {} TCP connections", num_entries);
 
             for i in 0..num_entries as usize {
                 let offset = 4 + i * entry_size;
@@ -1221,6 +1238,7 @@ fn get_connections_windows_native() -> Result<Vec<NetworkConnection>, String> {
     }
 
     if udp_size > 0 {
+        eprintln!("[network] GetExtendedUdpTable buffer size: {} bytes", udp_size);
         let mut udp_buf = vec![0u8; udp_size as usize];
         let result = unsafe {
             GetExtendedUdpTable(
@@ -1236,6 +1254,7 @@ fn get_connections_windows_native() -> Result<Vec<NetworkConnection>, String> {
         if result == 0 {
             let num_entries = u32::from_le_bytes(udp_buf[0..4].try_into().unwrap_or([0; 4]));
             let entry_size = std::mem::size_of::<MIB_UDPROW_OWNER_PID>();
+            eprintln!("[network] Found {} UDP connections", num_entries);
 
             for i in 0..num_entries as usize {
                 let offset = 4 + i * entry_size;
@@ -1300,10 +1319,12 @@ fn build_pid_name_map_windows_sysinfo() -> HashMap<u32, String> {
 fn get_connections_windows_netstat() -> Result<Vec<NetworkConnection>, String> {
     use std::process::Command;
 
+    eprintln!("[network] Using netstat fallback for connections");
+
     let mut cmd = Command::new("netstat");
     cmd.args(["-ano"])
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null());
+        .stderr(std::process::Stdio::piped()); // Capture stderr for debugging
 
     #[cfg(target_os = "windows")]
     {
@@ -1313,18 +1334,32 @@ fn get_connections_windows_netstat() -> Result<Vec<NetworkConnection>, String> {
     }
 
     let child = cmd.spawn()
-        .map_err(|e| format!("failed to spawn netstat: {e}"))?;
+        .map_err(|e| {
+            eprintln!("[network] Failed to spawn netstat: {}", e);
+            format!("failed to spawn netstat: {e}")
+        })?;
 
     let output = wait_with_timeout(child, Duration::from_secs(COMMAND_TIMEOUT_SECS))
-        .map_err(|e| format!("netstat failed: {e}"))?;
+        .map_err(|e| {
+            eprintln!("[network] netstat timeout or error: {}", e);
+            format!("netstat failed: {e}")
+        })?;
 
     if !output.status.success() {
-        return Err("netstat command failed".to_string());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("[network] netstat command failed with exit code: {:?}", output.status.code());
+        eprintln!("[network] netstat stderr: {}", stderr);
+        return Err(format!("netstat command failed: {}", stderr));
     }
 
     let text = String::from_utf8_lossy(&output.stdout);
     let pid_names = build_pid_name_map_windows_sysinfo();
-    parse_netstat_windows(&text, &pid_names)
+    let result = parse_netstat_windows(&text, &pid_names);
+    match &result {
+        Ok(conns) => eprintln!("[network] netstat parsed {} connections", conns.len()),
+        Err(e) => eprintln!("[network] netstat parsing failed: {}", e),
+    }
+    result
 }
 
 /// Parse `netstat -ano` output on Windows.
