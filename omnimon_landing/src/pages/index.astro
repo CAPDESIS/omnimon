@@ -35,20 +35,20 @@ const downloadArtifacts = [
 
 const releaseHighlights = [
 	{
-		title: 'UI legible con colores solidos',
-		description: 'Se eliminaron transparencias y se aplicaron colores solidos en los 3 temas (dark, light, contrast). Todo el texto es legible sin depender de blur ni fondos semi-transparentes.'
+		title: 'Kill dialog inteligente',
+		description: 'Al terminar navegadores, el dialogo muestra las pestanas abiertas que se cerraran. Nuevo boton "Preguntar a la IA" para analizar si es seguro terminar un proceso.'
 	},
 	{
-		title: 'Iconos profesionales Lucide SVG',
-		description: 'Mas de 35 emojis reemplazados por iconos Lucide SVG consistentes en toda la interfaz, incluyendo sidebar, tabs, alertas y proceso de kill.'
+		title: 'Graficas dinamicas corregidas',
+		description: 'Sparklines y modales de graficas ahora renderizan de forma confiable con escalado dinamico Y, reintentos automaticos y sincronizacion incremental de datos.'
 	},
 	{
-		title: 'Streaming real de IA (SSE)',
-		description: 'Respuestas de OpenAI y Anthropic ahora llegan en tiempo real via Server-Sent Events. Modo Profesional muestra herramientas, modelo y tokens usados.'
+		title: 'Sistema de temas unificado',
+		description: 'Se elimino el sistema de temas duplicado que causaba conflictos. Un solo motor de temas (dark, light, cyberpunk) con auto-deteccion de preferencia del sistema.'
 	},
 	{
-		title: 'i18n completo y layout mejorado',
-		description: '531 keys sincronizadas espanol/ingles, coverage al 87% con enforcement automatico, CVE quinn-proto resuelto (severity 8.7 HIGH) y layout split con divider redimensionable.'
+		title: 'Detalles de proceso mejorados',
+		description: 'El modal de detalles ahora muestra pestanas del navegador en modo basico, no solo en modo Pro. Layout full-width responsive para todos los paneles.'
 	}
 ];
 
@@ -96,7 +96,7 @@ const basicTutorial = [
 const faqs = [
 	{
 		question: `Que incluye la version ${releaseVersion}?`,
-		answer: 'Incluye el Sprint 4 Reality Fix: UI con colores solidos y sin transparencias, iconos Lucide SVG profesionales, streaming real de IA via SSE, i18n con 531 keys sincronizadas, Modo Profesional y coverage al 87%.'
+		answer: 'Incluye kill dialog inteligente con pestanas del navegador y boton de IA, graficas dinamicas corregidas, sistema de temas unificado sin conflictos, y detalles de proceso mejorados con tabs visibles en modo basico.'
 	},
 	{
 		question: 'En que plataformas funciona OmniMon?',

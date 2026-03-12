@@ -1,0 +1,100 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+const releaseUrl = 'https://github.com/chochy2001/omnimon/releases/latest';
+const installScriptUrl = 'https://raw.githubusercontent.com/chochy2001/omnimon/main/scripts/install-web.sh';
+---
+
+<Layout
+	title="OmniMon v6.5.0 — Smart Kill & Charts Fix | Blog"
+	description="OmniMon v6.5.0 adds smart kill dialog with browser tabs, AI safety check, fixed dynamic charts, unified theme system, and improved process details."
+>
+	<main class="mx-auto flex w-full max-w-3xl flex-col gap-12 px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+		<article class="space-y-10">
+			<header class="space-y-4">
+				<div class="flex items-center gap-3 text-sm text-slate-400">
+					<a href="/blog/" class="transition hover:text-white">&larr; Blog</a>
+					<span>|</span>
+					<a href="/es/blog/v6-5-0-release-es/" class="transition hover:text-sky-300">Leer en espanol</a>
+				</div>
+				<h1 class="section-title text-4xl font-black tracking-tight text-white sm:text-5xl">OmniMon v6.5.0 — Smart Kill &amp; Charts Fix</h1>
+				<div class="flex items-center gap-4 text-sm text-slate-400">
+					<time>12 Mar 2026</time>
+					<span class="rounded-full bg-orange-500/20 px-3 py-1 text-orange-200">New release</span>
+				</div>
+			</header>
+
+			<section class="space-y-6 text-lg leading-8 text-slate-300">
+				<p>
+					Version 6.5.0 is the <strong class="text-white">Sprint 5</strong> release: a focused update that makes the kill dialog smarter, fixes chart rendering across all views, unifies the theme system, and improves process details visibility.
+				</p>
+
+				<h2 class="text-2xl font-bold text-white">Smart Kill Dialog</h2>
+				<p>When terminating browser processes, OmniMon now shows exactly which tabs will be closed:</p>
+				<ul class="list-disc space-y-2 pl-6">
+					<li><strong class="text-white">Browser tab names in kill confirmation.</strong> The dialog lists open tabs (up to 5 visible, with a "+N more" indicator) so you know what you're closing before confirming.</li>
+					<li><strong class="text-white">"Ask AI" button.</strong> A new button in the kill dialog lets you consult the AI assistant about whether it's safe to terminate the selected processes, with a pre-built prompt including the process names.</li>
+					<li><strong class="text-white">Per-browser tab grouping.</strong> Tabs are grouped by browser (Chrome, Brave, etc.) and only shown once per browser to avoid duplicates from helper processes.</li>
+				</ul>
+
+				<h2 class="text-2xl font-bold text-white">Charts Fixed</h2>
+				<ul class="list-disc space-y-2 pl-6">
+					<li><strong class="text-white">Dynamic Y-axis scaling.</strong> Fixed <code>autoscaleInfoProvider</code> returning <code>null</code> instead of <code>undefined</code>, which broke chart rendering in lightweight-charts v5.</li>
+					<li><strong class="text-white">Retry mechanism.</strong> Charts now retry initialization if the container didn't have dimensions on first attempt, fixing blank sparklines on dashboard load.</li>
+					<li><strong class="text-white">Incremental data sync.</strong> Only new data points are pushed to the chart on each poll cycle, avoiding layout thrashing and improving performance.</li>
+				</ul>
+
+				<h2 class="text-2xl font-bold text-white">Unified Theme System</h2>
+				<ul class="list-disc space-y-2 pl-6">
+					<li><strong class="text-white">Single theme engine.</strong> Removed the legacy dual-theme system that was overwriting CSS variables and causing invisible text in light mode.</li>
+					<li><strong class="text-white">Three themes.</strong> Dark, Light, and Cyberpunk — all driven by a single <code>applyThemeTokens()</code> function with proper contrast ratios.</li>
+					<li><strong class="text-white">Auto theme detection.</strong> The "Auto" option uses <code>prefers-color-scheme</code> to match the OS preference.</li>
+				</ul>
+
+				<h2 class="text-2xl font-bold text-white">Process Details Improved</h2>
+				<ul class="list-disc space-y-2 pl-6">
+					<li><strong class="text-white">Browser tabs visible in basic mode.</strong> The process detail modal now shows associated browser tabs without requiring Pro Mode toggle.</li>
+					<li><strong class="text-white">Flash-free startup.</strong> Dark background applied via inline style on the body element prevents the white flash before the theme loads.</li>
+				</ul>
+
+				<h2 class="text-2xl font-bold text-white">Download</h2>
+				<div class="grid gap-4 sm:grid-cols-3">
+					<a href={releaseUrl} target="_blank" rel="noreferrer" class="rounded-2xl border border-slate-700 bg-slate-900/40 p-5 text-center transition hover:border-orange-400/50">
+						<p class="text-sm uppercase tracking-[0.24em] text-orange-200">macOS</p>
+						<p class="mt-2 font-semibold text-white">Universal DMG</p>
+					</a>
+					<a href={releaseUrl} target="_blank" rel="noreferrer" class="rounded-2xl border border-slate-700 bg-slate-900/40 p-5 text-center transition hover:border-orange-400/50">
+						<p class="text-sm uppercase tracking-[0.24em] text-sky-200">Windows</p>
+						<p class="mt-2 font-semibold text-white">MSI Installer</p>
+					</a>
+					<a href={installScriptUrl} target="_blank" rel="noreferrer" class="rounded-2xl border border-slate-700 bg-slate-900/40 p-5 text-center transition hover:border-orange-400/50">
+						<p class="text-sm uppercase tracking-[0.24em] text-emerald-200">Linux</p>
+						<p class="mt-2 font-semibold text-white">.deb / .AppImage</p>
+					</a>
+				</div>
+				<p class="text-sm text-slate-400">Always verify downloads against <code>SHA256SUMS.txt</code> published in the GitHub release.</p>
+
+				<div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
+					<p class="text-sm uppercase tracking-[0.24em] text-slate-500">Homebrew</p>
+					<pre class="mt-3 overflow-x-auto text-sm text-slate-300"><code>brew tap chochy2001/omnimon
+brew install --cask omnimon</code></pre>
+				</div>
+			</section>
+		</article>
+
+		<div class="flex items-center gap-4 text-sm text-slate-400">
+			<a href="/blog/" class="transition hover:text-white">&larr; All posts</a>
+		</div>
+	</main>
+
+	<footer class="mt-12 border-t border-slate-800/80 py-8 text-sm text-slate-400">
+		<div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+			<p>&copy; {new Date().getFullYear()} OmniMon. Open source under MIT.</p>
+			<div class="flex flex-wrap items-center gap-4">
+				<a href="https://github.com/chochy2001/omnimon" target="_blank" rel="noreferrer" class="transition hover:text-white">GitHub</a>
+				<a href="/" class="transition hover:text-white">Home</a>
+				<a href="/blog/" class="transition hover:text-white">Blog</a>
+			</div>
+		</div>
+	</footer>
+</Layout>

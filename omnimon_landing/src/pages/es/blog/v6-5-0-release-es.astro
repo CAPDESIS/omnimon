@@ -1,0 +1,100 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+
+const releaseUrl = 'https://github.com/chochy2001/omnimon/releases/latest';
+const installScriptUrl = 'https://raw.githubusercontent.com/chochy2001/omnimon/main/scripts/install-web.sh';
+---
+
+<Layout
+	title="OmniMon v6.5.0 — Kill Inteligente y Graficas Corregidas | Blog"
+	description="OmniMon v6.5.0 incluye dialogo de kill inteligente con pestanas del navegador, boton de IA, graficas dinamicas corregidas, sistema de temas unificado y detalles de proceso mejorados."
+>
+	<main class="mx-auto flex w-full max-w-3xl flex-col gap-12 px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+		<article class="space-y-10">
+			<header class="space-y-4">
+				<div class="flex items-center gap-3 text-sm text-slate-400">
+					<a href="/es/blog/" class="transition hover:text-white">&larr; Blog</a>
+					<span>|</span>
+					<a href="/blog/v6-5-0-release/" class="transition hover:text-sky-300">Read in English</a>
+				</div>
+				<h1 class="section-title text-4xl font-black tracking-tight text-white sm:text-5xl">OmniMon v6.5.0 — Kill Inteligente y Graficas Corregidas</h1>
+				<div class="flex items-center gap-4 text-sm text-slate-400">
+					<time>12 Mar 2026</time>
+					<span class="rounded-full bg-orange-500/20 px-3 py-1 text-orange-200">Nuevo release</span>
+				</div>
+			</header>
+
+			<section class="space-y-6 text-lg leading-8 text-slate-300">
+				<p>
+					La version 6.5.0 es el release del <strong class="text-white">Sprint 5</strong>: una actualizacion enfocada que hace el dialogo de kill mas inteligente, corrige el renderizado de graficas en todas las vistas, unifica el sistema de temas y mejora la visibilidad de detalles de procesos.
+				</p>
+
+				<h2 class="text-2xl font-bold text-white">Dialogo de Kill Inteligente</h2>
+				<p>Al terminar procesos de navegador, OmniMon ahora muestra exactamente que pestanas se cerraran:</p>
+				<ul class="list-disc space-y-2 pl-6">
+					<li><strong class="text-white">Nombres de pestanas en la confirmacion.</strong> El dialogo lista las pestanas abiertas (hasta 5 visibles, con indicador "+N mas") para que sepas que estas cerrando antes de confirmar.</li>
+					<li><strong class="text-white">Boton "Preguntar a la IA".</strong> Un nuevo boton en el dialogo de kill te permite consultar al asistente de IA si es seguro terminar los procesos seleccionados, con un prompt pre-armado incluyendo los nombres.</li>
+					<li><strong class="text-white">Agrupacion por navegador.</strong> Las pestanas se agrupan por navegador (Chrome, Brave, etc.) y solo se muestran una vez por navegador para evitar duplicados de procesos helper.</li>
+				</ul>
+
+				<h2 class="text-2xl font-bold text-white">Graficas Corregidas</h2>
+				<ul class="list-disc space-y-2 pl-6">
+					<li><strong class="text-white">Escalado dinamico del eje Y.</strong> Se corrigio <code>autoscaleInfoProvider</code> que retornaba <code>null</code> en vez de <code>undefined</code>, rompiendo el renderizado en lightweight-charts v5.</li>
+					<li><strong class="text-white">Mecanismo de reintento.</strong> Las graficas ahora reintentan la inicializacion si el contenedor no tenia dimensiones en el primer intento, corrigiendo sparklines vacias al cargar el dashboard.</li>
+					<li><strong class="text-white">Sincronizacion incremental.</strong> Solo los nuevos puntos de datos se envian a la grafica en cada ciclo de polling, evitando recalculos de layout y mejorando el rendimiento.</li>
+				</ul>
+
+				<h2 class="text-2xl font-bold text-white">Sistema de Temas Unificado</h2>
+				<ul class="list-disc space-y-2 pl-6">
+					<li><strong class="text-white">Un solo motor de temas.</strong> Se elimino el sistema dual de temas legacy que sobrescribia variables CSS y causaba texto invisible en modo claro.</li>
+					<li><strong class="text-white">Tres temas.</strong> Dark, Light y Cyberpunk — todos manejados por una sola funcion <code>applyThemeTokens()</code> con ratios de contraste adecuados.</li>
+					<li><strong class="text-white">Deteccion automatica.</strong> La opcion "Auto" usa <code>prefers-color-scheme</code> para coincidir con la preferencia del sistema operativo.</li>
+				</ul>
+
+				<h2 class="text-2xl font-bold text-white">Detalles de Proceso Mejorados</h2>
+				<ul class="list-disc space-y-2 pl-6">
+					<li><strong class="text-white">Pestanas visibles en modo basico.</strong> El modal de detalles del proceso ahora muestra las pestanas asociadas del navegador sin necesitar activar el Modo Profesional.</li>
+					<li><strong class="text-white">Inicio sin flash blanco.</strong> Fondo oscuro aplicado via estilo inline en el body previene el flash blanco antes de que cargue el tema.</li>
+				</ul>
+
+				<h2 class="text-2xl font-bold text-white">Descarga</h2>
+				<div class="grid gap-4 sm:grid-cols-3">
+					<a href={releaseUrl} target="_blank" rel="noreferrer" class="rounded-2xl border border-slate-700 bg-slate-900/40 p-5 text-center transition hover:border-orange-400/50">
+						<p class="text-sm uppercase tracking-[0.24em] text-orange-200">macOS</p>
+						<p class="mt-2 font-semibold text-white">Universal DMG</p>
+					</a>
+					<a href={releaseUrl} target="_blank" rel="noreferrer" class="rounded-2xl border border-slate-700 bg-slate-900/40 p-5 text-center transition hover:border-orange-400/50">
+						<p class="text-sm uppercase tracking-[0.24em] text-sky-200">Windows</p>
+						<p class="mt-2 font-semibold text-white">MSI Installer</p>
+					</a>
+					<a href={installScriptUrl} target="_blank" rel="noreferrer" class="rounded-2xl border border-slate-700 bg-slate-900/40 p-5 text-center transition hover:border-orange-400/50">
+						<p class="text-sm uppercase tracking-[0.24em] text-emerald-200">Linux</p>
+						<p class="mt-2 font-semibold text-white">.deb / .AppImage</p>
+					</a>
+				</div>
+				<p class="text-sm text-slate-400">Siempre verifica las descargas contra <code>SHA256SUMS.txt</code> publicado en el release de GitHub.</p>
+
+				<div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
+					<p class="text-sm uppercase tracking-[0.24em] text-slate-500">Homebrew</p>
+					<pre class="mt-3 overflow-x-auto text-sm text-slate-300"><code>brew tap chochy2001/omnimon
+brew install --cask omnimon</code></pre>
+				</div>
+			</section>
+		</article>
+
+		<div class="flex items-center gap-4 text-sm text-slate-400">
+			<a href="/es/blog/" class="transition hover:text-white">&larr; Todos los posts</a>
+		</div>
+	</main>
+
+	<footer class="mt-12 border-t border-slate-800/80 py-8 text-sm text-slate-400">
+		<div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+			<p>&copy; {new Date().getFullYear()} OmniMon. Open source bajo MIT.</p>
+			<div class="flex flex-wrap items-center gap-4">
+				<a href="https://github.com/chochy2001/omnimon" target="_blank" rel="noreferrer" class="transition hover:text-white">GitHub</a>
+				<a href="/" class="transition hover:text-white">Inicio</a>
+				<a href="/es/blog/" class="transition hover:text-white">Blog</a>
+			</div>
+		</div>
+	</footer>
+</Layout>
