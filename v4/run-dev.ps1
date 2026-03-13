@@ -60,5 +60,9 @@ Write-Host "  4. Conexiones de red visibles (requiere Admin)" -ForegroundColor W
 Write-Host "----------------------------------------" -ForegroundColor DarkGray
 Write-Host ""
 
-# Ejecutar tauri dev
-npm run tauri dev
+# Ejecutar tauri dev usando npx para asegurar que encuentra el CLI
+Write-Host "Iniciando aplicación de escritorio..." -ForegroundColor Green
+Write-Host ""
+
+# Usar npx para ejecutar tauri directamente desde node_modules
+npx tauri dev

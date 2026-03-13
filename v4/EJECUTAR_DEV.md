@@ -1,8 +1,28 @@
 # Guía para Ejecutar OmniMon en Modo Desarrollo
 
+## ⚠️ PREREQUISITOS PRIMERO
+
+**ANTES de ejecutar OmniMon**, asegúrate de tener instalado:
+- ✅ Node.js (v18+)
+- ✅ Rust (cargo + rustc) - **CRÍTICO**
+- ✅ Visual Studio Build Tools - **CRÍTICO para Windows**
+- 📦 Bun (opcional - npm funciona también)
+
+### 🔧 ¿No tienes todo instalado?
+
+**Ejecuta primero:**
+```powershell
+cd C:\Users\ohcho\Documents\Apps\omnimon\v4
+.\instalar-todo.ps1
+```
+
+Este script instalará todo automáticamente. Si prefieres instalación manual, consulta: **[INSTALACION_PREREQUISITOS.md](./INSTALACION_PREREQUISITOS.md)**
+
+---
+
 ## 🚀 MÉTODO MÁS FÁCIL (Recomendado)
 
-**Haz doble clic en:** `v4\run-dev.bat`
+**Haz doble clic en:** `v4\EJECUTAR_OMNIMON.bat`
 
 Este script:
 - ✅ Verifica que Cargo y Node estén instalados
