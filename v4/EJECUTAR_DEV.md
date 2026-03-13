@@ -1,5 +1,23 @@
 # Guía para Ejecutar OmniMon en Modo Desarrollo
 
+## 🚀 MÉTODO MÁS FÁCIL (Recomendado)
+
+**Haz doble clic en:** `v4\run-dev.bat`
+
+Este script:
+- ✅ Verifica que Cargo y Node estén instalados
+- ✅ Instala dependencias automáticamente
+- ✅ Ejecuta OmniMon en modo desarrollo
+- ✅ Muestra logs en la consola
+
+**Alternativa PowerShell:**
+```powershell
+cd C:\Users\ohcho\Documents\Apps\omnimon\v4
+.\run-dev.ps1
+```
+
+---
+
 ## ✅ Todos los Cambios Implementados y en Main
 
 Se han aplicado **6 commits** con mejoras críticas para Windows:
