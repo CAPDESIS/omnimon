@@ -10,7 +10,14 @@ Write-Host ""
 $appDir = "C:\Users\ohcho\Documents\Apps\omnimon\v4\apps\desktop"
 Set-Location $appDir
 
-Write-Host "[1/4] Auto-detectando herramientas..." -ForegroundColor Yellow
+Write-Host "[1/5] Auto-detectando herramientas..." -ForegroundColor Yellow
+
+# Buscar y agregar Bun al PATH
+$bunPath = "$env:USERPROFILE\.bun\bin"
+if (Test-Path "$bunPath\bun.exe") {
+    $env:PATH = "$bunPath;$env:PATH"
+    Write-Host "  [OK] Bun agregado al PATH" -ForegroundColor Green
+}
 
 # Buscar cargo en ubicaciones comunes
 $cargoLocations = @(
@@ -73,7 +80,7 @@ Write-Host ""
 
 # Instalar dependencias si no existen
 if (-not (Test-Path "node_modules")) {
-    Write-Host "[2/4] Instalando dependencias de npm..." -ForegroundColor Yellow
+    Write-Host "[2/5] Instalando dependencias de npm..." -ForegroundColor Yellow
     npm install
     if ($LASTEXITCODE -ne 0) {
         Write-Host "ERROR: Fallo la instalacion de dependencias" -ForegroundColor Red
@@ -81,11 +88,11 @@ if (-not (Test-Path "node_modules")) {
         exit 1
     }
 } else {
-    Write-Host "[2/4] Dependencias ya instaladas" -ForegroundColor Green
+    Write-Host "[2/5] Dependencias ya instaladas" -ForegroundColor Green
 }
 
 Write-Host ""
-Write-Host "[3/4] Verificando Tauri CLI..." -ForegroundColor Yellow
+Write-Host "[3/5] Verificando Tauri CLI..." -ForegroundColor Yellow
 
 # Verificar que @tauri-apps/cli este instalado
 if (-not (Test-Path "node_modules\@tauri-apps\cli")) {
@@ -101,7 +108,19 @@ if (-not (Test-Path "node_modules\@tauri-apps\cli")) {
 Write-Host "  [OK] Tauri CLI instalado" -ForegroundColor Green
 Write-Host ""
 
-Write-Host "[4/4] Iniciando OmniMon como aplicacion de escritorio..." -ForegroundColor Yellow
+Write-Host "[4/5] Verificando Bun..." -ForegroundColor Yellow
+
+# Verificar que bun este disponible ahora
+try {
+    $bunVersion = bun --version 2>&1
+    Write-Host "  [OK] Bun: $bunVersion" -ForegroundColor Green
+} catch {
+    Write-Host "  [!] Bun no encontrado - usando npm como fallback" -ForegroundColor DarkYellow
+}
+
+Write-Host ""
+
+Write-Host "[5/5] Iniciando OmniMon como aplicacion de escritorio..." -ForegroundColor Yellow
 Write-Host ""
 Write-Host "IMPORTANTE: Esto abrira una VENTANA DE APLICACION (no navegador)" -ForegroundColor Magenta
 Write-Host "           Con icono en system tray y permisos completos" -ForegroundColor Magenta
