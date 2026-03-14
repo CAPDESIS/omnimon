@@ -12,6 +12,8 @@
 
 *Scroll down for Spanish / Desplázate hacia abajo para Español.*
 
+
+
 OmniMon is a next-generation, cross-platform system monitor built with Rust and Svelte. It provides real-time process telemetry, AI-powered optimization, network security analysis, and browser tab management — all from a single desktop app, CLI, or TUI.
 
 ## Highlights
@@ -120,10 +122,10 @@ Store keys securely: `omnimon apikey --ai <provider> <key>` (stored in OS Keyrin
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Tauri Desktop App                     │
-│  ┌──────────────────────┐  ┌──────────────────────────┐ │
-│  │   Svelte 5 Frontend  │  │   Rust Backend (Tauri)   │ │
+┌────────────────────────────────────────────────────────┐
+│                    Tauri Desktop App                   │
+│  ┌──────────────────────┐  ┌─────────────────────────┐ │
+│  │   Svelte 5 Frontend  │  │   Rust Backend (Tauri)  │ │
 │  │  ┌────────────────┐  │  │  ┌──────────────────┐   │ │
 │  │  │ Stores/State   │◄─┼──┼─►│ IPC Commands     │   │ │
 │  │  │ Components     │  │  │  │ Automations      │   │ │
@@ -132,14 +134,14 @@ Store keys securely: `omnimon apikey --ai <provider> <key>` (stored in OS Keyrin
 │  └──────────────────────┘  └───────────┼─────────────┘ │
 └────────────────────────────────────────┼───────────────┘
                                          │
-┌────────────────────────────────────────▼───────────────┐
-│                   macmon_core (Rust)                    │
+┌────────────────────────────────────────▼──────────────┐
+│                   macmon_core (Rust)                  │
 │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌────────────┐  │
 │  │ metrics │ │ network │ │ security │ │     ai     │  │
 │  │ watcher │ │ analysis│ │ audit    │ │ rules_eng. │  │
 │  │ killer  │ │ alerts  │ │ crypto   │ │ browser    │  │
 │  └─────────┘ └─────────┘ └──────────┘ └────────────┘  │
-└────────────────────────────────────────────────────────┘
+└───────────────────────────────────────────────────────┘
 ```
 
 Four Cargo crates: `core` (engine), `cli` (terminal), `tui` (interactive), `desktop` (Tauri).
