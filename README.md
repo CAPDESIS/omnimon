@@ -1,6 +1,6 @@
 # OmniMon
 
-[![CI](https://github.com/chochy2001/omnimon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/omnimon/actions) [![Version](https://img.shields.io/badge/version-6.3.0-brightgreen)](#) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_2_+_Svelte_5-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-💖-ff69b4)](https://github.com/sponsors/chochy2001)
+[![CI](https://github.com/chochy2001/omnimon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/omnimon/actions) [![Version](https://img.shields.io/badge/version-6.5.0-brightgreen)](#) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_2_+_Svelte_5-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-💖-ff69b4)](https://github.com/sponsors/chochy2001)
 
 ```
   ___  __  __ _   _ ___ __  __  ___  _   _
@@ -12,7 +12,7 @@
 
 *Scroll down for Spanish / Desplázate hacia abajo para Español.*
 
-
+![OmniMon v6.5.0 — Desktop App](v4/docs/assets/omnimon-screenshot.png)
 
 OmniMon is a next-generation, cross-platform system monitor built with Rust and Svelte. It provides real-time process telemetry, AI-powered optimization, network security analysis, and browser tab management — all from a single desktop app, CLI, or TUI.
 
@@ -27,10 +27,6 @@ OmniMon is a next-generation, cross-platform system monitor built with Rust and 
 - **SRE automations** — User-defined rules for alerts and auto-actions with native OS notifications
 - **Plugin system** — Extend monitoring with Lua plugins (sandboxed, 150ms timeout, 1MB memory limit)
 - **Three interfaces** — Desktop GUI, CLI, and interactive TUI (htop-style)
-
-## Screenshots
-
-> Screenshots available in [GitHub Releases](https://github.com/chochy2001/omnimon/releases/latest).
 
 ## Quick Start
 
