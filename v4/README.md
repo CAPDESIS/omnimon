@@ -4,189 +4,154 @@ OmniMon es un monitor de sistema multiplataforma construido con Tauri, Rust y Sv
 
 ---
 
-## 🚀 Inicio Rápido
+## Prerequisitos
 
-### Para Usuarios (Ejecutar la Aplicación)
+### Esenciales (todas las plataformas)
+- **Node.js** v18+ — Runtime de JavaScript
+- **Rust** 1.75+ (cargo + rustc) — Compilador para Tauri
+- **Bun** — Package manager del proyecto
 
-Si solo quieres **ejecutar OmniMon en modo desarrollo**:
+### Específicos por plataforma
 
-1. **Instala prerequisitos** (solo la primera vez):
-   ```powershell
-   .\instalar-todo.ps1
-   ```
+| Plataforma | Dependencia adicional |
+|------------|----------------------|
+| **Windows** | Visual Studio Build Tools 2019+ con "Desktop development with C++" |
+| **macOS** | Xcode Command Line Tools (`xcode-select --install`) |
+| **Linux** | `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libgtk-3-dev` |
 
-2. **Ejecuta la aplicación**:
-   ```powershell
-   .\EJECUTAR_OMNIMON.bat
-   ```
+**Guía de instalación completa:** [INSTALACION_PREREQUISITOS.md](./INSTALACION_PREREQUISITOS.md)
 
-📖 **Guía detallada:** [EJECUTAR_DEV.md](./EJECUTAR_DEV.md)
+### Verificar que tienes todo instalado
 
----
-
-### Para Desarrolladores (Contribuir al Proyecto)
-
-Si quieres **desarrollar** o **contribuir** a OmniMon:
-
-1. **Instala prerequisitos:**
-   - Node.js (v18+)
-   - Rust (cargo + rustc)
-   - Visual Studio Build Tools (Windows)
-   - Bun (opcional)
-
-   📖 **Guía de instalación:** [INSTALACION_PREREQUISITOS.md](./INSTALACION_PREREQUISITOS.md)
-
-2. **Clona el repositorio:**
-   ```bash
-   git clone <repo-url>
-   cd omnimon/v4
-   ```
-
-3. **Instala dependencias:**
-   ```bash
-   cd apps/desktop
-   npm install  # o bun install
-   ```
-
-4. **Ejecuta en modo desarrollo:**
-   ```bash
-   npm run tauri dev  # o bun run tauri dev
-   ```
+```bash
+node --version    # debe ser v18+
+cargo --version   # debe estar instalado
+bun --version     # debe estar instalado
+```
 
 ---
 
-## 📚 Documentación
+## Inicio Rápido
+
+### Windows
+```powershell
+cd omnimon\v4
+.\EJECUTAR_OMNIMON.bat
+```
+
+### macOS / Linux
+```bash
+cd omnimon/v4
+./setup-dev.sh   # Solo la primera vez
+make dev
+```
+
+### Universal (cualquier plataforma)
+```bash
+cd omnimon/v4/apps/desktop
+bun install
+bun run tauri dev
+```
+
+---
+
+## Documentación
 
 | Documento | Descripción |
 |-----------|-------------|
-| [EJECUTAR_DEV.md](./EJECUTAR_DEV.md) | Guía para ejecutar OmniMon en modo desarrollo |
-| [INSTALACION_PREREQUISITOS.md](./INSTALACION_PREREQUISITOS.md) | Instalación de herramientas necesarias (Node, Rust, VS Tools) |
-| [CLAUDE.md](../CLAUDE.md) | Instrucciones para Claude Code (contribución con IA) |
+| [INSTALACION_PREREQUISITOS.md](./INSTALACION_PREREQUISITOS.md) | Instalación de herramientas por SO (Windows, macOS, Linux) |
+| [EJECUTAR_DEV.md](./EJECUTAR_DEV.md) | Guía para ejecutar, debug y troubleshooting |
+| [CLAUDE.md](../CLAUDE.md) | Instrucciones para contribución con IA |
+| [CONTRIBUTING.md](../CONTRIBUTING.md) | Guía para contribuidores |
 
 ---
 
-## 🛠️ Scripts Disponibles
+## Scripts Disponibles
 
-| Script | Descripción |
-|--------|-------------|
-| `EJECUTAR_OMNIMON.bat` | Ejecuta OmniMon en modo desarrollo (doble click) |
-| `instalar-todo.ps1` | Instala todos los prerequisitos automáticamente |
-| `instalar-rust.ps1` | Instala solo Rust/Cargo |
-| `instalar-bun.ps1` | Instala solo Bun (package manager) |
-| `run-dev.ps1` | Script de desarrollo (requiere Developer PowerShell) |
-| `run-dev-auto.ps1` | Script de desarrollo con auto-detección de herramientas |
-
----
-
-## 🔍 Prerequisitos
-
-### Esenciales (CRÍTICOS)
-- ✅ **Node.js** v18+ - Runtime de JavaScript
-- ✅ **Rust** (cargo + rustc) - Compilador para Tauri
-- ✅ **Visual Studio Build Tools** - Herramientas de compilación C++ (solo Windows)
-
-### Opcionales
-- 📦 **Bun** - Package manager alternativo (más rápido que npm)
-
-### ¿Cómo verificar si los tienes instalados?
-
-```powershell
-node --version
-cargo --version
-```
-
-Si alguno falla, ejecuta `.\instalar-todo.ps1`
+| Script | Plataforma | Descripción |
+|--------|-----------|-------------|
+| `EJECUTAR_OMNIMON.bat` | Windows | Ejecuta OmniMon con auto-detección |
+| `run-dev-auto.ps1` | Windows | Script PowerShell con auto-detección |
+| `run-dev.bat` | Windows | Script de desarrollo alternativo |
+| `run-dev.ps1` | Windows | Script PowerShell de desarrollo |
+| `setup-dev.sh` | macOS/Linux | Verifica e instala dependencias |
+| `setup-dev.ps1` | Windows | Verifica e instala dependencias |
+| `instalar-todo.ps1` | Windows | Instala todos los prerequisitos |
+| `instalar-rust.ps1` | Windows | Instala solo Rust |
+| `instalar-bun.ps1` | Windows | Instala solo Bun |
 
 ---
 
-## 🎯 Estructura del Proyecto
+## Estructura del Proyecto
 
 ```
 v4/
 ├── apps/
 │   └── desktop/           # Aplicación Tauri principal
-│       ├── src/           # Frontend (Svelte)
+│       ├── src/           # Frontend (Svelte 5)
 │       └── src-tauri/     # Backend (Rust)
 ├── crates/
-│   └── core/              # Lógica principal de monitoreo
-├── EJECUTAR_OMNIMON.bat   # Script de ejecución fácil
-├── EJECUTAR_DEV.md        # Guía de ejecución
-├── INSTALACION_PREREQUISITOS.md  # Guía de instalación
-├── instalar-todo.ps1      # Instalador automático
+│   ├── core/              # Motor de monitoreo nativo
+│   ├── cli/               # CLI (17+ comandos)
+│   └── tui/               # Terminal UI (ratatui)
+├── Cargo.toml             # Workspace (4 crates)
+├── Makefile               # Atajos de desarrollo
+├── EJECUTAR_OMNIMON.bat   # Script de ejecución (Windows)
+├── setup-dev.sh           # Setup para macOS/Linux
 └── README.md              # Este archivo
 ```
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting Rápido
 
-### "cargo: command not found"
-- **Solución:** Rust no está instalado o no está en el PATH
-- **Fix:** Ejecuta `.\instalar-rust.ps1` o `.\instalar-todo.ps1`
+| Problema | Solución |
+|----------|----------|
+| `cargo: command not found` | Instalar Rust o cerrar/reabrir terminal |
+| `Port 1420 is already in use` | Matar proceso anterior: `lsof -ti:1420 \| xargs kill -9` |
+| `LINK: fatal error` (Windows) | Instalar Visual Studio Build Tools con C++ |
+| `libwebkit2gtk not found` (Linux) | `sudo apt install libwebkit2gtk-4.1-dev` |
+| La app no abre | Verificar prerequisitos con `node --version && cargo --version` |
+| Compilación lenta (primera vez) | Normal (~5-15 min). Las siguientes son incrementales |
 
-### "tauri: command not found"
-- **Solución:** Dependencias npm no instaladas
-- **Fix:** Ejecuta `npm install` en `apps/desktop`
-
-### "LINK: fatal error LNK1181" o "linker `link.exe` not found"
-- **Solución:** Visual Studio Build Tools no instalado
-- **Fix:** Instala desde https://visualstudio.microsoft.com/visual-cpp-build-tools/
-- **Importante:** Selecciona "Desktop development with C++"
-
-### La app no abre
-- **Verifica prerequisitos:** `.\instalar-todo.ps1` mostrará qué falta
-- **Ejecuta como Admin:** Algunas funciones (network capture) requieren permisos de administrador
+Troubleshooting detallado: [EJECUTAR_DEV.md](./EJECUTAR_DEV.md#troubleshooting)
 
 ---
 
-## 🌟 Funcionalidades de OmniMon
+## Funcionalidades de OmniMon
 
-- 📊 Monitoreo de CPU, RAM, Disco en tiempo real
-- 🌐 Análisis de conexiones de red
-- 🔍 Explorador de procesos con kill inteligente
-- 🌐 Monitoreo de tabs de navegador (Chrome/Edge/Brave)
-- 🎨 Temas claro/oscuro
-- ⚡ Global hotkey (Ctrl+Alt+O)
-- 📍 System tray con tooltip dinámico
-- 🔔 Sistema de alertas
-- 📈 Gráficas de métricas en tiempo real
-
----
-
-## 📝 Notas de Desarrollo
-
-- **Package Manager Preferido:** Bun (según CLAUDE.md)
-- **Convención de Commits:** Conventional Commits (feat/fix/chore/etc.)
-- **Testing:** `bun run test` y `bun run test:coverage`
-- **Build:** `bun run tauri build -- --debug --no-bundle`
+- Monitoreo de CPU, RAM, Disco en tiempo real
+- Análisis de conexiones de red
+- Explorador de procesos con kill inteligente
+- Monitoreo de tabs de navegador (Chrome/Edge/Brave)
+- Temas claro/oscuro
+- Global hotkey (Ctrl+Alt+O)
+- System tray con tooltip dinámico
+- Sistema de alertas
+- Gráficas de métricas en tiempo real
+- Optimización con IA (multi-proveedor)
 
 ---
 
-## 🤝 Contribuir
+## Desarrollo
 
-1. Lee [CLAUDE.md](../CLAUDE.md) para instrucciones específicas
-2. Asegúrate de que los tests pasen: `npm run test`
-3. Verifica que compila: `cargo check --workspace`
-4. Sigue las convenciones de commits
-5. **NUNCA** incluyas `Co-Authored-By: Claude` en los commits
+```bash
+cd omnimon/v4
 
----
+make dev                                    # Modo desarrollo full-stack
+bun run test                                # Tests unitarios frontend
+cargo test --workspace                      # Tests Rust
+cargo check --workspace                     # Type check Rust
+bun run tauri build -- --debug --no-bundle  # Validación rápida full-stack
+```
 
-## 📄 Licencia
-
-[Ver licencia del proyecto principal]
-
----
-
-## 🆘 Ayuda
-
-Si tienes problemas:
-
-1. Revisa [INSTALACION_PREREQUISITOS.md](./INSTALACION_PREREQUISITOS.md)
-2. Consulta [EJECUTAR_DEV.md](./EJECUTAR_DEV.md)
-3. Verifica que todos los prerequisitos estén instalados
-4. Ejecuta `.\instalar-todo.ps1` para verificación automática
+**Package Manager:** Bun (no npm/yarn). Lockfile: `bun.lock`
 
 ---
 
-**¿Listo para empezar?** Ejecuta `.\EJECUTAR_OMNIMON.bat` 🚀
+## Contribuir
+
+1. Lee [CONTRIBUTING.md](../CONTRIBUTING.md)
+2. Verifica que los tests pasen: `bun run test && cargo test --workspace`
+3. Verifica que compile: `cargo check --workspace`
+4. Sigue la convención de commits (conventional commits)

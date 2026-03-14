@@ -7,7 +7,12 @@ Thanks for your interest in contributing to OmniMon! As an open source project, 
 - **Rust** 1.75+ with `cargo`
 - **bun** (package manager — not npm/yarn)
 - **Tauri CLI** (`cargo install tauri-cli`)
-- **Platform deps:** WebView2 (Windows), libwebkit2gtk + libappindicator3 (Linux)
+- **Platform deps:**
+  - **Windows:** Visual Studio Build Tools 2019+ with "Desktop development with C++", WebView2
+  - **macOS:** Xcode Command Line Tools (`xcode-select --install`)
+  - **Linux (Debian/Ubuntu):** `sudo apt install -y build-essential libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libjavascriptcoregtk-4.1-dev libsoup-3.0-dev`
+
+See [v4/INSTALACION_PREREQUISITOS.md](v4/INSTALACION_PREREQUISITOS.md) for detailed installation instructions per OS.
 
 ## Development Environment
 
@@ -129,7 +134,12 @@ We're excited to review your contributions!
 - **Rust** 1.75+ con `cargo`
 - **bun** (gestor de paquetes — no npm/yarn)
 - **Tauri CLI** (`cargo install tauri-cli`)
-- **Deps de plataforma:** WebView2 (Windows), libwebkit2gtk + libappindicator3 (Linux)
+- **Deps de plataforma:**
+  - **Windows:** Visual Studio Build Tools 2019+ con "Desktop development with C++", WebView2
+  - **macOS:** Xcode Command Line Tools (`xcode-select --install`)
+  - **Linux (Debian/Ubuntu):** `sudo apt install -y build-essential libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libjavascriptcoregtk-4.1-dev libsoup-3.0-dev`
+
+Guía detallada: [v4/INSTALACION_PREREQUISITOS.md](v4/INSTALACION_PREREQUISITOS.md)
 
 ## Entorno de Desarrollo
 

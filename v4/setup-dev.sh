@@ -1,54 +1,91 @@
 #!/usr/bin/env bash
 set -e
 
-echo "Checking development dependencies for OmniMon v4..."
+echo "==================================="
+echo "  OmniMon v4 - Setup de Desarrollo"
+echo "==================================="
+echo ""
+
+ERRORS=0
 
 # 1. Check Rust / Cargo
+echo -n "[1/4] Rust/Cargo: "
 if ! command -v cargo &> /dev/null; then
-    echo "Error: 'cargo' is not installed. Install Rust: https://rustup.rs/"
-    exit 1
+    echo "NO INSTALADO"
+    echo "  -> Instala Rust: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+    ERRORS=$((ERRORS + 1))
+else
+    echo "$(cargo --version)"
 fi
-echo "cargo detected: $(cargo --version)"
 
-# 2. Check Node.js / NPM
-if ! command -v npm &> /dev/null; then
-    echo "Error: 'npm' is not installed. Install Node.js: https://nodejs.org/"
-    exit 1
+# 2. Check Node.js
+echo -n "[2/4] Node.js: "
+if ! command -v node &> /dev/null; then
+    echo "NO INSTALADO"
+    echo "  -> Instala Node.js: https://nodejs.org/"
+    ERRORS=$((ERRORS + 1))
+else
+    echo "$(node --version)"
 fi
-echo "npm detected: $(npm --version)"
 
-# 3. Linux-specific dependencies (Debian/Ubuntu)
+# 3. Check Bun
+echo -n "[3/4] Bun: "
+if command -v bun &> /dev/null; then
+    echo "$(bun --version)"
+    PKG_MGR="bun"
+else
+    echo "No instalado (usando npm como alternativa)"
+    if command -v npm &> /dev/null; then
+        PKG_MGR="npm"
+    else
+        echo "  -> Error: ni bun ni npm están disponibles"
+        ERRORS=$((ERRORS + 1))
+    fi
+fi
+
+# 4. Platform-specific dependencies
+echo -n "[4/4] Dependencias de plataforma: "
 if [ "$(uname)" == "Linux" ]; then
-    echo "Checking Linux-specific dependencies (Debian/Ubuntu)..."
-    if ! dpkg -s libwebkit2gtk-4.1-dev &> /dev/null; then
-        echo "Warning: libwebkit2gtk-4.1-dev does not appear to be installed."
-        echo "Run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf"
+    if dpkg -s libwebkit2gtk-4.1-dev &> /dev/null 2>&1; then
+        echo "Linux deps OK"
     else
-        echo "Linux dependencies detected."
+        echo "FALTAN"
+        echo "  -> Ejecuta: sudo apt install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libgtk-3-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev"
+        ERRORS=$((ERRORS + 1))
     fi
-fi
-
-# 4. macOS-specific dependencies
-if [ "$(uname)" == "Darwin" ]; then
-    echo "macOS environment detected. Ensure Xcode Command Line Tools are installed."
-    if ! xcode-select -p &> /dev/null; then
-        echo "Warning: Xcode Command Line Tools not detected."
-        echo "Run: xcode-select --install"
+elif [ "$(uname)" == "Darwin" ]; then
+    if xcode-select -p &> /dev/null; then
+        echo "macOS (Xcode CLI Tools OK)"
     else
-        echo "Xcode Command Line Tools detected."
+        echo "FALTAN"
+        echo "  -> Ejecuta: xcode-select --install"
+        ERRORS=$((ERRORS + 1))
     fi
+else
+    echo "Plataforma: $(uname)"
 fi
 
 echo ""
-echo "Installing NPM dependencies..."
+
+if [ $ERRORS -gt 0 ]; then
+    echo "Se encontraron $ERRORS problemas. Instala las dependencias faltantes y vuelve a ejecutar."
+    exit 1
+fi
+
+# Install dependencies
+echo "Instalando dependencias del frontend..."
 if [ -d "apps/desktop" ]; then
     cd apps/desktop
     if [ -f "package.json" ]; then
-        npm install
+        $PKG_MGR install
     else
-        echo "Warning: package.json not found in apps/desktop, skipping npm install."
+        echo "Advertencia: package.json no encontrado en apps/desktop"
     fi
     cd ../..
 fi
 
-echo "Environment configured successfully! Run 'make dev' to start."
+echo ""
+echo "==================================="
+echo "  Setup completado exitosamente!"
+echo "  Ejecuta 'make dev' para iniciar."
+echo "==================================="

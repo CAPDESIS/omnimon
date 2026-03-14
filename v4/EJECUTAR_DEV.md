@@ -1,227 +1,264 @@
 # Guía para Ejecutar OmniMon en Modo Desarrollo
 
-## ⚠️ PREREQUISITOS PRIMERO
+## Prerequisitos
 
 **ANTES de ejecutar OmniMon**, asegúrate de tener instalado:
-- ✅ Node.js (v18+)
-- ✅ Rust (cargo + rustc) - **CRÍTICO**
-- ✅ Visual Studio Build Tools - **CRÍTICO para Windows**
-- 📦 Bun (opcional - npm funciona también)
 
-### 🔧 ¿No tienes todo instalado?
+| Herramienta | Windows | macOS | Linux |
+|-------------|---------|-------|-------|
+| Node.js v18+ | Requerido | Requerido | Requerido |
+| Rust (cargo + rustc) | **CRÍTICO** | **CRÍTICO** | **CRÍTICO** |
+| Bun | Recomendado | Recomendado | Recomendado |
+| Visual Studio Build Tools | **CRÍTICO** | — | — |
+| Xcode Command Line Tools | — | **CRÍTICO** | — |
+| libwebkit2gtk-4.1-dev + deps | — | — | **CRÍTICO** |
 
-**Ejecuta primero:**
-```powershell
-cd C:\Users\ohcho\Documents\Apps\omnimon\v4
-.\instalar-todo.ps1
-```
-
-Este script instalará todo automáticamente. Si prefieres instalación manual, consulta: **[INSTALACION_PREREQUISITOS.md](./INSTALACION_PREREQUISITOS.md)**
+Si falta algo, consulta **[INSTALACION_PREREQUISITOS.md](./INSTALACION_PREREQUISITOS.md)**.
 
 ---
 
-## 🚀 MÉTODO MÁS FÁCIL (Recomendado)
+## Ejecutar OmniMon
 
-**Haz doble clic en:** `v4\EJECUTAR_OMNIMON.bat`
+### Windows
 
-Este script:
-- ✅ Verifica que Cargo y Node estén instalados
-- ✅ Instala dependencias automáticamente
-- ✅ Ejecuta OmniMon en modo desarrollo
-- ✅ Muestra logs en la consola
-
-**Alternativa PowerShell:**
+**Opción 1 — Script automático (recomendado):**
 ```powershell
-cd C:\Users\ohcho\Documents\Apps\omnimon\v4
-.\run-dev.ps1
+cd omnimon\v4
+.\EJECUTAR_OMNIMON.bat
+```
+Este script auto-detecta Bun, Cargo y Node, instala dependencias si es necesario, y lanza la app.
+
+**Opción 2 — PowerShell:**
+```powershell
+cd omnimon\v4
+.\run-dev-auto.ps1
 ```
 
----
-
-## ✅ Todos los Cambios Implementados y en Main
-
-Se han aplicado **6 commits** con mejoras críticas para Windows:
-
-1. ✅ CREATE_NO_WINDOW para PowerShell/netstat
-2. ✅ Detección CDP + banner ayuda para tabs de navegador
-3. ✅ Cierre real de app en Windows (no solo hide)
-4. ✅ Instrucciones CDP multiplataforma
-5. ✅ Quick wins: network-capture, WinDivert, paths, timing
-6. ✅ Mejoras finales: netstat parser, hotkeys, tooltip, logging
-
----
-
-## 🚀 Cómo Ejecutar en Modo Desarrollo
-
-### Opción 1: Con Tauri CLI (Recomendado)
-
-Si tienes Tauri CLI instalado:
-
+**Opción 3 — Manual:**
 ```powershell
-cd C:\Users\ohcho\Documents\Apps\omnimon\v4\apps\desktop
-npm run tauri dev
+cd omnimon\v4\apps\desktop
+bun install
+bun run tauri dev
 ```
 
-### Opción 2: Instalar Tauri CLI primero
+### macOS
 
-Si ves el error `'tauri' is not recognized`:
-
-```powershell
-# Instalar Tauri CLI globalmente
-cargo install tauri-cli
-
-# Luego ejecutar
-cd C:\Users\ohcho\Documents\Apps\omnimon\v4\apps\desktop
-cargo tauri dev
+**Opción 1 — Make (recomendado):**
+```bash
+cd omnimon/v4
+./setup-dev.sh   # Solo la primera vez
+make dev
 ```
 
-### Opción 3: Ejecutar directamente con Cargo
-
-```powershell
-cd C:\Users\ohcho\Documents\Apps\omnimon\v4\apps\desktop\src-tauri
-cargo run
+**Opción 2 — Manual:**
+```bash
+cd omnimon/v4/apps/desktop
+bun install      # o npm install
+bun run tauri dev
 ```
 
-### Opción 4: Build y ejecutar el binario
+### Linux
 
-```powershell
-cd C:\Users\ohcho\Documents\Apps\omnimon\v4
+**Opción 1 — Make (recomendado):**
+```bash
+cd omnimon/v4
+./setup-dev.sh   # Solo la primera vez
+make dev
+```
 
-# Build release
-cargo build --release --manifest-path apps/desktop/src-tauri/Cargo.toml
+**Opción 2 — Manual:**
+```bash
+cd omnimon/v4/apps/desktop
+bun install      # o npm install
+bun run tauri dev
+```
 
-# Ejecutar
-.\target\release\omnimon-desktop.exe
+**Nota:** Para captura de red en Linux, ejecuta con `sudo` o configura capabilities:
+```bash
+sudo setcap cap_net_raw+ep target/debug/omnimon-desktop
 ```
 
 ---
 
-## 🔍 Verificar Funcionalidades
+## Qué Esperar al Ejecutar
 
-### 1. **Global Hotkey** - Ctrl+Alt+O
-- Inicia OmniMon
-- Presiona `Ctrl+Alt+O` → La ventana debe aparecer/desaparecer
-- ✅ Funciona solo en Windows/Linux
+Al iniciar, verás algo como:
 
-### 2. **Tray Tooltip Dinámico**
+```
+     Running BeforeDevCommand (`bun run dev`)
+     Running DevCommand (`cargo run --no-default-features`)
+$ vite
+
+  VITE v6.x.x  ready in XXXms
+
+  ➜  Local:   http://localhost:1420/
+
+    Compiling omnimon-desktop v0.1.0
+    Finished `dev` profile [unoptimized + debuginfo]
+```
+
+Luego se abrirá la **ventana nativa de OmniMon** (no un navegador).
+
+---
+
+## Verificar Funcionalidades
+
+### 1. Global Hotkey — Ctrl+Alt+O
+- Con OmniMon corriendo, presiona `Ctrl+Alt+O`
+- La ventana debe aparecer/desaparecer
+- Funciona en Windows y Linux (macOS no soporta global hotkeys de esta forma)
+
+### 2. Tray Tooltip Dinámico
 - Pasa el mouse sobre el icono del system tray
-- Espera 5 segundos
-- Verifica: `OmniMon - CPU: X.X% | RAM: X.XGB (XX%)`
-- ✅ Se actualiza cada 5 segundos
+- Debería mostrar: `OmniMon - CPU: X.X% | RAM: X.XGB (XX%)`
+- Se actualiza cada 5 segundos
 
-### 3. **Cierre Completo de App**
+### 3. Cierre Completo
 - Presiona el botón X de la ventana
-- Verifica en Task Manager que el proceso realmente termina
-- ✅ En Windows ahora sale completamente (no se queda en background)
+- Verifica que el proceso realmente termine (Task Manager / `ps aux`)
+- En Windows: la app sale completamente (no se queda en background)
 
-### 4. **No Ventanas de PowerShell**
-- OmniMon corriendo normalmente
-- ✅ No deben aparecer ventanas de PowerShell o cmd
+### 4. Conexiones de Red
+- Abre la sección de Network
+- Deberías ver conexiones TCP/UDP
+- Si no aparecen: ejecuta como Administrador (Windows) o con `sudo` (Linux)
 
-### 5. **Conexiones de Red**
-- Abre la pantalla de Network
-- ✅ Deberías ver conexiones TCP/UDP
-- Si no aparecen, ejecuta como Administrador (WinDivert lo requiere)
+### 5. Browser Tabs
+La detección de pestañas funciona **automáticamente** en Windows y macOS:
+- **Windows**: Usa Windows UI Automation API — detecta tabs por título sin configuración
+- **macOS**: Usa AppleScript — detecta tabs con título y URL sin configuración
+- **Linux**: Requiere Chrome DevTools Protocol (CDP):
+  - Lanza Chrome con `google-chrome --remote-debugging-port=9222`
 
-### 6. **Browser Tabs**
-- Abre Chrome/Edge/Brave
-- Verifica la sección de Browser Tabs en OmniMon
-- Si no aparecen:
-  - Cierra Chrome completamente
-  - Crea un shortcut con: `chrome.exe --remote-debugging-port=9222`
-  - Abre Chrome con ese shortcut
-  - ✅ Debería aparecer banner de ayuda si CDP no está disponible
+#### Limitaciones por plataforma
+| Plataforma | Títulos | URLs | Cerrar tabs | Requiere flags |
+|------------|---------|------|-------------|----------------|
+| macOS | ✅ | ✅ | ✅ | No |
+| Windows | ✅ | ❌ (solo con CDP) | ❌ (solo con CDP) | No |
+| Linux | ✅ (CDP) | ✅ (CDP) | ✅ (CDP) | Sí |
+
+> **Nota Windows:** Para funcionalidad completa (URLs + cerrar tabs), puedes opcionalmente lanzar Chrome con CDP:
+> `"C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="%LOCALAPPDATA%\Google\Chrome\User Data Debug"`
 
 ---
 
-## 📊 Logging de Debug
+## Debug y Logging
 
-Para ver todos los logs internos:
+Para ver logs detallados:
 
-### PowerShell:
-```powershell
-$env:RUST_LOG="debug"
-cd C:\Users\ohcho\Documents\Apps\omnimon\v4\apps\desktop
-cargo tauri dev
+```bash
+# Todas las plataformas
+RUST_LOG=debug bun run tauri dev
+
+# Solo errores
+RUST_LOG=error bun run tauri dev
+
+# Solo módulo de red
+RUST_LOG=network=debug bun run tauri dev
 ```
 
-### Ver logs específicos:
+**En PowerShell:**
 ```powershell
-# Solo errores
-$env:RUST_LOG="error"
-
-# Solo network
-$env:RUST_LOG="network=debug"
-
-# Todo
 $env:RUST_LOG="debug"
+bun run tauri dev
 ```
 
 **Logs esperados:**
 ```
 [network] Windows native API: got 45 connections
-[network] Found 42 TCP connections
-[network] Found 3 UDP connections
-[network] netstat parsed 45 connections
+[network] Found 42 TCP connections, 3 UDP connections
 Global hotkey Ctrl+Alt+O registered successfully
 ```
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
-### "No veo conexiones de red"
-- **Causa:** WinDivert requiere permisos de administrador
-- **Solución:** Ejecuta OmniMon como Administrador
-  ```powershell
-  # PowerShell como Admin
-  Start-Process -Verb RunAs powershell
-  cd C:\Users\ohcho\Documents\Apps\omnimon\v4\apps\desktop
-  cargo tauri dev
-  ```
+### "Port 1420 is already in use"
 
-### "Ctrl+Alt+O no funciona"
-- **Verifica logs:** Debería decir `Global hotkey Ctrl+Alt+O registered successfully`
-- **Si falla:** Otra app puede estar usando ese shortcut
-- **Alternativa:** Usa el tray icon (click izquierdo)
+Un proceso anterior de Vite sigue corriendo.
 
-### "Browser tabs no aparecen"
-- **Windows/Linux:** Necesitas lanzar Chrome con `--remote-debugging-port=9222`
-- **Verifica:** Debería aparecer un banner amarillo con instrucciones
-- **macOS:** Funciona automáticamente con AppleScript
+**Linux/macOS:**
+```bash
+lsof -ti:1420 | xargs kill -9
+```
 
-### "App no se cierra"
-- **Verificar:** Task Manager → Debe desaparecer "OmniMon"
-- **Si persiste:** Forzar cierre desde tray icon → "Salir"
+**Windows (PowerShell):**
+```powershell
+Get-NetTCPConnection -LocalPort 1420 -ErrorAction SilentlyContinue |
+  Select-Object -ExpandProperty OwningProcess |
+  ForEach-Object { Stop-Process -Id $_ -Force }
+```
+
+**Windows (CMD):**
+```cmd
+for /f "tokens=5" %a in ('netstat -ano ^| findstr :1420') do taskkill /F /PID %a
+```
+
+### "cargo: command not found"
+- Cierra y reabre la terminal
+- O ejecuta: `source "$HOME/.cargo/env"` (macOS/Linux)
+- Windows: `$env:PATH += ";$env:USERPROFILE\.cargo\bin"`
+
+### "tauri: command not found"
+Las dependencias de npm/bun no están instaladas:
+```bash
+cd apps/desktop
+bun install   # o npm install
+```
+
+### "LINK: fatal error" o "linker not found" (Windows)
+Visual Studio Build Tools falta o le falta el componente C++. Instala con "Desktop development with C++".
+
+### "Package libwebkit2gtk not found" (Linux)
+```bash
+sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
+```
+
+### Compilación muy lenta (primera vez)
+Es normal. La primera compilación de Rust descarga y compila ~200+ crates. Las siguientes compilaciones son incrementales y mucho más rápidas.
+
+### La app se abre pero la pantalla está en blanco
+- Verifica que Vite esté corriendo (debe mostrar `http://localhost:1420/`)
+- Si el puerto está mal, revisa `apps/desktop/src-tauri/tauri.conf.json`
 
 ---
 
-## 📈 Mejoras Implementadas (Resumen)
+## Build para Producción
 
-| Mejora | Estado | Impacto |
-|--------|--------|---------|
-| Network-capture habilitado | ✅ | Captura de red funcional |
-| WinDivertOpen fix | ✅ | Detección correcta de errores |
-| Path normalization | ✅ | Comparaciones Windows correctas |
-| Timing alineado 5s | ✅ | ~40% menos CPU |
-| netstat parser robusto | ✅ | Soporta fragmentación |
-| Global hotkeys | ✅ | Ctrl+Alt+O toggle ventana |
-| Tray tooltip dinámico | ✅ | Métricas en tiempo real |
-| Logging estructurado | ✅ | Diagnóstico profesional |
-| Cierre real Windows | ✅ | No queda en background |
-| CREATE_NO_WINDOW | ✅ | Sin ventanas PowerShell |
+```bash
+cd omnimon/v4/apps/desktop
+
+# Build de debug (más rápido, sin bundle)
+bun run tauri build -- --debug --no-bundle
+
+# Build de release completo
+bun run tauri build
+```
+
+Los binarios se generan en `v4/target/release/` o `v4/target/debug/`.
 
 ---
 
-## 🎯 Todo Funciona Correctamente
+## Comandos de Desarrollo Útiles
 
-**Si sigues estos pasos, OmniMon debería:**
-1. ✅ Compilar sin errores
-2. ✅ Ejecutarse correctamente
-3. ✅ Mostrar todas las funcionalidades
-4. ✅ No tener ventanas inesperadas
-5. ✅ Cerrar completamente cuando debe
-6. ✅ Responder a Ctrl+Alt+O
-7. ✅ Actualizar tooltip del tray
+```bash
+cd omnimon/v4
 
-**Listo para pruebas.** 🚀
+# Desarrollo
+make dev                                    # Full-stack dev mode
+bun run tauri dev                           # Alternativa sin Make
+
+# Testing
+bun run test                                # Frontend unit tests
+cargo test --workspace                      # Rust tests
+make test-all                               # Todo: fmt + clippy + tests
+
+# Linting
+cargo fmt --check                           # Formato Rust
+cargo clippy -- -D warnings                 # Lint Rust
+
+# Verificación rápida
+cargo check --workspace                     # Type check Rust
+bun run build                               # Build frontend
+```

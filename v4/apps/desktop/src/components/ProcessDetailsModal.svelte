@@ -295,47 +295,41 @@
         {#if tabFilter && filteredTabs.length < allBrowserTabs.length}
           <div class="tab-filter-info">{t("process.tabsFiltered", { count: filteredTabs.length, total: allBrowserTabs.length })}</div>
         {/if}
-        <div class="tab-list">
-          {#each filteredTabs as tab (tab.id)}
-            <div
-              class="tab-item"
-              class:closing={closingTabs.has(tab.id)}
-              class:selected={selectedTabIds.has(tab.id)}
+        {#each filteredTabs as tab, i}
+          <div style="display:flex;align-items:center;gap:6px;padding:4px 14px;min-height:28px;font-size:calc(var(--base-font-size) * 0.833);color:var(--fg);border-radius:6px;margin:0 4px;{i % 2 === 0 ? 'background:var(--bg-alt);' : ''}{selectedTabIds.has(tab.id) ? 'background:var(--bg-selected);' : ''}{closingTabs.has(tab.id) ? 'color:var(--fg-muted);pointer-events:none;' : ''}">
+            <input
+              type="checkbox"
+              checked={selectedTabIds.has(tab.id)}
+              aria-label={t("process.selectTab", { title: tab.title })}
+              onclick={() => toggleTab(tab.id)}
+              style="margin:0;cursor:pointer;width:13px;height:13px;flex-shrink:0;accent-color:var(--accent);"
+            />
+            <span
+              onclick={() => focusTab(tab)}
+              role="button"
+              tabindex="0"
+              title={t("process.goToTab", { title: tab.title, url: tab.url })}
+              onkeydown={(e) => { if (e.key === 'Enter') focusTab(tab); }}
+              style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;color:var(--fg);line-height:1.4;"
             >
-              <input
-                type="checkbox"
-                checked={selectedTabIds.has(tab.id)}
-                aria-label={t("process.selectTab", { title: tab.title })}
-                onclick={() => toggleTab(tab.id)}
-              />
-              <Button
-                class="tab-title-btn"
-                variant="ghost"
-                size="sm"
-                onclick={() => focusTab(tab)}
-                title={t("process.goToTab", { title: tab.title, url: tab.url })}
-                aria-label={t("processView.focusTabLabel", { title: tab.title || t("common.untitled") })}
-              >
-                {tab.title || t("common.untitled")}
-              </Button>
-              <span class="tab-domain" title={tab.url}>{getDomain(tab.url)}</span>
-              <Button
-                class="btn-tab-kill"
-                variant="ghost"
-                size="icon"
-                onclick={() => closeTab(tab)}
-                disabled={closingTabs.has(tab.id)}
-                title={t("process.closeThisTab")}
-                aria-label={t("processView.closeTabLabel", { title: tab.title || t("common.untitled") })}
-              >
-                &#10005;
-              </Button>
-            </div>
-          {/each}
-          {#if filteredTabs.length === 0}
-            <div class="tab-empty">{t("common.noMatchingTabs")}</div>
-          {/if}
-        </div>
+              {tab.title || t("common.untitled")}
+            </span>
+            {#if tab.url}
+              <span title={tab.url} style="flex-shrink:0;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'SF Mono','Menlo','Consolas',monospace;font-size:calc(var(--base-font-size) * 0.7);color:var(--fg-muted);">{getDomain(tab.url)}</span>
+            {/if}
+            <button
+              type="button"
+              onclick={() => closeTab(tab)}
+              disabled={closingTabs.has(tab.id)}
+              title={t("process.closeThisTab")}
+              aria-label={t("processView.closeTabLabel", { title: tab.title || t("common.untitled") })}
+              style="appearance:none;background:none;border:none;width:20px;min-width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--fg-muted);cursor:pointer;font-size:calc(var(--base-font-size) * 0.75);padding:0;border-radius:6px;"
+            >&#10005;</button>
+          </div>
+        {/each}
+        {#if filteredTabs.length === 0}
+          <div class="tab-empty">{t("common.noMatchingTabs")}</div>
+        {/if}
       {/if}
 
       <div class="section-divider"></div>
@@ -530,84 +524,6 @@
     padding: 2px 14px;
     font-size: calc(var(--base-font-size) * 0.7);
     color: var(--fg-dim);
-  }
-
-  .tab-list {
-    max-height: 200px;
-    overflow-y: auto;
-    margin: 4px 0;
-    padding: 0 6px;
-  }
-
-  .tab-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 3px 8px;
-    font-size: calc(var(--base-font-size) * 0.833);
-    border-radius: var(--radius-sm, 6px);
-    transition: background 0.12s ease, opacity 0.18s ease;
-  }
-  .tab-item:hover {
-    background: var(--bg-hover);
-  }
-  .tab-item.selected {
-    background: var(--bg-selected);
-  }
-  .tab-item.closing {
-    color: var(--fg-muted);
-    pointer-events: none;
-  }
-
-  .tab-item input[type="checkbox"] {
-    margin: 0;
-    cursor: pointer;
-    width: 13px;
-    height: 13px;
-    flex-shrink: 0;
-    accent-color: var(--accent);
-  }
-
-  :global(.tab-title-btn) {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    text-align: left;
-    justify-content: flex-start;
-    padding: 0 4px;
-    min-height: 26px;
-    border-color: transparent !important;
-  }
-  :global(.tab-title-btn:hover) {
-    color: var(--accent) !important;
-  }
-
-  .tab-domain {
-    flex-shrink: 0;
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--fg-dim);
-    font-family: "SF Mono", "Menlo", "Consolas", monospace;
-    font-size: calc(var(--base-font-size) * 0.7);
-    color: var(--fg-muted);
-  }
-
-  /* Tab close — ghost by default, danger on hover */
-  :global(.btn-tab-kill) {
-    width: 22px !important;
-    min-width: 22px !important;
-    height: 22px !important;
-    flex-shrink: 0;
-    color: var(--fg-muted);
-    transition: opacity 0.15s ease;
-    font-size: calc(var(--base-font-size) * 0.75) !important;
-  }
-  .tab-item:hover :global(.btn-tab-kill) {
-    color: var(--fg);
   }
 
   .tab-empty {

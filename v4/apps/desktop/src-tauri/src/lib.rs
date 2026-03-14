@@ -988,6 +988,9 @@ pub fn run() {
                             hide_main_window(&app_handle);
                         }
 
+                        #[cfg(not(target_os = "macos"))]
+                        let _ = &api; // suppress unused warning on non-macOS
+
                         #[cfg(target_os = "windows")]
                         {
                             // Windows: Actually exit the application
@@ -1004,9 +1007,7 @@ pub fn run() {
                 });
             }
 
-            // --- Global Hotkey: Ctrl+Alt+O to toggle window ---
-            // Only enable on Windows and Linux (macOS has system-wide shortcuts via Cmd+Space)
-            #[cfg(not(target_os = "macos"))]
+            // --- Global Hotkey: Ctrl+Alt+O (Win/Linux) / Cmd+Option+O (macOS) ---
             {
                 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
                 let app_handle = app.handle().clone();
@@ -1019,8 +1020,11 @@ pub fn run() {
                         });
 
                         if let Err(e) = register_result {
-                            tracing::error!("Failed to register global hotkey Ctrl+Alt+O: {}", e);
+                            tracing::error!("Failed to register global hotkey: {}", e);
                         } else {
+                            #[cfg(target_os = "macos")]
+                            tracing::info!("Global hotkey Cmd+Option+O registered successfully");
+                            #[cfg(not(target_os = "macos"))]
                             tracing::info!("Global hotkey Ctrl+Alt+O registered successfully");
                         }
                     }

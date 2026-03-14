@@ -338,42 +338,36 @@
     <div class="cdp-help-content">
       <span class="cdp-help-icon">ℹ️</span>
       <div class="cdp-help-text">
-        <strong>Browser tabs not showing?</strong>
-        <p>
-          Chrome and Chromium-based browsers need to be launched with remote debugging enabled to show tabs.
-        </p>
+        <strong>{t("cdpHelp.title")}</strong>
+        <p>{t("cdpHelp.description")}</p>
         <details>
-          <summary>How to enable tab detection</summary>
+          <summary>{t("cdpHelp.howToEnable")}</summary>
           <div class="cdp-help-details">
-            <p><strong>Windows:</strong></p>
+            <p><strong>{t("cdpHelp.windows")}:</strong></p>
+            <p class="cdp-note">{t("cdpHelp.windowsNote")}</p>
+            <p>{t("cdpHelp.windowsCdpOptional")}</p>
+            <code>{t("cdpHelp.windowsCommand")}</code>
+            <p><strong>{t("cdpHelp.linux")}:</strong></p>
             <ol>
-              <li>Close Chrome completely</li>
-              <li>Create a shortcut with this target:<br/>
-                <code>"C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222</code>
-              </li>
-              <li>Launch Chrome using this shortcut</li>
-            </ol>
-            <p><strong>Linux:</strong></p>
-            <ol>
-              <li>Close Chrome completely</li>
-              <li>Launch from terminal:<br/>
-                <code>google-chrome --remote-debugging-port=9222</code>
+              <li>{t("cdpHelp.linuxStep1")}</li>
+              <li>{t("cdpHelp.linuxStep2")}<br/>
+                <code>{t("cdpHelp.linuxCommand")}</code>
               </li>
             </ol>
-            <p><strong>macOS:</strong></p>
+            <p><strong>{t("cdpHelp.macos")}:</strong></p>
             <p style="color: var(--fg-dim); font-style: italic;">
-              Tab detection uses AppleScript on macOS and should work automatically without configuration.
+              {t("cdpHelp.macosNote")}
             </p>
-            <p><strong>Other browsers (all platforms):</strong></p>
+            <p><strong>{t("cdpHelp.otherBrowsers")}:</strong></p>
             <ul>
-              <li>Brave: use port 9223</li>
-              <li>Edge: use port 9224</li>
-              <li>Arc: use port 9225</li>
+              <li>{t("cdpHelp.bravePort")}</li>
+              <li>{t("cdpHelp.edgePort")}</li>
+              <li>{t("cdpHelp.arcPort")}</li>
             </ul>
           </div>
         </details>
       </div>
-      <button class="cdp-help-dismiss" onclick={() => showCdpHelp = false} title="Dismiss">✕</button>
+      <button class="cdp-help-dismiss" onclick={() => showCdpHelp = false} title={t("cdpHelp.dismiss")}>✕</button>
     </div>
   </div>
 {/if}
@@ -716,6 +710,17 @@
     font-size: calc(var(--base-font-size) * 0.833);
     color: var(--accent);
     word-break: break-all;
+  }
+
+  .cdp-note {
+    font-size: calc(var(--base-font-size) * 0.833);
+    color: var(--fg-dim);
+    font-style: italic;
+    margin: 6px 0 4px 0;
+    padding: 6px 8px;
+    border-left: 2px solid var(--yellow);
+    background: color-mix(in srgb, var(--yellow) 8%, var(--bg));
+    border-radius: 0 3px 3px 0;
   }
 
   .cdp-help-dismiss {

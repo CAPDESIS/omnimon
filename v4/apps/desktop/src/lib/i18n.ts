@@ -45,6 +45,14 @@ function interpolate(template: string, params?: Record<string, string | number>)
   );
 }
 
+/** Returns the platform-appropriate modifier key label (Cmd on macOS, Ctrl elsewhere). */
+export function modKey(): string {
+  if (typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("mac")) {
+    return "Cmd";
+  }
+  return "Ctrl";
+}
+
 export function t(key: string, params?: Record<string, string | number>): string {
   const lang = get(resolvedLocale);
   const value = resolve(translations[lang], key) ?? resolve(translations.en, key) ?? key;

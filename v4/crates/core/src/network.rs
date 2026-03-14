@@ -755,7 +755,7 @@ mod windows_collector {
             // SAFETY: FFI call with stable parameters and managed lifecycle via Drop.
             let handle = unsafe { WinDivertOpen(filter.as_ptr(), 0, 0, 1) };
             // INVALID_HANDLE_VALUE on Windows is 0, not -1
-            if handle == 0 || handle == usize::MAX {
+            if handle == 0 || handle == -1 {
                 return Err("WinDivertOpen failed - check if running as Administrator and WinDivert driver is installed".to_string());
             }
             Ok(Self {

@@ -573,10 +573,61 @@ impl TabProvider for NativeTabProvider {
     }
 }
 
-#[cfg(any(target_os = "windows", target_os = "linux"))]
+#[cfg(target_os = "windows")]
 pub struct NativeTabProvider;
 
-#[cfg(any(target_os = "windows", target_os = "linux"))]
+#[cfg(target_os = "windows")]
+impl TabProvider for NativeTabProvider {
+    fn list_tabs(&self, browser: BrowserKind) -> Result<Vec<BrowserTab>, String> {
+        // 1. Try CDP first (works if user launched with --remote-debugging-port)
+        if browser.supports_cdp() {
+            let port = browser.cdp_port();
+            let base = format!("http://localhost:{}", port);
+            if let Ok(tabs) = cdp_list_tabs_for(&base, browser) {
+                if !tabs.is_empty() {
+                    return Ok(tabs);
+                }
+            }
+        }
+
+        // 2. Use Windows-native UI Automation / window title detection
+        let native_tabs = crate::windows_tabs::list_tabs_native(browser);
+        if !native_tabs.is_empty() {
+            return Ok(native_tabs);
+        }
+
+        Ok(Vec::new())
+    }
+
+    fn close_tab(&self, browser: BrowserKind, tab: &BrowserTab) -> Result<bool, String> {
+        // CDP-based tabs have simple alphanumeric IDs; native tabs start with "uia-", "wt-", "win-"
+        if browser.supports_cdp() && !tab.id.contains('-') {
+            let port = browser.cdp_port();
+            let base = format!("http://localhost:{}", port);
+            return cdp_close_tab(&base, &tab.id);
+        }
+        // Native tabs cannot be individually closed without CDP
+        Ok(false)
+    }
+
+    fn focus_tab(&self, browser: BrowserKind, tab: &BrowserTab) -> Result<bool, String> {
+        // Try CDP-based activation first for CDP tabs
+        if browser.supports_cdp() && !tab.id.contains('-') {
+            let port = browser.cdp_port();
+            let base = format!("http://localhost:{}", port);
+            if let Ok(true) = cdp_activate_tab(&base, &tab.id) {
+                return Ok(true);
+            }
+        }
+        // Fall back to native window focus
+        crate::windows_tabs::focus_tab_native(browser, tab)
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub struct NativeTabProvider;
+
+#[cfg(target_os = "linux")]
 impl TabProvider for NativeTabProvider {
     fn list_tabs(&self, browser: BrowserKind) -> Result<Vec<BrowserTab>, String> {
         if browser.supports_cdp() {

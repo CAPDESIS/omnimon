@@ -20,3 +20,5 @@ pub mod security;
 pub mod settings;
 pub mod telemetry;
 pub mod watcher;
+#[cfg(target_os = "windows")]
+pub mod windows_tabs;

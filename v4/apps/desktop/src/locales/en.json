@@ -11,7 +11,7 @@
     "deepDive": "Deep Dive"
   },
   "toolbar": {
-    "searchPlaceholder": "Filter by name, PID, group, \"idle\"... (Cmd+F)",
+    "searchPlaceholder": "Filter by name, PID, group, \"idle\"... ({mod}+F)",
     "searchLabel": "Search processes",
     "clearSearch": "Clear search",
     "groups": "Groups",
@@ -32,9 +32,9 @@
     "aiSuggestionsHelp": "AI Analyze suggests candidates to close or inspect. It does not kill anything automatically.",
     "settings": "Settings",
     "aiSettings": "AI Settings",
-    "decreaseFont": "Decrease font size (Cmd+-)",
+    "decreaseFont": "Decrease font size ({mod}+-)",
     "decreaseFontLabel": "Decrease font size",
-    "increaseFont": "Increase font size (Cmd+=)",
+    "increaseFont": "Increase font size ({mod}+=)",
     "increaseFontLabel": "Increase font size",
     "profileHelp": "AI analysis profile",
     "generalDesc": "Balanced monitoring for all use cases",
@@ -590,6 +590,26 @@
     "alertsCreatedTitle": "Alerts Created",
     "rulesAppliedTitle": "Rules Applied",
     "rulesErrorTitle": "Rules Error"
+  },
+  "cdpHelp": {
+    "title": "Browser tabs not showing?",
+    "description": "OmniMon detects browser tabs automatically on Windows and macOS. If tabs still don't appear, try the steps below.",
+    "howToEnable": "Troubleshooting tab detection",
+    "windows": "Windows",
+    "windowsNote": "OmniMon uses Windows UI Automation to detect tabs automatically. Tab titles are visible but URLs require Chrome DevTools Protocol (CDP).",
+    "windowsCdpOptional": "Optional: For full tab data including URLs, launch Chrome with:",
+    "windowsCommand": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --remote-debugging-port=9222 --user-data-dir=\"%LOCALAPPDATA%\\Google\\Chrome\\User Data Debug\"",
+    "linux": "Linux",
+    "linuxStep1": "Close Chrome completely",
+    "linuxStep2": "Launch from terminal:",
+    "linuxCommand": "google-chrome --remote-debugging-port=9222",
+    "macos": "macOS",
+    "macosNote": "Tab detection uses AppleScript on macOS and works automatically without configuration.",
+    "otherBrowsers": "Other browsers (all platforms)",
+    "bravePort": "Brave: use port 9223",
+    "edgePort": "Edge: use port 9224",
+    "arcPort": "Arc: use port 9225",
+    "dismiss": "Dismiss"
   },
   "profileSettings": {
     "title": "Profile Settings",
