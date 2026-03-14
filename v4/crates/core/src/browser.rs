@@ -194,7 +194,11 @@ pub fn cdp_is_available(base_url: &str) -> bool {
             Err(_) => return false,
         };
 
-        match client.get(format!("{}/json/version", base_url)).send().await {
+        match client
+            .get(format!("{}/json/version", base_url))
+            .send()
+            .await
+        {
             Ok(response) => response.status().is_success(),
             Err(_) => false,
         }

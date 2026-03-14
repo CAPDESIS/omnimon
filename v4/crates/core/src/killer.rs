@@ -133,7 +133,10 @@ pub fn is_immutable_blocked_process_name(process_name: &str) -> bool {
 
 fn path_is_trusted_for_blocked_process(exe_path: &Path) -> bool {
     // Normalize path separators for consistent comparison
-    let path_normalized = exe_path.to_string_lossy().replace('\\', "/").to_ascii_lowercase();
+    let path_normalized = exe_path
+        .to_string_lossy()
+        .replace('\\', "/")
+        .to_ascii_lowercase();
 
     if cfg!(target_os = "macos") {
         path_normalized.starts_with("/system/")

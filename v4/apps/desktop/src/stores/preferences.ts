@@ -90,7 +90,7 @@ const MAX_AI_CACHE_TTL_MINUTES = 60;
 const DEFAULT_NETWORK_ALERT_RULES: NetworkAlertRule[] = [
   {
     id: "default-high-bandwidth",
-    name: "Alto bandwidth",
+    name: "High bandwidth",
     enabled: true,
     condition: {
       kind: "high_bandwidth",
@@ -104,7 +104,7 @@ const DEFAULT_NETWORK_ALERT_RULES: NetworkAlertRule[] = [
   },
   {
     id: "default-suspicious-port",
-    name: "Conexion a puerto sospechoso",
+    name: "Suspicious port connection",
     enabled: true,
     condition: {
       kind: "unusual_port",
@@ -116,7 +116,7 @@ const DEFAULT_NETWORK_ALERT_RULES: NetworkAlertRule[] = [
   },
   {
     id: "default-process-spike",
-    name: "Spike de proceso",
+    name: "Process spike",
     enabled: true,
     condition: {
       kind: "process_network_spike",
@@ -129,7 +129,7 @@ const DEFAULT_NETWORK_ALERT_RULES: NetworkAlertRule[] = [
   },
   {
     id: "default-connection-count",
-    name: "Demasiadas conexiones",
+    name: "Too many connections",
     enabled: true,
     condition: {
       kind: "connection_count_exceeded",

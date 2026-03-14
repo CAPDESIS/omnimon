@@ -169,7 +169,8 @@ describe("ChromeTabManager", () => {
       makeTab({ id: "chrome-2", title: "Tab B", browser: "Chrome", url: "https://b.com" }),
     ]);
     processes.set([makeProc()]);
-    mockInvoke.mockResolvedValueOnce(true);
+    mockInvoke.mockResolvedValueOnce({}); // check_cdp_availability (onMount)
+    mockInvoke.mockResolvedValueOnce(true); // close_browser_tab
 
     render(ChromeTabManager);
 
@@ -461,7 +462,7 @@ describe("ChromeTabManager", () => {
     render(ChromeTabManager, { props: { filter: "zzz" } });
 
     await fireEvent.click(screen.getByTitle("Close all Chrome tabs"));
-    expect(mockInvoke).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalledWith("close_browser_tab", expect.anything());
   });
 
   it("does not close selected when selected ids no longer exist", async () => {
@@ -475,7 +476,7 @@ describe("ChromeTabManager", () => {
     browserTabs.set([makeTab({ id: "new", title: "New", browser: "Chrome", url: "https://new.com" })]);
     await fireEvent.click(screen.getByTitle("Close 2 selected tab(s)"));
 
-    expect(mockInvoke).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalledWith("close_browser_tab", expect.anything());
   });
 
   it("respects canceled confirmation for Close Selected and Close All", async () => {

@@ -286,8 +286,8 @@ describe("rendering", () => {
     });
 
     expect(screen.getByText("Broken")).toBeInTheDocument();
-    const domainEl = document.querySelector(".tab-domain") as HTMLElement;
-    expect(domainEl.textContent).toBe("");
+    // Malformed URL "not-a-url" produces empty domain via getDomain() — no domain span rendered
+    expect(screen.queryByText("not-a-url")).not.toBeInTheDocument();
   });
 
   it("shows a basic mode hint banner", () => {

@@ -1015,9 +1015,11 @@ pub fn run() {
 
                 match shortcut {
                     Ok(s) => {
-                        let register_result = app.global_shortcut().on_shortcut(s, move |_app, _shortcut, _event| {
-                            toggle_main_window(&app_handle);
-                        });
+                        let register_result =
+                            app.global_shortcut()
+                                .on_shortcut(s, move |_app, _shortcut, _event| {
+                                    toggle_main_window(&app_handle);
+                                });
 
                         if let Err(e) = register_result {
                             tracing::error!("Failed to register global hotkey: {}", e);

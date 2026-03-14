@@ -1108,7 +1108,10 @@ fn get_connections_windows() -> Result<Vec<NetworkConnection>, String> {
     // Try native Windows API first, fall back to netstat
     match get_connections_windows_native() {
         Ok(conns) if !conns.is_empty() => {
-            tracing::debug!("[network] Windows native API: got {} connections", conns.len());
+            tracing::debug!(
+                "[network] Windows native API: got {} connections",
+                conns.len()
+            );
             Ok(conns)
         }
         Ok(_) => {
@@ -1116,7 +1119,10 @@ fn get_connections_windows() -> Result<Vec<NetworkConnection>, String> {
             get_connections_windows_netstat()
         }
         Err(e) => {
-            tracing::error!("[network] Windows native API failed: {}, falling back to netstat", e);
+            tracing::error!(
+                "[network] Windows native API failed: {}, falling back to netstat",
+                e
+            );
             get_connections_windows_netstat()
         }
     }
@@ -1152,11 +1158,17 @@ fn get_connections_windows_native() -> Result<Vec<NetworkConnection>, String> {
 
     if first_result != 0 && first_result != 122 {
         // 122 = ERROR_INSUFFICIENT_BUFFER (expected for size query)
-        tracing::error!("[network] GetExtendedTcpTable size query failed with error code: {}", first_result);
+        tracing::error!(
+            "[network] GetExtendedTcpTable size query failed with error code: {}",
+            first_result
+        );
     }
 
     if tcp_size > 0 {
-        tracing::debug!("[network] GetExtendedTcpTable buffer size: {} bytes", tcp_size);
+        tracing::debug!(
+            "[network] GetExtendedTcpTable buffer size: {} bytes",
+            tcp_size
+        );
         let mut tcp_buf = vec![0u8; tcp_size as usize];
         let result = unsafe {
             GetExtendedTcpTable(
@@ -1242,7 +1254,10 @@ fn get_connections_windows_native() -> Result<Vec<NetworkConnection>, String> {
     }
 
     if udp_size > 0 {
-        tracing::debug!("[network] GetExtendedUdpTable buffer size: {} bytes", udp_size);
+        tracing::debug!(
+            "[network] GetExtendedUdpTable buffer size: {} bytes",
+            udp_size
+        );
         let mut udp_buf = vec![0u8; udp_size as usize];
         let result = unsafe {
             GetExtendedUdpTable(
@@ -1337,21 +1352,23 @@ fn get_connections_windows_netstat() -> Result<Vec<NetworkConnection>, String> {
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
-    let child = cmd.spawn()
-        .map_err(|e| {
-            tracing::error!("[network] Failed to spawn netstat: {}", e);
-            format!("failed to spawn netstat: {e}")
-        })?;
+    let child = cmd.spawn().map_err(|e| {
+        tracing::error!("[network] Failed to spawn netstat: {}", e);
+        format!("failed to spawn netstat: {e}")
+    })?;
 
-    let output = wait_with_timeout(child, Duration::from_secs(COMMAND_TIMEOUT_SECS))
-        .map_err(|e| {
+    let output =
+        wait_with_timeout(child, Duration::from_secs(COMMAND_TIMEOUT_SECS)).map_err(|e| {
             tracing::error!("[network] netstat timeout or error: {}", e);
             format!("netstat failed: {e}")
         })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        tracing::error!("[network] netstat command failed with exit code: {:?}", output.status.code());
+        tracing::error!(
+            "[network] netstat command failed with exit code: {:?}",
+            output.status.code()
+        );
         tracing::error!("[network] netstat stderr: {}", stderr);
         return Err(format!("netstat command failed: {}", stderr));
     }
@@ -1437,10 +1454,7 @@ fn parse_netstat_windows(
 /// Parse a single netstat output line into a NetworkConnection.
 /// Returns None if the line is malformed or unparseable.
 #[cfg(any(target_os = "windows", test))]
-fn parse_netstat_line(
-    line: &str,
-    pid_names: &HashMap<u32, String>,
-) -> Option<NetworkConnection> {
+fn parse_netstat_line(line: &str, pid_names: &HashMap<u32, String>) -> Option<NetworkConnection> {
     let cols: Vec<&str> = line.split_whitespace().collect();
 
     // Minimum required: Proto LocalAddr RemoteAddr [State] PID
@@ -1469,13 +1483,14 @@ fn parse_netstat_line(
         (ra, rp, st, 4)
     } else {
         // UDP: no state column, remote might be "*:*"
-        let (ra, rp) = parse_addr_port(cols[2])
-            .unwrap_or((IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED), 0));
+        let (ra, rp) =
+            parse_addr_port(cols[2]).unwrap_or((IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED), 0));
         (ra, rp, ConnectionState::Unknown, 3)
     };
 
     // Parse PID (last column)
-    let pid: u32 = cols.get(pid_col_idx)
+    let pid: u32 = cols
+        .get(pid_col_idx)
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
 

@@ -160,10 +160,7 @@ fn enum_browser_windows(browser: BrowserKind) -> Vec<BrowserWindow> {
             TRUE
         }
 
-        let _ = EnumWindows(
-            Some(callback),
-            LPARAM(&mut ctx as *mut EnumCtx as isize),
-        );
+        let _ = EnumWindows(Some(callback), LPARAM(&mut ctx as *mut EnumCtx as isize));
     }
 
     ctx.results
@@ -210,9 +207,8 @@ fn uia_list_tabs(windows: &[BrowserWindow]) -> Result<Vec<BrowserTab>, String> {
         let needs_uninit = com_init.is_ok();
 
         let result = (|| -> Result<Vec<BrowserTab>, String> {
-            let automation: IUIAutomation =
-                CoCreateInstance(&CUIAutomation, None, CLSCTX_ALL)
-                    .map_err(|e| format!("Failed to create UIAutomation: {e}"))?;
+            let automation: IUIAutomation = CoCreateInstance(&CUIAutomation, None, CLSCTX_ALL)
+                .map_err(|e| format!("Failed to create UIAutomation: {e}"))?;
 
             let mut all_tabs = Vec::new();
             let mut tab_counter = 0u32;
@@ -234,13 +230,11 @@ fn uia_list_tabs(windows: &[BrowserWindow]) -> Result<Vec<BrowserTab>, String> {
                     (*v.Anonymous.Anonymous).Anonymous.lVal = tab_item_id as i32;
                     v
                 };
-                let condition = match automation.CreatePropertyCondition(
-                    UIA_ControlTypePropertyId,
-                    variant,
-                ) {
-                    Ok(c) => c,
-                    Err(_) => continue,
-                };
+                let condition =
+                    match automation.CreatePropertyCondition(UIA_ControlTypePropertyId, variant) {
+                        Ok(c) => c,
+                        Err(_) => continue,
+                    };
 
                 // Find all TabItem elements in the window tree
                 let tab_items: Result<IUIAutomationElementArray, _> =
@@ -252,8 +246,7 @@ fn uia_list_tabs(windows: &[BrowserWindow]) -> Result<Vec<BrowserTab>, String> {
                         if count == 0 {
                             // No tab items found via UIA, use window title
                             tab_counter += 1;
-                            let tab_title =
-                                strip_browser_suffix(&window.title, window.browser);
+                            let tab_title = strip_browser_suffix(&window.title, window.browser);
                             if !tab_title.is_empty() {
                                 all_tabs.push(BrowserTab {
                                     id: format!(
@@ -444,11 +437,7 @@ mod tests {
     #[test]
     #[ignore]
     fn live_tab_detection() {
-        let browsers = [
-            BrowserKind::Chrome,
-            BrowserKind::Edge,
-            BrowserKind::Brave,
-        ];
+        let browsers = [BrowserKind::Chrome, BrowserKind::Edge, BrowserKind::Brave];
         for browser in &browsers {
             let tabs = list_tabs_native(*browser);
             println!("[{}] {} tabs detected:", browser.display_name(), tabs.len());
