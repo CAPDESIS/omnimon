@@ -855,9 +855,15 @@ mod windows_collector {
     }
 
     fn build_port_pid_map() -> HashMap<u16, u32> {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
         let mut map = HashMap::new();
         for command in [["-ano", "-p", "tcp"], ["-ano", "-p", "udp"]] {
-            let output = Command::new("netstat").args(command).output();
+            let output = Command::new("netstat")
+                .args(command)
+                .creation_flags(CREATE_NO_WINDOW)
+                .output();
             let Ok(output) = output else {
                 continue;
             };

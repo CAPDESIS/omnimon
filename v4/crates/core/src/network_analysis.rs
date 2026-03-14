@@ -536,12 +536,16 @@ fn resolve_hostname_unix(ip: &IpAddr) -> Option<String> {
 
 #[cfg(target_os = "windows")]
 fn resolve_hostname_windows(ip: &IpAddr) -> Option<String> {
+    use std::os::windows::process::CommandExt;
     use std::process::Command;
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
 
     let child = Command::new("nslookup")
         .arg(ip.to_string())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
+        .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .ok()?;
 

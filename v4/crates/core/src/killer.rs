@@ -515,10 +515,18 @@ mod tests {
 
     #[test]
     fn kill_process_safe_terminates_spawned_child() {
-        let mut child = std::process::Command::new("sleep")
-            .arg("30")
-            .spawn()
-            .expect("spawn sleep child process");
+        let mut child = if cfg!(target_os = "windows") {
+            std::process::Command::new("ping")
+                .args(["-n", "30", "127.0.0.1"])
+                .stdout(std::process::Stdio::null())
+                .spawn()
+                .expect("spawn long-running child process")
+        } else {
+            std::process::Command::new("sleep")
+                .arg("30")
+                .spawn()
+                .expect("spawn long-running child process")
+        };
         let pid = child.id() as i32;
 
         // Spawn a thread to wait on the child so it doesn't become a zombie on Linux

@@ -527,10 +527,18 @@ fn integration_killer_blocked_process_names() {
 
 #[test]
 fn integration_killer_terminates_spawned_child() {
-    let mut child = std::process::Command::new("sleep")
-        .arg("30")
-        .spawn()
-        .expect("spawn sleep child");
+    let mut child = if cfg!(target_os = "windows") {
+        std::process::Command::new("ping")
+            .args(["-n", "30", "127.0.0.1"])
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .expect("spawn long-running child process")
+    } else {
+        std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .expect("spawn long-running child process")
+    };
     let pid = child.id() as i32;
 
     std::thread::spawn(move || {
