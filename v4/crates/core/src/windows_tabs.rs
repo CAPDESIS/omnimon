@@ -127,7 +127,7 @@ fn enum_browser_windows(browser: BrowserKind) -> Vec<BrowserWindow> {
 
             let matches = exe
                 .as_ref()
-                .map(|e| ctx.exe_names.iter().any(|n| *n == e.as_str()))
+                .map(|e| ctx.exe_names.contains(&e.as_str()))
                 .unwrap_or(false);
 
             if !matches {
