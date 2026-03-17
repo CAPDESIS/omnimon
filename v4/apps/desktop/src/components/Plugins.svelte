@@ -141,12 +141,14 @@ end`;
   }
 
   onMount(() => {
+    let cancelled = false;
     loadPlugins(true);
     const interval = window.setInterval(() => {
-      loadPlugins();
+      if (!cancelled) loadPlugins();
     }, refreshIntervalMs);
 
     return () => {
+      cancelled = true;
       window.clearInterval(interval);
     };
   });

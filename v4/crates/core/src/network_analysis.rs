@@ -1182,9 +1182,21 @@ fn get_connections_windows_native() -> Result<Vec<NetworkConnection>, String> {
         };
 
         if result == 0 {
+            if tcp_buf.len() < 4 {
+                tracing::warn!("[network] TCP buffer too small ({} bytes)", tcp_buf.len());
+                return Ok(connections);
+            }
             let num_entries = u32::from_le_bytes(tcp_buf[0..4].try_into().unwrap_or([0; 4]));
             let entry_size = std::mem::size_of::<MIB_TCPROW_OWNER_PID>();
             tracing::debug!("[network] Found {} TCP connections", num_entries);
+
+            if num_entries as usize > (tcp_buf.len() - 4) / entry_size.max(1) + 1 {
+                tracing::warn!(
+                    "[network] TCP num_entries ({}) exceeds buffer capacity",
+                    num_entries
+                );
+                return Ok(connections);
+            }
 
             for i in 0..num_entries as usize {
                 let offset = 4 + i * entry_size;
@@ -1192,7 +1204,11 @@ fn get_connections_windows_native() -> Result<Vec<NetworkConnection>, String> {
                     break;
                 }
 
-                let row: &MIB_TCPROW_OWNER_PID = unsafe { &*(tcp_buf.as_ptr().add(offset).cast()) };
+                let row = unsafe {
+                    std::ptr::read_unaligned(
+                        tcp_buf.as_ptr().add(offset) as *const MIB_TCPROW_OWNER_PID
+                    )
+                };
 
                 let local_addr =
                     IpAddr::V4(std::net::Ipv4Addr::from(u32::from_be(row.dwLocalAddr)));
@@ -1271,9 +1287,21 @@ fn get_connections_windows_native() -> Result<Vec<NetworkConnection>, String> {
         };
 
         if result == 0 {
+            if udp_buf.len() < 4 {
+                tracing::warn!("[network] UDP buffer too small ({} bytes)", udp_buf.len());
+                return Ok(connections);
+            }
             let num_entries = u32::from_le_bytes(udp_buf[0..4].try_into().unwrap_or([0; 4]));
             let entry_size = std::mem::size_of::<MIB_UDPROW_OWNER_PID>();
             tracing::debug!("[network] Found {} UDP connections", num_entries);
+
+            if num_entries as usize > (udp_buf.len() - 4) / entry_size.max(1) + 1 {
+                tracing::warn!(
+                    "[network] UDP num_entries ({}) exceeds buffer capacity",
+                    num_entries
+                );
+                return Ok(connections);
+            }
 
             for i in 0..num_entries as usize {
                 let offset = 4 + i * entry_size;
@@ -1281,7 +1309,11 @@ fn get_connections_windows_native() -> Result<Vec<NetworkConnection>, String> {
                     break;
                 }
 
-                let row: &MIB_UDPROW_OWNER_PID = unsafe { &*(udp_buf.as_ptr().add(offset).cast()) };
+                let row = unsafe {
+                    std::ptr::read_unaligned(
+                        udp_buf.as_ptr().add(offset) as *const MIB_UDPROW_OWNER_PID
+                    )
+                };
 
                 let local_addr =
                     IpAddr::V4(std::net::Ipv4Addr::from(u32::from_be(row.dwLocalAddr)));
