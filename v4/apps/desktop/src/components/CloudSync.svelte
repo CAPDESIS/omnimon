@@ -43,7 +43,7 @@
       await invoke<void>('save_cloud_key', { key });
        status = "Key saved successfully!";
      } catch (e) {
-       status = `Error: ${e}`;
+       status = `Error: ${e instanceof Error ? e.message : String(e)}`;
     } finally {
       savingKey = false;
     }

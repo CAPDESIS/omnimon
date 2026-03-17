@@ -584,7 +584,9 @@ impl TabProvider for NativeTabProvider {
             BrowserKind::Chrome | BrowserKind::Brave | BrowserKind::Edge | BrowserKind::Arc => {
                 self.close_chromium_tab(browser, tab)
             }
-            BrowserKind::Firefox => Ok(false),
+            BrowserKind::Firefox => {
+                Err("Firefox tab management is not supported on macOS".to_string())
+            }
         }
     }
 
@@ -594,7 +596,9 @@ impl TabProvider for NativeTabProvider {
             BrowserKind::Chrome | BrowserKind::Brave | BrowserKind::Edge | BrowserKind::Arc => {
                 self.focus_chromium_tab(browser, tab)
             }
-            BrowserKind::Firefox => Ok(false),
+            BrowserKind::Firefox => {
+                Err("Firefox tab management is not supported on macOS".to_string())
+            }
         }
     }
 }

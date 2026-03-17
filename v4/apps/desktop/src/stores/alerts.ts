@@ -152,10 +152,16 @@ export function evaluateAlerts(
       lastFired.set(key, now);
 
       // Prune stale cooldown entries to prevent unbounded Map growth
-      if (lastFired.size > rules.length * 2) {
+      if (lastFired.size > Math.max(rules.length * 2, 10)) {
         for (const [k, ts] of lastFired) {
           if (now - ts >= COOLDOWN_MS) lastFired.delete(k);
         }
+      }
+      // Hard cap to prevent memory leak if rules grow dynamically
+      if (lastFired.size > 500) {
+        const entries = [...lastFired.entries()].sort((a, b) => b[1] - a[1]).slice(0, 250);
+        lastFired.clear();
+        for (const [k, ts] of entries) lastFired.set(k, ts);
       }
 
       const fired: FiredAlert = {
