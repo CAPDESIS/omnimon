@@ -475,6 +475,8 @@ export function startPolling(intervalMs = 3000): void {
     } else {
       unlisten();
     }
+  }).catch((e) => {
+    console.warn("[processes] Failed to listen for metrics-update:", e);
   });
   syncBrowserTabsPolling();
   syncNetworkPolling();
