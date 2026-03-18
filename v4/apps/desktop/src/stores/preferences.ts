@@ -430,7 +430,7 @@ export function setProfilePresets(nextPresets: ProfilePreset[]): void {
   }
 }
 
-let storeInstance: any = null;
+let storeInstance: { get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<void>; save(): Promise<void> } | null = null;
 
 async function getStore() {
   if (storeInstance) return storeInstance;
