@@ -683,6 +683,10 @@ pub fn set_plugin_enabled(
     plugin_id: String,
     enabled: bool,
 ) -> Result<PluginDescriptor, String> {
+    macmon_core::rate_limit::check_rate_limit(
+        "set_plugin_enabled",
+        &macmon_core::rate_limit::profiles::CONFIG,
+    )?;
     engine(&app)?.set_enabled(&plugin_id, enabled)
 }
 
