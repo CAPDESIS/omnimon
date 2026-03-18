@@ -56,7 +56,7 @@ pub fn check_prompt_injection(text: &str) -> Result<(), Box<dyn Error + Send + S
         .iter()
         .any(|pattern| pattern.is_match(&normalized))
     {
-        return Err("Acción bloqueada: posible inyección de prompt detectada.".into());
+        return Err("prompt_injection_blocked".into());
     }
     Ok(())
 }
@@ -948,7 +948,7 @@ fn execute_get_process_details(
         return ToolResult {
             tool: "get_process_details".into(),
             success: true,
-            details: format!("Details for {} (PID {})", proc.name, proc.pid),
+            details: "tool_process_details_ready".into(),
             payload: Some(json!({
                 "pid": proc.pid,
                 "name": proc.name,
@@ -1046,10 +1046,7 @@ fn execute_explain_process(
         return ToolResult {
             tool: "explain_process".into(),
             success: true,
-            details: format!(
-                "{} appears to be an active {} process",
-                proc.name, proc.group_name
-            ),
+            details: "tool_process_explanation_ready".into(),
             payload: Some(json!({
                 "name": proc.name,
                 "pid": proc.pid,

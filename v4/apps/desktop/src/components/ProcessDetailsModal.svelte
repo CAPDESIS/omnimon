@@ -155,7 +155,7 @@
         name: detectedBrowser,
         tab_count: allBrowserTabs.length,
         tabs: allBrowserTabs.map((tab) => ({
-          title: tab.title || "(Untitled)",
+          title: tab.title || t("common.untitled"),
           domain: getDomain(tab.url),
           url: tab.url,
         })),

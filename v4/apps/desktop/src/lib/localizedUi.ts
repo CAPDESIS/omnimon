@@ -141,6 +141,7 @@ export function localizeBackendError(message: string): string {
   if (/plugin source exceeds/i.test(trimmed)) return t("plugins.errors.sourceTooLarge");
   if (/plugin registry is full/i.test(trimmed)) return t("plugins.errors.registryFull");
   if (/plugin .* was not found/i.test(trimmed)) return t("plugins.errors.notFound");
+  if (trimmed === "prompt_injection_blocked") return t("aiChat.blockedPrompt");
   if (/Unknown AI provider/i.test(trimmed)) return t("errors.unknownAiProvider");
   if (/Ollama is not running/i.test(trimmed)) return t("aiChat.errorApi");
   if (/Invalid API key/i.test(trimmed)) return t("settings.apiKeyFailed");
@@ -155,10 +156,12 @@ export function localizeBackendError(message: string): string {
   if (/^tool_automation_rule_add_failed:/i.test(trimmed)) return t("automations.ruleAddFailed");
   if (/^tool_automation_rule_remove_failed:/i.test(trimmed)) return t("automations.ruleRemoveFailed");
   if (trimmed === "tool_process_details_not_found") return t("aiChat.processDetailsNotFound");
+  if (trimmed === "tool_process_details_ready") return t("aiChat.processDetailsLoaded", { name: t("common.untitled"), pid: "?" });
   if (trimmed === "tool_network_details_none") return t("aiChat.noActiveConnections");
   if (trimmed === "tool_network_details_found") return t("aiChat.networkConnectionsFound", { count: 0 });
   if (trimmed === "tool_security_scan_completed") return t("aiChat.securityScanCompleted", { count: 0 });
   if (trimmed === "tool_process_explanation_unavailable") return t("aiChat.processExplanationUnavailable");
+  if (trimmed === "tool_process_explanation_ready") return t("aiChat.processExplanationLoaded", { name: t("common.untitled") });
   if (trimmed === "tool_system_summary_ready") return t("aiChat.systemSummaryTitle");
   if (trimmed === "automation_rule_added") return t("automations.ruleAdded");
   if (trimmed === "automation_rule_args_invalid") return t("automations.ruleArgsInvalid");

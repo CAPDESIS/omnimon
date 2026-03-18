@@ -152,9 +152,9 @@
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("Rate limited")) {
-        toast.warning(t("common.rateLimited") || "Rate limited", msg);
+        toast.warning(t("common.rateLimited"), msg);
       } else {
-        toast.error(t("tabs.focusErrorTitle") || "Focus failed", msg);
+        toast.error(t("tabs.focusErrorTitle"), msg);
       }
       console.warn("[ChromeTabManager] Failed to focus tab:", e);
     }
