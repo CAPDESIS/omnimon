@@ -53,7 +53,7 @@ describe("ProfileSettings", () => {
     expect(get(favoriteProcesses)).toContain("firefox");
     expect(screen.getByText("firefox")).toBeDefined();
 
-    const removeBtns = screen.getAllByLabelText("Remove");
+    const removeBtns = screen.getAllByLabelText("Remove favorite process");
     await fireEvent.click(removeBtns[1]); // Remove firefox
 
     expect(get(favoriteProcesses)).not.toContain("firefox");
@@ -64,7 +64,7 @@ describe("ProfileSettings", () => {
     const resetBtn = screen.getByText(/Reset to Defaults/i);
     await fireEvent.click(resetBtn);
 
-    expect(get(displayName)).toBe("User");
+    expect(get(displayName)).toBe("");
     expect(get(profilePreset)).toBe("balanced");
     expect(get(dashboardLayout)).toBe("standard");
     expect(get(refreshInterval)).toBe(500);

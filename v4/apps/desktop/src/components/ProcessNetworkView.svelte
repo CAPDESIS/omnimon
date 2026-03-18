@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../lib/i18n";
   import {
     getPerProcessSummary,
   } from "../stores/network.svelte";
@@ -13,18 +14,18 @@
 </script>
 
 <div class="process-network-container">
-  <h2>Uso de red por proceso</h2>
+  <h2>{t("processNetwork.title")}</h2>
   
   <div class="layout">
     <div class="process-list">
       <table class="process-table">
         <thead>
           <tr>
-            <th>Proceso</th>
-            <th>Conexiones</th>
+            <th>{t("processNetwork.process")}</th>
+            <th>{t("processNetwork.connections")}</th>
             <th>↑ Total</th>
             <th>↓ Total</th>
-            <th>Top Destino</th>
+            <th>{t("processNetwork.topDestination")}</th>
           </tr>
         </thead>
         <tbody>
@@ -42,7 +43,7 @@
     </div>
     
     <div class="chart-container">
-      <p class="placeholder-text">Gráfica Pie/Donut: Distribución de ancho de banda</p>
+      <p class="placeholder-text">{t("processNetwork.chartPlaceholder")}</p>
       <!-- TODO: Implement actual charting library component -->
     </div>
   </div>

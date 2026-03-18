@@ -167,7 +167,7 @@ describe("SystemMetricModal", () => {
 
     expect(screen.getByRole("dialog", { name: "CPU" })).toBeInTheDocument();
     expect(screen.getByText("Deep Dive")).toBeInTheDocument();
-    expect(screen.getByText(/Now 20.0%/)).toBeInTheDocument();
+    expect(screen.getByText(/Now 20.0% - Avg 23.3% - Max 40.0%/)).toBeInTheDocument();
     expect(document.querySelector(".chart-container")).toBeInTheDocument();
   });
 
@@ -416,7 +416,7 @@ describe("SystemMetricModal", () => {
       props: { metric: "cpu", onclose: vi.fn() },
     });
 
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
     expect(document.querySelector(".chart-container")).toBeNull();
   });
 

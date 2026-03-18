@@ -195,11 +195,11 @@ describe("rendering", () => {
   it("falls back to em dash for empty uptime and empty group label", () => {
     render(ProcessTable, {
       props: {
-        processes: [makeProc({ pid: 24, uptime: "", group: "" })],
+        processes: [makeProc({ pid: 24, uptime: "", group: "", grouped_name: "" })],
       },
     });
 
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
   });
 
   it("shows Browser group when browser not detected", () => {

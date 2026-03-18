@@ -4,6 +4,8 @@ import type { AlertRule } from "../lib/aiConfigBridge";
 import type { DynamicAlert, NetworkAlert, ProcessEntry, SystemStats } from "../lib/types";
 import { toast } from "./toasts";
 import { ipcAnalyzeContext } from "../lib/ipc";
+import { t } from "../lib/i18n";
+import { formatDynamicAlertMessage, formatDynamicAlertTitle, formatLocalizedLabel, formatNetworkAlertDetails, formatNetworkAlertMessage } from "../lib/localizedUi";
 import { aiProviderConfig, notificationLevel } from "./preferences";
 import { askAiRequest, focusNetworkRequest } from "./uiActions";
 
@@ -54,8 +56,8 @@ const APPLE_INTERNAL_RE =
   /^com\.apple\.(WebKit\.|Safari\.|Chrome)/i;
 
 function sanitizeProcessName(name: string): string {
-  if (BROWSER_HELPER_RE.test(name)) return "browser helper process";
-  if (APPLE_INTERNAL_RE.test(name)) return "web content process";
+  if (BROWSER_HELPER_RE.test(name)) return t("alerts.browserHelperProcess");
+  if (APPLE_INTERNAL_RE.test(name)) return t("alerts.webContentProcess");
   return name;
 }
 
@@ -183,7 +185,7 @@ export function evaluateAlerts(
           const label = rule.processName
             ? `${rule.processName}: ${rule.metric} ${rule.operator} ${rule.threshold}`
             : `System ${rule.metric} ${rule.operator} ${rule.threshold}`;
-          toast.warning("Alert", `${label} (current: ${value.toFixed(1)})`);
+          toast.warning(t("alerts.title"), `${label} (${t("alerts.currentValue", { value: value.toFixed(1) })})`);
         }
       }
     }
@@ -371,10 +373,7 @@ export async function initSecurityAlertListener(): Promise<() => void> {
       // Assuming security alerts might have severity, otherwise treat as critical
       const isCritical = (alert as any).severity === "critical" || true;
       if (level === "all" || (level === "critical" && isCritical)) {
-        toast.warning(
-          `Rule: ${alert.rule_name}`,
-          alert.message || `${alert.process_name} (PID ${alert.pid}) triggered rule "${alert.rule_name}"`,
-        );
+        toast.warning(formatDynamicAlertTitle(alert), formatDynamicAlertMessage(alert));
       }
     });
 
@@ -385,18 +384,15 @@ export async function initSecurityAlertListener(): Promise<() => void> {
         return next.length > MAX_NETWORK_ALERTS ? next.slice(-MAX_NETWORK_ALERTS) : next;
       });
 
-      const subject = alert.process_name ?? alert.destination ?? alert.rule_name;
-      const details = [
-        alert.bandwidth_mbps != null ? `${alert.bandwidth_mbps.toFixed(2)} Mbps` : null,
-        alert.connection_count != null ? `${alert.connection_count} conexiones` : null,
-        alert.destination,
-      ].filter(Boolean).join(" - ");
+      const subject = alert.process_name ?? alert.destination ?? formatLocalizedLabel(alert.rule_name);
+      const details = formatNetworkAlertDetails(alert);
+      const fallbackMessage = formatNetworkAlertMessage(alert);
 
       const level = get(notificationLevel);
       if (level === "all" || (level === "critical" && alert.severity === "critical")) {
         toast.warning(
-          `Red: ${alert.rule_name}`,
-          details ? `${subject} - ${details}` : alert.message,
+          t("alerts.networkToastTitle", { rule: formatLocalizedLabel(alert.rule_name) }),
+          details ? `${subject} - ${details}` : fallbackMessage,
           7000,
         );
       }
@@ -429,17 +425,20 @@ export function investigateNetworkAlert(alert: NetworkAlert): void {
 }
 
 export function askAiAboutNetworkAlert(alert: NetworkAlert): void {
+  const localizedRule = formatLocalizedLabel(alert.rule_name);
+  const localizedMessage = formatNetworkAlertMessage(alert);
+  const localizedDetails = formatNetworkAlertDetails(alert);
   const prompt = [
     `Analiza esta alerta de red y explicala en espanol:`,
-    `Regla: ${alert.rule_name}`,
+    `Regla: ${localizedRule}`,
     `Severidad: ${alert.severity}`,
-    `Mensaje: ${alert.message}`,
+    `Mensaje: ${localizedMessage}`,
     alert.process_name ? `Proceso: ${alert.process_name}` : null,
     alert.pid != null ? `PID: ${alert.pid}` : null,
     alert.destination ? `Destino: ${alert.destination}` : null,
     alert.bandwidth_mbps != null ? `Bandwidth: ${alert.bandwidth_mbps.toFixed(2)} Mbps` : null,
     alert.connection_count != null ? `Conexiones: ${alert.connection_count}` : null,
-    alert.details.length > 0 ? `Detalles: ${alert.details.join(" | ")}` : null,
+    localizedDetails ? `Detalles: ${localizedDetails}` : null,
   ].filter(Boolean).join("\n");
 
   askAiRequest.set(prompt);
@@ -450,11 +449,11 @@ export function matchesNetworkAlertFilter(alert: NetworkAlert, filter: NetworkAl
   const query = filter.query.trim().toLowerCase();
   if (!query) return true;
   return [
-    alert.rule_name,
-    alert.message,
+    formatLocalizedLabel(alert.rule_name),
+    formatNetworkAlertMessage(alert),
     alert.process_name ?? "",
     alert.destination ?? "",
-    ...alert.details,
+    formatNetworkAlertDetails(alert),
   ].some((part) => part.toLowerCase().includes(query));
 }
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
+  import { t } from "../lib/i18n";
 
   import Button from "./Button.svelte";
 
@@ -15,12 +16,12 @@
     const loadKey = async () => {
       loadingKey = true;
       try {
-        const stored = await invoke<string>('get_cloud_key');
+        const stored = await invoke<string>("get_cloud_key");
         if (!mounted) return;
         key = stored;
       } catch (e) {
         if (!mounted) return;
-        console.error('Failed to get cloud key', e);
+        console.error("Failed to get cloud key", e);
       } finally {
         if (mounted) {
           loadingKey = false;
@@ -38,40 +39,40 @@
   async function saveKey() {
     if (savingKey || loadingKey) return;
     savingKey = true;
-    status = '';
+    status = "";
     try {
-      await invoke<void>('save_cloud_key', { key });
-       status = "Key saved successfully!";
-     } catch (e) {
-       status = `Error: ${e instanceof Error ? e.message : String(e)}`;
+      await invoke<void>("save_cloud_key", { key });
+      status = t("cloudSync.saved");
+    } catch (e) {
+      status = t("cloudSync.error", { error: e instanceof Error ? e.message : String(e) });
     } finally {
       savingKey = false;
     }
   }
 
   function syncNow() {
-     status = "Sync not implemented yet.";
+    status = t("cloudSync.syncNotImplemented");
   }
 </script>
 
 <div class="cloud-sync">
-  <h3>CrabNebula Cloud Settings</h3>
+  <h3>{t("cloudSync.title")}</h3>
   <div class="input-group">
-     <label for="cloud-key">API Key:</label>
+     <label for="cloud-key">{t("cloudSync.apiKey")}</label>
     <input
       type="password"
       id="cloud-key"
       bind:value={key}
-      placeholder="Enter your CrabNebula API Key"
+      placeholder={t("cloudSync.placeholder")}
       disabled={loadingKey || savingKey}
     />
   </div>
   <div class="actions">
     <Button variant="primary" onclick={saveKey} disabled={loadingKey || savingKey || !key.trim()}>
-       {savingKey ? "Saving..." : "Save Key"}
-     </Button>
-     <Button variant="secondary" onclick={syncNow} disabled={loadingKey || savingKey}>Sync Now</Button>
-  </div>
+       {savingKey ? t("cloudSync.saving") : t("cloudSync.saveKey")}
+      </Button>
+      <Button variant="secondary" onclick={syncNow} disabled={loadingKey || savingKey}>{t("cloudSync.syncNow")}</Button>
+   </div>
   {#if status}
     <p class="status">{status}</p>
   {/if}

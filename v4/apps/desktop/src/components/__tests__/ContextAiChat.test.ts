@@ -113,7 +113,7 @@ describe("ContextAiChat", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Analyze" }));
 
     expect(screen.getByText("Thinking", { exact: false })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Loading" })).toBeDisabled();
 
     resolvePromise("Done");
 

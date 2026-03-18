@@ -99,9 +99,9 @@ describe("SmartAlerts", () => {
 
     render(SmartAlerts);
 
-    expect(screen.getByText("Actualizada 3x")).toBeInTheDocument();
+    expect(screen.getByText("Updated 3x")).toBeInTheDocument();
 
-    await fireEvent.click(screen.getByRole("button", { name: /cerrar todas/i }));
+    await fireEvent.click(screen.getByRole("button", { name: /close all/i }));
 
     expect(mockDismissAllSmartAlerts).toHaveBeenCalledOnce();
   });
@@ -118,7 +118,7 @@ describe("SmartAlerts", () => {
 
     render(SmartAlerts);
 
-    expect(screen.getByText(/\+2 alertas m.s/i)).toBeInTheDocument();
+    expect(screen.getByText(/\+2 more alerts/i)).toBeInTheDocument();
     expect(screen.queryByText("Problem 1")).not.toBeInTheDocument();
     expect(screen.queryByText("Problem 2")).not.toBeInTheDocument();
     expect(screen.getByText("Problem 7")).toBeInTheDocument();

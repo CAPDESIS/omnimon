@@ -28,7 +28,7 @@
     emptyState,
     buildContext,
     helpTooltip = "",
-    sendLabel = t("ai.ask"),
+    sendLabel = t("common.askAi"),
     inputAriaLabel = title,
     maxHeight = 220,
   }: Props = $props();
@@ -154,7 +154,7 @@
       style="resize: none;"
     ></textarea>
     <Button class="context-chat-send" variant="primary" size="sm" onclick={handleSubmit} disabled={loading || !input.trim()}>
-      {loading ? "..." : sendLabel}
+      {loading ? t("common.loadingShort") : sendLabel}
     </Button>
   </div>
 </div>

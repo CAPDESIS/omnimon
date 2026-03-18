@@ -347,12 +347,12 @@ export interface AiProviderDef {
 export const AI_PROVIDERS: AiProviderDef[] = [
   {
     id: "ollama",
-    label: "Ollama (Local)",
+    label: "settings.providers.ollama",
     models: ["llama3.2", "llama3.1", "mistral", "gemma2", "qwen2.5"],
   },
   {
     id: "openrouter",
-    label: "OpenRouter",
+    label: "settings.providers.openrouter",
     models: [
       "meta-llama/llama-3.2-3b-instruct:free",
       "google/gemini-2.0-flash-001",
@@ -362,12 +362,12 @@ export const AI_PROVIDERS: AiProviderDef[] = [
   },
   {
     id: "openai",
-    label: "OpenAI",
+    label: "settings.providers.openai",
     models: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-nano", "gpt-4.1-mini"],
   },
   {
     id: "gemini",
-    label: "Gemini",
+    label: "settings.providers.gemini",
     models: [
       "gemini-2.0-flash",
       "gemini-1.5-flash-8b",
@@ -376,7 +376,7 @@ export const AI_PROVIDERS: AiProviderDef[] = [
   },
   {
     id: "anthropic",
-    label: "Anthropic",
+    label: "settings.providers.anthropic",
     models: ["claude-sonnet-4-20250514", "claude-haiku-4-5-20251001", "claude-3-5-haiku-20241022"],
   },
 ];

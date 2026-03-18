@@ -32,7 +32,7 @@ describe("ProcessNetworkView", () => {
   it("renders per-process summary rows", () => {
     render(ProcessNetworkView);
 
-    expect(screen.getByText("Uso de red por proceso")).toBeInTheDocument();
+    expect(screen.getByText("Network usage by process")).toBeInTheDocument();
     expect(screen.getByText("Chrome")).toBeInTheDocument();
     expect(screen.getByText("example.com")).toBeInTheDocument();
     expect(screen.getByText("2.0 KB/s")).toBeInTheDocument();
@@ -41,6 +41,6 @@ describe("ProcessNetworkView", () => {
 
   it("shows chart placeholder", () => {
     render(ProcessNetworkView);
-    expect(screen.getByText(/Distribuci.n de ancho de banda/i)).toBeInTheDocument();
+    expect(screen.getByText(/bandwidth distribution/i)).toBeInTheDocument();
   });
 });

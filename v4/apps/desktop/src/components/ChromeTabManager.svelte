@@ -171,9 +171,9 @@
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("Rate limited")) {
-        toast.warning(t("common.rateLimited") || "Rate limited", msg);
+        toast.warning(t("common.rateLimited"), msg);
       } else {
-        toast.error(t("tabs.closeErrorTitle") || "Close failed", msg);
+        toast.error(t("tabs.closeErrorTitle"), msg);
       }
       console.warn("[ChromeTabManager] Failed to close tab:", e);
     }
@@ -205,8 +205,8 @@
     }
     if (failCount > 0) {
       toast.warning(
-        t("tabs.closeErrorTitle") || "Close failed",
-        `${failCount} tab(s) could not be closed`,
+        t("tabs.closeErrorTitle"),
+        t("tabs.closeCountFailed", { count: failCount }),
       );
     }
   }
@@ -232,8 +232,8 @@
     }
     if (failCount > 0) {
       toast.warning(
-        t("tabs.closeErrorTitle") || "Close failed",
-        `${failCount} tab(s) could not be closed`,
+        t("tabs.closeErrorTitle"),
+        t("tabs.closeCountFailed", { count: failCount }),
       );
     }
   }

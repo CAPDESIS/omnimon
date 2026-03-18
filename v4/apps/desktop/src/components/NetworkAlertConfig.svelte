@@ -48,6 +48,10 @@
     return t(`networkAlerts.directions.${value}`);
   }
 
+  function getRuleNameLabel(name: string): string {
+    return t(name);
+  }
+
   function resetForm() {
     editId = null;
     ruleName = "";
@@ -75,7 +79,7 @@
   function openEdit(rule: NetworkAlertRule) {
     resetForm();
     editId = rule.id;
-    ruleName = rule.name;
+    ruleName = getRuleNameLabel(rule.name);
     enabled = rule.enabled;
     severity = rule.severity;
     cooldownSeconds = rule.cooldown_seconds;
@@ -230,7 +234,7 @@
         <div class="rule-topline">
           <label class="toggle-row">
             <input type="checkbox" checked={rule.enabled} onchange={() => toggleRule(rule.id)} />
-            <span>{rule.name}</span>
+            <span>{getRuleNameLabel(rule.name)}</span>
           </label>
           <span class={`severity severity-${rule.severity}`}>{getSeverityLabel(rule.severity)}</span>
         </div>
@@ -297,7 +301,7 @@
             </select>
           </label>
         </div>
-        <label><span>{t("networkAlerts.processOptional")}</span><input bind:value={process} placeholder="chrome" /></label>
+        <label><span>{t("networkAlerts.processOptional")}</span><input bind:value={process} placeholder={t("networkAlerts.processExample")} /></label>
       {/if}
 
       {#if conditionKind === "new_external_connection"}
@@ -305,12 +309,12 @@
       {/if}
 
       {#if conditionKind === "unusual_port"}
-        <label><span>{t("networkAlerts.ports")}</span><input bind:value={suspiciousPorts} placeholder="4444, 6667, 8443" /></label>
+        <label><span>{t("networkAlerts.ports")}</span><input bind:value={suspiciousPorts} placeholder={t("networkAlerts.portsExample")} /></label>
       {/if}
 
       {#if conditionKind === "process_network_spike"}
         <div class="grid two">
-          <label><span>{t("network.process")}</span><input bind:value={processName} placeholder="chrome" /></label>
+          <label><span>{t("network.process")}</span><input bind:value={processName} placeholder={t("networkAlerts.processExample")} /></label>
           <label><span>{t("networkAlerts.multiplier")}</span><input type="number" min="1.1" step="0.1" bind:value={multiplier} /></label>
         </div>
       {/if}
@@ -318,12 +322,12 @@
       {#if conditionKind === "connection_count_exceeded"}
         <div class="grid two">
           <label><span>{t("networkAlerts.maxConnections")}</span><input type="number" min="1" step="1" bind:value={maxConnections} /></label>
-          <label><span>{t("networkAlerts.processOptional")}</span><input bind:value={process} placeholder="chrome" /></label>
+          <label><span>{t("networkAlerts.processOptional")}</span><input bind:value={process} placeholder={t("networkAlerts.processExample")} /></label>
         </div>
       {/if}
 
       {#if conditionKind === "suspicious_destination"}
-        <label><span>{t("networkAlerts.regexPatterns")}</span><input bind:value={patterns} placeholder="malware, (^198\.51\.100\.)" /></label>
+        <label><span>{t("networkAlerts.regexPatterns")}</span><input bind:value={patterns} placeholder={t("networkAlerts.regexExample")} /></label>
       {/if}
 
       <div class="grid two">

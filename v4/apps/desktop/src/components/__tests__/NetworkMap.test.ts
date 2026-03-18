@@ -238,7 +238,7 @@ describe("NetworkMap", () => {
 
     await fireEvent.click(screen.getByText("google.com:443"));
 
-    expect(screen.getByText("Procesos:")).toBeInTheDocument();
+    expect(screen.getByText("Processes:")).toBeInTheDocument();
     expect(screen.getAllByText("Chrome").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });

@@ -22,7 +22,7 @@
     aria-selected={activeTab === "processes"}
     onclick={() => ontabchange("processes")}
   >
-    {t("common.processes", { count: 0 }).split(' ')[0] || "Processes"}
+      {t("common.processes", { count: 0 }).split(' ')[0]}
   </button>
   
   {#if showNetwork}
@@ -33,7 +33,7 @@
       aria-selected={activeTab === "network"}
       onclick={() => ontabchange("network")}
     >
-      {t("common.networkMap") || "Network"}
+      {t("common.networkMap")}
     </button>
   {/if}
 
@@ -45,7 +45,7 @@
       aria-selected={activeTab === "browser"}
       onclick={() => ontabchange("browser")}
     >
-      {t("common.browserTabs") || "Browser Tabs"}
+      {t("common.browserTabs")}
     </button>
   {/if}
 
@@ -56,7 +56,7 @@
     aria-selected={activeTab === "aichat"}
     onclick={() => ontabchange("aichat")}
   >
-    {t("aiChat.title") || "AI Chat"}
+    {t("aiChat.title")}
   </button>
   
   <div class="tab-spacer"></div>
@@ -68,7 +68,7 @@
     aria-selected={activeTab === "settings"}
     onclick={() => ontabchange("settings")}
   >
-    {t("settings.title") || "Settings"}
+    {t("settings.title")}
   </button>
 </div>
 

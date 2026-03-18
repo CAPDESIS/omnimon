@@ -1,3 +1,5 @@
+import { t } from "./i18n";
+
 import type { MetricPoint } from "../stores/metricsHistory";
 
 export type MetricKind = "cpu" | "ram" | "network" | "swap" | "processes";
@@ -15,7 +17,11 @@ function formatSeries(series: MetricPoint[], suffix = ""): string {
   const last = series[series.length - 1]?.value ?? 0;
   const max = Math.max(...series.map((point) => point.value), 0);
   const avg = series.reduce((sum, point) => sum + point.value, 0) / Math.max(series.length, 1);
-  return `Now ${last.toFixed(1)}${suffix} · Avg ${avg.toFixed(1)}${suffix} · Max ${max.toFixed(1)}${suffix}`;
+  return t("status.metricSeries", {
+    now: `${last.toFixed(1)}${suffix}`,
+    avg: `${avg.toFixed(1)}${suffix}`,
+    max: `${max.toFixed(1)}${suffix}`,
+  });
 }
 
 export function getSparklineColor(metric: string, series: Array<{ value: number }>): string {
@@ -72,7 +78,7 @@ export function metricSummaryLabel(
   if (metric === "cpu") return formatSeries(values.cpuSeries, "%");
   if (metric === "ram") return formatSeries(values.ramSeries, "%");
   if (metric === "swap") return formatSeries(values.swapSeries, " MB");
-  return `${values.totalProcesses ?? 0} visible`;
+  return t("systemMetrics.visibleSummary", { count: values.totalProcesses ?? 0 });
 }
 
 export function loadNetworkMap(): Promise<unknown> {

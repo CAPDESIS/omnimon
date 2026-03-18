@@ -1,6 +1,7 @@
 <script lang="ts">
   import { toasts, dismissToast, type ToastLevel } from "../stores/toasts";
   import { fly, fade } from "svelte/transition";
+  import { t } from "../lib/i18n";
 
   import IconButton from "./IconButton.svelte";
 
@@ -15,25 +16,25 @@
 </script>
 
 <div class="toast-container" aria-live="polite" aria-relevant="additions">
-  {#each $toasts as t (t.id)}
+  {#each $toasts as toastItem (toastItem.id)}
     <div
-      class="toast toast-{t.level}"
+      class="toast toast-{toastItem.level}"
       role="alert"
       in:fly={{ y: 20, duration: 250 }}
       out:fade={{ duration: 180 }}
     >
-      <span class="toast-icon">{levelIcon(t.level)}</span>
+      <span class="toast-icon">{levelIcon(toastItem.level)}</span>
       <div class="toast-content">
-        <span class="toast-title">{t.title}</span>
-        {#if t.message}
-          <span class="toast-message">{t.message}</span>
+        <span class="toast-title">{toastItem.title}</span>
+        {#if toastItem.message}
+          <span class="toast-message">{toastItem.message}</span>
         {/if}
       </div>
       <IconButton
         class="toast-dismiss"
-        onclick={() => dismissToast(t.id)}
-        ariaLabel="Dismiss"
-        title="Dismiss"
+        onclick={() => dismissToast(toastItem.id)}
+        ariaLabel={t("toast.dismiss")}
+        title={t("toast.dismiss")}
         size="sm"
       >&times;</IconButton>
     </div>

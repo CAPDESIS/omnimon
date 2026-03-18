@@ -30,10 +30,10 @@
     {#if $smartAlerts.length > 1}
       <div class="alerts-global-actions">
         {#if hiddenCount > 0}
-          <span class="hidden-count">+{hiddenCount} alertas más</span>
+          <span class="hidden-count">{t("smartAlerts.moreAlerts", { count: hiddenCount })}</span>
         {/if}
         <Button class="close-all-btn" variant="secondary" size="sm" onclick={dismissAllSmartAlerts}>
-          ✕ Cerrar todas
+          ✕ {t("smartAlerts.closeAll")}
         </Button>
       </div>
     {/if}
@@ -44,7 +44,7 @@
           <span class="icon"><AlertTriangle size={14} /></span>
           <strong>{t("smartAlerts.title")}</strong>
           {#if alert.updateCount && alert.updateCount > 1}
-            <span class="update-badge">Actualizada {alert.updateCount}x</span>
+            <span class="update-badge">{t("smartAlerts.updatedCount", { count: alert.updateCount })}</span>
           {/if}
           <IconButton class="close-btn" onclick={() => handleIgnore(alert.id)} ariaLabel={t("common.dismiss")} title={t("common.dismiss")} size="sm">✕</IconButton>
         </div>

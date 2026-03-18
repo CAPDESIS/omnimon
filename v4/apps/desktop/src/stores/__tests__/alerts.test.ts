@@ -249,7 +249,7 @@ describe("alerts store", () => {
     };
 
     expect(matchesNetworkAlertFilter(alert, { severity: "warning", query: "evil" })).toBe(false);
-    expect(matchesNetworkAlertFilter(alert, { severity: "critical", query: "matched" })).toBe(true);
+    expect(matchesNetworkAlertFilter(alert, { severity: "critical", query: "evil.example" })).toBe(true);
     expect(matchesNetworkAlertFilter(alert, { severity: "all", query: "missing" })).toBe(false);
   });
 
@@ -680,6 +680,7 @@ describe("Smart Health Alerts", () => {
 
     const toastMessages = get(toasts).map((entry) => `${entry.title} ${entry.message ?? ""}`);
     expect(toastMessages.some((entry) => entry.includes("proc-a (PID 321) triggered rule \"Rule A\""))).toBe(true);
-    expect(toastMessages.some((entry) => entry.includes("fallback network message"))).toBe(true);
+    expect(toastMessages.some((entry) => entry.includes("Network: Network B"))).toBe(true);
+    expect(toastMessages.some((entry) => entry.includes("0.00 Mbps"))).toBe(true);
   });
 });

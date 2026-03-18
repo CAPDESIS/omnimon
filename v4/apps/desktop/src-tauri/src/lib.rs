@@ -21,6 +21,75 @@ const MAX_AI_RULES_PAYLOAD_BYTES: usize = 64 * 1024;
 const MAX_NETWORK_ALERT_RULES_PAYLOAD_BYTES: usize = 128 * 1024;
 const MAX_KILL_BATCH: usize = 50;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum UiLocale {
+    En,
+    Es,
+}
+
+fn detect_system_locale() -> UiLocale {
+    for key in ["LC_ALL", "LC_MESSAGES", "LANG"] {
+        if let Ok(value) = std::env::var(key) {
+            if value.to_ascii_lowercase().starts_with("es") {
+                return UiLocale::Es;
+            }
+        }
+    }
+    UiLocale::En
+}
+
+fn read_ui_locale(app: &AppHandle) -> UiLocale {
+    if let Ok(store) = app.store("preferences.json") {
+        if let Some(value) = store.get("localePreference") {
+            if let Some(locale) = value.as_str() {
+                return match locale {
+                    "es" => UiLocale::Es,
+                    "en" => UiLocale::En,
+                    _ => detect_system_locale(),
+                };
+            }
+        }
+    }
+    detect_system_locale()
+}
+
+fn tr(locale: UiLocale, key: &str) -> &'static str {
+    match (locale, key) {
+        (UiLocale::Es, "about.more_info") => "Más información",
+        (UiLocale::En, "about.more_info") => "More information",
+        (UiLocale::Es, "about.comments") => {
+            "System Monitor — monitoreo avanzado de procesos, pestañas y red."
+        }
+        (UiLocale::En, "about.comments") => {
+            "System Monitor - advanced monitoring for processes, tabs, and network."
+        }
+        (UiLocale::Es, "about.title") => "Acerca de OmniMon",
+        (UiLocale::En, "about.title") => "About OmniMon",
+        (UiLocale::Es, "tray.dashboard") => "Dashboard",
+        (UiLocale::En, "tray.dashboard") => "Dashboard",
+        (UiLocale::Es, "tray.settings") => "Configuración",
+        (UiLocale::En, "tray.settings") => "Settings",
+        (UiLocale::Es, "tray.quit") => "Salir",
+        (UiLocale::En, "tray.quit") => "Quit",
+        (UiLocale::Es, "tray.tooltip_idle") => "OmniMon - Monitor del sistema",
+        (UiLocale::En, "tray.tooltip_idle") => "OmniMon - System Monitor",
+        _ => "OmniMon",
+    }
+}
+
+fn tray_tooltip(locale: UiLocale, cpu_pct: f64, ram_used_gb: f64, ram_used_pct: u32) -> String {
+    match locale {
+        UiLocale::Es => format!(
+            "OmniMon - CPU: {:.1}% | RAM: {:.1}GB ({:.0}%)",
+            cpu_pct, ram_used_gb, ram_used_pct
+        ),
+        UiLocale::En => format!(
+            "OmniMon - CPU: {:.1}% | RAM: {:.1}GB ({:.0}%)",
+            cpu_pct, ram_used_gb, ram_used_pct
+        ),
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ProcessEntry {
     pub pid: u32,
@@ -719,14 +788,14 @@ async fn ai_chat(
                 macmon_core::ai::ToolResult {
                     tool: call.tool,
                     success: true,
-                    details: "Added automation rule successfully".into(),
+                    details: "automation_rule_added".into(),
                     payload: None,
                 }
             } else {
                 macmon_core::ai::ToolResult {
                     tool: call.tool,
                     success: false,
-                    details: "Failed to parse rule arguments".into(),
+                    details: "automation_rule_args_invalid".into(),
                     payload: None,
                 }
             }
@@ -737,14 +806,14 @@ async fn ai_chat(
                 macmon_core::ai::ToolResult {
                     tool: call.tool,
                     success: true,
-                    details: "Removed automation rule successfully".into(),
+                    details: "automation_rule_removed".into(),
                     payload: None,
                 }
             } else {
                 macmon_core::ai::ToolResult {
                     tool: call.tool,
                     success: false,
-                    details: "Failed to parse rule id".into(),
+                    details: "automation_rule_id_invalid".into(),
                     payload: None,
                 }
             }
@@ -753,15 +822,7 @@ async fn ai_chat(
     });
 
     // Build reply text: include tool result feedback
-    let reply = if let Some(ref result) = tool_result {
-        if result.success {
-            format!("{}\n\n[Action executed] {}", ai_text, result.details)
-        } else {
-            format!("{}\n\n[Action failed] {}", ai_text, result.details)
-        }
-    } else {
-        ai_text
-    };
+    let reply = ai_text;
 
     Ok(macmon_core::ai::ChatResponse {
         reply,
@@ -814,6 +875,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
+            let locale = read_ui_locale(app.handle());
             // --- macOS Application Menu Bar ---
             let about_metadata = AboutMetadata {
                 name: Some("OmniMon".into()),
@@ -821,14 +883,12 @@ pub fn run() {
                 authors: Some(vec!["Jorge Salgado Miranda".into()]),
                 copyright: Some("© 2024-2026 Jorge Salgado Miranda".into()),
                 website: Some("https://github.com/chochy2001/omnimon".into()),
-                website_label: Some("Más información".into()),
-                comments: Some(
-                    "System Monitor — monitoreo avanzado de procesos, pestañas y red.".into(),
-                ),
+                website_label: Some(tr(locale, "about.more_info").into()),
+                comments: Some(tr(locale, "about.comments").into()),
                 ..Default::default()
             };
             let about_item =
-                PredefinedMenuItem::about(app, Some("Acerca de OmniMon"), Some(about_metadata))?;
+                PredefinedMenuItem::about(app, Some(tr(locale, "about.title")), Some(about_metadata))?;
             let hide = PredefinedMenuItem::hide(app, None)?;
             let hide_others = PredefinedMenuItem::hide_others(app, None)?;
             let show_all = PredefinedMenuItem::show_all(app, None)?;
@@ -927,16 +987,16 @@ pub fn run() {
             } // end ALERT_THREAD_STARTED guard
 
             // --- System Tray Menu ---
-            let show = MenuItem::with_id(app, "show", "Dashboard", true, None::<&str>)?;
-            let settings = MenuItem::with_id(app, "settings", "Configuración", true, None::<&str>)?;
+            let show = MenuItem::with_id(app, "show", tr(locale, "tray.dashboard"), true, None::<&str>)?;
+            let settings = MenuItem::with_id(app, "settings", tr(locale, "tray.settings"), true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
-            let quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", tr(locale, "tray.quit"), true, None::<&str>)?;
 
             let menu = Menu::with_items(app, &[&show, &settings, &sep, &quit])?;
 
             let tray_icon = TrayIconBuilder::new()
                 .menu(&menu)
-                .tooltip("OmniMon - System Monitor")
+                .tooltip(tr(locale, "tray.tooltip_idle"))
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "quit" => app.exit(0),
                     "show" => show_main_window(app),
@@ -963,14 +1023,15 @@ pub fn run() {
 
             // Update tray tooltip every 5 seconds with CPU/RAM stats
             let tray_for_tooltip = tray_icon.clone();
+            let app_for_tooltip = app.handle().clone();
             std::thread::spawn(move || loop {
                 std::thread::sleep(std::time::Duration::from_secs(5));
                 if let Ok(metrics) = get_metrics(Some(1.0)) {
-                    let tooltip = format!(
-                        "OmniMon - CPU: {:.1}% | RAM: {:.1}GB ({:.0}%)",
+                    let tooltip = tray_tooltip(
+                        read_ui_locale(&app_for_tooltip),
                         metrics.stats.cpu_usage_pct,
                         metrics.stats.ram_total_gb * (metrics.stats.ram_used_pct as f64 / 100.0),
-                        metrics.stats.ram_used_pct
+                        metrics.stats.ram_used_pct,
                     );
                     let _ = tray_for_tooltip.set_tooltip(Some(tooltip));
                 }

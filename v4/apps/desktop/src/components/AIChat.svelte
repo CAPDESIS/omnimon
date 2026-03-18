@@ -11,6 +11,7 @@
   import { toast } from "../stores/toasts";
   import { detectPromptInjection } from "../lib/aiConfigBridge";
   import { t, resolvedLocale } from "../lib/i18n";
+  import { formatToolResultDetails, localizeBackendError } from "../lib/localizedUi";
   import { renderMarkdown } from "../lib/markdown";
   import { scrollToBottom as scrollContainerToBottom, resizeInput as resizeTextarea } from "../lib/chatUtils";
   import type { ChatMessage } from "../lib/chatUtils";
@@ -41,7 +42,7 @@
   let activePresetCategory = $state<(typeof AI_PRESETS)[number]["category"] | null>(null);
 
   // Tab selection for close_tabs actions
-  interface SelectableTab { id: number; title: string; url: string; browser: string; selected: boolean; }
+  interface SelectableTab { id: string; title: string; url: string; browser: string; selected: boolean; }
   let pendingTabs = $state<SelectableTab[]>([]);
   let pendingTabsLoading = $state(false);
 
@@ -142,46 +143,47 @@
 
   function formatPayload(result: ToolResult): string {
     const payload = result.payload;
-    if (!payload) return result.details;
+    if (!result.success) return localizeBackendError(result.details);
+    if (!payload) return formatToolResultDetails(result);
 
     if (result.tool === "get_process_details") {
       const pid = payload.pid ?? "-";
-      const name = payload.name ?? "Unknown";
+      const name = payload.name ?? t("common.untitled");
       const cpu = payload.cpu_pct ?? "-";
       const ram = payload.ram_mb ?? "-";
       const state = payload.state ?? "-";
-      return `${result.details}\n\nPID: ${pid}\nName: ${name}\nCPU: ${cpu}%\nRAM: ${ram} MB\nState: ${state}`;
+      return `${formatToolResultDetails(result)}\n\n${t("process.pid")}: ${pid}\n${t("process.name")}: ${name}\n${t("process.cpu")}: ${cpu}%\n${t("process.ram")}: ${ram} MB\n${t("process.state")}: ${state}`;
     }
 
     if (result.tool === "run_security_scan") {
       const findings = Array.isArray(payload.findings) ? payload.findings : [];
-      if (findings.length === 0) return `${result.details}\n\nNo findings.`;
+      if (findings.length === 0) return `${formatToolResultDetails(result)}\n\n${t("aiChat.noFindings")}`;
       const lines = findings.map((finding: unknown) => {
         const item = finding as Record<string, unknown>;
         return `- [${String(item.severity ?? "info").toUpperCase()}] ${String(item.process_name ?? "unknown")} (PID ${String(item.pid ?? "?")})`;
       });
-      return `${result.details}\n\n${lines.join("\n")}`;
+      return `${formatToolResultDetails(result)}\n\n${lines.join("\n")}`;
     }
 
     if (result.tool === "get_network_details") {
       const connections = Array.isArray(payload.connections) ? payload.connections : [];
-      if (connections.length === 0) return `${result.details}\n\nNo active connections.`;
+      if (connections.length === 0) return `${formatToolResultDetails(result)}\n\n${t("aiChat.noActiveConnections")}`;
       const lines = connections.map((connection: unknown) => {
         const item = connection as Record<string, unknown>;
         return `- ${String(item.protocol ?? "?")} ${String(item.dst_ip ?? "?")}:${String(item.dst_port ?? "?")} (${String(item.bytes ?? 0)} bytes)`;
       });
-      return `${result.details}\n\n${lines.join("\n")}`;
+      return `${formatToolResultDetails(result)}\n\n${lines.join("\n")}`;
     }
 
     if (result.tool === "explain_process") {
-      return `${result.details}\n\nPath: ${String(payload.exe_path ?? "unknown")}\nBundle ID: ${String(payload.bundle_id ?? "n/a")}`;
+      return `${formatToolResultDetails(result)}\n\n${t("process.executable")}: ${String(payload.exe_path ?? t("common.unknown"))}\n${t("process.bundleId")}: ${String(payload.bundle_id ?? t("common.notAvailable"))}`;
     }
 
     if (result.tool === "get_system_summary") {
-      return `${result.details}\n\nCPU: ${String(payload.cpu_pct ?? "-")}%\nRAM: ${String(payload.ram_used_gb ?? "-")}/${String(payload.ram_total_gb ?? "-")} GB\nSwap: ${String(payload.swap_mb ?? "-")} MB\nNetwork: RX ${String(payload.net_rx_bytes_per_sec ?? "-")} B/s, TX ${String(payload.net_tx_bytes_per_sec ?? "-")} B/s`;
+      return `${formatToolResultDetails(result)}\n\n${t("process.cpu")}: ${String(payload.cpu_pct ?? "—")}%\n${t("process.ram")}: ${String(payload.ram_used_gb ?? "—")}/${String(payload.ram_total_gb ?? "—")} GB\n${t("status.swap")}: ${String(payload.swap_mb ?? "—")} MB\n${t("status.net")}: ${t("systemMetrics.rx")} ${String(payload.net_rx_bytes_per_sec ?? "—")} B/s, ${t("systemMetrics.tx")} ${String(payload.net_tx_bytes_per_sec ?? "—")} B/s`;
     }
 
-    return result.details;
+    return formatToolResultDetails(result);
   }
 
   async function handleSubmit() {
@@ -189,7 +191,7 @@
     if (!trimmed || loading) return;
 
     if (trimmed.length > MAX_CHAT_INPUT_CHARS) {
-      toast.error(t("aiChat.blockedTitle"), `Input exceeds ${MAX_CHAT_INPUT_CHARS} characters.`);
+      toast.error(t("aiChat.blockedTitle"), t("aiChat.maxInputError", { count: MAX_CHAT_INPUT_CHARS }));
       return;
     }
 
@@ -243,7 +245,7 @@
         responseTimeMs,
         model: cfg.model,
         tokens,
-        toolCalls: response.tool_call ? [{ name: response.tool_call.tool, args: { details: response.tool_call.details } }] : undefined
+        toolCalls: response.tool_call ? [{ name: response.tool_call.tool, args: { success: response.tool_call.success } }] : undefined
       };
       messages = [...messages, { role: "assistant", text: response.reply, metadata }];
 
@@ -262,9 +264,9 @@
             { role: "tool", text: formatPayload(result), toolResult: result },
           ];
           if (result.success) {
-            toast.success(t("aiChat.actionSuccessTitle"), result.details);
+            toast.success(t("aiChat.actionSuccessTitle"), formatToolResultDetails(result));
           } else {
-            toast.error(t("aiChat.actionErrorTitle"), result.details);
+            toast.error(t("aiChat.actionErrorTitle"), localizeBackendError(result.details));
           }
         }
       }
@@ -451,7 +453,7 @@
       if (matched.length === 0) {
         // No matching tabs — auto-dismiss with error
         if (pendingAction) {
-          const errorMsg = `No tabs matched: ${raw}`;
+          const errorMsg = t("aiChat.noTabsMatched", { patterns: raw });
           pendingAction.result.details = errorMsg;
           pendingAction.result.success = false;
           messages = [...messages, { role: "tool", text: errorMsg, toolResult: pendingAction.result }];
@@ -475,7 +477,7 @@
     }
   }
 
-  function toggleTab(id: number) {
+  function toggleTab(id: string) {
     pendingTabs = pendingTabs.map(t => t.id === id ? { ...t, selected: !t.selected } : t);
   }
 
@@ -496,7 +498,7 @@
         const failed: string[] = [];
         for (const tab of selectedTabs) {
           try {
-            await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
+             await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
             closed++;
           } catch {
             failed.push(tab.title);
@@ -525,15 +527,17 @@
       result.success = executed.success;
     }
 
+    const finalText = result.success ? result.details : formatToolResultDetails(result);
+
     messages = [
       ...messages,
-      { role: "tool", text: result.details, toolResult: result },
+      { role: "tool", text: finalText, toolResult: result },
     ];
 
     if (result.success) {
-      toast.success(t("aiChat.actionSuccessTitle"), result.details);
+      toast.success(t("aiChat.actionSuccessTitle"), finalText);
     } else {
-      toast.error(t("aiChat.actionErrorTitle"), result.details);
+      toast.error(t("aiChat.actionErrorTitle"), finalText);
     }
 
     pendingAction = null;
@@ -627,16 +631,16 @@
               
               {#if msg.metadata && $userMode === "pro"}
                 <details class="pro-metadata">
-                  <summary>Metadata (Pro)</summary>
+                  <summary>{t("aiChat.metadataSummary")}</summary>
                   <div class="pro-metadata-content">
-                    <div><strong>Model:</strong> {msg.metadata.model}</div>
-                    <div><strong>Response time:</strong> {Math.round(msg.metadata.responseTimeMs ?? 0)}ms</div>
-                    <div><strong>Tokens (~):</strong> {msg.metadata.tokens ?? 0}</div>
+                    <div><strong>{t("aiChat.metadataModel")}</strong> {msg.metadata.model}</div>
+                    <div><strong>{t("aiChat.metadataResponseTime")}</strong> {Math.round(msg.metadata.responseTimeMs ?? 0)}ms</div>
+                    <div><strong>{t("aiChat.metadataTokens")}</strong> {msg.metadata.tokens ?? 0}</div>
                     {#if msg.metadata.toolCalls}
-                      <div><strong>Tools:</strong> {JSON.stringify(msg.metadata.toolCalls)}</div>
+                      <div><strong>{t("aiChat.metadataTools")}</strong> {JSON.stringify(msg.metadata.toolCalls)}</div>
                     {/if}
                     {#if msg.metadata.thought}
-                      <div><strong>Thought:</strong> {msg.metadata.thought}</div>
+                      <div><strong>{t("aiChat.metadataThought")}</strong> {msg.metadata.thought}</div>
                     {/if}
                   </div>
                 </details>
@@ -652,7 +656,7 @@
             {#if msg.isError && msg.canRetry && msg.retryText}
               <div class="error-actions">
                 <Button class="retry-btn" variant="secondary" size="sm" onclick={() => retryMessage(msg.retryText!)}>
-                  ↻ {t("common.retry") || "Reintentar"}
+                  ↻ {t("common.retry")}
                 </Button>
               </div>
             {/if}
@@ -744,7 +748,7 @@
 
   <div class="chat-input-row">
     {#if showPresetChips}
-      <div class="preset-strip" aria-label="AI prompt presets">
+      <div class="preset-strip" aria-label={t("aiChat.promptPresets")}>
         <div class="preset-categories">
           {#each presetGroups as [category]}
             <button
@@ -753,7 +757,7 @@
               type="button"
               onclick={() => activePresetCategory = category}
             >
-              {AI_PRESET_CATEGORY_LABELS[category]}
+              {t(AI_PRESET_CATEGORY_LABELS[category])}
             </button>
           {/each}
         </div>
@@ -763,11 +767,11 @@
               <button
                 class="preset-chip"
                 type="button"
-                onclick={() => applyPreset(preset.prompt)}
-                aria-label={`Preset ${preset.label}`}
+                onclick={() => applyPreset(t(preset.prompt))}
+                aria-label={t("aiChat.presetLabel", { label: t(preset.label) })}
               >
                 <span class="preset-icon"><svelte:component this={preset.icon} size={14} /></span>
-                <span>{preset.label}</span>
+                <span>{t(preset.label)}</span>
               </button>
             {/each}
           {/each}

@@ -64,34 +64,34 @@
 >
   <div class="automations-dialog" role="dialog" aria-modal="true" aria-labelledby="automations-title">
     <header class="automations-header">
-      <h2 id="automations-title">Automations Engine</h2>
+      <h2 id="automations-title">{t("automations.title")}</h2>
       <Button variant="ghost" size="icon" type="button" onclick={onclose} aria-label={t("common.close")}>×</Button>
     </header>
 
     <div class="automations-body">
       <div class="builder">
-        <input class="auto-input" type="text" bind:value={process_pattern} placeholder="Process Name (Regex)" />
+        <input class="auto-input" type="text" bind:value={process_pattern} placeholder={t("automations.processNameRegex")} />
         <select class="auto-select" bind:value={metric}>
-          <option value="ram">RAM (MB)</option>
-          <option value="cpu">CPU (%)</option>
+          <option value="ram">{t("automations.ramMb")}</option>
+          <option value="cpu">{t("automations.cpuPct")}</option>
         </select>
-        <input class="auto-input" type="number" bind:value={threshold} placeholder="Threshold" />
-        <input class="auto-input" type="number" bind:value={duration_secs} placeholder="Duration (seconds)" />
+        <input class="auto-input" type="number" bind:value={threshold} placeholder={t("automations.threshold")} />
+        <input class="auto-input" type="number" bind:value={duration_secs} placeholder={t("automations.durationSeconds")} />
         <select class="auto-select" bind:value={action}>
-          <option value="alert">Alert</option>
-          <option value="kill">Kill Process</option>
+          <option value="alert">{t("automations.alert")}</option>
+          <option value="kill">{t("automations.killProcess")}</option>
         </select>
-        <Button variant="primary" type="button" onclick={addRule}>Add Rule</Button>
+        <Button variant="primary" type="button" onclick={addRule}>{t("automations.addRule")}</Button>
       </div>
 
       <div class="rules-list">
         {#if rules.length === 0}
-          <EmptyState icon={Settings} title="No Automations" description="Create a rule above to automate actions." />
+          <EmptyState icon={Settings} title={t("automations.emptyTitle")} description={t("automations.emptyBody")} />
         {:else}
           {#each rules as rule}
             <div class="rule-item">
-              <span class="rule-desc">{rule.process_pattern} &gt; {rule.threshold} {rule.metric} for {rule.duration_secs}s → {rule.action}</span>
-              <Button variant="danger" size="sm" type="button" onclick={() => removeRule(rule.id)}>Delete</Button>
+              <span class="rule-desc">{t("automations.ruleDescription", { process: rule.process_pattern, threshold: rule.threshold, metric: rule.metric, duration: rule.duration_secs, action: rule.action })}</span>
+              <Button variant="danger" size="sm" type="button" onclick={() => removeRule(rule.id)}>{t("automations.delete")}</Button>
             </div>
           {/each}
         {/if}

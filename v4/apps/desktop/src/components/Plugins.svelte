@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { t } from "../lib/i18n";
+  import { formatPluginMetricKind, formatPluginStatus, localizeBackendError } from "../lib/localizedUi";
   import type { PluginDescriptor } from "../lib/types";
   import {
     ipcInstallPlugin,
@@ -92,7 +93,7 @@ end`;
     try {
       plugins = await ipcListPlugins();
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = localizeBackendError(err instanceof Error ? err.message : String(err));
     } finally {
       loading = false;
       refreshing = false;
@@ -113,7 +114,7 @@ end`;
       uploadState = t("plugins.uploadSuccess", { name: file.name });
       await loadPlugins();
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = localizeBackendError(err instanceof Error ? err.message : String(err));
     } finally {
       uploadBusy = false;
       input.value = "";
@@ -126,7 +127,7 @@ end`;
       await ipcSetPluginEnabled(plugin.id, !plugin.enabled);
       await loadPlugins();
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = localizeBackendError(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -215,7 +216,7 @@ end`;
                   <p>{plugin.description ?? t("plugins.noDescription")}</p>
                 </div>
                 <span class:ok={plugin.status === "ok"} class:error={plugin.status === "error"} class:disabled={!plugin.enabled} class="status-pill">
-                  {plugin.enabled ? plugin.status : t("plugins.disabled")}
+                  {formatPluginStatus(plugin.status, plugin.enabled)}
                 </span>
               </div>
 
@@ -227,7 +228,7 @@ end`;
               </div>
 
               {#if plugin.last_error}
-                <div class="error-box">{plugin.last_error}</div>
+                <div class="error-box">{localizeBackendError(plugin.last_error)}</div>
               {/if}
 
               <div class="metrics-section">
@@ -243,7 +244,7 @@ end`;
                       <div class="metric-card">
                         <span class="metric-label">{metric.label}</span>
                         <strong>{metric.value}{metric.unit ? ` ${metric.unit}` : ""}</strong>
-                        <span class="metric-kind">{metric.kind}</span>
+                        <span class="metric-kind">{formatPluginMetricKind(metric.kind)}</span>
                         {#if Object.keys(metric.tags).length > 0}
                           <div class="metric-tags">
                             {#each Object.entries(metric.tags) as [key, value] (`${plugin.id}-${metric.name}-${key}`)}

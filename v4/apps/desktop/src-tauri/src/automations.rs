@@ -25,6 +25,84 @@ const NOTIFICATION_TITLE_ALERT: &str = "Automations Engine Alert";
 /// Bytes in one mebibyte, used for memory conversion.
 const BYTES_PER_MB: f64 = 1_048_576.0;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum UiLocale {
+    En,
+    Es,
+}
+
+fn detect_system_locale() -> UiLocale {
+    for key in ["LC_ALL", "LC_MESSAGES", "LANG"] {
+        if let Ok(value) = std::env::var(key) {
+            if value.to_ascii_lowercase().starts_with("es") {
+                return UiLocale::Es;
+            }
+        }
+    }
+    UiLocale::En
+}
+
+fn read_ui_locale(app: &AppHandle) -> UiLocale {
+    if let Ok(store) = app.store("preferences.json") {
+        if let Some(value) = store.get("localePreference") {
+            if let Some(locale) = value.as_str() {
+                return match locale {
+                    "es" => UiLocale::Es,
+                    "en" => UiLocale::En,
+                    _ => detect_system_locale(),
+                };
+            }
+        }
+    }
+    detect_system_locale()
+}
+
+fn metric_label(metric: &str, locale: UiLocale) -> &'static str {
+    match (locale, metric) {
+        (_, METRIC_RAM) => "RAM",
+        (UiLocale::Es, _) => "CPU",
+        (UiLocale::En, _) => "CPU",
+    }
+}
+
+fn notification_title(locale: UiLocale, is_kill: bool) -> &'static str {
+    match (locale, is_kill) {
+        (UiLocale::Es, true) => "Motor de automatizaciones",
+        (UiLocale::En, true) => NOTIFICATION_TITLE_KILLED,
+        (UiLocale::Es, false) => "Alerta del motor de automatizaciones",
+        (UiLocale::En, false) => NOTIFICATION_TITLE_ALERT,
+    }
+}
+
+fn notification_body(
+    locale: UiLocale,
+    is_kill: bool,
+    process: &str,
+    pid: u32,
+    threshold: f64,
+    metric: &str,
+) -> String {
+    let metric = metric_label(metric, locale);
+    match (locale, is_kill) {
+        (UiLocale::Es, true) => format!(
+            "Se terminó {} (PID {}) por superar {} {}.",
+            process, pid, threshold, metric
+        ),
+        (UiLocale::En, true) => format!(
+            "Killed {} (PID {}) for exceeding {} {}.",
+            process, pid, threshold, metric
+        ),
+        (UiLocale::Es, false) => format!(
+            "El proceso {} (PID {}) superó {} {}.",
+            process, pid, threshold, metric
+        ),
+        (UiLocale::En, false) => format!(
+            "Process {} (PID {}) exceeded {} {}.",
+            process, pid, threshold, metric
+        ),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationRule {
     pub id: String,
@@ -320,24 +398,34 @@ pub fn start_engine(app: AppHandle) {
                                     if macmon_core::killer::kill_process_safe(proc.pid as i32, &[])
                                         .is_ok()
                                     {
+                                        let locale = read_ui_locale(&app);
                                         let _ = app
                                             .notification()
                                             .builder()
-                                            .title(NOTIFICATION_TITLE_KILLED)
-                                            .body(format!(
-                                                "Killed {} (PID {}) for exceeding {} {}",
-                                                proc.name, proc.pid, rule.threshold, rule.metric
+                                            .title(notification_title(locale, true))
+                                            .body(notification_body(
+                                                locale,
+                                                true,
+                                                &proc.name,
+                                                proc.pid,
+                                                rule.threshold,
+                                                &rule.metric,
                                             ))
                                             .show();
                                     }
                                 } else {
+                                    let locale = read_ui_locale(&app);
                                     let _ = app
                                         .notification()
                                         .builder()
-                                        .title(NOTIFICATION_TITLE_ALERT)
-                                        .body(format!(
-                                            "Process {} (PID {}) exceeded {} {}",
-                                            proc.name, proc.pid, rule.threshold, rule.metric
+                                        .title(notification_title(locale, false))
+                                        .body(notification_body(
+                                            locale,
+                                            false,
+                                            &proc.name,
+                                            proc.pid,
+                                            rule.threshold,
+                                            &rule.metric,
                                         ))
                                         .show();
                                 }

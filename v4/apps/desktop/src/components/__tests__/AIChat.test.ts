@@ -361,13 +361,13 @@ describe("AIChat", () => {
 
   it("muestra chips de presets y llena el input al hacer clic", async () => {
     render(AIChat);
-    const presetButton = screen.getByRole("button", { name: /Preset Rendimiento general/i });
+    const presetButton = screen.getByRole("button", { name: /Preset General performance/i });
     expect(presetButton).toBeInTheDocument();
 
     await fireEvent.click(presetButton);
 
     const input = screen.getByPlaceholderText(/ask ai to act/i) as HTMLTextAreaElement;
-    expect(input.value).toMatch(/Analiza el rendimiento general del sistema/i);
+    expect(input.value).toMatch(/Analyze the overall system performance/i);
   });
 
   it("muestra resultados formateados para tool calls de lectura", async () => {
@@ -410,7 +410,7 @@ describe("AIChat", () => {
           details: "Process details",
           payload: { pid: 77, cpu_pct: 1, ram_mb: 2, state: "S" },
         } as ToolResult,
-        texts: ["Process details", "Name: Unknown"],
+        texts: ["Details for (Untitled) (PID 77)", "Name: (Untitled)"],
       },
       {
         toolCall: {
@@ -419,7 +419,7 @@ describe("AIChat", () => {
           details: "Scan complete",
           payload: { findings: [] },
         } as ToolResult,
-        texts: ["Scan complete", "No findings."],
+        texts: ["Security scan completed with 0 finding(s)", "No findings."],
       },
       {
         toolCall: {
@@ -428,7 +428,7 @@ describe("AIChat", () => {
           details: "Network details",
           payload: { connections: [] },
         } as ToolResult,
-        texts: ["Network details", "No active connections."],
+        texts: ["No active connections.", "No active connections."],
       },
       {
         toolCall: {
@@ -437,7 +437,7 @@ describe("AIChat", () => {
           details: "Explanation",
           payload: { bundle_id: null },
         } as ToolResult,
-        texts: ["Explanation", "Path: unknown", "Bundle ID: n/a"],
+        texts: ["Process explanation for (Untitled)", "Executable: Unknown", "Bundle ID: N/A"],
       },
     ];
 

@@ -8,7 +8,8 @@
     "idle": "Idle",
     "ramUsage": "RAM usage",
     "cpuUsage": "Average CPU usage",
-    "deepDive": "Deep Dive"
+    "deepDive": "Deep Dive",
+    "metricSeries": "Now {now} - Avg {avg} - Max {max}"
   },
   "toolbar": {
     "searchPlaceholder": "Filter by name, PID, group, \"idle\"... ({mod}+F)",
@@ -92,6 +93,8 @@
     "none": "None",
     "yes": "Yes",
     "no": "No",
+    "unknown": "Unknown",
+    "notAvailable": "N/A",
     "untitled": "(Untitled)",
     "noMatchingTabs": "No matching tabs",
     "more": "more",
@@ -135,7 +138,13 @@
       "info": "info",
       "warning": "warning",
       "critical": "critical"
-    }
+    },
+    "dynamicRuleTitle": "Rule: {rule}",
+    "dynamicRuleTriggered": "{process} (PID {pid}) triggered rule \"{rule}\"",
+    "currentValue": "current: {value}",
+    "networkToastTitle": "Network: {rule}",
+    "browserHelperProcess": "browser helper process",
+    "webContentProcess": "web content process"
   },
   "settings": {
     "title": "OmniMon Settings",
@@ -176,7 +185,25 @@
     "autostartUpdateFailed": "Failed to update auto-start setting.",
     "userView": "Workspace mode",
     "userViewHelp": "Choose between a simplified operator view and the full SRE/Pro console.",
-    "openAiSettings": "AI Provider Settings"
+    "openAiSettings": "AI Provider Settings",
+    "layoutMode": "Layout mode",
+    "layoutTabs": "Tabs",
+    "layoutSplit": "Split",
+    "layoutModeHelp": "Choose between a single panel layout or a split view.",
+    "pollInterval": "Poll interval",
+    "automationInterval": "Automation interval",
+    "aiCacheTtl": "AI cache TTL (minutes)",
+    "aiCacheTtlHelp": "0 disables cache, 60 is the maximum.",
+    "aiCache": "AI cache",
+    "clearCache": "Clear cache",
+    "apiKeyMissing": "No API key found. Open Settings to save one.",
+    "providers": {
+      "ollama": "Ollama (Local)",
+      "openrouter": "OpenRouter",
+      "openai": "OpenAI",
+      "gemini": "Gemini",
+      "anthropic": "Anthropic"
+    }
   },
   "process": {
     "section": "Process",
@@ -185,6 +212,7 @@
     "aiAnalysis": "AI Analysis",
     "name": "Name",
     "executable": "Executable",
+    "bundleId": "Bundle ID",
     "pid": "PID",
     "group": "Group",
     "state": "State",
@@ -234,7 +262,9 @@
     "closeThisTab": "Close this tab",
     "confirmCloseTab": "Close tab \"{title}\"?",
     "confirmCloseSelected": "Close {count} selected tab(s)?",
-    "confirmCloseAll": "Close all {count} tab(s)?"
+    "confirmCloseAll": "Close all {count} tab(s)?",
+    "closeErrorTitle": "Close failed",
+    "closeCountFailed": "{count} tab(s) could not be closed"
   },
   "table": {
     "name": "Name",
@@ -268,7 +298,11 @@
     "noApiKey": "No API key configured. Go to Settings to add your API key.",
     "openTabs": "{count} open tabs:",
     "askAiFirst": "Ask AI first",
-    "aiKillQuestion": "Is it safe to terminate these processes? {processes}. Analyze if any are critical to the system or if closing them could cause data loss."
+    "aiKillQuestion": "Is it safe to terminate these processes? {processes}. Analyze if any are critical to the system or if closing them could cause data loss.",
+    "metricsFetchFailedTitle": "Metrics fetch failed",
+    "metricsFetchFailedMessage": "Repeated errors ({count}x): {error}",
+    "partialKillTitle": "Some processes could not be killed",
+    "killErrorTitle": "Kill failed"
   },
   "aiChat": {
     "title": "AI Actions",
@@ -314,6 +348,8 @@
     "closeConnectionDesc": "Close connection to {ip}:{port} (PID {pid})",
     "killByNameDesc": "Kill {count} process(es) matching \"{name}\" (PIDs: {pids})",
     "invalidPid": "Invalid PID: {pid}",
+    "noProcessNameProvided": "No process name provided",
+    "noProcessesMatched": "No processes found matching \"{name}\"",
     "killedProcess": "Killed process \"{name}\" (PID {pid})",
     "killedProcessForConnection": "Closed connection to {ip}:{port} by terminating PID {pid}",
     "processNotFound": "Process PID {pid} not found (may have already exited)",
@@ -321,7 +357,26 @@
     "noValidPids": "No valid PIDs for \"{name}\"",
     "killedProcesses": "Killed {killed}/{total} processes matching \"{name}\"{failedText}",
     "failedKillAny": "Failed to kill any processes matching \"{name}\"",
-    "failedKillMultiple": "Failed to kill processes: {error}"
+    "failedKillMultiple": "Failed to kill processes: {error}",
+    "metadataSummary": "Metadata (Pro)",
+    "metadataModel": "Model:",
+    "metadataResponseTime": "Response time:",
+    "metadataTokens": "Tokens (~):",
+    "metadataTools": "Tools:",
+    "metadataThought": "Thought:",
+    "promptPresets": "AI prompt presets",
+    "presetLabel": "Preset {label}",
+    "maxInputError": "Input exceeds {count} characters.",
+    "noFindings": "No findings.",
+    "noActiveConnections": "No active connections.",
+    "processDetailsNotFound": "Process details not found.",
+    "processDetailsLoaded": "Details for {name} (PID {pid})",
+    "processExplanationUnavailable": "Process explanation unavailable.",
+    "processExplanationLoaded": "Process explanation for {name}",
+    "systemSummaryTitle": "Current system summary",
+    "securityScanCompleted": "Security scan completed with {count} finding(s)",
+    "networkConnectionsFound": "Found {count} network connection(s)",
+    "unknownTool": "Unknown tool."
   },
   "securityReport": {
     "title": "Security Report",
@@ -374,7 +429,30 @@
     "apply": "Apply",
     "reject": "Reject",
     "run": "Run",
-    "changeRejected": "Change rejected by user."
+    "changeRejected": "Change rejected by user.",
+    "regionLabel": "AI Configuration",
+    "presetsLabel": "AI config presets",
+    "setting": "Setting",
+    "current": "Current",
+    "new": "New",
+    "systemPrefix": "System",
+    "processLabel": "process:",
+    "countryLabel": "country:",
+    "ipLabel": "IP:",
+    "portLabel": "port:",
+    "memoryLabel": "mem > {value}MB",
+    "enabledOn": "ON",
+    "enabledOff": "OFF",
+    "appliedKeys": "Applied: {keys}",
+    "createdAlerts": "Created {count} alert rule(s).",
+    "rulesSent": "Applied {count} security rule(s) to the rules engine.",
+    "failedApplyRules": "Failed to apply rules: {error}",
+    "invalidSecurityRule": "Invalid security rule: {error}",
+    "invalidAlertRule": "Invalid alert rule: {error}",
+    "proposedSecurityRules": "Proposed security rules (review below):",
+    "proposedAlertRules": "Proposed alert rules (review below):",
+    "proposedConfigChange": "Proposed configuration change (review below):",
+    "blockedInput": "Input blocked: detected potential prompt injection."
   },
   "network": {
     "title": "Network Map",
@@ -392,7 +470,7 @@
     "peak": "Peak",
     "processes": "Processes",
     "inbound": "Inbound (KB/s)",
-    "outbound": "Outbound (KB/s)",
+    "outbound": "Outbound",
     "process": "Process",
     "destination": "Destination",
     "port": "Port",
@@ -416,7 +494,15 @@
     "hosts": "Active hosts",
     "mapReady": "Topology ready",
     "enableAlerts": "Enable download alerts",
-    "heavyDownloaders": "{count} process(es) consuming high bandwidth (e.g. {name})."
+    "heavyDownloaders": "{count} process(es) consuming high bandwidth (e.g. {name}).",
+    "captureBackendUnknown": "Unknown backend",
+    "captureBackends": {
+      "ebpf": "eBPF",
+      "libpcap": "Packet Filter (libpcap)",
+      "windivert": "WinDivert",
+      "unsupported": "Unsupported",
+      "unknown": "Unknown"
+    }
   },
   "networkConnections": {
     "protocolFilter": "Filter by protocol",
@@ -438,6 +524,10 @@
       "uploadSpeed": "Upload Speed",
       "downloadSpeed": "Download Speed",
       "state": "State"
+    },
+    "protocols": {
+      "tcp": "TCP",
+      "udp": "UDP"
     }
   },
   "networkAlerts": {
@@ -494,6 +584,15 @@
       "processSpike": "{process} > {multiplier}x average",
       "connectionCount": ">{max} - {process}",
       "suspiciousDestination": "Patterns: {patterns}"
+    },
+    "processExample": "chrome",
+    "portsExample": "4444, 6667, 8443",
+    "regexExample": "malware, (^198\\.51\\.100\\.)",
+    "defaults": {
+      "highBandwidth": "High bandwidth",
+      "suspiciousPort": "Suspicious port connection",
+      "processSpike": "Process spike",
+      "tooManyConnections": "Too many connections"
     }
   },
   "processView": {
@@ -574,10 +673,38 @@
     "justNow": "Just now",
     "secondsAgo": "{count}s ago",
     "minutesAgo": "{count}m ago",
-    "hoursAgo": "{count}h ago"
+    "hoursAgo": "{count}h ago",
+    "status": {
+      "ok": "OK",
+      "error": "Error",
+      "idle": "Idle"
+    },
+    "metricKinds": {
+      "gauge": "Gauge",
+      "counter": "Counter"
+    },
+    "errors": {
+      "dataDirUnavailable": "Plugin data directory is unavailable.",
+      "invalidExtension": "Plugins must use the .lua extension.",
+      "invalidFileName": "Invalid plugin file name.",
+      "invalidAsciiName": "Plugin file names must contain ASCII letters or numbers.",
+      "tooManyMetrics": "The plugin returned too many metrics.",
+      "metricFinite": "Plugin metric values must be finite numbers.",
+      "metricNameEmpty": "A plugin metric name cannot be empty.",
+      "metricKindUnsupported": "The plugin metric kind is not supported.",
+      "timeBudgetExceeded": "Plugin execution exceeded the time budget.",
+      "collectMissing": "The plugin must export a collect(ctx) function.",
+      "sourceEmpty": "Plugin source cannot be empty.",
+      "sourceTooLarge": "Plugin source is too large.",
+      "registryFull": "The plugin registry is full.",
+      "notFound": "Plugin not found."
+    }
   },
   "smartAlerts": {
-    "title": "Health Report"
+    "title": "Health Report",
+    "moreAlerts": "+{count} more alerts",
+    "closeAll": "Close all",
+    "updatedCount": "Updated {count}x"
   },
   "toast": {
     "securityTitle": "Security",
@@ -589,7 +716,8 @@
     "configUpdatedTitle": "Config Updated",
     "alertsCreatedTitle": "Alerts Created",
     "rulesAppliedTitle": "Rules Applied",
-    "rulesErrorTitle": "Rules Error"
+    "rulesErrorTitle": "Rules Error",
+    "dismiss": "Dismiss"
   },
   "cdpHelp": {
     "title": "Browser tabs not showing?",
@@ -630,6 +758,225 @@
     "favorites": "Favorite Processes",
     "addFavorite": "Add",
     "searchFavorite": "Search...",
-    "resetDefaults": "Reset to Defaults"
+    "resetDefaults": "Reset to Defaults",
+    "presetMinimalDesc": "Basic tracking",
+    "presetBalancedDesc": "Standard features",
+    "presetPowerDesc": "Full tracking & AI",
+    "removeFavorite": "Remove favorite process",
+    "defaultDisplayName": "User"
+  },
+  "commonUnits": {
+    "secondsShort": "s",
+    "minutesShort": "m",
+    "hoursShort": "h",
+    "daysShort": "d"
+  },
+  "processStates": {
+    "running": "Running",
+    "idle": "Idle"
+  },
+  "connectionStates": {
+    "established": "Established",
+    "listen": "Listening",
+    "listening": "Listening",
+    "close_wait": "Close wait",
+    "time_wait": "Time wait"
+  },
+  "systemMetrics": {
+    "askAi": "What is happening with {metric}?",
+    "rx": "RX",
+    "tx": "TX",
+    "samples": "Samples",
+    "history": "History",
+    "showing": "Showing",
+    "processes": "Processes",
+    "samplesCount": "{count} samples",
+    "visibleCount": "{shown} / {total}",
+    "networkMapLoadError": "Failed to load network map.",
+    "topProcesses": "Top processes",
+    "sortHint": "Click headers to sort",
+    "inspectProcess": "Inspect {name}",
+    "showMore": "Show more ({count} remaining)",
+    "visibleSummary": "{count} visible"
+  },
+  "networkDetail": {
+    "titleAskAi": "What is this?",
+    "block": "Block",
+    "blockPlaceholder": "Blocking is not implemented yet.",
+    "processes": "Processes:",
+    "protocols": "Protocols:",
+    "ports": "Ports:",
+    "totalTraffic": "Total traffic:",
+    "geoRegion": "GeoIP / Region:",
+    "unknownRegion": "Unknown (N/A)",
+    "duration": "Duration:",
+    "active": "Active"
+  },
+  "networkDashboard": {
+    "totalUpload": "Total upload",
+    "totalDownload": "Total download",
+    "activeConnections": "Active connections",
+    "processesWithNetwork": "Processes with network",
+    "historyPlaceholder": "Historical network chart (last 5 min)",
+    "connectionsTable": "Connections table",
+    "processView": "Process view"
+  },
+  "processNetwork": {
+    "title": "Network usage by process",
+    "process": "Process",
+    "connections": "Connections",
+    "topDestination": "Top destination",
+    "chartPlaceholder": "Pie/Donut chart: bandwidth distribution"
+  },
+  "automations": {
+    "title": "Automations Engine",
+    "processNameRegex": "Process name (regex)",
+    "ramMb": "RAM (MB)",
+    "cpuPct": "CPU (%)",
+    "threshold": "Threshold",
+    "durationSeconds": "Duration (seconds)",
+    "alert": "Alert",
+    "killProcess": "Kill process",
+    "addRule": "Add rule",
+    "emptyTitle": "No automations",
+    "emptyBody": "Create a rule above to automate actions.",
+    "delete": "Delete",
+    "ruleDescription": "{process} > {threshold} {metric} for {duration}s -> {action}",
+    "ruleAdded": "Automation rule added.",
+    "ruleMissingFields": "Automation rule requires an id and process pattern.",
+    "ruleArgsInvalid": "Failed to parse automation rule arguments.",
+    "ruleRemoved": "Automation rule removed.",
+    "ruleNotFound": "Automation rule not found.",
+    "ruleAddFailed": "Failed to add the automation rule.",
+    "ruleRemoveFailed": "Failed to remove the automation rule.",
+    "ruleIdInvalid": "Failed to parse automation rule id.",
+    "notificationKillTitle": "Automations Engine",
+    "notificationAlertTitle": "Automations Engine Alert",
+    "notificationKillBody": "Killed {process} (PID {pid}) for exceeding {threshold} {metric}.",
+    "notificationAlertBody": "Process {process} (PID {pid}) exceeded {threshold} {metric}.",
+    "metricCpu": "CPU",
+    "metricRam": "RAM"
+  },
+  "cloudSync": {
+    "title": "CrabNebula Cloud Settings",
+    "apiKey": "API Key:",
+    "placeholder": "Enter your CrabNebula API key",
+    "saving": "Saving...",
+    "saveKey": "Save key",
+    "syncNow": "Sync now",
+    "saved": "Key saved successfully!",
+    "error": "Error: {error}",
+    "syncNotImplemented": "Sync is not implemented yet."
+  },
+  "themeSelector": {
+    "selectTheme": "Select theme",
+    "dark": "Dark",
+    "light": "Light",
+    "cyberpunk": "Cyberpunk",
+    "auto": "Auto"
+  },
+  "profilePanel": {
+    "sharedPresetsAria": "Shared profile presets",
+    "sharedPresets": "Shared presets",
+    "sharedPresetsHelp": "Thresholds and intervals stay aligned across UI and CLI."
+  },
+  "networkAlertMessages": {
+    "highBandwidth": "{process} exceeded the bandwidth threshold with {bandwidth} Mbps",
+    "newExternalConnection": "New external connection observed to {destination}",
+    "unusualPort": "Suspicious port connection detected at {destination}",
+    "processSpike": "{process} is showing a network spike",
+    "connectionCountExceeded": "{process} exceeded the connection limit with {count} connections",
+    "suspiciousDestination": "Suspicious destination detected: {destination}",
+    "bandwidthDetail": "{value} Mbps",
+    "connectionsDetail": "{count} connections"
+  },
+  "errors": {
+    "aiRulesPayloadTooLarge": "The AI rules payload is too large.",
+    "networkRulesPayloadTooLarge": "The network alert rules payload is too large.",
+    "invalidNetworkRulesJson": "The network alert rules payload is invalid.",
+    "networkSnapshotUnavailable": "No network snapshot is available yet.",
+    "killBatchLimit": "The batch kill limit was exceeded.",
+    "processNotFound": "The process was not found.",
+    "invalidPid": "Invalid PID.",
+    "protectedProcess": "Protected processes cannot be terminated.",
+    "unknownAiProvider": "Unknown AI provider."
+  },
+  "insights": {
+    "title": "AI Security Insights",
+    "findingSingular": "{count} finding",
+    "findingPlural": "{count} findings",
+    "cardAria": "{severity} security insight for {process}",
+    "detected": "What was detected",
+    "recommendedAction": "Recommended action",
+    "ruleLabel": "RULE",
+    "confidence": "Confidence",
+    "noAdditionalDetails": "No additional details available.",
+    "cveAction": "Update {product} to the latest patched version.",
+    "cveHeadline": {
+      "critical": "Critical vulnerability found in {product}! Attackers could take full control of your system.",
+      "high": "Serious vulnerability found in {product}. Your system may be exposed to attacks.",
+      "default": "A known vulnerability was found in {product}. Consider updating when possible."
+    },
+    "threatHeadline": {
+      "suspiciousMemoryRead": "\"{process}\" is trying to read memory from other apps. This is how attackers steal passwords.",
+      "dllInjection": "\"{process}\" uses a system tool that attackers often abuse to hide malicious code.",
+      "remoteThreadInjection": "\"{process}\" can create remote connections. Attackers use this to control your computer from afar.",
+      "unsignedModuleLoad": "\"{process}\" can run arbitrary scripts. Without restrictions, it could execute harmful commands.",
+      "processHollowing": "\"{process}\" may be replacing a legitimate app's code in memory with something malicious.",
+      "default": "\"{process}\" shows unusual behavior that could indicate a security threat."
+    },
+    "threatExplanation": {
+      "default": "Anomalous behavior detected by the security engine.",
+      "technique": "Detected pattern: {name} ({tactic}). This maps to MITRE ATT&CK technique {techniqueId}."
+    },
+    "threatAction": {
+      "suspiciousMemoryRead": "Terminate this process immediately and run a malware scan. Do not enter passwords until resolved.",
+      "dllInjection": "Verify this was launched intentionally. If not, terminate it and check for recently installed software.",
+      "remoteThreadInjection": "Check your network connections. If you didn't start this, block it in your firewall and terminate.",
+      "unsignedModuleLoad": "Review recent script executions. Enable script execution policies if on Windows.",
+      "processHollowing": "This process should be terminated immediately. Run a full system antivirus scan.",
+      "default": "Investigate this process and verify it's operating within expected parameters."
+    },
+    "confidenceLevels": {
+      "veryHigh": "Very High",
+      "high": "High",
+      "moderate": "Moderate",
+      "low": "Low"
+    },
+    "dynamicRuleExplanation": {
+      "default": "Security rule \"{rule}\" fired. Connection to {destination}{country}.",
+      "download": "This process has been actively downloading data or communicating over the network for a while. It may be updating or syncing files.",
+      "memory": "This process is consuming more memory than usual, which may slow down the system.",
+      "country": "This process tried to connect to a server in {country}. If you do not recognize this app, it may be suspicious."
+    },
+    "dynamicRuleAction": "Review network activity for PID {pid}. Consider blocking this connection or disabling the process."
+  },
+  "securityBadge": {
+    "mitreSingular": "{count} MITRE threat detected",
+    "mitrePlural": "{count} MITRE threats detected",
+    "cveSingular": "{count} CVE detected",
+    "cvePlural": "{count} CVEs detected"
+  },
+  "aiPreset": {
+    "perfGeneralLabel": "General performance",
+    "perfGeneralPrompt": "Analyze the overall system performance. Are there processes using excessive resources? Is anything unusual?",
+    "perfTopLabel": "What uses the most?",
+    "perfTopPrompt": "Which 5 processes are using the most CPU and RAM? Are any unnecessary?",
+    "securityAuditLabel": "Security audit",
+    "securityAuditPrompt": "Run a quick security audit. Are there suspicious processes, unusual IP connections, or open ports that should not be there?",
+    "securityUnknownLabel": "Unknown processes",
+    "securityUnknownPrompt": "Identify processes you do not recognize or that look suspicious. Explain what each one does.",
+    "networkTrafficLabel": "Analyze network traffic",
+    "networkTrafficPrompt": "Analyze the current network traffic. Give me the top 10 connections by bandwidth, relevant open ports, and the busiest processes. Explain in simple terms what is happening on my network.",
+    "networkAnomalyLabel": "Anomaly detection",
+    "networkAnomalyPrompt": "Review these connections and tell me if anything looks suspicious. Pay special attention to unknown IPs, unusual ports, and processes with unexpected traffic. Give me a structured list of findings with severity and, if appropriate, recommend closing the connection.",
+    "generalCleanupLabel": "Cleanup suggestions",
+    "generalCleanupPrompt": "Suggest processes I could close to free resources. Do not include operating system or essential processes.",
+    "generalExplainLabel": "Explain system",
+    "generalExplainPrompt": "Give me a summary of the current system state: CPU, RAM, disk, and network. Is everything normal?",
+    "categoryPerformance": "Performance",
+    "categorySecurity": "Security",
+    "categoryNetwork": "Network",
+    "categoryGeneral": "General"
   }
 }

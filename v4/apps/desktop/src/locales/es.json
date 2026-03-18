@@ -8,7 +8,8 @@
     "idle": "Inact",
     "ramUsage": "Uso de RAM",
     "cpuUsage": "Uso promedio de CPU",
-    "deepDive": "Vista detallada"
+    "deepDive": "Vista detallada",
+    "metricSeries": "Ahora {now} - Prom {avg} - Max {max}"
   },
   "toolbar": {
     "searchPlaceholder": "Filtrar por nombre, PID, grupo, \"inact\"... ({mod}+F)",
@@ -92,6 +93,8 @@
     "none": "Ninguno",
     "yes": "Sí",
     "no": "No",
+    "unknown": "Desconocido",
+    "notAvailable": "N/A",
     "untitled": "(Sin título)",
     "noMatchingTabs": "No hay pestañas coincidentes",
     "more": "más",
@@ -108,7 +111,7 @@
     "userViewHelp": "Elige entre una vista simplificada y la consola completa Pro.",
     "loadError": "No se pudo cargar el componente",
     "ignore": "Ignorar",
-    "dismiss": "Descartar",
+    "dismiss": "Cerrar",
     "retry": "Reintentar",
     "rateLimited": "Límite de velocidad alcanzado"
   },
@@ -135,7 +138,13 @@
       "info": "info",
       "warning": "warning",
       "critical": "critical"
-    }
+    },
+    "dynamicRuleTitle": "Regla: {rule}",
+    "dynamicRuleTriggered": "{process} (PID {pid}) disparó la regla \"{rule}\"",
+    "currentValue": "actual: {value}",
+    "networkToastTitle": "Red: {rule}",
+    "browserHelperProcess": "proceso auxiliar del navegador",
+    "webContentProcess": "proceso de contenido web"
   },
   "settings": {
     "title": "Ajustes de OmniMon",
@@ -176,7 +185,25 @@
     "autostartUpdateFailed": "No se pudo actualizar el ajuste de inicio automático.",
     "userView": "Modo del espacio",
     "userViewHelp": "Elige entre una vista operativa simplificada y la consola completa SRE/Pro.",
-    "openAiSettings": "Configuración del proveedor AI"
+    "openAiSettings": "Configuración del proveedor AI",
+    "layoutMode": "Modo de diseño",
+    "layoutTabs": "Pestañas",
+    "layoutSplit": "Dividido",
+    "layoutModeHelp": "Elige entre un panel único o una vista dividida.",
+    "pollInterval": "Intervalo de sondeo",
+    "automationInterval": "Intervalo de automatización",
+    "aiCacheTtl": "TTL de caché IA (minutos)",
+    "aiCacheTtlHelp": "0 desactiva la caché, 60 es el máximo.",
+    "aiCache": "Caché IA",
+    "clearCache": "Limpiar caché",
+    "apiKeyMissing": "No se encontró una clave API. Abre Ajustes para guardarla.",
+    "providers": {
+      "ollama": "Ollama (Local)",
+      "openrouter": "OpenRouter",
+      "openai": "OpenAI",
+      "gemini": "Gemini",
+      "anthropic": "Anthropic"
+    }
   },
   "process": {
     "section": "Proceso",
@@ -185,6 +212,7 @@
     "aiAnalysis": "Análisis IA",
     "name": "Nombre",
     "executable": "Ejecutable",
+    "bundleId": "Bundle ID",
     "pid": "PID",
     "group": "Grupo",
     "state": "Estado",
@@ -234,7 +262,9 @@
     "closeThisTab": "Cerrar esta pestaña",
     "confirmCloseTab": "¿Cerrar pestaña \"{title}\"?",
     "confirmCloseSelected": "¿Cerrar {count} pestaña(s) seleccionada(s)?",
-    "confirmCloseAll": "¿Cerrar todas las {count} pestaña(s)?"
+    "confirmCloseAll": "¿Cerrar todas las {count} pestaña(s)?",
+    "closeErrorTitle": "No se pudieron cerrar pestañas",
+    "closeCountFailed": "No se pudieron cerrar {count} pestaña(s)"
   },
   "table": {
     "name": "Nombre",
@@ -268,7 +298,11 @@
     "noApiKey": "No hay clave API configurada. Ve a Ajustes para agregar tu clave API.",
     "openTabs": "{count} pestañas abiertas:",
     "askAiFirst": "Preguntar a la IA",
-    "aiKillQuestion": "¿Es seguro terminar estos procesos? {processes}. Analiza si alguno es crítico para el sistema o si cerrarlos podría causar pérdida de datos."
+    "aiKillQuestion": "¿Es seguro terminar estos procesos? {processes}. Analiza si alguno es crítico para el sistema o si cerrarlos podría causar pérdida de datos.",
+    "metricsFetchFailedTitle": "Falló la carga de métricas",
+    "metricsFetchFailedMessage": "Errores repetidos ({count}x): {error}",
+    "partialKillTitle": "No se pudieron terminar algunos procesos",
+    "killErrorTitle": "Falló la terminación"
   },
   "aiChat": {
     "title": "Acciones AI",
@@ -314,6 +348,8 @@
     "closeConnectionDesc": "Cerrar conexión a {ip}:{port} (PID {pid})",
     "killByNameDesc": "Matar {count} proceso(s) que coincida(n) con \"{name}\" (PIDs: {pids})",
     "invalidPid": "PID inválido: {pid}",
+    "noProcessNameProvided": "No se proporcionó ningún nombre de proceso",
+    "noProcessesMatched": "No se encontraron procesos que coincidan con \"{name}\"",
     "killedProcess": "Proceso \"{name}\" matado (PID {pid})",
     "killedProcessForConnection": "Conexión a {ip}:{port} cerrada terminando el PID {pid}",
     "processNotFound": "Proceso PID {pid} no encontrado (puede haber terminado ya)",
@@ -321,7 +357,26 @@
     "noValidPids": "No hay PIDs válidos para \"{name}\"",
     "killedProcesses": "Matados {killed}/{total} procesos que coinciden con \"{name}\"{failedText}",
     "failedKillAny": "No se pudo matar ningún proceso que coincida con \"{name}\"",
-    "failedKillMultiple": "Error al matar procesos: {error}"
+    "failedKillMultiple": "Error al matar procesos: {error}",
+    "metadataSummary": "Metadatos (Pro)",
+    "metadataModel": "Modelo:",
+    "metadataResponseTime": "Tiempo de respuesta:",
+    "metadataTokens": "Tokens (~):",
+    "metadataTools": "Herramientas:",
+    "metadataThought": "Razonamiento:",
+    "promptPresets": "Presets de prompts IA",
+    "presetLabel": "Preset {label}",
+    "maxInputError": "La entrada supera los {count} caracteres.",
+    "noFindings": "Sin hallazgos.",
+    "noActiveConnections": "No hay conexiones activas.",
+    "processDetailsNotFound": "No se encontraron detalles del proceso.",
+    "processDetailsLoaded": "Detalles de {name} (PID {pid})",
+    "processExplanationUnavailable": "No hay explicación disponible para el proceso.",
+    "processExplanationLoaded": "Explicación del proceso {name}",
+    "systemSummaryTitle": "Resumen actual del sistema",
+    "securityScanCompleted": "Escaneo de seguridad completado con {count} hallazgo(s)",
+    "networkConnectionsFound": "Se encontraron {count} conexión(es) de red",
+    "unknownTool": "Herramienta desconocida."
   },
   "securityReport": {
     "title": "Reporte de Seguridad",
@@ -374,7 +429,30 @@
     "apply": "Aplicar",
     "reject": "Rechazar",
     "run": "Ejecutar",
-    "changeRejected": "Cambio rechazado por el usuario."
+    "changeRejected": "Cambio rechazado por el usuario.",
+    "regionLabel": "Configuración IA",
+    "presetsLabel": "Presets de configuración IA",
+    "setting": "Ajuste",
+    "current": "Actual",
+    "new": "Nuevo",
+    "systemPrefix": "Sistema",
+    "processLabel": "proceso:",
+    "countryLabel": "país:",
+    "ipLabel": "IP:",
+    "portLabel": "puerto:",
+    "memoryLabel": "mem > {value}MB",
+    "enabledOn": "ACTIVO",
+    "enabledOff": "APAGADO",
+    "appliedKeys": "Aplicado: {keys}",
+    "createdAlerts": "Se crearon {count} regla(s) de alerta.",
+    "rulesSent": "Se aplicaron {count} regla(s) de seguridad al motor.",
+    "failedApplyRules": "No se pudieron aplicar las reglas: {error}",
+    "invalidSecurityRule": "Regla de seguridad inválida: {error}",
+    "invalidAlertRule": "Regla de alerta inválida: {error}",
+    "proposedSecurityRules": "Reglas de seguridad propuestas (revísalas abajo):",
+    "proposedAlertRules": "Reglas de alerta propuestas (revísalas abajo):",
+    "proposedConfigChange": "Cambio de configuración propuesto (revísalo abajo):",
+    "blockedInput": "Entrada bloqueada: se detectó una posible inyección de prompt."
   },
   "network": {
     "title": "Mapa de red",
@@ -392,7 +470,7 @@
     "peak": "Pico",
     "processes": "Procesos",
     "inbound": "Entrada (KB/s)",
-    "outbound": "Salida (KB/s)",
+    "outbound": "Salida",
     "process": "Proceso",
     "destination": "Destino",
     "port": "Puerto",
@@ -416,7 +494,15 @@
     "hosts": "Hosts activos",
     "mapReady": "Topología lista",
     "enableAlerts": "Activar alertas de descarga",
-    "heavyDownloaders": "{count} proceso(s) consumiendo mucho ancho de banda (ej. {name})."
+    "heavyDownloaders": "{count} proceso(s) consumiendo mucho ancho de banda (ej. {name}).",
+    "captureBackendUnknown": "Motor desconocido",
+    "captureBackends": {
+      "ebpf": "eBPF",
+      "libpcap": "Packet Filter (libpcap)",
+      "windivert": "WinDivert",
+      "unsupported": "No compatible",
+      "unknown": "Desconocido"
+    }
   },
   "networkConnections": {
     "protocolFilter": "Filtrar por protocolo",
@@ -438,6 +524,10 @@
       "uploadSpeed": "Velocidad subida",
       "downloadSpeed": "Velocidad bajada",
       "state": "Estado"
+    },
+    "protocols": {
+      "tcp": "TCP",
+      "udp": "UDP"
     }
   },
   "networkAlerts": {
@@ -494,6 +584,15 @@
       "processSpike": "{process} > {multiplier}x promedio",
       "connectionCount": ">{max} - {process}",
       "suspiciousDestination": "Patrones: {patterns}"
+    },
+    "processExample": "chrome",
+    "portsExample": "4444, 6667, 8443",
+    "regexExample": "malware, (^198\\.51\\.100\\.)",
+    "defaults": {
+      "highBandwidth": "Alto ancho de banda",
+      "suspiciousPort": "Conexión a puerto sospechoso",
+      "processSpike": "Pico de proceso",
+      "tooManyConnections": "Demasiadas conexiones"
     }
   },
   "processView": {
@@ -574,10 +673,38 @@
     "justNow": "Ahora mismo",
     "secondsAgo": "Hace {count}s",
     "minutesAgo": "Hace {count}m",
-    "hoursAgo": "Hace {count}h"
+    "hoursAgo": "Hace {count}h",
+    "status": {
+      "ok": "Correcto",
+      "error": "Error",
+      "idle": "En espera"
+    },
+    "metricKinds": {
+      "gauge": "Medidor",
+      "counter": "Contador"
+    },
+    "errors": {
+      "dataDirUnavailable": "El directorio de datos de plugins no está disponible.",
+      "invalidExtension": "Los plugins deben usar la extensión .lua.",
+      "invalidFileName": "Nombre de archivo de plugin inválido.",
+      "invalidAsciiName": "Los nombres de plugins deben contener letras ASCII o números.",
+      "tooManyMetrics": "El plugin devolvió demasiadas métricas.",
+      "metricFinite": "Los valores de las métricas deben ser números finitos.",
+      "metricNameEmpty": "El nombre de una métrica no puede estar vacío.",
+      "metricKindUnsupported": "El tipo de métrica no es compatible.",
+      "timeBudgetExceeded": "La ejecución del plugin excedió el tiempo permitido.",
+      "collectMissing": "El plugin debe exportar una función collect(ctx).",
+      "sourceEmpty": "El código del plugin no puede estar vacío.",
+      "sourceTooLarge": "El código del plugin es demasiado grande.",
+      "registryFull": "El registro de plugins está lleno.",
+      "notFound": "Plugin no encontrado."
+    }
   },
   "smartAlerts": {
-    "title": "Reporte de Salud"
+    "title": "Reporte de Salud",
+    "moreAlerts": "+{count} alertas más",
+    "closeAll": "Cerrar todas",
+    "updatedCount": "Actualizada {count}x"
   },
   "toast": {
     "securityTitle": "Seguridad",
@@ -589,7 +716,8 @@
     "configUpdatedTitle": "Configuración actualizada",
     "alertsCreatedTitle": "Alertas creadas",
     "rulesAppliedTitle": "Reglas aplicadas",
-    "rulesErrorTitle": "Error de reglas"
+    "rulesErrorTitle": "Error de reglas",
+    "dismiss": "Cerrar"
   },
   "cdpHelp": {
     "title": "¿No se muestran las pestañas del navegador?",
@@ -630,6 +758,225 @@
     "favorites": "Procesos favoritos",
     "addFavorite": "Agregar",
     "searchFavorite": "Buscar...",
-    "resetDefaults": "Restablecer valores"
+    "resetDefaults": "Restablecer valores",
+    "presetMinimalDesc": "Seguimiento básico",
+    "presetBalancedDesc": "Funciones estándar",
+    "presetPowerDesc": "Seguimiento completo e IA",
+    "removeFavorite": "Eliminar proceso favorito",
+    "defaultDisplayName": "Usuario"
+  },
+  "commonUnits": {
+    "secondsShort": "s",
+    "minutesShort": "m",
+    "hoursShort": "h",
+    "daysShort": "d"
+  },
+  "processStates": {
+    "running": "Activo",
+    "idle": "Inactivo"
+  },
+  "connectionStates": {
+    "established": "Establecida",
+    "listen": "Escuchando",
+    "listening": "Escuchando",
+    "close_wait": "Espera de cierre",
+    "time_wait": "Espera final"
+  },
+  "systemMetrics": {
+    "askAi": "¿Qué está pasando con {metric}?",
+    "rx": "RX",
+    "tx": "TX",
+    "samples": "Muestras",
+    "history": "Historial",
+    "showing": "Mostrando",
+    "processes": "Procesos",
+    "samplesCount": "{count} muestras",
+    "visibleCount": "{shown} / {total}",
+    "networkMapLoadError": "No se pudo cargar el mapa de red.",
+    "topProcesses": "Procesos principales",
+    "sortHint": "Haz clic en los encabezados para ordenar",
+    "inspectProcess": "Inspeccionar {name}",
+    "showMore": "Mostrar más ({count} restantes)",
+    "visibleSummary": "{count} visibles"
+  },
+  "networkDetail": {
+    "titleAskAi": "¿Qué es esto?",
+    "block": "Bloquear",
+    "blockPlaceholder": "El bloqueo todavía no está implementado.",
+    "processes": "Procesos:",
+    "protocols": "Protocolos:",
+    "ports": "Puertos:",
+    "totalTraffic": "Tráfico total:",
+    "geoRegion": "GeoIP / Región:",
+    "unknownRegion": "Desconocido (N/A)",
+    "duration": "Duración:",
+    "active": "Activa"
+  },
+  "networkDashboard": {
+    "totalUpload": "Subida total",
+    "totalDownload": "Descarga total",
+    "activeConnections": "Conexiones activas",
+    "processesWithNetwork": "Procesos con red",
+    "historyPlaceholder": "Gráfica histórica de red (últimos 5 min)",
+    "connectionsTable": "Tabla de conexiones",
+    "processView": "Vista por proceso"
+  },
+  "processNetwork": {
+    "title": "Uso de red por proceso",
+    "process": "Proceso",
+    "connections": "Conexiones",
+    "topDestination": "Destino principal",
+    "chartPlaceholder": "Gráfica Pie/Donut: distribución de ancho de banda"
+  },
+  "automations": {
+    "title": "Motor de automatizaciones",
+    "processNameRegex": "Nombre del proceso (regex)",
+    "ramMb": "RAM (MB)",
+    "cpuPct": "CPU (%)",
+    "threshold": "Umbral",
+    "durationSeconds": "Duración (segundos)",
+    "alert": "Alerta",
+    "killProcess": "Terminar proceso",
+    "addRule": "Agregar regla",
+    "emptyTitle": "No hay automatizaciones",
+    "emptyBody": "Crea una regla arriba para automatizar acciones.",
+    "delete": "Eliminar",
+    "ruleDescription": "{process} > {threshold} {metric} durante {duration}s -> {action}",
+    "ruleAdded": "Se agregó la regla de automatización.",
+    "ruleMissingFields": "La regla de automatización requiere un id y un patrón de proceso.",
+    "ruleArgsInvalid": "No se pudieron interpretar los argumentos de la regla de automatización.",
+    "ruleRemoved": "Se eliminó la regla de automatización.",
+    "ruleNotFound": "No se encontró la regla de automatización.",
+    "ruleAddFailed": "No se pudo agregar la regla de automatización.",
+    "ruleRemoveFailed": "No se pudo eliminar la regla de automatización.",
+    "ruleIdInvalid": "No se pudo interpretar el id de la regla de automatización.",
+    "notificationKillTitle": "Motor de automatizaciones",
+    "notificationAlertTitle": "Alerta del motor de automatizaciones",
+    "notificationKillBody": "Se terminó {process} (PID {pid}) por superar {threshold} {metric}.",
+    "notificationAlertBody": "El proceso {process} (PID {pid}) superó {threshold} {metric}.",
+    "metricCpu": "CPU",
+    "metricRam": "RAM"
+  },
+  "cloudSync": {
+    "title": "Ajustes de CrabNebula Cloud",
+    "apiKey": "Clave API:",
+    "placeholder": "Ingresa tu clave API de CrabNebula",
+    "saving": "Guardando...",
+    "saveKey": "Guardar clave",
+    "syncNow": "Sincronizar ahora",
+    "saved": "¡Clave guardada correctamente!",
+    "error": "Error: {error}",
+    "syncNotImplemented": "La sincronización todavía no está implementada."
+  },
+  "themeSelector": {
+    "selectTheme": "Seleccionar tema",
+    "dark": "Oscuro",
+    "light": "Claro",
+    "cyberpunk": "Cyberpunk",
+    "auto": "Auto"
+  },
+  "profilePanel": {
+    "sharedPresetsAria": "Presets compartidos de perfil",
+    "sharedPresets": "Presets compartidos",
+    "sharedPresetsHelp": "Los umbrales e intervalos se mantienen alineados entre la UI y la CLI."
+  },
+  "networkAlertMessages": {
+    "highBandwidth": "{process} superó el umbral de ancho de banda con {bandwidth} Mbps",
+    "newExternalConnection": "Se observó una nueva conexión externa hacia {destination}",
+    "unusualPort": "Se detectó una conexión a puerto sospechoso en {destination}",
+    "processSpike": "{process} muestra un pico de red",
+    "connectionCountExceeded": "{process} superó el límite con {count} conexiones",
+    "suspiciousDestination": "Destino sospechoso detectado: {destination}",
+    "bandwidthDetail": "{value} Mbps",
+    "connectionsDetail": "{count} conexiones"
+  },
+  "errors": {
+    "aiRulesPayloadTooLarge": "El payload de reglas IA es demasiado grande.",
+    "networkRulesPayloadTooLarge": "El payload de reglas de alerta de red es demasiado grande.",
+    "invalidNetworkRulesJson": "El payload de reglas de alerta de red no es válido.",
+    "networkSnapshotUnavailable": "Todavía no hay un snapshot de red disponible.",
+    "killBatchLimit": "Se excedió el límite de procesos para terminar en lote.",
+    "processNotFound": "No se encontró el proceso.",
+    "invalidPid": "PID inválido.",
+    "protectedProcess": "No se pueden terminar procesos protegidos.",
+    "unknownAiProvider": "Proveedor de IA desconocido."
+  },
+  "insights": {
+    "title": "Insights de seguridad IA",
+    "findingSingular": "{count} hallazgo",
+    "findingPlural": "{count} hallazgos",
+    "cardAria": "Insight de seguridad {severity} para {process}",
+    "detected": "Qué se detectó",
+    "recommendedAction": "Acción recomendada",
+    "ruleLabel": "REGLA",
+    "confidence": "Confianza",
+    "noAdditionalDetails": "No hay detalles adicionales disponibles.",
+    "cveAction": "Actualiza {product} a la versión más reciente con parche.",
+    "cveHeadline": {
+      "critical": "Se encontró una vulnerabilidad crítica en {product}. Los atacantes podrían tomar control total del sistema.",
+      "high": "Se encontró una vulnerabilidad grave en {product}. Tu sistema podría quedar expuesto a ataques.",
+      "default": "Se encontró una vulnerabilidad conocida en {product}. Considera actualizar cuando sea posible."
+    },
+    "threatHeadline": {
+      "suspiciousMemoryRead": "\"{process}\" está intentando leer memoria de otras apps. Así es como los atacantes roban contraseñas.",
+      "dllInjection": "\"{process}\" usa una herramienta del sistema que los atacantes suelen abusar para ocultar código malicioso.",
+      "remoteThreadInjection": "\"{process}\" puede crear conexiones remotas. Los atacantes usan esto para controlar tu equipo a distancia.",
+      "unsignedModuleLoad": "\"{process}\" puede ejecutar scripts arbitrarios. Sin restricciones, podría ejecutar comandos dañinos.",
+      "processHollowing": "\"{process}\" podría estar reemplazando en memoria el código de una app legítima por algo malicioso.",
+      "default": "\"{process}\" muestra un comportamiento inusual que podría indicar una amenaza de seguridad."
+    },
+    "threatExplanation": {
+      "default": "El motor de seguridad detectó un comportamiento anómalo.",
+      "technique": "Patrón detectado: {name} ({tactic}). Esto corresponde a la técnica MITRE ATT&CK {techniqueId}."
+    },
+    "threatAction": {
+      "suspiciousMemoryRead": "Termina este proceso de inmediato y ejecuta un escaneo de malware. No ingreses contraseñas hasta resolverlo.",
+      "dllInjection": "Verifica que se haya iniciado intencionalmente. Si no, termínalo y revisa el software instalado recientemente.",
+      "remoteThreadInjection": "Revisa tus conexiones de red. Si no lo iniciaste tú, bloquéalo en el firewall y termínalo.",
+      "unsignedModuleLoad": "Revisa ejecuciones recientes de scripts. Activa políticas de ejecución si estás en Windows.",
+      "processHollowing": "Este proceso debe terminarse de inmediato. Ejecuta un escaneo antivirus completo.",
+      "default": "Investiga este proceso y confirma que esté operando dentro de los parámetros esperados."
+    },
+    "confidenceLevels": {
+      "veryHigh": "Muy alta",
+      "high": "Alta",
+      "moderate": "Moderada",
+      "low": "Baja"
+    },
+    "dynamicRuleExplanation": {
+      "default": "Se disparó la regla de seguridad \"{rule}\". Conexión a {destination}{country}.",
+      "download": "Este proceso lleva tiempo descargando datos o comunicándose por la red. Puede estar actualizando o sincronizando archivos.",
+      "memory": "Este proceso está consumiendo más memoria de lo normal, lo que puede volver lento el sistema.",
+      "country": "Este proceso intentó conectarse a un servidor en {country}. Si no reconoces esta app, podría ser sospechoso."
+    },
+    "dynamicRuleAction": "Revisa la actividad de red del PID {pid}. Considera bloquear esta conexión o desactivar el proceso."
+  },
+  "securityBadge": {
+    "mitreSingular": "Se detectó {count} amenaza MITRE",
+    "mitrePlural": "Se detectaron {count} amenazas MITRE",
+    "cveSingular": "Se detectó {count} CVE",
+    "cvePlural": "Se detectaron {count} CVEs"
+  },
+  "aiPreset": {
+    "perfGeneralLabel": "Rendimiento general",
+    "perfGeneralPrompt": "Analiza el rendimiento general del sistema. ¿Hay procesos consumiendo recursos excesivos? ¿Hay algo anormal?",
+    "perfTopLabel": "¿Qué consume más?",
+    "perfTopPrompt": "¿Cuáles son los 5 procesos que más CPU y RAM están consumiendo? ¿Alguno es innecesario?",
+    "securityAuditLabel": "Auditoría de seguridad",
+    "securityAuditPrompt": "Realiza una auditoría rápida de seguridad. ¿Hay procesos sospechosos, conexiones a IPs inusuales o puertos abiertos que no deberían estar?",
+    "securityUnknownLabel": "Procesos desconocidos",
+    "securityUnknownPrompt": "Identifica procesos que no reconozcas o que parezcan sospechosos. Explica qué hace cada uno.",
+    "networkTrafficLabel": "Analizar tráfico de red",
+    "networkTrafficPrompt": "Analiza el tráfico de red actual. Dame las top 10 conexiones por ancho de banda, puertos abiertos relevantes y procesos con más tráfico. Explica en lenguaje simple qué está pasando en mi red.",
+    "networkAnomalyLabel": "Detección de anomalías",
+    "networkAnomalyPrompt": "Revisa estas conexiones y dime si hay algo sospechoso. Presta especial atención a conexiones a IPs desconocidas, puertos inusuales y procesos con mucho tráfico inesperado. Dame una lista estructurada de hallazgos con severidad y, si aplica, recomiéndame cerrar la conexión.",
+    "generalCleanupLabel": "Sugerencias de limpieza",
+    "generalCleanupPrompt": "Sugiere procesos que podría cerrar para liberar recursos. No incluyas procesos del sistema operativo ni esenciales.",
+    "generalExplainLabel": "Explicar sistema",
+    "generalExplainPrompt": "Dame un resumen del estado actual del sistema: CPU, RAM, disco y red. ¿Está todo normal?",
+    "categoryPerformance": "Rendimiento",
+    "categorySecurity": "Seguridad",
+    "categoryNetwork": "Red",
+    "categoryGeneral": "General"
   }
 }

@@ -12,8 +12,10 @@
 
   let newFavorite = $state("");
 
+  const DEFAULT_DISPLAY_NAME = "";
+
   function resetToDefaults() {
-    $displayName = "User";
+    $displayName = DEFAULT_DISPLAY_NAME;
     $profilePreset = "balanced";
     $dashboardLayout = "standard";
     $refreshInterval = 500;
@@ -52,7 +54,7 @@
 </script>
 
 <div class="profile-settings">
-  <h2>{$displayName !== "User" ? `${t("profileSettings.title")} — ${$displayName}` : t("profileSettings.title")}</h2>
+  <h2>{$displayName.trim() ? `${t("profileSettings.title")} — ${$displayName}` : t("profileSettings.title")}</h2>
 
   <div class="form-group full-width presets">
     <h3>{t("profileSettings.preset")}</h3>
@@ -63,7 +65,7 @@
         onclick={() => setPreset('minimal')}
       >
         <h4>{t("profileSettings.presetMinimal")}</h4>
-        <p>Basic tracking</p>
+        <p>{t("profileSettings.presetMinimalDesc")}</p>
       </button>
       <button
         class="preset-card"
@@ -71,7 +73,7 @@
         onclick={() => setPreset('balanced')}
       >
         <h4>{t("profileSettings.presetBalanced")}</h4>
-        <p>Standard features</p>
+        <p>{t("profileSettings.presetBalancedDesc")}</p>
       </button>
       <button
         class="preset-card"
@@ -79,7 +81,7 @@
         onclick={() => setPreset('power')}
       >
         <h4>{t("profileSettings.presetPower")}</h4>
-        <p>Full tracking & AI</p>
+        <p>{t("profileSettings.presetPowerDesc")}</p>
       </button>
     </div>
   </div>
@@ -91,6 +93,7 @@
         id="displayName"
         type="text"
         bind:value={$displayName}
+        placeholder={t("profileSettings.defaultDisplayName")}
       />
     </div>
 
@@ -133,7 +136,7 @@
         type="text"
         bind:value={newFavorite}
         placeholder={t("profileSettings.searchFavorite")}
-        onkeydown={(e) => e.key === 'Enter' && addFavorite()}
+        onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && addFavorite()}
       />
       <Button onclick={addFavorite} aria-label={t("profileSettings.addFavorite")}>{t("profileSettings.addFavorite")}</Button>
     </div>
@@ -142,7 +145,7 @@
         {#each $favoriteProcesses as fav}
           <li>
             <span>{fav}</span>
-            <Button onclick={() => removeFavorite(fav)} variant="danger" aria-label="Remove">✕</Button>
+            <Button onclick={() => removeFavorite(fav)} variant="danger" aria-label={t("profileSettings.removeFavorite")}>✕</Button>
           </li>
         {/each}
       </ul>

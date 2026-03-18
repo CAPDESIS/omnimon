@@ -53,10 +53,10 @@ const DEFAULT_AI_CONFIG: AiProviderConfig = {
 };
 
 const DEFAULT_PROFILE_PRESETS: ProfilePreset[] = [
-  { id: "general", label: "General", idleThreshold: 1.0, pollIntervalMs: 500, automationIntervalSecs: 5, aiProfile: "general" },
-  { id: "developer", label: "Developer", idleThreshold: 0.6, pollIntervalMs: 500, automationIntervalSecs: 3, aiProfile: "developer" },
-  { id: "gaming", label: "Gaming", idleThreshold: 0.4, pollIntervalMs: 500, automationIntervalSecs: 2, aiProfile: "gaming" },
-  { id: "battery", label: "Battery Saver", idleThreshold: 2.0, pollIntervalMs: 4000, automationIntervalSecs: 10, aiProfile: "battery" },
+  { id: "general", label: "toolbar.general", idleThreshold: 1.0, pollIntervalMs: 500, automationIntervalSecs: 5, aiProfile: "general" },
+  { id: "developer", label: "toolbar.developer", idleThreshold: 0.6, pollIntervalMs: 500, automationIntervalSecs: 3, aiProfile: "developer" },
+  { id: "gaming", label: "toolbar.gaming", idleThreshold: 0.4, pollIntervalMs: 500, automationIntervalSecs: 2, aiProfile: "gaming" },
+  { id: "battery", label: "toolbar.batterySaver", idleThreshold: 2.0, pollIntervalMs: 4000, automationIntervalSecs: 10, aiProfile: "battery" },
 ];
 
 const MIN_IDLE_THRESHOLD = 0.1;
@@ -90,7 +90,7 @@ const MAX_AI_CACHE_TTL_MINUTES = 60;
 const DEFAULT_NETWORK_ALERT_RULES: NetworkAlertRule[] = [
   {
     id: "default-high-bandwidth",
-    name: "High bandwidth",
+    name: "networkAlerts.defaults.highBandwidth",
     enabled: true,
     condition: {
       kind: "high_bandwidth",
@@ -104,7 +104,7 @@ const DEFAULT_NETWORK_ALERT_RULES: NetworkAlertRule[] = [
   },
   {
     id: "default-suspicious-port",
-    name: "Suspicious port connection",
+    name: "networkAlerts.defaults.suspiciousPort",
     enabled: true,
     condition: {
       kind: "unusual_port",
@@ -116,7 +116,7 @@ const DEFAULT_NETWORK_ALERT_RULES: NetworkAlertRule[] = [
   },
   {
     id: "default-process-spike",
-    name: "Process spike",
+    name: "networkAlerts.defaults.processSpike",
     enabled: true,
     condition: {
       kind: "process_network_spike",
@@ -129,7 +129,7 @@ const DEFAULT_NETWORK_ALERT_RULES: NetworkAlertRule[] = [
   },
   {
     id: "default-connection-count",
-    name: "Too many connections",
+    name: "networkAlerts.defaults.tooManyConnections",
     enabled: true,
     condition: {
       kind: "connection_count_exceeded",
@@ -204,7 +204,7 @@ export const customTheme = writable<CustomThemeOverrides | null>(null);
 export const userMode = writable<UserMode>(DEFAULT_USER_MODE);
 export const networkAlertRules = writable<NetworkAlertRule[]>([...DEFAULT_NETWORK_ALERT_RULES]);
 
-export const displayName = writable("User");
+export const displayName = writable("");
 export const profilePreset = writable<"minimal" | "balanced" | "power">("balanced");
 export const dashboardLayout = writable<"compact" | "standard" | "expanded">("standard");
 export const layoutModeStore = writable<"tabs" | "split">("tabs");
@@ -589,7 +589,9 @@ export async function loadPreferences(): Promise<void> {
     if (typeof savedAiConfigCollapsed === "boolean") aiConfigCollapsedStore.set(savedAiConfigCollapsed);
 
     const savedDisplayName = await store.get("displayName");
-    if (typeof savedDisplayName === "string") displayName.set(savedDisplayName);
+    if (typeof savedDisplayName === "string") {
+      displayName.set(savedDisplayName.trim() === "User" ? "" : savedDisplayName);
+    }
 
     const savedProfilePreset = await store.get("profilePreset");
     if (savedProfilePreset === "minimal" || savedProfilePreset === "balanced" || savedProfilePreset === "power") profilePreset.set(savedProfilePreset);
