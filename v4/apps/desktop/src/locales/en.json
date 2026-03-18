@@ -899,7 +899,12 @@
     "processNotFound": "The process was not found.",
     "invalidPid": "Invalid PID.",
     "protectedProcess": "Protected processes cannot be terminated.",
-    "unknownAiProvider": "Unknown AI provider."
+    "unknownAiProvider": "Unknown AI provider.",
+    "unknownBrowser": "Unsupported browser.",
+    "invalidTabId": "Invalid tab identifier.",
+    "invalidTabInput": "Invalid tab input.",
+    "cdpNotLocalhost": "CDP connection must be on localhost.",
+    "firefoxNotSupported": "Firefox tab management is not supported on this platform."
   },
   "insights": {
     "title": "AI Security Insights",

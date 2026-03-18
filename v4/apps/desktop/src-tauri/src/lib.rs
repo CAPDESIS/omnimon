@@ -417,7 +417,7 @@ pub struct KillProcessesResult {
 #[tracing::instrument(skip_all)]
 fn kill_processes(pids: Vec<u32>) -> Result<KillProcessesResult, String> {
     if pids.len() > MAX_KILL_BATCH {
-        return Err(format!("batch limited to {} PIDs", MAX_KILL_BATCH));
+        return Err(format!("error_batch_limit:{}", MAX_KILL_BATCH));
     }
     let mut killed = Vec::new();
     let mut failed = Vec::new();
@@ -473,9 +473,7 @@ fn get_api_key_with_fallback(app: &AppHandle, provider: &str) -> Result<String, 
         }
     }
 
-    Err(format!(
-        "No API key found for {provider}. Save one with the Settings panel or 'omnimon apikey'."
-    ))
+    Err(format!("error_no_api_key:{}", provider))
 }
 
 /// IPC: Save AI Configuration — keyring only, no plain-text fallback.
@@ -493,7 +491,7 @@ fn save_ai_config(
     )?;
     let trimmed_key = key.trim().to_string();
     if trimmed_key.is_empty() {
-        return Err("API key cannot be empty".to_string());
+        return Err("error_api_key_empty".to_string());
     }
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
 
@@ -546,7 +544,7 @@ async fn validate_api_key(provider: String, key: String) -> Result<bool, String>
     )?;
     let trimmed_key = key.trim().to_string();
     if trimmed_key.is_empty() {
-        return Err("API key cannot be empty".to_string());
+        return Err("error_api_key_empty".to_string());
     }
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
     match macmon_core::ai::validate_api_key(ai_provider, "", &trimmed_key).await {
@@ -633,12 +631,11 @@ fn set_network_alert_rules(payload_json: String) -> Result<usize, String> {
         &macmon_core::rate_limit::profiles::CONFIG,
     )?;
     if payload_json.len() > MAX_NETWORK_ALERT_RULES_PAYLOAD_BYTES {
-        return Err("network alert rules payload too large".to_string());
+        return Err("error_payload_too_large".to_string());
     }
 
     let rules: Vec<macmon_core::network_alerts::NetworkAlertRule> =
-        serde_json::from_str(&payload_json)
-            .map_err(|e| format!("invalid network alert rules JSON: {e}"))?;
+        serde_json::from_str(&payload_json).map_err(|e| format!("error_invalid_json:{}", e))?;
     let count = rules.len();
     macmon_core::network_alerts::set_active_rules(rules);
     Ok(count)

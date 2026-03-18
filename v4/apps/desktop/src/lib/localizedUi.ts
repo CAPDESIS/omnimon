@@ -115,14 +115,14 @@ export function localizeBackendError(message: string): string {
   const toolUnknownMatch = trimmed.match(/^tool_unknown:(.+)$/i);
 
   if (/rate limited/i.test(trimmed)) return t("common.rateLimited");
-  if (/No API key found/i.test(trimmed)) return t("settings.apiKeyMissing");
-  if (/API key cannot be empty/i.test(trimmed)) return t("settings.apiKeyEmpty");
+  if (/^error_no_api_key:/i.test(trimmed) || /No API key found/i.test(trimmed)) return t("settings.apiKeyMissing");
+  if (trimmed === "error_api_key_empty" || /API key cannot be empty/i.test(trimmed)) return t("settings.apiKeyEmpty");
   if (/Failed to save API key to OS keyring/i.test(trimmed)) return t("settings.apiKeyKeyringError");
   if (/payload exceeds/i.test(trimmed)) return t("errors.aiRulesPayloadTooLarge");
-  if (/network alert rules payload too large/i.test(trimmed)) return t("errors.networkRulesPayloadTooLarge");
-  if (/invalid network alert rules JSON/i.test(trimmed)) return t("errors.invalidNetworkRulesJson");
+  if (trimmed === "error_payload_too_large" || /network alert rules payload too large/i.test(trimmed)) return t("errors.networkRulesPayloadTooLarge");
+  if (/^error_invalid_json:/i.test(trimmed) || /invalid network alert rules JSON/i.test(trimmed)) return t("errors.invalidNetworkRulesJson");
   if (/No network snapshot available yet/i.test(trimmed)) return t("errors.networkSnapshotUnavailable");
-  if (/batch limited to/i.test(trimmed)) return t("errors.killBatchLimit");
+  if (/^error_batch_limit:/i.test(trimmed) || /batch limited to/i.test(trimmed)) return t("errors.killBatchLimit");
   if (/process not found/i.test(trimmed)) return t("errors.processNotFound");
   if (invalidPidMatch) return t("aiChat.invalidPid", { pid: invalidPidMatch[2] });
   if (/invalid pid|pid inválido/i.test(trimmed)) return t("errors.invalidPid");
@@ -142,6 +142,12 @@ export function localizeBackendError(message: string): string {
   if (/plugin registry is full/i.test(trimmed)) return t("plugins.errors.registryFull");
   if (/plugin .* was not found/i.test(trimmed)) return t("plugins.errors.notFound");
   if (trimmed === "prompt_injection_blocked") return t("aiChat.blockedPrompt");
+  if (/^error_unknown_browser:/i.test(trimmed) || /Unknown browser/i.test(trimmed)) return t("errors.unknownBrowser");
+  if (trimmed === "error_invalid_tab_id") return t("errors.invalidTabId");
+  if (trimmed === "error_cdp_not_localhost") return t("errors.cdpNotLocalhost");
+  if (trimmed === "error_firefox_not_supported") return t("errors.firefoxNotSupported");
+  if (/^error_tab_id_/i.test(trimmed) || /^error_tab_url_/i.test(trimmed)) return t("errors.invalidTabInput");
+  if (/^error_unknown_browser:/i.test(trimmed)) return t("errors.unknownBrowser");
   if (/Unknown AI provider/i.test(trimmed)) return t("errors.unknownAiProvider");
   if (/Ollama is not running/i.test(trimmed)) return t("aiChat.errorApi");
   if (/Invalid API key/i.test(trimmed)) return t("settings.apiKeyFailed");

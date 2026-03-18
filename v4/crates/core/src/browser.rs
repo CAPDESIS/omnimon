@@ -6,16 +6,16 @@ use std::time::Duration;
 /// Validate a tab ID: reject empty, >512 chars, control chars, path traversal chars.
 pub fn sanitize_tab_id(id: &str) -> Result<(), String> {
     if id.is_empty() {
-        return Err("Tab ID must not be empty".to_string());
+        return Err("error_tab_id_empty".to_string());
     }
     if id.len() > 512 {
-        return Err("Tab ID exceeds maximum length of 512".to_string());
+        return Err("error_tab_id_too_long".to_string());
     }
     if id.chars().any(|c| c.is_control()) {
-        return Err("Tab ID contains control characters".to_string());
+        return Err("error_tab_id_control_chars".to_string());
     }
     if id.contains('/') || id.contains('\\') || id.contains("..") {
-        return Err("Tab ID contains path traversal characters".to_string());
+        return Err("error_tab_id_path_traversal".to_string());
     }
     Ok(())
 }
@@ -23,10 +23,10 @@ pub fn sanitize_tab_id(id: &str) -> Result<(), String> {
 /// Validate a tab URL: reject >4096 chars, control chars, disallowed schemes.
 pub fn sanitize_tab_url(url: &str) -> Result<(), String> {
     if url.len() > 4096 {
-        return Err("Tab URL exceeds maximum length of 4096".to_string());
+        return Err("error_tab_url_too_long".to_string());
     }
     if url.chars().any(|c| c.is_control()) {
-        return Err("Tab URL contains control characters".to_string());
+        return Err("error_tab_url_control_chars".to_string());
     }
     if !url.is_empty() {
         let allowed_prefixes = [
@@ -42,7 +42,7 @@ pub fn sanitize_tab_url(url: &str) -> Result<(), String> {
         ];
         if !allowed_prefixes.iter().any(|p| url.starts_with(p)) {
             return Err(format!(
-                "Tab URL has disallowed scheme: {}",
+                "error_tab_url_scheme:{}",
                 url.split(':').next().unwrap_or("")
             ));
         }
@@ -127,7 +127,7 @@ impl std::str::FromStr for BrowserKind {
             "Edge" => Ok(BrowserKind::Edge),
             "Arc" => Ok(BrowserKind::Arc),
             "Firefox" => Ok(BrowserKind::Firefox),
-            _ => Err(format!("Unknown browser: {s}")),
+            _ => Err(format!("error_unknown_browser:{}", s)),
         }
     }
 }
@@ -189,7 +189,7 @@ fn validate_cdp_url(base_url: &str) -> Result<(), String> {
     let host_no_port = host.split(':').next().unwrap_or("");
     match host_no_port {
         "localhost" | "127.0.0.1" | "[::1]" | "::1" => Ok(()),
-        _ => Err("CDP base URL must be localhost".to_string()),
+        _ => Err("error_cdp_not_localhost".to_string()),
     }
 }
 
@@ -264,7 +264,7 @@ pub fn cdp_close_tab(base_url: &str, tab_id: &str) -> Result<bool, String> {
 
     if tab_id.contains('/') || tab_id.contains('\\') || tab_id.contains('?') || tab_id.contains('#')
     {
-        return Err("Invalid tab ID".to_string());
+        return Err("error_invalid_tab_id".to_string());
     }
 
     validate_cdp_url(base_url)?;
@@ -584,9 +584,7 @@ impl TabProvider for NativeTabProvider {
             BrowserKind::Chrome | BrowserKind::Brave | BrowserKind::Edge | BrowserKind::Arc => {
                 self.close_chromium_tab(browser, tab)
             }
-            BrowserKind::Firefox => {
-                Err("Firefox tab management is not supported on macOS".to_string())
-            }
+            BrowserKind::Firefox => Err("error_firefox_not_supported".to_string()),
         }
     }
 
@@ -596,9 +594,7 @@ impl TabProvider for NativeTabProvider {
             BrowserKind::Chrome | BrowserKind::Brave | BrowserKind::Edge | BrowserKind::Arc => {
                 self.focus_chromium_tab(browser, tab)
             }
-            BrowserKind::Firefox => {
-                Err("Firefox tab management is not supported on macOS".to_string())
-            }
+            BrowserKind::Firefox => Err("error_firefox_not_supported".to_string()),
         }
     }
 }
@@ -697,7 +693,7 @@ pub fn cdp_activate_tab(base_url: &str, tab_id: &str) -> Result<bool, String> {
     }
     if tab_id.contains('/') || tab_id.contains('\\') || tab_id.contains('?') || tab_id.contains('#')
     {
-        return Err("Invalid tab ID".to_string());
+        return Err("error_invalid_tab_id".to_string());
     }
     validate_cdp_url(base_url)?;
     let runtime = build_runtime()?;
@@ -988,19 +984,19 @@ mod tests {
 
         let result_question = cdp_close_tab(base, "tab?id");
         assert!(result_question.is_err());
-        assert_eq!(result_question.unwrap_err(), "Invalid tab ID");
+        assert_eq!(result_question.unwrap_err(), "error_invalid_tab_id");
 
         let result_hash = cdp_close_tab(base, "tab#id");
         assert!(result_hash.is_err());
-        assert_eq!(result_hash.unwrap_err(), "Invalid tab ID");
+        assert_eq!(result_hash.unwrap_err(), "error_invalid_tab_id");
 
         let result_slash = cdp_close_tab(base, "tab/id");
         assert!(result_slash.is_err());
-        assert_eq!(result_slash.unwrap_err(), "Invalid tab ID");
+        assert_eq!(result_slash.unwrap_err(), "error_invalid_tab_id");
 
         let result_backslash = cdp_close_tab(base, "tab\\id");
         assert!(result_backslash.is_err());
-        assert_eq!(result_backslash.unwrap_err(), "Invalid tab ID");
+        assert_eq!(result_backslash.unwrap_err(), "error_invalid_tab_id");
     }
 
     #[test]
@@ -1071,7 +1067,7 @@ mod tests {
     fn sanitize_tab_url_rejects_ftp() {
         let result = sanitize_tab_url("ftp://files.example.com");
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("disallowed scheme"));
+        assert!(result.unwrap_err().contains("error_tab_url_scheme"));
     }
 
     #[test]
@@ -1099,11 +1095,11 @@ mod tests {
         assert!(!cdp_activate_tab("http://127.0.0.1:9", "   ").unwrap());
         assert_eq!(
             cdp_activate_tab("http://127.0.0.1:9", "tab?id").unwrap_err(),
-            "Invalid tab ID"
+            "error_invalid_tab_id"
         );
         assert_eq!(
             cdp_activate_tab("http://127.0.0.1:9", "tab#id").unwrap_err(),
-            "Invalid tab ID"
+            "error_invalid_tab_id"
         );
     }
 

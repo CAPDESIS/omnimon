@@ -899,7 +899,12 @@
     "processNotFound": "No se encontró el proceso.",
     "invalidPid": "PID inválido.",
     "protectedProcess": "No se pueden terminar procesos protegidos.",
-    "unknownAiProvider": "Proveedor de IA desconocido."
+    "unknownAiProvider": "Proveedor de IA desconocido.",
+    "unknownBrowser": "Navegador no soportado.",
+    "invalidTabId": "Identificador de pestaña inválido.",
+    "invalidTabInput": "Entrada de pestaña inválida.",
+    "cdpNotLocalhost": "La conexión CDP debe ser en localhost.",
+    "firefoxNotSupported": "La gestión de pestañas de Firefox no está soportada en esta plataforma."
   },
   "insights": {
     "title": "Insights de seguridad IA",
