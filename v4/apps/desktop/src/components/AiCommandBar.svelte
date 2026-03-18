@@ -31,6 +31,7 @@
   import { addAlertRule } from "../stores/alerts";
   import { toast } from "../stores/toasts";
   import { t } from "../lib/i18n";
+  import { localizeBackendError } from "../lib/localizedUi";
   import { renderMarkdown } from "../lib/markdown";
   import { scrollToBottom as scrollContainerToBottom, resizeInput as resizeTextarea } from "../lib/chatUtils";
   import type { ChatMessage } from "../lib/chatUtils";
@@ -130,9 +131,9 @@
       const keys = Object.keys(pendingChange.patch).join(", ");
       messages = [...messages, {
         role: "assistant",
-        text: `Applied: ${keys}`,
+        text: t("aiConfig.appliedKeys", { keys }),
       }];
-      toast.success(t("toast.configUpdatedTitle"), `Changed: ${keys}`);
+      toast.success(t("toast.configUpdatedTitle"), t("aiConfig.appliedKeys", { keys }));
     }
 
     if (pendingChange.kind === "alerts" && pendingChange.alerts) {
@@ -141,9 +142,9 @@
       }
       messages = [...messages, {
         role: "assistant",
-        text: `Created ${pendingChange.alerts.length} alert rule(s).`,
+        text: t("aiConfig.createdAlerts", { count: pendingChange.alerts.length }),
       }];
-      toast.success(t("toast.alertsCreatedTitle"), `${pendingChange.alerts.length} rule(s) added`);
+      toast.success(t("toast.alertsCreatedTitle"), t("aiConfig.createdAlerts", { count: pendingChange.alerts.length }));
     }
 
     if (pendingChange.kind === "ai_rules" && pendingChange.aiRules) {
@@ -152,12 +153,12 @@
         const count = await ipcApplyAiRules(payload);
         messages = [...messages, {
           role: "assistant",
-          text: `Applied ${count} security rule(s) to the rules engine.`,
+          text: t("aiConfig.rulesSent", { count }),
         }];
-        toast.success(t("toast.rulesAppliedTitle"), `${count} rule(s) sent to the security engine`);
+        toast.success(t("toast.rulesAppliedTitle"), t("aiConfig.rulesSent", { count }));
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        messages = [...messages, { role: "system", text: `Failed to apply rules: ${msg}` }];
+        const msg = localizeBackendError(e instanceof Error ? e.message : String(e));
+        messages = [...messages, { role: "system", text: t("aiConfig.failedApplyRules", { error: msg }) }];
         toast.error(t("toast.rulesErrorTitle"), msg);
       }
     }
@@ -183,9 +184,9 @@
 
     // Prompt injection detection
     if (detectPromptInjection(trimmed)) {
-      error = "Input blocked: detected potential prompt injection.";
-      toast.error(t("toast.securityTitle"), t("toast.promptInjectionBlocked"));
-      return;
+        error = t("aiConfig.blockedInput");
+        toast.error(t("toast.securityTitle"), t("toast.promptInjectionBlocked"));
+        return;
     }
 
     messages = [...messages, { role: "user", text: trimmed }];
@@ -226,12 +227,12 @@
             validRules.push(validateAiRule(r));
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
-            messages = [...messages, { role: "system", text: `Invalid security rule: ${msg}` }];
+              messages = [...messages, { role: "system", text: t("aiConfig.invalidSecurityRule", { error: msg }) }];
+            }
           }
-        }
         if (validRules.length > 0) {
           pendingChange = { kind: "ai_rules", aiRules: validRules, raw };
-          messages = [...messages, { role: "assistant", text: "Proposed security rules (review below):" }];
+          messages = [...messages, { role: "assistant", text: t("aiConfig.proposedSecurityRules") }];
         }
         scrollToBottom();
         return;
@@ -245,12 +246,12 @@
             validRules.push(validateAlertRule(r));
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
-            messages = [...messages, { role: "system", text: `Invalid alert rule: ${msg}` }];
+              messages = [...messages, { role: "system", text: t("aiConfig.invalidAlertRule", { error: msg }) }];
+            }
           }
-        }
         if (validRules.length > 0) {
           pendingChange = { kind: "alerts", alerts: validRules, raw };
-          messages = [...messages, { role: "assistant", text: "Proposed alert rules (review below):" }];
+          messages = [...messages, { role: "assistant", text: t("aiConfig.proposedAlertRules") }];
         }
         scrollToBottom();
         return;
@@ -265,9 +266,9 @@
       }
 
       pendingChange = { kind: "config", patch: validated, raw };
-      messages = [...messages, { role: "assistant", text: "Proposed configuration change (review below):" }];
+      messages = [...messages, { role: "assistant", text: t("aiConfig.proposedConfigChange") }];
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = localizeBackendError(e instanceof Error ? e.message : String(e));
       if (msg.includes("Security violation")) {
         error = msg;
         toast.error(t("toast.securityTitle"), msg);
@@ -301,13 +302,13 @@
   });
 </script>
 
-<div class="command-bar" role="region" aria-label="AI Configuration">
+<div class="command-bar" role="region" aria-label={t("aiConfig.regionLabel")}>
   <div class="bar-header">
     <span class="bar-label">{t("aiConfig.title")}</span>
     <InfoPopover label={t("aiConfig.title")} content={t("aiConfig.helpTooltip")} />
   </div>
   {#if showPresets}
-    <div class="command-presets" aria-label="AI config presets">
+    <div class="command-presets" aria-label={t("aiConfig.presetsLabel")}>
       <div class="command-preset-categories">
         {#each presetGroups as [category]}
           <button
@@ -316,7 +317,7 @@
             type="button"
             onclick={() => activePresetCategory = category}
           >
-            {AI_PRESET_CATEGORY_LABELS[category]}
+            {t(AI_PRESET_CATEGORY_LABELS[category])}
           </button>
         {/each}
       </div>
@@ -326,10 +327,10 @@
             <button
               class="command-preset-chip"
               type="button"
-              onclick={() => applyPreset(preset.prompt)}
+              onclick={() => applyPreset(t(preset.prompt))}
             >
-              <span>{preset.icon}</span>
-              <span>{preset.label}</span>
+              <span aria-hidden="true"><svelte:component this={preset.icon} size={14} /></span>
+              <span>{t(preset.label)}</span>
             </button>
           {/each}
         {/each}
@@ -370,9 +371,9 @@
           <table class="diff-table">
             <thead>
               <tr>
-                <th>Setting</th>
-                <th>Current</th>
-                <th>New</th>
+                 <th>{t("aiConfig.setting")}</th>
+                 <th>{t("aiConfig.current")}</th>
+                 <th>{t("aiConfig.new")}</th>
               </tr>
             </thead>
             <tbody>
@@ -393,7 +394,7 @@
             <div class="alert-preview-row">
               <span class="alert-preview-num">#{i + 1}</span>
               <span class="alert-preview-rule">
-                {rule.processName ? `${rule.processName}: ` : "System "}
+                {rule.processName ? `${rule.processName}: ` : `${t("aiConfig.systemPrefix")} `}
                 {rule.metric} {rule.operator} {rule.threshold}
               </span>
               <span class="alert-preview-action">{rule.action}</span>
@@ -409,22 +410,22 @@
                 <span class="rule-kind">{rule.kind}</span>
                 {rule.name}
                 {#if rule.process_contains}
-                  <span class="rule-detail">process: {rule.process_contains}</span>
+                  <span class="rule-detail">{t("aiConfig.processLabel")} {rule.process_contains}</span>
                 {/if}
                 {#if rule.country_code}
-                  <span class="rule-detail">country: {rule.country_code}</span>
+                  <span class="rule-detail">{t("aiConfig.countryLabel")} {rule.country_code}</span>
                 {/if}
                 {#if rule.destination_ip}
-                  <span class="rule-detail">IP: {rule.destination_ip}</span>
+                  <span class="rule-detail">{t("aiConfig.ipLabel")} {rule.destination_ip}</span>
                 {/if}
                 {#if rule.destination_port}
-                  <span class="rule-detail">port: {rule.destination_port}</span>
+                  <span class="rule-detail">{t("aiConfig.portLabel")} {rule.destination_port}</span>
                 {/if}
                 {#if rule.process_memory_mb_gt}
-                  <span class="rule-detail">mem &gt; {rule.process_memory_mb_gt}MB</span>
+                  <span class="rule-detail">{t("aiConfig.memoryLabel", { value: rule.process_memory_mb_gt })}</span>
                 {/if}
               </span>
-              <span class="alert-preview-action">{rule.enabled ? "ON" : "OFF"}</span>
+               <span class="alert-preview-action">{rule.enabled ? t("aiConfig.enabledOn") : t("aiConfig.enabledOff")}</span>
             </div>
           {/each}
         {/if}
@@ -468,7 +469,7 @@
       onclick={handleSubmit}
       disabled={loading || !input.trim()}
     >
-      {loading ? "..." : t("aiConfig.run")}
+      {loading ? t("common.loadingShort") : t("aiConfig.run")}
     </Button>
   </div>
   {#if error}

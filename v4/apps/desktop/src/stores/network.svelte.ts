@@ -1,4 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
+import { t } from "../lib/i18n";
 
 export interface NetworkConnection {
   process_id: number;
@@ -100,7 +101,7 @@ export function getPerProcessSummary(): Array<{
   }>();
 
   for (const conn of connections) {
-    const pName = conn.process_name || "Unknown";
+    const pName = conn.process_name || t("networkConnections.unknownProcess");
     let entry = map.get(pName);
     if (!entry) {
       entry = { name: pName, connectionsCount: 0, totalUp: 0, totalDown: 0, topDest: conn.remote_hostname || conn.remote_address };

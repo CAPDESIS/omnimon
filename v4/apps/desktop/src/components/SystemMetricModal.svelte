@@ -6,6 +6,7 @@
   import { filtered, stats } from "../stores/processes";
   import type { UserMode } from "../stores/preferences";
   import { t } from "../lib/i18n";
+  import { formatProcessState, formatProcessUptime } from "../lib/localizedUi";
   import { askAiRequest } from "../stores/uiActions";
   import type { ProcessEntry } from "../lib/types";
   import { focusFirstFocusable, trapFocus } from "../lib/focusTrap";
@@ -223,10 +224,10 @@
       </div>
       <div class="header-actions">
         <Button class="ask-ai-btn" variant="secondary" size="sm" onclick={() => {
-          askAiRequest.set(`¿Qué está pasando con ${metric}?`);
+          askAiRequest.set(t("systemMetrics.askAi", { metric: metricTitle(metric) }));
           onclose();
         }}>
-          ✨ ¿Qué está pasando con {metric}?
+          ✨ {t("systemMetrics.askAi", { metric: metricTitle(metric) })}
         </Button>
         <IconButton class="close-btn" onclick={onclose} ariaLabel={t("common.close")} title={t("common.close")}>×</IconButton>
       </div>
@@ -236,10 +237,10 @@
       {#if metric === "network"}
         <div class="section">
           <div class="summary-row">
-            <div class="summary-card"><span class="card-label">RX</span><span class="card-value">{formatRate($stats?.net_rx_bytes_per_sec ?? 0)}</span></div>
-            <div class="summary-card"><span class="card-label">TX</span><span class="card-value">{formatRate($stats?.net_tx_bytes_per_sec ?? 0)}</span></div>
-            <div class="summary-card"><span class="card-label">Samples</span><span class="card-value">{$metricsHistory.length}</span></div>
-            <div class="summary-card"><span class="card-label">Processes</span><span class="card-value">{$stats?.total_processes ?? 0}</span></div>
+            <div class="summary-card"><span class="card-label">{t("systemMetrics.rx")}</span><span class="card-value">{formatRate($stats?.net_rx_bytes_per_sec ?? 0)}</span></div>
+            <div class="summary-card"><span class="card-label">{t("systemMetrics.tx")}</span><span class="card-value">{formatRate($stats?.net_tx_bytes_per_sec ?? 0)}</span></div>
+            <div class="summary-card"><span class="card-label">{t("systemMetrics.samples")}</span><span class="card-value">{$metricsHistory.length}</span></div>
+            <div class="summary-card"><span class="card-label">{t("systemMetrics.processes")}</span><span class="card-value">{$stats?.total_processes ?? 0}</span></div>
           </div>
           {#if chartSeries.length > 0}
             <div class="chart-container">
@@ -255,7 +256,7 @@
             {#await networkMapPromise then NetworkMapModule}
               <NetworkMapModule.default mode={mode} />
             {:catch}
-              <div class="network-map-error">Failed to load network map.</div>
+              <div class="network-map-error">{t("systemMetrics.networkMapLoadError")}</div>
             {/await}
           {/if}
         </div>
@@ -268,8 +269,8 @@
                 {summaryLabel}
               </span>
             </div>
-          <div class="summary-card"><span class="card-label">History</span><span class="card-value">{$metricsHistory.length} samples</span></div>
-          <div class="summary-card"><span class="card-label">Showing</span><span class="card-value">{topProcesses.length} / {$filtered.length}</span></div>
+          <div class="summary-card"><span class="card-label">{t("systemMetrics.history")}</span><span class="card-value">{t("systemMetrics.samplesCount", { count: $metricsHistory.length })}</span></div>
+          <div class="summary-card"><span class="card-label">{t("systemMetrics.showing")}</span><span class="card-value">{t("systemMetrics.visibleCount", { shown: topProcesses.length, total: $filtered.length })}</span></div>
         </div>
 
         <!-- TradingView chart -->
@@ -286,30 +287,30 @@
 
         <!-- Interactive process table -->
         <div class="section">
-          <div class="section-title">Top processes · Click headers to sort</div>
+          <div class="section-title">{t("systemMetrics.topProcesses")} · {t("systemMetrics.sortHint")}</div>
           <div class="process-table-wrapper">
             <table class="process-table">
               <thead>
                 <tr>
-                  <th class="th-name" scope="col"><button type="button" class="sort-button" onclick={() => toggleSort("name")}>Name<span aria-hidden="true">{sortIndicator("name")}</span></button></th>
-                  <th class="th-pid" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => toggleSort("pid")}>PID<span aria-hidden="true">{sortIndicator("pid")}</span></button></th>
-                  <th class="th-num" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => toggleSort("cpu")}>CPU%<span aria-hidden="true">{sortIndicator("cpu")}</span></button></th>
-                  <th class="th-num" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => toggleSort("ram")}>RAM MB<span aria-hidden="true">{sortIndicator("ram")}</span></button></th>
-                  <th class="th-num" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => toggleSort("net")}>Net<span aria-hidden="true">{sortIndicator("net")}</span></button></th>
-                  <th class="th-state" scope="col"><button type="button" class="sort-button" onclick={() => toggleSort("state")}>State<span aria-hidden="true">{sortIndicator("state")}</span></button></th>
-                  <th class="th-uptime" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => toggleSort("uptime")}>Uptime<span aria-hidden="true">{sortIndicator("uptime")}</span></button></th>
+                  <th class="th-name" scope="col"><button type="button" class="sort-button" onclick={() => toggleSort("name")}>{t("table.name")}<span aria-hidden="true">{sortIndicator("name")}</span></button></th>
+                  <th class="th-pid" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => toggleSort("pid")}>{t("table.pid")}<span aria-hidden="true">{sortIndicator("pid")}</span></button></th>
+                  <th class="th-num" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => toggleSort("cpu")}>{t("table.cpu")}<span aria-hidden="true">{sortIndicator("cpu")}</span></button></th>
+                  <th class="th-num" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => toggleSort("ram")}>{t("table.ram")} MB<span aria-hidden="true">{sortIndicator("ram")}</span></button></th>
+                  <th class="th-num" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => toggleSort("net")}>{t("table.network")}<span aria-hidden="true">{sortIndicator("net")}</span></button></th>
+                  <th class="th-state" scope="col"><button type="button" class="sort-button" onclick={() => toggleSort("state")}>{t("process.state")}<span aria-hidden="true">{sortIndicator("state")}</span></button></th>
+                  <th class="th-uptime" scope="col"><button type="button" class="sort-button sort-button-num" onclick={() => toggleSort("uptime")}>{t("process.uptime")}<span aria-hidden="true">{sortIndicator("uptime")}</span></button></th>
                 </tr>
               </thead>
               <tbody>
                 {#each topProcesses as proc (proc.pid)}
-                  <tr class="process-row" class:clickable={!!oninspect} onclick={() => oninspect?.(proc)} title={oninspect ? `Inspect ${proc.name}` : undefined}>
+                  <tr class="process-row" class:clickable={!!oninspect} onclick={() => oninspect?.(proc)} title={oninspect ? t("systemMetrics.inspectProcess", { name: proc.name }) : undefined}>
                     <td class="td-name" title={proc.exec_name}>{proc.name}</td>
                     <td class="td-mono">{proc.pid}</td>
                     <td class="td-mono">{proc.cpu_pct.toFixed(1)}</td>
                     <td class="td-mono">{proc.ram_mb.toFixed(1)}</td>
                     <td class="td-mono">{formatRate(proc.net_rx_bytes_per_sec + proc.net_tx_bytes_per_sec)}</td>
-                    <td class="td-state">{proc.state ?? "—"}</td>
-                    <td class="td-mono">{proc.uptime ?? "—"}</td>
+                    <td class="td-state">{formatProcessState(proc.state)}</td>
+                    <td class="td-mono">{formatProcessUptime(proc.uptime)}</td>
                   </tr>
                 {/each}
               </tbody>
@@ -317,7 +318,7 @@
           </div>
           {#if $filtered.length > processLimit}
             <Button class="show-more-btn" variant="secondary" size="sm" onclick={() => processLimit += 20}>
-              Show more ({$filtered.length - processLimit} remaining)
+              {t("systemMetrics.showMore", { count: $filtered.length - processLimit })}
             </Button>
           {/if}
         </div>

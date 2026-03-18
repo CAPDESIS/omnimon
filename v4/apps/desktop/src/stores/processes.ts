@@ -10,6 +10,7 @@ import { evaluateAlerts } from "./alerts";
 import { refreshSecurityAnalysis, refreshNetworkConnections } from "./security";
 import { toast } from "./toasts";
 import { detectBrowser } from "../lib/browser";
+import { localizeBackendError } from "../lib/localizedUi";
 import { askAiRequest } from "./uiActions";
 
 // --- Security analysis throttle ---
@@ -216,8 +217,8 @@ export async function fetchMetrics(): Promise<void> {
     consecutiveErrors++;
     console.error("Failed to fetch metrics:", e);
     if (consecutiveErrors === ERROR_TOAST_THRESHOLD) {
-      const msg = e instanceof Error ? e.message : String(e);
-      toast.error("Metrics fetch failed", `Repeated errors (${consecutiveErrors}×): ${msg}`);
+      const msg = localizeBackendError(e instanceof Error ? e.message : String(e));
+      toast.error(t("processes.metricsFetchFailedTitle"), t("processes.metricsFetchFailedMessage", { count: consecutiveErrors, error: msg }));
     }
     loading.set(false);
   }
@@ -271,16 +272,16 @@ export async function killSelected(): Promise<number[]> {
     selectedPids.set(new Set());
     // Report any failures
     if (result.failed.length > 0) {
-      const failMsgs = result.failed.map(([pid, reason]) => `PID ${pid}: ${reason}`).join(", ");
-      toast.warning("Some processes could not be killed", failMsgs);
+      const failMsgs = result.failed.map(([pid, reason]) => `PID ${pid}: ${localizeBackendError(reason)}`).join(", ");
+      toast.warning(t("processes.partialKillTitle"), failMsgs);
     }
     return killed;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = localizeBackendError(e instanceof Error ? e.message : String(e));
     if (msg.includes("Rate limited")) {
-      toast.warning(t("common.rateLimited") || "Rate limited", msg);
+      toast.warning(t("common.rateLimited"), msg);
     } else {
-      toast.error(t("processes.killErrorTitle") || "Kill failed", msg);
+      toast.error(t("processes.killErrorTitle"), msg);
     }
     console.error("Kill failed:", e);
     return [];
@@ -305,11 +306,11 @@ export async function killSingle(pid: number, name?: string): Promise<boolean> {
     }
     return ok;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = localizeBackendError(e instanceof Error ? e.message : String(e));
     if (msg.includes("Rate limited")) {
-      toast.warning(t("common.rateLimited") || "Rate limited", msg);
+      toast.warning(t("common.rateLimited"), msg);
     } else {
-      toast.error(t("processes.killErrorTitle") || "Kill failed", msg);
+      toast.error(t("processes.killErrorTitle"), msg);
     }
     console.error("Kill single failed:", e);
     return false;

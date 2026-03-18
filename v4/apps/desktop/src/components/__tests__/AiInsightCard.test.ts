@@ -224,7 +224,7 @@ describe("AiInsightCard", () => {
     const header = screen.getByText(/triggered rule "Large download detected"/).closest("button")!;
     await fireEvent.click(header);
 
-    expect(screen.getByText(/parece estar actualizando o sincronizando archivos/)).toBeInTheDocument();
+    expect(screen.getByText(/may be updating or syncing files/)).toBeInTheDocument();
     expect(screen.getByText(/RULE:\s*T1105/)).toBeInTheDocument();
   });
 
@@ -245,10 +245,10 @@ describe("AiInsightCard", () => {
 
     render(AiInsightCard);
 
-    const header = screen.getByText("Memory rule fired").closest("button")!;
+    const header = screen.getByText(/triggered rule "Memory pressure"/).closest("button")!;
     await fireEvent.click(header);
 
-    expect(screen.getByText(/consumiendo m.s memoria de lo normal/)).toBeInTheDocument();
+    expect(screen.getByText(/consuming more memory than usual/)).toBeInTheDocument();
   });
 
   it("muestra explicacion por pais cuando la regla no coincide con descarga ni memoria", async () => {
@@ -268,9 +268,9 @@ describe("AiInsightCard", () => {
 
     render(AiInsightCard);
 
-    const header = screen.getByText("Outbound connection detected").closest("button")!;
+    const header = screen.getByText(/triggered rule "Unexpected outbound"/).closest("button")!;
     await fireEvent.click(header);
 
-    expect(screen.getByText(/intent. conectarse a un servidor en DE/)).toBeInTheDocument();
+    expect(screen.getByText(/tried to connect to a server in DE/)).toBeInTheDocument();
   });
 });

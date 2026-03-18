@@ -774,7 +774,7 @@ pub fn execute_tool_call(
         "kill_process" => {
             let pid = args["pid"].as_u64().unwrap_or(0) as u32;
             if pid == 0 {
-                return tool_result("kill_process", false, "Invalid PID");
+                return tool_result("kill_process", false, "tool_invalid_pid:0");
             }
             // Verify PID exists in current state — but do NOT kill it here.
             // The frontend must confirm and dispatch the IPC kill command.
@@ -785,7 +785,7 @@ pub fn execute_tool_call(
                 return tool_result(
                     "kill_process",
                     false,
-                    format!("Process with PID {} not found in current state", pid),
+                    format!("tool_process_not_found:{}", pid),
                 );
             }
 
@@ -798,7 +798,7 @@ pub fn execute_tool_call(
         "kill_by_name" => {
             let name = args["name"].as_str().unwrap_or("");
             if name.is_empty() {
-                return tool_result("kill_by_name", false, "No process name provided");
+                return tool_result("kill_by_name", false, "tool_no_process_name");
             }
             let name_lower = name.to_lowercase();
             let matching_pids: Vec<u32> = state
@@ -812,7 +812,7 @@ pub fn execute_tool_call(
                 return tool_result(
                     "kill_by_name",
                     false,
-                    format!("No processes found matching '{}'", name),
+                    format!("tool_no_processes_matched:{}", name),
                 );
             }
 
@@ -837,7 +837,7 @@ pub fn execute_tool_call(
             } else if !pattern.is_empty() {
                 tool_result("close_tabs", true, format!("close_tabs:{}", pattern))
             } else {
-                tool_result("close_tabs", false, "No pattern or except provided")
+                tool_result("close_tabs", false, "tool_close_tabs_missing_pattern")
             }
         }
         "add_automation_rule" => {
@@ -852,7 +852,7 @@ pub fn execute_tool_call(
                 return tool_result(
                     "add_automation_rule",
                     false,
-                    "Missing required fields: id and process_pattern",
+                    "tool_automation_rule_missing_fields",
                 );
             }
 
@@ -877,7 +877,7 @@ pub fn execute_tool_call(
                 Err(e) => tool_result(
                     "add_automation_rule",
                     false,
-                    format!("Failed to add rule: {}", e),
+                    format!("tool_automation_rule_add_failed:{}", e),
                 ),
             }
         }
@@ -887,7 +887,7 @@ pub fn execute_tool_call(
                 return tool_result(
                     "remove_automation_rule",
                     false,
-                    "Missing required field: id",
+                    "tool_automation_rule_id_missing",
                 );
             }
             match crate::rules_engine::remove_rule_by_id(id) {
@@ -895,15 +895,15 @@ pub fn execute_tool_call(
                     "remove_automation_rule",
                     removed,
                     if removed {
-                        format!("Removed automation rule '{}'", id)
+                        "automation_rule_removed"
                     } else {
-                        format!("Rule '{}' not found", id)
+                        "tool_automation_rule_not_found"
                     },
                 ),
                 Err(e) => tool_result(
                     "remove_automation_rule",
                     false,
-                    format!("Failed to remove rule: {}", e),
+                    format!("tool_automation_rule_remove_failed:{}", e),
                 ),
             }
         }
@@ -917,7 +917,7 @@ pub fn execute_tool_call(
         _ => ToolResult {
             tool: call_tool.into(),
             success: false,
-            details: format!("Unknown tool: {}", call_tool),
+            details: format!("tool_unknown:{}", call_tool),
             payload: None,
         },
     }
@@ -961,7 +961,7 @@ fn execute_get_process_details(
         };
     }
 
-    tool_result("get_process_details", false, "Process details not found")
+    tool_result("get_process_details", false, "tool_process_details_not_found")
 }
 
 fn execute_get_network_details(
@@ -998,9 +998,9 @@ fn execute_get_network_details(
         tool: "get_network_details".into(),
         success: !matches.is_empty(),
         details: if matches.is_empty() {
-            "No network activity found for that process".into()
+            "tool_network_details_none".into()
         } else {
-            format!("Found {} network connection(s)", matches.len())
+            "tool_network_details_found".into()
         },
         payload: Some(json!({ "connections": matches })),
     }
@@ -1023,7 +1023,7 @@ fn execute_run_security_scan(state: &crate::watcher::SystemState) -> ToolResult 
     ToolResult {
         tool: "run_security_scan".into(),
         success: true,
-        details: format!("Security scan completed with {} finding(s)", findings.len()),
+        details: "tool_security_scan_completed".into(),
         payload: Some(json!({ "findings": findings })),
     }
 }
@@ -1060,14 +1060,14 @@ fn execute_explain_process(
         };
     }
 
-    tool_result("explain_process", false, "Process explanation unavailable")
+    tool_result("explain_process", false, "tool_process_explanation_unavailable")
 }
 
 fn execute_get_system_summary(state: &crate::watcher::SystemState) -> ToolResult {
     ToolResult {
         tool: "get_system_summary".into(),
         success: true,
-        details: "Current system summary".into(),
+        details: "tool_system_summary_ready".into(),
         payload: Some(json!({
             "cpu_pct": state.cpu_usage_percent,
             "ram_used_gb": ((state.used_memory_bytes as f64 / BYTES_PER_GB) * 10.0).round() / 10.0,

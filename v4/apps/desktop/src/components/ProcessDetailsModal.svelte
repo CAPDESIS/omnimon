@@ -7,6 +7,7 @@
   import { ipcCloseBrowserTab, ipcFocusBrowserTab } from "../lib/ipc";
   import { browserTabs } from "../stores/processes";
   import { t } from "../lib/i18n";
+  import { formatProcessState, formatProcessUptime } from "../lib/localizedUi";
   import { detectBrowser } from "../lib/browser";
   import { ipcAnalyzeContext } from "../lib/ipc";
   import { aiProviderConfig, userMode } from "../stores/preferences";
@@ -245,7 +246,7 @@
         </div>
         <div class="row" transition:fly={{ x: -8, duration: 160 }}>
           <span class="label">{t("process.state")}</span>
-          <span class="value mono">{process.state}</span>
+          <span class="value mono">{formatProcessState(process.state)}</span>
         </div>
       {/if}
       <div class="row">
@@ -265,7 +266,7 @@
       </div>
       <div class="row">
         <span class="label">{t("process.uptime")}</span>
-        <span class="value mono">{process.uptime || "\u2014"}</span>
+          <span class="value mono">{formatProcessUptime(process.uptime)}</span>
       </div>
 
       {#if allBrowserTabs.length > 0}

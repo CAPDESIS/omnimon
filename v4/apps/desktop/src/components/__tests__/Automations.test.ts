@@ -67,8 +67,8 @@ describe("Automations", () => {
     render(Automations, { props: { onclose: vi.fn() } });
 
     await waitFor(() => {
-      expect(screen.getByText(/Chrome > 80 cpu for 60s → alert/)).toBeInTheDocument();
-      expect(screen.getByText(/node > 1024 ram for 120s → kill/)).toBeInTheDocument();
+      expect(screen.getByText(/Chrome > 80 cpu for 60s -> alert/)).toBeInTheDocument();
+      expect(screen.getByText(/node > 1024 ram for 120s -> kill/)).toBeInTheDocument();
     });
   });
 
@@ -76,15 +76,15 @@ describe("Automations", () => {
     render(Automations, { props: { onclose: vi.fn() } });
 
     await waitFor(() => {
-      expect(screen.getByText(/Chrome > 80 cpu for 60s → alert/)).toBeInTheDocument();
+      expect(screen.getByText(/Chrome > 80 cpu for 60s -> alert/)).toBeInTheDocument();
     });
 
     await fireEvent.click(screen.getAllByText("Delete")[0]);
 
     await waitFor(() => {
       expect(mockInvoke).toHaveBeenCalledWith("remove_automation_rule", { id: "rule-1" });
-      expect(screen.queryByText(/Chrome > 80 cpu for 60s → alert/)).not.toBeInTheDocument();
-      expect(screen.getByText(/node > 1024 ram for 120s → kill/)).toBeInTheDocument();
+      expect(screen.queryByText(/Chrome > 80 cpu for 60s -> alert/)).not.toBeInTheDocument();
+      expect(screen.getByText(/node > 1024 ram for 120s -> kill/)).toBeInTheDocument();
     });
   });
 

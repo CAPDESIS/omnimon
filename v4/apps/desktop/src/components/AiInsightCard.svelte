@@ -2,7 +2,9 @@
   import { fly, fade } from "svelte/transition";
   import { securityMap, severityColor } from "../stores/security";
   import { dynamicAlerts } from "../stores/alerts";
+  import { t } from "../lib/i18n";
   import { renderMarkdown } from "../lib/markdown";
+  import { formatDynamicAlertMessage } from "../lib/localizedUi";
   import type { ProcessThreatLabel, CveMatch } from "../lib/types";
 
   let insights = $derived.by((): InsightItem[] => {
@@ -28,8 +30,8 @@
           processName: cve.process_name,
           severity: cve.severity as "critical" | "high" | "medium" | "low",
           headline: translateCve(cve),
-          explanation: cve.summary ?? "No additional details available.",
-          action: `Update ${cve.product} to the latest patched version.`,
+          explanation: cve.summary ?? t("insights.noAdditionalDetails"),
+          action: t("insights.cveAction", { product: cve.product }),
           cveId: cve.cve_id,
           confidence: 1.0,
         });
@@ -65,51 +67,55 @@
   function translateThreat(threat: ProcessThreatLabel): string {
     switch (threat.indicator) {
       case "SuspiciousMemoryRead":
-        return `"${threat.process_name}" is trying to read memory from other apps. This is how attackers steal passwords.`;
+        return t("insights.threatHeadline.suspiciousMemoryRead", { process: threat.process_name });
       case "DllInjection":
-        return `"${threat.process_name}" uses a system tool that attackers often abuse to hide malicious code.`;
+        return t("insights.threatHeadline.dllInjection", { process: threat.process_name });
       case "RemoteThreadInjection":
-        return `"${threat.process_name}" can create remote connections. Attackers use this to control your computer from afar.`;
+        return t("insights.threatHeadline.remoteThreadInjection", { process: threat.process_name });
       case "UnsignedModuleLoad":
-        return `"${threat.process_name}" can run arbitrary scripts. Without restrictions, it could execute harmful commands.`;
+        return t("insights.threatHeadline.unsignedModuleLoad", { process: threat.process_name });
       case "ProcessHollowing":
-        return `"${threat.process_name}" may be replacing a legitimate app's code in memory with something malicious.`;
+        return t("insights.threatHeadline.processHollowing", { process: threat.process_name });
       default:
-        return `"${threat.process_name}" shows unusual behavior that could indicate a security threat.`;
+        return t("insights.threatHeadline.default", { process: threat.process_name });
     }
   }
 
   function explainThreat(threat: ProcessThreatLabel): string {
     const technique = threat.mitre_techniques[0];
-    if (!technique) return "Anomalous behavior detected by the security engine.";
-    return `Detected pattern: ${technique.name} (${technique.tactic}). This maps to MITRE ATT&CK technique ${technique.technique_id}.`;
+    if (!technique) return t("insights.threatExplanation.default");
+    return t("insights.threatExplanation.technique", {
+      name: technique.name,
+      tactic: technique.tactic,
+      techniqueId: technique.technique_id,
+    });
   }
 
   function suggestAction(threat: ProcessThreatLabel): string {
     switch (threat.indicator) {
       case "SuspiciousMemoryRead":
-        return "Terminate this process immediately and run a malware scan. Do not enter passwords until resolved.";
+        return t("insights.threatAction.suspiciousMemoryRead");
       case "DllInjection":
-        return "Verify this was launched intentionally. If not, terminate it and check for recently installed software.";
+        return t("insights.threatAction.dllInjection");
       case "RemoteThreadInjection":
-        return "Check your network connections. If you didn't start this, block it in your firewall and terminate.";
+        return t("insights.threatAction.remoteThreadInjection");
       case "UnsignedModuleLoad":
-        return "Review recent script executions. Enable script execution policies if on Windows.";
+        return t("insights.threatAction.unsignedModuleLoad");
       case "ProcessHollowing":
-        return "This process should be terminated immediately. Run a full system antivirus scan.";
+        return t("insights.threatAction.processHollowing");
       default:
-        return "Investigate this process and verify it's operating within expected parameters.";
+        return t("insights.threatAction.default");
     }
   }
 
   function translateCve(cve: CveMatch): string {
     if (cve.severity === "critical") {
-      return `Critical vulnerability found in ${cve.product}! Attackers could take full control of your system.`;
+      return t("insights.cveHeadline.critical", { product: cve.product });
     }
     if (cve.severity === "high") {
-      return `Serious vulnerability found in ${cve.product}. Your system may be exposed to attacks.`;
+      return t("insights.cveHeadline.high", { product: cve.product });
     }
-    return `A known vulnerability was found in ${cve.product}. Consider updating when possible.`;
+    return t("insights.cveHeadline.default", { product: cve.product });
   }
 
   function severityIcon(s: string): string {
@@ -122,22 +128,41 @@
   }
 
   function confidenceLabel(c: number): string {
-    if (c >= 0.9) return "Very High";
-    if (c >= 0.7) return "High";
-    if (c >= 0.5) return "Moderate";
-    return "Low";
+    if (c >= 0.9) return t("insights.confidenceLevels.veryHigh");
+    if (c >= 0.7) return t("insights.confidenceLevels.high");
+    if (c >= 0.5) return t("insights.confidenceLevels.moderate");
+    return t("insights.confidenceLevels.low");
+  }
+
+  function severityLabel(severity: InsightItem["severity"]): string {
+    switch (severity) {
+      case "critical":
+        return t("securityReport.severityCritical");
+      case "high":
+        return t("securityReport.severityHigh");
+      case "medium":
+        return t("securityReport.severityMedium");
+      case "low":
+        return t("securityReport.severityLow");
+      default:
+        return severity;
+    }
   }
 
   // --- Dynamic Alerts from Rust Rules Engine ---
   let ruleAlerts = $derived.by((): InsightItem[] => {
     return $dynamicAlerts.map((a) => {
-      let naturalExplanation = `Security rule "${a.rule_name}" fired. Connection to ${a.dst_ip}:${a.dst_port}${a.country_code ? ` (${a.country_code})` : ""}.`;
+      let naturalExplanation = t("insights.dynamicRuleExplanation.default", {
+        rule: a.rule_name,
+        destination: `${a.dst_ip}:${a.dst_port}`,
+        country: a.country_code ? ` (${a.country_code})` : "",
+      });
       if (a.rule_name.toLowerCase().includes("download") || a.dst_port === 443 || a.dst_port === 80) {
-        naturalExplanation = `Este proceso lleva mucho tiempo activo descargando datos o comunicándose por la red, parece estar actualizando o sincronizando archivos.`;
+        naturalExplanation = t("insights.dynamicRuleExplanation.download");
       } else if (a.rule_name.toLowerCase().includes("memory")) {
-        naturalExplanation = `Este proceso está consumiendo más memoria de lo normal, lo que puede volver lento el sistema.`;
+        naturalExplanation = t("insights.dynamicRuleExplanation.memory");
       } else if (a.country_code) {
-        naturalExplanation = `Este proceso intentó conectarse a un servidor en ${a.country_code}. Si no reconoces esta aplicación, podría ser sospechoso.`;
+        naturalExplanation = t("insights.dynamicRuleExplanation.country", { country: a.country_code });
       }
 
       return {
@@ -145,9 +170,9 @@
         pid: a.pid,
         processName: a.process_name,
         severity: "high" as const,
-        headline: a.message || `"${a.process_name}" triggered rule "${a.rule_name}"`,
+        headline: formatDynamicAlertMessage(a),
         explanation: naturalExplanation,
-        action: `Review network activity for PID ${a.pid}. Consider blocking this connection or disabling the process.`,
+        action: t("insights.dynamicRuleAction", { pid: a.pid }),
         techniqueId: a.mitre_technique_id ?? undefined,
         ruleId: a.rule_id,
         confidence: 0.95,
@@ -168,13 +193,13 @@
 </script>
 
 {#if allInsights.length > 0}
-  <div class="insight-section" role="region" aria-label="AI Security Insights">
+  <div class="insight-section" role="region" aria-label={t("insights.title")}>
     <div class="insight-header">
       <svg class="insight-icon" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
         <path d="M8 1a5 5 0 013.5 8.6V12a1 1 0 01-1 1h-5a1 1 0 01-1-1V9.6A5 5 0 018 1zm-1.5 13h3a.5.5 0 010 1h-3a.5.5 0 010-1z"/>
       </svg>
-      <span class="insight-title">AI Security Insights</span>
-      <span class="insight-count">{allInsights.length} finding{allInsights.length !== 1 ? "s" : ""}</span>
+      <span class="insight-title">{t("insights.title")}</span>
+      <span class="insight-count">{t(allInsights.length === 1 ? "insights.findingSingular" : "insights.findingPlural", { count: allInsights.length })}</span>
     </div>
 
     <div class="insight-cards">
@@ -184,7 +209,7 @@
         <div
           class="insight-card severity-{insight.severity}"
           role="article"
-          aria-label="{insight.severity} security insight for {insight.processName}"
+          aria-label={t("insights.cardAria", { severity: insight.severity, process: insight.processName })}
           in:fly={{ y: -20, duration: 250 }}
           out:fade={{ duration: 150 }}
         >
@@ -201,7 +226,7 @@
               <div class="detail-row">
                 <span class="detail-icon">&#128269;</span>
                 <div class="detail-content">
-                  <span class="detail-label">What was detected</span>
+                  <span class="detail-label">{t("insights.detected")}</span>
                   <div class="detail-text prose">{@html renderMarkdown(insight.explanation)}</div>
                 </div>
               </div>
@@ -209,20 +234,20 @@
               <div class="detail-row">
                 <span class="detail-icon">&#128736;</span>
                 <div class="detail-content">
-                  <span class="detail-label">Recommended action</span>
+                  <span class="detail-label">{t("insights.recommendedAction")}</span>
                   <div class="detail-text action-text prose">{@html renderMarkdown(insight.action)}</div>
                 </div>
               </div>
 
               <div class="insight-meta">
                 <span class="meta-chip">
-                  {insight.kind === "threat" ? "MITRE" : insight.kind === "cve" ? "CVE" : "RULE"}:
+                  {insight.kind === "threat" ? "MITRE" : insight.kind === "cve" ? "CVE" : t("insights.ruleLabel")}:
                   {insight.techniqueId ?? insight.cveId ?? insight.ruleId}
                 </span>
                 <span class="meta-chip">PID {insight.pid}</span>
-                <span class="meta-chip">Confidence: {confidenceLabel(insight.confidence)}</span>
+                <span class="meta-chip">{t("insights.confidence")}: {confidenceLabel(insight.confidence)}</span>
                 <span class="meta-chip severity-chip" style="color: {severityColor(insight.severity)}; border-color: {severityColor(insight.severity)}">
-                  {insight.severity.toUpperCase()}
+                  {severityLabel(insight.severity)}
                 </span>
               </div>
             </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "../lib/i18n";
   import { securityMap, severityColor } from "../stores/security";
 
   interface Props {
@@ -43,7 +44,7 @@
     <span
       class="sec-badge threat"
       title={threatTooltip}
-      aria-label="{threatCount} MITRE threat{threatCount > 1 ? 's' : ''} detected"
+      aria-label={t(threatCount > 1 ? "securityBadge.mitrePlural" : "securityBadge.mitreSingular", { count: threatCount })}
     >
       <svg class="sec-icon" viewBox="0 0 16 16" width="10" height="10" fill="currentColor">
         <path d="M8 1L1 14h14L8 1zm0 4v4m0 2v.01"/>
@@ -56,7 +57,7 @@
       class="sec-badge cve"
       style="color: {severityColor(topSeverity)}; background: color-mix(in srgb, {severityColor(topSeverity)} 28%, var(--bg))"
       title={cveTooltip}
-      aria-label="{cveCount} CVE{cveCount > 1 ? 's' : ''} detected"
+      aria-label={t(cveCount > 1 ? "securityBadge.cvePlural" : "securityBadge.cveSingular", { count: cveCount })}
     >
       <svg class="sec-icon" viewBox="0 0 16 16" width="10" height="10" fill="currentColor">
         <path d="M8 0a8 8 0 100 16A8 8 0 008 0zm0 3v6m0 2v1"/>

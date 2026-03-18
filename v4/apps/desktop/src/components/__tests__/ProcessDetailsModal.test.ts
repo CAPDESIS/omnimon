@@ -69,7 +69,7 @@ describe("rendering", () => {
     expect(screen.getByText("12.3%")).toBeInTheDocument();
     expect(screen.getByText("3h 15m")).toBeInTheDocument();
     expect(screen.getByText("Utilities")).toBeInTheDocument();
-    expect(screen.getByText("R")).toBeInTheDocument();
+    expect(screen.getByText("Running")).toBeInTheDocument();
     expect(screen.getByText("No")).toBeInTheDocument(); // is_system
   });
 

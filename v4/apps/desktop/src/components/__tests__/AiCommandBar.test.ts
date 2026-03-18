@@ -250,9 +250,9 @@ describe("AiCommandBar", () => {
 
   it("fills the input when clicking a preset", async () => {
     render(AiCommandBar);
-    await fireEvent.click(screen.getByRole("button", { name: /Rendimiento general/i }));
+    await fireEvent.click(screen.getByRole("button", { name: /General performance/i }));
     const input = screen.getByPlaceholderText(/Alert me if Chrome/i) as HTMLTextAreaElement;
-    expect(input.value).toMatch(/Analiza el rendimiento general del sistema/i);
+    expect(input.value).toMatch(/Analyze the overall system performance/i);
   });
 
   it("aplica reglas AI al confirmar el preview", async () => {

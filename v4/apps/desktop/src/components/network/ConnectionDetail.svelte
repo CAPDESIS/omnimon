@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { NetworkConnection } from "../../lib/types";
   import { fade } from "svelte/transition";
+  import { t } from "../../lib/i18n";
   import Button from "../Button.svelte";
   import IconButton from "../IconButton.svelte";
 
@@ -28,39 +29,39 @@
 <div class="connection-detail" transition:fade={{ duration: 150 }}>
   <div class="detail-header">
     <h3>{nodeId}</h3>
-    <IconButton onclick={onClose} ariaLabel="Close" title="Close">×</IconButton>
+    <IconButton onclick={onClose} ariaLabel={t("common.close")} title={t("common.close")}>×</IconButton>
   </div>
   
   <div class="detail-body">
     <div class="info-row">
-      <span class="label">Procesos:</span>
+      <span class="label">{t("networkDetail.processes")}</span>
       <span class="value">{processes}</span>
     </div>
     <div class="info-row">
-      <span class="label">Protocolos:</span>
+      <span class="label">{t("networkDetail.protocols")}</span>
       <span class="value">{protocols}</span>
     </div>
     <div class="info-row">
-      <span class="label">Puertos:</span>
+      <span class="label">{t("networkDetail.ports")}</span>
       <span class="value">{ports}</span>
     </div>
     <div class="info-row">
-      <span class="label">Tráfico total:</span>
+      <span class="label">{t("networkDetail.totalTraffic")}</span>
       <span class="value">{formatBytes(totalBytes)}</span>
     </div>
     <div class="info-row">
-      <span class="label">GeoIP / Región:</span>
-      <span class="value">Desconocido (N/A)</span>
+      <span class="label">{t("networkDetail.geoRegion")}</span>
+      <span class="value">{t("networkDetail.unknownRegion")}</span>
     </div>
     <div class="info-row">
-      <span class="label">Duración:</span>
-      <span class="value">Activa</span>
+      <span class="label">{t("networkDetail.duration")}</span>
+      <span class="value">{t("networkDetail.active")}</span>
     </div>
   </div>
 
   <div class="detail-actions">
-    <Button variant="primary" size="sm" onclick={() => onAskAi(nodeId)}>¿Qué es esto?</Button>
-    <Button variant="danger" size="sm" onclick={() => alert("Función de bloqueo (placeholder)")}>Bloquear</Button>
+    <Button variant="primary" size="sm" onclick={() => onAskAi(nodeId)}>{t("networkDetail.titleAskAi")}</Button>
+    <Button variant="danger" size="sm" onclick={() => alert(t("networkDetail.blockPlaceholder"))}>{t("networkDetail.block")}</Button>
   </div>
 </div>
 

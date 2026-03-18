@@ -59,10 +59,10 @@ describe("NetworkDashboard", () => {
   it("renders summary metrics and initializes listener", () => {
     render(NetworkDashboard);
 
-    expect(screen.getByText("Total Upload")).toBeInTheDocument();
+    expect(screen.getByText("Total upload")).toBeInTheDocument();
     expect(screen.getByText("2.0 KB/s ↑")).toBeInTheDocument();
     expect(screen.getByText("4.0 KB/s ↓")).toBeInTheDocument();
-    expect(screen.getByText("Conexiones activas")).toBeInTheDocument();
+    expect(screen.getByText("Active connections")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(mockInitNetworkListener).toHaveBeenCalled();
     expect(screen.getByPlaceholderText("Filter by process...")).toBeInTheDocument();
@@ -71,9 +71,9 @@ describe("NetworkDashboard", () => {
   it("switches to process tab", async () => {
     render(NetworkDashboard);
 
-    await fireEvent.click(screen.getByText("Vista por Proceso"));
+    await fireEvent.click(screen.getByText("Process view"));
 
-    expect(screen.getByText("Uso de red por proceso")).toBeInTheDocument();
+    expect(screen.getByText("Network usage by process")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Filter by process...")).not.toBeInTheDocument();
   });
 });

@@ -26,9 +26,9 @@ describe("CloudSync", () => {
     const input = await screen.findByLabelText("API Key:");
     expect(input).toHaveValue("saved-key");
 
-    await fireEvent.click(screen.getByText("Sync Now"));
+    await fireEvent.click(screen.getByText("Sync now"));
 
-    expect(screen.getByText("Sync not implemented yet.")).toBeInTheDocument();
+    expect(screen.getByText("Sync is not implemented yet.")).toBeInTheDocument();
   });
 
   it("maneja estado offline", async () => {
@@ -39,7 +39,7 @@ describe("CloudSync", () => {
     await waitFor(() => {
       const input = screen.getByLabelText("API Key:");
       expect(input).toHaveValue("");
-      expect(screen.getByText("Save Key")).toBeDisabled();
+      expect(screen.getByText("Save key")).toBeDisabled();
     });
   });
 });

@@ -1,12 +1,13 @@
 <script lang="ts">
+  import { t } from "../lib/i18n";
   import { theme } from "../stores/preferences";
   import { themes, type ThemeId } from "../lib/theme";
 
   const THEME_OPTIONS: { id: ThemeId; name: string; accent: string; bg: string; border: string }[] = [
-    { id: "dark", name: "Dark", accent: "#3b82f6", bg: "#0a0a0b", border: "#27272a" },
-    { id: "light", name: "Light", accent: "#2563eb", bg: "#fafafa", border: "#e4e4e7" },
-    { id: "cyberpunk", name: "Cyberpunk", accent: "#c026d3", bg: "#0b0014", border: "#2d1b4e" },
-    { id: "auto", name: "Auto", accent: "#a855f7", bg: "linear-gradient(135deg, #0a0a0b 50%, #fafafa 50%)", border: "#71717a" },
+    { id: "dark", name: "themeSelector.dark", accent: "#3b82f6", bg: "#0a0a0b", border: "#27272a" },
+    { id: "light", name: "themeSelector.light", accent: "#2563eb", bg: "#fafafa", border: "#e4e4e7" },
+    { id: "cyberpunk", name: "themeSelector.cyberpunk", accent: "#c026d3", bg: "#0b0014", border: "#2d1b4e" },
+    { id: "auto", name: "themeSelector.auto", accent: "#a855f7", bg: "linear-gradient(135deg, #0a0a0b 50%, #fafafa 50%)", border: "#71717a" },
   ];
 
   let showDropdown = $state(false);
@@ -17,7 +18,8 @@
   }
 
   function currentName(): string {
-    return THEME_OPTIONS.find((t) => t.id === $theme)?.name ?? "Dark";
+    const key = THEME_OPTIONS.find((t) => t.id === $theme)?.name ?? "themeSelector.dark";
+    return t(key);
   }
 
   function toggleDropdown() {
@@ -32,7 +34,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="theme-selector">
-  <button class="selector-btn" onclick={toggleDropdown} aria-label="Select Theme">
+  <button class="selector-btn" onclick={toggleDropdown} aria-label={t("themeSelector.selectTheme")}>
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
@@ -49,12 +51,12 @@
 
   {#if showDropdown}
     <div class="dropdown">
-      {#each THEME_OPTIONS as t}
-        <button class="dropdown-item" class:active={$theme === t.id} onclick={() => selectTheme(t.id)}>
-          <span class="color-preview" style="background: {t.bg}; border-color: {t.border};">
-            <span class="color-dot" style="background: {t.accent};"></span>
+      {#each THEME_OPTIONS as option}
+        <button class="dropdown-item" class:active={$theme === option.id} onclick={() => selectTheme(option.id)}>
+          <span class="color-preview" style="background: {option.bg}; border-color: {option.border};">
+            <span class="color-dot" style="background: {option.accent};"></span>
           </span>
-          {t.name}
+          {t(option.name)}
         </button>
       {/each}
     </div>

@@ -6,6 +6,7 @@
   import { toggleSelect, selectedPids, focusedPid, browserTabs } from "../stores/processes";
   import { fontSize, moveColumnToIndex, favoriteProcesses } from "../stores/preferences";
   import { t } from "../lib/i18n";
+  import { formatProcessState, formatProcessUptime } from "../lib/localizedUi";
   import { detectBrowser } from "../lib/browser";
   import SecurityBadge from "./SecurityBadge.svelte";
   import EmptyState from "./EmptyState.svelte";
@@ -200,7 +201,7 @@
   function getGroupIdentity(proc: ProcessEntry): { key: string; label: string } {
     const browser = detectBrowser(proc);
     const baseName = getBaseName(proc.name);
-    const label = (proc.grouped_name || browser || baseName || proc.exec_name || proc.group || "Unknown").trim();
+    const label = (proc.grouped_name || browser || baseName || proc.exec_name || proc.group || t("networkConnections.unknownProcess")).trim();
     const key = (proc.group_key || (browser || baseName).toLowerCase()).trim();
     return { key, label };
   }
@@ -419,8 +420,8 @@
     </td>
   {:else if key === "group"}
     {@const group = getGroup(proc)}
-    <td class="col-group" title={group}>
-      <span class="group-text">{group}</span>
+    <td class="col-group" title={group || "—"}>
+      <span class="group-text">{group || "—"}</span>
     </td>
   {:else if key === "ram"}
     <td class="col-ram mono" style="color: {ramColor(proc.ram_mb)}">{proc.ram_mb.toFixed(1)}</td>
@@ -431,11 +432,11 @@
   {:else if key === "network"}
     <td class="col-network mono" title={formatNetworkRate(networkMetric(proc))}>{formatNetworkRate(networkMetric(proc))}</td>
   {:else if key === "uptime"}
-    <td class="col-uptime mono">{proc.uptime || "\u2014"}</td>
+    <td class="col-uptime mono">{formatProcessUptime(proc.uptime)}</td>
   {:else if key === "pid"}
     <td class="col-pid mono">{proc.pid}</td>
   {:else if key === "state"}
-    <td class="col-state mono">{proc.state}</td>
+    <td class="col-state mono">{formatProcessState(proc.state)}</td>
   {/if}
 {/snippet}
 

@@ -79,7 +79,7 @@ describe("SystemDashboard", () => {
     render(SystemDashboard);
     expect(screen.getByText("CPU")).toBeInTheDocument();
     expect(screen.getByText("RAM")).toBeInTheDocument();
-    expect(screen.getByText("Network")).toBeInTheDocument();
+    expect(screen.getByText("Net")).toBeInTheDocument();
   });
 
   it("shows total CPU percentage", () => {
@@ -97,7 +97,7 @@ describe("SystemDashboard", () => {
     mockProcesses.set([makeProc()]);
     render(SystemDashboard);
     expect(screen.getByText("65%")).toBeInTheDocument();
-    expect(screen.getByText("/ 32GB")).toBeInTheDocument();
+    expect(screen.getByText("/ 32 GB")).toBeInTheDocument();
   });
 
   it("formats network rates as MB/s", () => {

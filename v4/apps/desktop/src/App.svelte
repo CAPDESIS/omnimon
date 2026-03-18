@@ -849,7 +849,7 @@
             }}
           >
             {#each AI_PROVIDERS as p}
-              <option value={p.id}>{p.label}</option>
+              <option value={p.id}>{t(p.label)}</option>
             {/each}
           </select>
         </div>
@@ -872,7 +872,7 @@
             id="api-key-input"
             class="settings-input"
             type="password"
-            placeholder={t("settings.apiKeyPlaceholder", { provider: AI_PROVIDERS.find((p) => p.id === $aiProviderConfig.provider)?.label ?? '' })}
+            placeholder={t("settings.apiKeyPlaceholder", { provider: t(AI_PROVIDERS.find((p) => p.id === $aiProviderConfig.provider)?.label ?? "") })}
             bind:value={apiKeyInput}
           />
         </div>
@@ -921,13 +921,13 @@
         <div class="settings-divider"></div>
         <div class="settings-section-label">{t("settings.appearance")}</div>
         <div class="settings-row">
-          <label class="settings-label" for="layout-mode-select">Layout Mode</label>
+          <label class="settings-label" for="layout-mode-select">{t("settings.layoutMode")}</label>
           <div class="settings-field-stack">
-            <select id="layout-mode-select" class="settings-select" value={$layoutModeStore} onchange={(e) => { $layoutModeStore = (e.target as HTMLSelectElement).value as "tabs" | "split"; }}>
-              <option value="tabs">Tabs</option>
-              <option value="split">Split</option>
+            <select id="layout-mode-select" class="settings-select" value={$layoutModeStore} onchange={(e: Event) => { $layoutModeStore = (e.target as HTMLSelectElement).value as "tabs" | "split"; }}>
+              <option value="tabs">{t("settings.layoutTabs")}</option>
+              <option value="split">{t("settings.layoutSplit")}</option>
             </select>
-            <span class="settings-hint">Choose between single panel or split view.</span>
+            <span class="settings-hint">{t("settings.layoutModeHelp")}</span>
           </div>
         </div>
         <div class="settings-row">
@@ -985,7 +985,7 @@
           <span class="settings-hint">{t("settings.idleHint")}</span>
         </div>
         <div class="settings-row">
-          <label class="settings-label" for="poll-interval">Poll interval</label>
+          <label class="settings-label" for="poll-interval">{t("settings.pollInterval")}</label>
           <input
             id="poll-interval"
             class="settings-input"
@@ -1003,7 +1003,7 @@
           />
         </div>
         <div class="settings-row">
-          <label class="settings-label" for="automation-interval">Automation interval</label>
+          <label class="settings-label" for="automation-interval">{t("settings.automationInterval")}</label>
           <input
             id="automation-interval"
             class="settings-input"
@@ -1021,7 +1021,7 @@
           />
         </div>
         <div class="settings-row">
-          <label class="settings-label" for="ai-cache-ttl">AI cache TTL (minutes)</label>
+          <label class="settings-label" for="ai-cache-ttl">{t("settings.aiCacheTtl")}</label>
           <input
             id="ai-cache-ttl"
             class="settings-input"
@@ -1037,11 +1037,11 @@
               }
             }}
           />
-          <span class="settings-hint">0 disables cache, 60 is the max.</span>
+          <span class="settings-hint">{t("settings.aiCacheTtlHelp")}</span>
         </div>
         <div class="settings-row">
-          <label class="settings-label" for="clear-ai-cache">AI cache</label>
-          <Button id="clear-ai-cache" variant="ghost" onclick={handleClearAiCache}>Clear cache</Button>
+          <label class="settings-label" for="clear-ai-cache">{t("settings.aiCache")}</label>
+          <Button id="clear-ai-cache" variant="ghost" onclick={handleClearAiCache}>{t("settings.clearCache")}</Button>
         </div>
         <div class="settings-row">
           <label class="settings-label" for="autostart-toggle">{t("settings.autostart")}</label>
@@ -1116,7 +1116,7 @@
 {#if activeMetricModal}
   {#if systemMetricModalPromise}
     {#await systemMetricModalPromise then SystemMetricModalModule}
-      <SystemMetricModalModule.default metric={activeMetricModal} mode={$userMode} onclose={() => activeMetricModal = null} oninspect={(proc) => { activeMetricModal = null; inspectProcess(proc); }} />
+      <SystemMetricModalModule.default metric={activeMetricModal} mode={$userMode} onclose={() => activeMetricModal = null} oninspect={(proc: ProcessEntry) => { activeMetricModal = null; inspectProcess(proc); }} />
     {/await}
   {/if}
 {/if}

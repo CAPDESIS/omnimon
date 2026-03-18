@@ -14,6 +14,7 @@
   import { slide, fade } from "svelte/transition";
 
   import { t } from "../lib/i18n";
+  import { formatLocalizedLabel, formatNetworkAlertMessage } from "../lib/localizedUi";
   import Button from "./Button.svelte";
   import IconButton from "./IconButton.svelte";
 
@@ -138,8 +139,8 @@
             <div class="network-alert-copy">
               <span class={`network-alert-severity network-alert-severity-${alert.severity}`}>{severityLabel(alert.severity)}</span>
               <span class="fired-time">{formatTime(alert.triggered_at_unix_ms)}</span>
-              <strong>{alert.rule_name}</strong>
-              <span>{alert.process_name ?? alert.destination ?? alert.message}</span>
+              <strong>{formatLocalizedLabel(alert.rule_name)}</strong>
+              <span>{alert.process_name ?? alert.destination ?? formatNetworkAlertMessage(alert)}</span>
               {#if alert.destination}
                 <span class="rule-text">{alert.destination}</span>
               {/if}

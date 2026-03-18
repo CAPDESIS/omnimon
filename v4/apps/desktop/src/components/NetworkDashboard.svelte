@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t } from "../lib/i18n";
   import {
     getNetworkState,
     getTotalUp,
@@ -34,25 +35,25 @@
 <div class="network-dashboard">
   <div class="header">
     <div class="metric">
-      <h3>Total Upload</h3>
+      <h3>{t("networkDashboard.totalUpload")}</h3>
       <p class="up">{formatSpeed(getTotalUp())} ↑</p>
     </div>
     <div class="metric">
-      <h3>Total Download</h3>
+      <h3>{t("networkDashboard.totalDownload")}</h3>
       <p class="down">{formatSpeed(getTotalDown())} ↓</p>
     </div>
     <div class="metric">
-      <h3>Conexiones activas</h3>
+      <h3>{t("networkDashboard.activeConnections")}</h3>
       <p>{networkState.snapshot?.active_connections ?? 0}</p>
     </div>
     <div class="metric">
-      <h3>Procesos con red</h3>
+      <h3>{t("networkDashboard.processesWithNetwork")}</h3>
       <p>{networkState.snapshot?.processes_with_network ?? 0}</p>
     </div>
   </div>
 
   <div class="history-graph">
-    <p class="placeholder-text">Gráfica histórica de red (últimos 5 min)</p>
+    <p class="placeholder-text">{t("networkDashboard.historyPlaceholder")}</p>
     <!-- TODO: Implement chart with state.history -->
   </div>
 
@@ -61,13 +62,13 @@
       class:active={activeTab === "connections"}
       onclick={() => activeTab = "connections"}
     >
-      Tabla de Conexiones
+      {t("networkDashboard.connectionsTable")}
     </button>
     <button
       class:active={activeTab === "processes"}
       onclick={() => activeTab = "processes"}
     >
-      Vista por Proceso
+      {t("networkDashboard.processView")}
     </button>
   </div>
 

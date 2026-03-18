@@ -16,6 +16,12 @@
     return t(`toolbar.${id === "battery" ? "batteryDesc" : `${id}Desc`}`);
   }
 
+  function presetLabelFor(id: string): string {
+    const preset = $profilePresets.find((entry) => entry.id === id);
+    if (preset) return t(preset.label);
+    return t(`toolbar.${id === "battery" ? "batterySaver" : id}`);
+  }
+
   const userModes = [
     { id: "basic", accent: "var(--yellow)" },
     { id: "pro", accent: "var(--accent)" },
@@ -50,11 +56,11 @@
     {/each}
   </div>
 
-  <div class="workspace-mode" role="group" aria-label="Shared profile presets">
+  <div class="workspace-mode" role="group" aria-label={t("profilePanel.sharedPresetsAria")}>
     <div class="workspace-copy">
-      <div class="profile-eyebrow">Shared presets</div>
-      <div class="workspace-title">{$activeProfilePreset}</div>
-      <div class="profile-footnote">Thresholds and intervals stay aligned across UI and CLI.</div>
+      <div class="profile-eyebrow">{t("profilePanel.sharedPresets")}</div>
+      <div class="workspace-title">{presetLabelFor($activeProfilePreset)}</div>
+      <div class="profile-footnote">{t("profilePanel.sharedPresetsHelp")}</div>
     </div>
     <select
       class="preset-select"
@@ -64,10 +70,10 @@
         applyProfilePresetById(value);
         aiProfile.set(value);
       }}
-      aria-label="Shared profile presets"
+      aria-label={t("profilePanel.sharedPresetsAria")}
     >
       {#each $profilePresets as preset}
-        <option value={preset.id}>{preset.label}</option>
+        <option value={preset.id}>{t(preset.label)}</option>
       {/each}
     </select>
   </div>

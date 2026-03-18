@@ -12,6 +12,7 @@
   import type { NetworkConnection } from "../lib/types";
   import type { Time } from "lightweight-charts";
   import { t } from "../lib/i18n";
+  import { formatCaptureBackendLabel, formatConnectionState, formatDirectionLabel } from "../lib/localizedUi";
   import {
     NETWORK_PANEL_DEFAULT_HEIGHT,
     NETWORK_SIDE_PANEL_DEFAULT_WIDTH,
@@ -638,7 +639,7 @@
   }
 
   function askAiAboutHost(host: string) {
-    const proc = selectedConnections[0]?.process_name || "Desconocido";
+    const proc = selectedConnections[0]?.process_name || t("networkConnections.unknownProcess");
     const port = selectedConnections[0]?.remote_port || 0;
     const ip = selectedConnections[0]?.remote_addr || host;
     const question = `El proceso ${proc} tiene una conexión a ${ip}:${port} (${host}). ¿Qué es este servicio? ¿Es seguro? ¿Debería estar ahí?`;
@@ -758,7 +759,7 @@
                 {#if totalConnections === 0}
                   <div class="empty-state">{t("network.waiting")}</div>
                 {:else}
-                  <table class="conn-table" aria-label="Active connections">
+                  <table class="conn-table" aria-label={t("network.connections")}>
                   <thead>
                     <tr>
                       <th class="sortable" scope="col"><button type="button" class="sort-button" onclick={() => setTableSort("process")} aria-label={sortHeaderLabel("process")}>{t("network.process")}<span aria-hidden="true">{sortArrow("process")}</span></button></th>
@@ -776,10 +777,10 @@
                         <td class="col-process">{conn.process_name}</td>
                         <td class="col-addr mono">{conn.remote_addr}</td>
                         <td class="col-port mono">{conn.remote_port}</td>
-                        <td class="col-direction mono">{conn.direction}</td>
+                        <td class="col-direction mono">{formatDirectionLabel(conn.direction)}</td>
                         <td class="col-proto mono">{conn.protocol.toUpperCase()}</td>
                         <td class="col-bytes mono">{formatRate(totalConnBytes(conn))}</td>
-                        <td class="col-state mono">{conn.state}</td>
+                        <td class="col-state mono">{formatConnectionState(conn.state)}</td>
                       </tr>
                     {/each}
                   </tbody>
@@ -840,7 +841,7 @@
           {#if proMode}
             <div class="tab-side">
               <div class="side-chips">
-                <div class="capture-chip">{t("network.captureBackend", { backend: $networkTelemetryStatus.captureBackend })}</div>
+                <div class="capture-chip">{t("network.captureBackend", { backend: formatCaptureBackendLabel($networkTelemetryStatus.captureBackend) })}</div>
                 <div class="capture-chip">RX {$networkTelemetryStatus.totalRxBytesPerSec > 0 ? formatRate($networkTelemetryStatus.totalRxBytesPerSec) : "0 B/s"}</div>
                 <div class="capture-chip">TX {$networkTelemetryStatus.totalTxBytesPerSec > 0 ? formatRate($networkTelemetryStatus.totalTxBytesPerSec) : "0 B/s"}</div>
               </div>

@@ -49,7 +49,7 @@
   <div class="dashboard">
     <button class="metric-card metric-button" onclick={() => handleOpenMetric("cpu")}>
       <div class="metric-header">
-        <span class="metric-label">CPU</span>
+        <span class="metric-label">{t("status.cpu")}</span>
         <span class="metric-value" style="color: {colorForPct(cpuPct)}">{cpuPct.toFixed(1)}%</span>
       </div>
       {#if showSparklines}
@@ -63,9 +63,9 @@
 
     <button class="metric-card metric-button" onclick={() => handleOpenMetric("ram")}>
       <div class="metric-header">
-        <span class="metric-label">RAM</span>
+        <span class="metric-label">{t("status.ram")}</span>
         <span class="metric-value" style="color: {colorForPct($stats.ram_used_pct)}">
-          {$stats.ram_used_pct}% <span class="metric-sub">/ {$stats.ram_total_gb.toFixed(0)}GB</span>
+          {$stats.ram_used_pct}% <span class="metric-sub">/ {$stats.ram_total_gb.toFixed(0)} GB</span>
         </span>
       </div>
       {#if showSparklines}
@@ -80,7 +80,7 @@
     {#if proMode}
       <button class="metric-card metric-button" onclick={() => handleOpenMetric("network")}>
         <div class="metric-header">
-          <span class="metric-label">Network</span>
+          <span class="metric-label">{t("status.net")}</span>
           <span class="metric-value net-values">
             <span class="net-rx">{formatRate($stats.net_rx_bytes_per_sec)}</span>
             <span class="net-tx">{formatRate($stats.net_tx_bytes_per_sec)}</span>

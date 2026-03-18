@@ -1,11 +1,36 @@
 <script lang="ts">
   import { t } from "../lib/i18n";
+  import { formatConnectionState, formatProtocolLabel } from "../lib/localizedUi";
   import {
     getNetworkState,
     getFilteredConnections,
   } from "../stores/network.svelte";
 
   const networkState = getNetworkState();
+
+  function updateProtocolFilter(event: Event) {
+    networkState.filter.protocol = (event.currentTarget as HTMLSelectElement).value;
+  }
+
+  function updateProcessFilter(event: Event) {
+    networkState.filter.process = (event.currentTarget as HTMLInputElement).value;
+  }
+
+  function updateHostFilter(event: Event) {
+    networkState.filter.host = (event.currentTarget as HTMLInputElement).value;
+  }
+
+  function updateHideLocalhost(event: Event) {
+    networkState.filter.hideLocalhost = (event.currentTarget as HTMLInputElement).checked;
+  }
+
+  function updateOnlyEstablished(event: Event) {
+    networkState.filter.onlyEstablished = (event.currentTarget as HTMLInputElement).checked;
+  }
+
+  function updateMinSpeed(event: Event) {
+    networkState.filter.minSpeed = Number((event.currentTarget as HTMLInputElement).value) || 0;
+  }
 
   let sortColumn = $state("bytes_up");
   let sortDirection = $state(-1);
@@ -51,26 +76,26 @@
 
 <div class="connections-table-container">
   <div class="network-filters">
-    <select bind:value={networkState.filter.protocol} aria-label={t("networkConnections.protocolFilter")}>
+    <select value={networkState.filter.protocol} onchange={updateProtocolFilter} aria-label={t("networkConnections.protocolFilter")}>
       <option value="">{t("networkConnections.allProtocols")}</option>
-      <option value="TCP">TCP</option>
-      <option value="UDP">UDP</option>
+      <option value="TCP">{formatProtocolLabel("TCP")}</option>
+      <option value="UDP">{formatProtocolLabel("UDP")}</option>
     </select>
 
-    <input type="text" placeholder={t("networkConnections.filterByProcess")} bind:value={networkState.filter.process} />
-    <input type="text" placeholder={t("networkConnections.filterByHost")} bind:value={networkState.filter.host} />
+    <input type="text" placeholder={t("networkConnections.filterByProcess")} value={networkState.filter.process} oninput={updateProcessFilter} />
+    <input type="text" placeholder={t("networkConnections.filterByHost")} value={networkState.filter.host} oninput={updateHostFilter} />
 
     <label>
-      <input type="checkbox" bind:checked={networkState.filter.hideLocalhost} />
+      <input type="checkbox" checked={networkState.filter.hideLocalhost} onchange={updateHideLocalhost} />
       {t("networkConnections.hideLocalhost")}
     </label>
 
     <label>
-      <input type="checkbox" bind:checked={networkState.filter.onlyEstablished} />
+      <input type="checkbox" checked={networkState.filter.onlyEstablished} onchange={updateOnlyEstablished} />
       {t("networkConnections.onlyEstablished")}
     </label>
 
-    <input type="number" placeholder={t("networkConnections.minSpeed")} bind:value={networkState.filter.minSpeed} />
+    <input type="number" placeholder={t("networkConnections.minSpeed")} value={networkState.filter.minSpeed} oninput={updateMinSpeed} />
   </div>
 
   <table class="connections-table">
@@ -90,13 +115,13 @@
       {#each sortedConnections as conn}
         <tr onclick={() => expandedRow = expandedRow === conn.process_id ? null : conn.process_id}>
           <td>{conn.process_name || t("networkConnections.unknownProcess")} ({conn.process_id})</td>
-          <td>{conn.protocol}</td>
+          <td>{formatProtocolLabel(conn.protocol)}</td>
           <td>{conn.local_address}:{conn.local_port}</td>
           <td>{conn.remote_address}:{conn.remote_port}</td>
           <td>{conn.remote_hostname}</td>
           <td class={getSpeedColor(conn.bytes_per_sec_up)}>{formatSpeed(conn.bytes_per_sec_up)}</td>
           <td class={getSpeedColor(conn.bytes_per_sec_down)}>{formatSpeed(conn.bytes_per_sec_down)}</td>
-          <td>{conn.state}</td>
+          <td>{formatConnectionState(conn.state)}</td>
         </tr>
         {#if expandedRow === conn.process_id}
           <tr class="expanded-row">
