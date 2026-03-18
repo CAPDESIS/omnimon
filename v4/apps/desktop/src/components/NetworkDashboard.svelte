@@ -25,11 +25,7 @@
     };
   });
 
-  function formatSpeed(bytesPerSec: number) {
-    if (bytesPerSec < 1024) return `${bytesPerSec.toFixed(0)} B/s`;
-    if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
-    return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
-  }
+  import { formatNetworkRate as formatSpeed } from "../lib/formatting";
 </script>
 
 <div class="network-dashboard">

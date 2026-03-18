@@ -887,8 +887,11 @@ pub fn run() {
                 comments: Some(tr(locale, "about.comments").into()),
                 ..Default::default()
             };
-            let about_item =
-                PredefinedMenuItem::about(app, Some(tr(locale, "about.title")), Some(about_metadata))?;
+            let about_item = PredefinedMenuItem::about(
+                app,
+                Some(tr(locale, "about.title")),
+                Some(about_metadata),
+            )?;
             let hide = PredefinedMenuItem::hide(app, None)?;
             let hide_others = PredefinedMenuItem::hide_others(app, None)?;
             let show_all = PredefinedMenuItem::show_all(app, None)?;
@@ -987,8 +990,20 @@ pub fn run() {
             } // end ALERT_THREAD_STARTED guard
 
             // --- System Tray Menu ---
-            let show = MenuItem::with_id(app, "show", tr(locale, "tray.dashboard"), true, None::<&str>)?;
-            let settings = MenuItem::with_id(app, "settings", tr(locale, "tray.settings"), true, None::<&str>)?;
+            let show = MenuItem::with_id(
+                app,
+                "show",
+                tr(locale, "tray.dashboard"),
+                true,
+                None::<&str>,
+            )?;
+            let settings = MenuItem::with_id(
+                app,
+                "settings",
+                tr(locale, "tray.settings"),
+                true,
+                None::<&str>,
+            )?;
             let sep = PredefinedMenuItem::separator(app)?;
             let quit = MenuItem::with_id(app, "quit", tr(locale, "tray.quit"), true, None::<&str>)?;
 

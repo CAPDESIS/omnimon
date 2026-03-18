@@ -21,11 +21,8 @@
 
   let cpuPct = $derived($stats?.cpu_usage_pct ?? 0);
 
-  function formatRate(bytesPerSec: number): string {
-    if (bytesPerSec < 1024) return `${bytesPerSec} B/s`;
-    if (bytesPerSec < 1_048_576) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
-    return `${(bytesPerSec / 1_048_576).toFixed(1)} MB/s`;
-  }
+  import { formatNetworkRate } from "../lib/formatting";
+  const formatRate = formatNetworkRate;
 
   function colorVarForPct(pct: number): string {
     if (pct >= 80) return "--danger";

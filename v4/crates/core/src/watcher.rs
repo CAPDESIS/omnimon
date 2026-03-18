@@ -325,7 +325,8 @@ pub fn start_watcher() {
                     snapshot.net_tx_bytes_per_sec = network_snapshot.net_tx_bytes_per_sec;
                     snapshot.net_capture_backend = network_snapshot.backend_label.clone();
                     snapshot.net_dpi_active = network_snapshot.deep_packet_inspection_active;
-                    let process_throughput = network_snapshot.process_throughput.clone();
+                    let process_throughput =
+                        std::mem::take(&mut network_snapshot.process_throughput);
 
                     // Reuse the throughput map: clear retains capacity.
                     buffers.throughput_map.clear();
@@ -369,10 +370,10 @@ pub fn start_watcher() {
                             // Enqueue DNS resolution for new connections
                             crate::network_analysis::enqueue_dns_resolution(&net_snap.connections);
 
-                            snapshot.network_snapshot = Some(net_snap.clone());
                             if let Ok(mut history) = net_history.write() {
                                 history.push(net_snap.clone());
                             }
+                            snapshot.network_snapshot = Some(net_snap.clone());
                             prev_net_snapshot = Some(net_snap);
                         }
                     } else {

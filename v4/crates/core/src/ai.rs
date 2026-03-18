@@ -961,7 +961,11 @@ fn execute_get_process_details(
         };
     }
 
-    tool_result("get_process_details", false, "tool_process_details_not_found")
+    tool_result(
+        "get_process_details",
+        false,
+        "tool_process_details_not_found",
+    )
 }
 
 fn execute_get_network_details(
@@ -1057,7 +1061,11 @@ fn execute_explain_process(
         };
     }
 
-    tool_result("explain_process", false, "tool_process_explanation_unavailable")
+    tool_result(
+        "explain_process",
+        false,
+        "tool_process_explanation_unavailable",
+    )
 }
 
 fn execute_get_system_summary(state: &crate::watcher::SystemState) -> ToolResult {
@@ -2071,7 +2079,7 @@ mod tests {
         let kill_missing =
             execute_tool_call("kill_process", &serde_json::json!({ "pid": 9999 }), &state);
         assert!(!kill_missing.success);
-        assert!(kill_missing.details.contains("not found"));
+        assert!(kill_missing.details.contains("tool_process_not_found"));
 
         let kill_by_name = execute_tool_call(
             "kill_by_name",
@@ -2107,7 +2115,9 @@ mod tests {
             &state,
         );
         assert!(!add_missing.success);
-        assert!(add_missing.details.contains("Missing required fields"));
+        assert!(add_missing
+            .details
+            .contains("tool_automation_rule_missing_fields"));
 
         let add_failure = execute_tool_call(
             "add_automation_rule",
@@ -2122,7 +2132,9 @@ mod tests {
             &state,
         );
         assert!(!add_failure.success);
-        assert!(add_failure.details.contains("Failed to add rule"));
+        assert!(add_failure
+            .details
+            .contains("tool_automation_rule_add_failed"));
 
         let remove_missing = execute_tool_call(
             "remove_automation_rule",
@@ -2130,7 +2142,9 @@ mod tests {
             &state,
         );
         assert!(!remove_missing.success);
-        assert!(remove_missing.details.contains("Missing required field"));
+        assert!(remove_missing
+            .details
+            .contains("tool_automation_rule_id_missing"));
 
         let remove_absent = execute_tool_call(
             "remove_automation_rule",
@@ -2138,7 +2152,9 @@ mod tests {
             &state,
         );
         assert!(!remove_absent.success);
-        assert_eq!(remove_absent.details, "Rule 'not-present' not found");
+        assert!(remove_absent
+            .details
+            .contains("tool_automation_rule_not_found"));
     }
 
     #[test]
@@ -2197,7 +2213,7 @@ mod tests {
 
         let unknown = execute_tool_call("totally_unknown", &serde_json::json!({}), &state);
         assert!(!unknown.success);
-        assert!(unknown.details.contains("Unknown tool"));
+        assert!(unknown.details.contains("tool_unknown"));
     }
 
     #[test]
