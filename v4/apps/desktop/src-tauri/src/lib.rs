@@ -215,7 +215,7 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
         ram_total_gb: (snapshot.total_memory_bytes as f64 / 1_073_741_824.0 * 10.0).round() / 10.0,
         ram_used_pct: if snapshot.total_memory_bytes > 0 {
             ((snapshot.used_memory_bytes as f64 / snapshot.total_memory_bytes as f64) * 100.0)
-                as u32
+                .min(100.0) as u32
         } else {
             0
         },

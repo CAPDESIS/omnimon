@@ -177,9 +177,28 @@ fn map_cdp_targets_to_tabs(targets: Vec<CdpTabTarget>, browser: BrowserKind) -> 
         .collect()
 }
 
+/// Validates that a CDP base URL points to localhost (prevents SSRF).
+fn validate_cdp_url(base_url: &str) -> Result<(), String> {
+    let lower = base_url.to_lowercase();
+    // Strip scheme to extract host
+    let after_scheme = lower
+        .strip_prefix("http://")
+        .or_else(|| lower.strip_prefix("https://"))
+        .unwrap_or(&lower);
+    let host = after_scheme.split('/').next().unwrap_or("");
+    let host_no_port = host.split(':').next().unwrap_or("");
+    match host_no_port {
+        "localhost" | "127.0.0.1" | "[::1]" | "::1" => Ok(()),
+        _ => Err("CDP base URL must be localhost".to_string()),
+    }
+}
+
 /// Check if CDP is available on a given port by attempting a simple connection.
 /// Returns true if the endpoint responds, false otherwise.
 pub fn cdp_is_available(base_url: &str) -> bool {
+    if validate_cdp_url(base_url).is_err() {
+        return false;
+    }
     let runtime = match build_runtime() {
         Ok(r) => r,
         Err(_) => return false,
@@ -212,6 +231,7 @@ pub fn cdp_list_tabs(base_url: &str) -> Result<Vec<BrowserTab>, String> {
 
 /// Lists open tabs via CDP for a specific browser kind, filtering to page-type targets.
 pub fn cdp_list_tabs_for(base_url: &str, browser: BrowserKind) -> Result<Vec<BrowserTab>, String> {
+    validate_cdp_url(base_url)?;
     let runtime = build_runtime()?;
     let targets_result = runtime.block_on(async {
         let client = reqwest::Client::builder()
@@ -246,6 +266,8 @@ pub fn cdp_close_tab(base_url: &str, tab_id: &str) -> Result<bool, String> {
     {
         return Err("Invalid tab ID".to_string());
     }
+
+    validate_cdp_url(base_url)?;
 
     let runtime = build_runtime()?;
     let close_result = runtime.block_on(async {
@@ -562,7 +584,9 @@ impl TabProvider for NativeTabProvider {
             BrowserKind::Chrome | BrowserKind::Brave | BrowserKind::Edge | BrowserKind::Arc => {
                 self.close_chromium_tab(browser, tab)
             }
-            BrowserKind::Firefox => Ok(false),
+            BrowserKind::Firefox => {
+                Err("Firefox tab management is not supported on macOS".to_string())
+            }
         }
     }
 
@@ -572,7 +596,9 @@ impl TabProvider for NativeTabProvider {
             BrowserKind::Chrome | BrowserKind::Brave | BrowserKind::Edge | BrowserKind::Arc => {
                 self.focus_chromium_tab(browser, tab)
             }
-            BrowserKind::Firefox => Ok(false),
+            BrowserKind::Firefox => {
+                Err("Firefox tab management is not supported on macOS".to_string())
+            }
         }
     }
 }
@@ -673,6 +699,7 @@ pub fn cdp_activate_tab(base_url: &str, tab_id: &str) -> Result<bool, String> {
     {
         return Err("Invalid tab ID".to_string());
     }
+    validate_cdp_url(base_url)?;
     let runtime = build_runtime()?;
     let result = runtime.block_on(async {
         let client = reqwest::Client::builder()

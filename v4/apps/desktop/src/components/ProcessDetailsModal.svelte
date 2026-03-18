@@ -310,7 +310,7 @@
               role="button"
               tabindex="0"
               title={t("process.goToTab", { title: tab.title, url: tab.url })}
-              onkeydown={(e) => { if (e.key === 'Enter') focusTab(tab); }}
+              onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focusTab(tab); } }}
               style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;color:var(--fg);line-height:1.4;"
             >
               {tab.title || t("common.untitled")}

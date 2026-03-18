@@ -252,12 +252,8 @@
 {#if showModal}
   <div
     class="modal-backdrop"
-    role="button"
-    tabindex="0"
+    role="presentation"
     onclick={() => (showModal = false)}
-    onkeydown={(event: KeyboardEvent) => {
-      if (event.key === "Escape" || event.key === "Enter" || event.key === " ") showModal = false;
-    }}
   >
     <div
       class="modal-card"

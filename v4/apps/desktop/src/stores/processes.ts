@@ -464,11 +464,9 @@ export function setPollingTarget(target: "browserTabs" | "network", active: bool
 
 /** Starts periodic polling for metrics (every intervalMs) and browser tabs (every 5s). */
 export function startPolling(intervalMs = 3000): void {
-  isPollingActive = true;
   pollingIntervalMs = intervalMs > 0 ? intervalMs : get(refreshInterval);
   stopPolling();
-  // reset it so the stopPolling doesn't unset isPollingActive permanently
-  isPollingActive = true; 
+  isPollingActive = true;
   fetchMetrics();
   listen<Metrics>("metrics-update", (event: { payload: Metrics }) => {
     handleMetricsUpdate(event.payload);
@@ -478,6 +476,8 @@ export function startPolling(intervalMs = 3000): void {
     } else {
       unlisten();
     }
+  }).catch((e) => {
+    console.warn("[processes] Failed to listen for metrics-update:", e);
   });
   syncBrowserTabsPolling();
   syncNetworkPolling();

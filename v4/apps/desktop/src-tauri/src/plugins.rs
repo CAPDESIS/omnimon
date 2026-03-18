@@ -375,7 +375,8 @@ fn validate_metrics(metrics: Vec<PluginMetricInput>) -> Result<Vec<PluginMetric>
 
 fn run_plugin_source(file_name: &str, source: &str) -> Result<ValidationResult, String> {
     let lua = Lua::new();
-    let _ = lua.set_memory_limit(MAX_SCRIPT_MEMORY_BYTES);
+    lua.set_memory_limit(MAX_SCRIPT_MEMORY_BYTES)
+        .map_err(|e| format!("failed to set Lua memory limit: {e}"))?;
 
     let start = Instant::now();
     lua.set_hook(
@@ -682,6 +683,10 @@ pub fn set_plugin_enabled(
     plugin_id: String,
     enabled: bool,
 ) -> Result<PluginDescriptor, String> {
+    macmon_core::rate_limit::check_rate_limit(
+        "set_plugin_enabled",
+        &macmon_core::rate_limit::profiles::CONFIG,
+    )?;
     engine(&app)?.set_enabled(&plugin_id, enabled)
 }
 

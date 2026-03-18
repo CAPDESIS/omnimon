@@ -136,7 +136,7 @@ fn enum_browser_windows(browser: BrowserKind) -> Vec<BrowserWindow> {
 
             // Get window title
             let title_len = GetWindowTextLengthW(hwnd);
-            if title_len <= 0 {
+            if title_len <= 0 || title_len > 4096 {
                 return TRUE;
             }
             let mut title_buf = vec![0u16; (title_len + 1) as usize];

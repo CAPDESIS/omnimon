@@ -176,7 +176,8 @@
 
     if (moved.size > 0) {
       movedUpPids = moved;
-      setTimeout(() => { movedUpPids = new Set(); }, 600);
+      const timerId = setTimeout(() => { movedUpPids = new Set(); }, 600);
+      return () => clearTimeout(timerId);
     }
   });
 

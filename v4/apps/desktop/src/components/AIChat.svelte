@@ -69,11 +69,12 @@
   $effect(() => {
     let unlisten: UnlistenFn | undefined;
     let cancelled = false;
-      listen<string>("ai-stream-token", (event: { payload: string }) => {
-        streamingMessage += event.payload;
-        if (isAutoScroll) {
-          scrollToBottom();
-        }
+    listen<string>("ai-stream-token", (event: { payload: string }) => {
+      if (cancelled) return;
+      streamingMessage += event.payload;
+      if (isAutoScroll) {
+        scrollToBottom();
+      }
     }).then((fn: UnlistenFn) => {
       if (cancelled) { fn(); return; }
       unlisten = fn;
@@ -81,7 +82,7 @@
 
     return () => {
       cancelled = true;
-      if (unlisten) unlisten();
+      unlisten?.();
     };
   });
 

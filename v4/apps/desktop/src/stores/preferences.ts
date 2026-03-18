@@ -501,10 +501,8 @@ export async function loadPreferences(): Promise<void> {
     const fallbackPresetId = typeof savedActiveProfilePreset === "string" ? savedActiveProfilePreset : sanitizedPresets[0]?.id ?? "general";
     const fallbackPreset = sanitizedPresets.find((preset) => preset.id === fallbackPresetId) ?? sanitizedPresets[0];
     if (fallbackPreset) {
-      activeProfilePreset.set(fallbackPreset.id);
-      if (typeof savedActiveProfilePreset === "string") {
-        activeProfilePreset.set(savedActiveProfilePreset);
-      }
+      const presetId = typeof savedActiveProfilePreset === "string" ? savedActiveProfilePreset : fallbackPreset.id;
+      activeProfilePreset.set(presetId);
     }
 
     const savedIdleThreshold = await store.get("idleThreshold");

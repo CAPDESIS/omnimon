@@ -200,6 +200,7 @@ export async function ipcGetMetrics(idleThreshold?: number): Promise<Metrics> {
 
 /** Sends a kill signal to a single process by PID. Returns true if successful. */
 export async function ipcKillProcess(pid: number): Promise<boolean> {
+  assertIntegerInRange("kill_process args.pid", pid, 1, 0x7fffffff);
   const result: unknown = await loggedInvoke("kill_process", { pid });
   assertBoolean("kill_process result", result);
   return result;
@@ -390,6 +391,10 @@ function validatePluginDescriptor(raw: unknown, index: number): PluginDescriptor
 
 /** Persists AI provider configuration (provider, model, API key) to secure storage via the backend. */
 export async function ipcSaveAiConfig(provider: string, model: string, key: string): Promise<void> {
+  assertString("save_ai_config args.provider", provider);
+  assertString("save_ai_config args.model", model);
+  if (provider.length > 64) throw new IPCValidationError("save_ai_config args.provider", provider, "Provider name too long (max 64)");
+  if (model.length > 256) throw new IPCValidationError("save_ai_config args.model", model, "Model name too long (max 256)");
   await loggedInvoke("save_ai_config", { provider, model, key });
 }
 
@@ -536,6 +541,9 @@ export async function ipcListPlugins(): Promise<PluginDescriptor[]> {
 }
 
 export async function ipcInstallPlugin(fileName: string, source: string): Promise<PluginDescriptor> {
+  assertString("install_plugin args.fileName", fileName);
+  if (fileName.length > 120) throw new IPCValidationError("install_plugin args.fileName", fileName, "File name too long (max 120)");
+  if (source.length > 256 * 1024) throw new IPCValidationError("install_plugin args.source", `[${source.length} bytes]`, "Source too large (max 256KB)");
   const data: unknown = await loggedInvoke("install_plugin", { fileName, source });
   return validatePluginDescriptor(data, 0);
 }

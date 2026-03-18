@@ -59,7 +59,7 @@ pub fn encrypt_bytes(key: &[u8; 32], plaintext: &[u8]) -> Result<EncryptedPayloa
     let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| format!("invalid key: {e}"))?;
 
     let mut nonce = [0u8; NONCE_LEN];
-    rand::thread_rng().fill_bytes(&mut nonce);
+    rand::rngs::OsRng.fill_bytes(&mut nonce);
 
     let ciphertext = cipher
         .encrypt(Nonce::from_slice(&nonce), plaintext)

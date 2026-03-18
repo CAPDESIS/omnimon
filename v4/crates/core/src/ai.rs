@@ -1478,7 +1478,11 @@ fn prompt_injection_regexes() -> &'static [Regex] {
             r"prompt\s+interno",
         ]
         .into_iter()
-        .map(|pattern| Regex::new(pattern).expect("valid prompt injection regex"))
+        .filter_map(|pattern| {
+            Regex::new(pattern)
+                .map_err(|e| tracing::error!("Invalid prompt injection regex '{}': {}", pattern, e))
+                .ok()
+        })
         .collect()
     })
 }

@@ -737,7 +737,7 @@
                         <span class="proc-count">{node.totalConns}</span>
                         <div class="domain-chips">
                           {#each node.domains.slice(0, 5) as domain}
-                            <span class="domain-chip clickable-chip" onclick={() => selectedNodeId = domain.hostname} role="button" tabindex="0" title="{domain.hostname}:{domain.port} ({domain.protocol})">
+                            <span class="domain-chip clickable-chip" onclick={() => selectedNodeId = domain.hostname} onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectedNodeId = domain.hostname; } }} role="button" tabindex="0" title="{domain.hostname}:{domain.port} ({domain.protocol})">
                               {domain.hostname}:{domain.port}
                             </span>
                           {/each}
