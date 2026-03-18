@@ -17,6 +17,17 @@ export default defineConfig(({ mode }) => ({
     host: host || false,
     hmr: host ? { protocol: "ws", host, port: 1421 } : undefined,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          charts: ['lightweight-charts'],
+          icons: ['lucide-svelte'],
+          markdown: ['marked', 'dompurify'],
+        },
+      },
+    },
+  },
   esbuild: {
     drop: mode === 'production' ? ['console', 'debugger'] : [],
   },

@@ -244,13 +244,18 @@ fn tab_cache() -> &'static Mutex<(Arc<Vec<BrowserTab>>, Instant)> {
     })
 }
 
+#[inline]
+fn acquire_tab_cache() -> std::sync::MutexGuard<'static, (Arc<Vec<BrowserTab>>, Instant)> {
+    tab_cache().lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// Prevents multiple concurrent tab refreshes.
 static TAB_REFRESH_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 fn refresh_tab_cache_if_stale() -> Arc<Vec<BrowserTab>> {
     // Check staleness under lock, then drop lock before expensive work.
     {
-        let cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
+        let cache = acquire_tab_cache();
         if cache.1.elapsed().as_secs() < TAB_CACHE_TTL_SECS {
             return Arc::clone(&cache.0);
         }
@@ -259,7 +264,7 @@ fn refresh_tab_cache_if_stale() -> Arc<Vec<BrowserTab>> {
     // Prevent multiple concurrent refreshes — if another thread is already
     // refreshing, return the (stale) cached data instead of blocking.
     if TAB_REFRESH_IN_PROGRESS.swap(true, Ordering::SeqCst) {
-        let cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
+        let cache = acquire_tab_cache();
         return Arc::clone(&cache.0);
     }
 
@@ -287,7 +292,7 @@ fn refresh_tab_cache_if_stale() -> Arc<Vec<BrowserTab>> {
         Err(_) => {
             tracing::error!("[tab-cache] panic during tab refresh — returning stale cache");
             TAB_REFRESH_IN_PROGRESS.store(false, Ordering::SeqCst);
-            let cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
+            let cache = acquire_tab_cache();
             return Arc::clone(&cache.0);
         }
     };
@@ -296,7 +301,7 @@ fn refresh_tab_cache_if_stale() -> Arc<Vec<BrowserTab>> {
 
     // Re-acquire lock to update cache.
     {
-        let mut cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
+        let mut cache = acquire_tab_cache();
         cache.0 = Arc::clone(&arc_tabs);
         cache.1 = Instant::now();
     }
@@ -310,7 +315,7 @@ fn refresh_tab_cache_if_stale() -> Arc<Vec<BrowserTab>> {
 #[tracing::instrument(skip_all)]
 fn get_browser_tabs() -> Result<Vec<BrowserTab>, String> {
     // Return cached data instantly — Arc clone is O(1)
-    let cache = tab_cache().lock().unwrap_or_else(|e| e.into_inner());
+    let cache = acquire_tab_cache();
     let tabs = Arc::clone(&cache.0);
     let stale = cache.1.elapsed().as_secs() >= TAB_CACHE_TTL_SECS;
     drop(cache);
@@ -326,46 +331,43 @@ fn get_browser_tabs() -> Result<Vec<BrowserTab>, String> {
     Ok(Arc::try_unwrap(tabs).unwrap_or_else(|arc| (*arc).clone()))
 }
 
+/// Validates and prepares a browser tab for IPC operations.
+fn prepare_browser_tab(
+    command: &'static str,
+    tab_id: &str,
+    tab_url: &str,
+    browser: &str,
+) -> Result<(BrowserTab, BrowserKind), String> {
+    macmon_core::rate_limit::check_rate_limit(
+        command,
+        &macmon_core::rate_limit::profiles::BROWSER,
+    )?;
+    sanitize_tab_id(tab_id)?;
+    sanitize_tab_url(tab_url)?;
+    let kind = BrowserKind::from_str(browser)?;
+    let tab = BrowserTab {
+        id: tab_id.to_string(),
+        title: String::new(),
+        url: tab_url.to_string(),
+        browser: kind,
+    };
+    Ok((tab, kind))
+}
+
 /// IPC: Gracefully close a browser tab via AppleScript/CDP (not process kill).
 #[tauri::command]
 #[tracing::instrument(skip_all)]
 fn close_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result<bool, String> {
-    macmon_core::rate_limit::check_rate_limit(
-        "close_browser_tab",
-        &macmon_core::rate_limit::profiles::BROWSER,
-    )?;
-    sanitize_tab_id(&tab_id)?;
-    sanitize_tab_url(&tab_url)?;
-    let kind = BrowserKind::from_str(&browser)?;
-    let provider = NativeTabProvider;
-    let tab = BrowserTab {
-        id: tab_id,
-        title: String::new(),
-        url: tab_url,
-        browser: kind,
-    };
-    provider.close_tab(kind, &tab)
+    let (tab, kind) = prepare_browser_tab("close_browser_tab", &tab_id, &tab_url, &browser)?;
+    NativeTabProvider.close_tab(kind, &tab)
 }
 
 /// IPC: Focus (navigate to) a browser tab via AppleScript/CDP.
 #[tauri::command]
 #[tracing::instrument(skip_all)]
 fn focus_browser_tab(tab_id: String, tab_url: String, browser: String) -> Result<bool, String> {
-    macmon_core::rate_limit::check_rate_limit(
-        "focus_browser_tab",
-        &macmon_core::rate_limit::profiles::BROWSER,
-    )?;
-    sanitize_tab_id(&tab_id)?;
-    sanitize_tab_url(&tab_url)?;
-    let kind = BrowserKind::from_str(&browser)?;
-    let provider = NativeTabProvider;
-    let tab = BrowserTab {
-        id: tab_id,
-        title: String::new(),
-        url: tab_url,
-        browser: kind,
-    };
-    provider.focus_tab(kind, &tab)
+    let (tab, kind) = prepare_browser_tab("focus_browser_tab", &tab_id, &tab_url, &browser)?;
+    NativeTabProvider.focus_tab(kind, &tab)
 }
 
 /// IPC: Check if CDP (Chrome DevTools Protocol) is available for supported browsers.
