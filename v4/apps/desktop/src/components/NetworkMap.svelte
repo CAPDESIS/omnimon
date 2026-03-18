@@ -372,7 +372,7 @@
         topColor: (getVar("--chart-net-rx") || "#22c55e") + "40",
         bottomColor: (getVar("--chart-net-rx") || "#22c55e") + "05",
         lineWidth: 2,
-        title: "RX",
+        title: t("systemMetrics.rx"),
       });
 
       const txSeries = chart.addSeries(lc.AreaSeries, {
@@ -380,7 +380,7 @@
         topColor: (getVar("--chart-net-tx") || "#f97316") + "40",
         bottomColor: (getVar("--chart-net-tx") || "#f97316") + "05",
         lineWidth: 2,
-        title: "TX",
+        title: t("systemMetrics.tx"),
       });
 
       rxSeriesInstance = rxSeries;
