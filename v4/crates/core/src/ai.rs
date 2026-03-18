@@ -961,7 +961,11 @@ fn execute_get_process_details(
         };
     }
 
-    tool_result("get_process_details", false, "tool_process_details_not_found")
+    tool_result(
+        "get_process_details",
+        false,
+        "tool_process_details_not_found",
+    )
 }
 
 fn execute_get_network_details(
@@ -1060,7 +1064,11 @@ fn execute_explain_process(
         };
     }
 
-    tool_result("explain_process", false, "tool_process_explanation_unavailable")
+    tool_result(
+        "explain_process",
+        false,
+        "tool_process_explanation_unavailable",
+    )
 }
 
 fn execute_get_system_summary(state: &crate::watcher::SystemState) -> ToolResult {
