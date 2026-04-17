@@ -922,8 +922,8 @@ mod tests {
 
     #[test]
     fn validate_rounds_value_to_two_decimals() {
-        let metrics = validate_metrics(vec![make_metric_input("precise", 3.14159)]).unwrap();
-        assert!((metrics[0].value - 3.14).abs() < 0.01);
+        let metrics = validate_metrics(vec![make_metric_input("precise", 4.56789)]).unwrap();
+        assert!((metrics[0].value - 4.57).abs() < 0.01);
     }
 
     #[test]

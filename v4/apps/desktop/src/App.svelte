@@ -116,6 +116,8 @@
   let cloudSyncPromise = $state<Promise<any> | null>(null);
   let automationsPromise = $state<Promise<any> | null>(null);
   let pluginsPromise = $state<Promise<any> | null>(null);
+  let showZombieKiller = $state(false);
+  let zombieKillerPromise = $state<Promise<any> | null>(null);
 
   function loadChromeTabManager() {
     chromeTabManagerPromise ??= import("./components/ChromeTabManager.svelte");
@@ -150,6 +152,10 @@
 
   function loadAutomations() {
     automationsPromise ??= import("./components/Automations.svelte");
+  }
+
+  function loadZombieKiller() {
+    zombieKillerPromise ??= import("./components/ZombieKiller.svelte");
   }
 
   function loadPlugins() {
@@ -554,6 +560,11 @@
       decreaseFontSize();
       return;
     }
+    if (mod && e.shiftKey && (e.key === "z" || e.key === "Z")) {
+      e.preventDefault();
+      toggleZombieKiller();
+      return;
+    }
     if (e.key === "Escape") {
       if (showPlugins) {
         showPlugins = false;
@@ -561,6 +572,10 @@
       }
       if (showAutomations) {
         showAutomations = false;
+        return;
+      }
+      if (showZombieKiller) {
+        showZombieKiller = false;
         return;
       }
       if (showHelpCenter) {
@@ -592,6 +607,7 @@
     detailProcess = null;
     showSecurityReport = false;
     showAutomations = false;
+    showZombieKiller = false;
     showPlugins = false;
     showHelpCenter = false;
     activeMetricModal = null;
@@ -622,6 +638,16 @@
     closeAllModals();
     loadAutomations();
     showAutomations = true;
+  }
+
+  function toggleZombieKiller() {
+    if (showZombieKiller) {
+      showZombieKiller = false;
+      return;
+    }
+    closeAllModals();
+    loadZombieKiller();
+    showZombieKiller = true;
   }
 
   function openPlugins() {
@@ -1093,6 +1119,14 @@
   {#if automationsPromise}
     {#await automationsPromise then AutomationsModule}
       <AutomationsModule.default onclose={() => showAutomations = false} />
+    {/await}
+  {/if}
+{/if}
+
+{#if showZombieKiller}
+  {#if zombieKillerPromise}
+    {#await zombieKillerPromise then ZombieKillerModule}
+      <ZombieKillerModule.default onclose={() => (showZombieKiller = false)} />
     {/await}
   {/if}
 {/if}
