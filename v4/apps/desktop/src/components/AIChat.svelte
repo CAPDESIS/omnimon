@@ -4,6 +4,7 @@
 
   import { slide } from "svelte/transition";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+  import { invoke } from "@tauri-apps/api/core";
   import { ipcAiChat, ipcGetBrowserTabs, ipcCloseBrowserTab, ipcKillProcess, ipcKillProcesses } from "../lib/ipc";
   import { aiProviderConfig, aiCacheTtlMinutes, userMode } from "../stores/preferences";
   import { processes } from "../stores/processes";
@@ -252,7 +253,7 @@
       if (response.tool_call) {
         const result = response.tool_call;
         // For destructive actions, require confirmation
-        if (result.tool === "close_tabs" || result.tool === "kill_process" || result.tool === "kill_by_name" || result.tool === "close_connection") {
+        if (result.tool === "close_tabs" || result.tool === "kill_process" || result.tool === "kill_by_name" || result.tool === "close_connection" || result.tool === "add_automation_rule" || result.tool === "remove_automation_rule") {
           pendingAction = { tool: result.tool, details: result.details, result };
           // Load tabs for selection UI
           if (result.tool === "close_tabs") {
@@ -321,6 +322,18 @@
       const parts = details.replace("kill_by_name:", "").split(":");
       const pids = parts[1]?.split(",") ?? [];
       return t("aiChat.killByNameDesc", { count: pids.length, name: parts[0], pids: pids.join(", ") });
+    }
+    if (details.startsWith("add_automation_rule:")) {
+      const parts = details.replace("add_automation_rule:", "").split(":");
+      return t("aiChat.addRuleDesc", {
+        pattern: parts[0] ?? "?",
+        metric: parts[1] ?? "?",
+        action: parts[2] ?? "?",
+      });
+    }
+    if (details.startsWith("remove_automation_rule:")) {
+      const id = details.replace("remove_automation_rule:", "");
+      return t("aiChat.removeRuleDesc", { id });
     }
     return details;
   }
@@ -525,6 +538,43 @@
       const executed = await executeKillByName(result.details);
       result.details = executed.message;
       result.success = executed.success;
+    } else if (result.tool === "add_automation_rule" && result.success) {
+      const rule = (result.payload ?? {}) as {
+        id?: string;
+        process_pattern?: string;
+        metric?: string;
+        threshold?: number;
+        duration_secs?: number;
+        action?: string;
+      };
+      if (!rule.process_pattern || !rule.metric || !rule.action) {
+        result.details = t("aiChat.addRuleInvalid");
+        result.success = false;
+      } else {
+        try {
+          await invoke("add_automation_rule", { rule });
+          result.details = t("aiChat.addRuleOk", { pattern: rule.process_pattern });
+          result.success = true;
+        } catch (e) {
+          result.details = t("aiChat.addRuleFailed", { error: String(e) });
+          result.success = false;
+        }
+      }
+    } else if (result.tool === "remove_automation_rule" && result.success) {
+      const id = ((result.payload ?? {}) as { id?: string }).id;
+      if (!id) {
+        result.details = t("aiChat.removeRuleInvalid");
+        result.success = false;
+      } else {
+        try {
+          await invoke("remove_automation_rule", { id });
+          result.details = t("aiChat.removeRuleOk");
+          result.success = true;
+        } catch (e) {
+          result.details = t("aiChat.removeRuleFailed", { error: String(e) });
+          result.success = false;
+        }
+      }
     }
 
     const finalText = result.success ? result.details : formatToolResultDetails(result);

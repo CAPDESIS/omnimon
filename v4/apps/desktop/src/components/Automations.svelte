@@ -28,30 +28,62 @@
   let duration_secs = $state(60);
   let action = $state("alert");
 
+  // IPC state: surfaces backend failures so they do not happen silently.
+  let loading = $state(true);
+  let busy = $state(false);
+  let error = $state<string | null>(null);
+
   async function loadRules() {
-    rules = await invoke<AutomationRule[]>("get_automation_rules");
+    error = null;
+    try {
+      rules = await invoke<AutomationRule[]>("get_automation_rules");
+    } catch (e) {
+      error = t("automations.errorLoad", { error: String(e) });
+    }
   }
 
   async function addRule() {
-    const rule: AutomationRule = {
-      id: crypto.randomUUID(),
-      process_pattern,
-      metric,
-      threshold,
-      duration_secs,
-      action,
-    };
-    await invoke("add_automation_rule", { rule });
-    await loadRules();
+    if (!process_pattern.trim()) {
+      error = t("automations.ruleMissingFields");
+      return;
+    }
+    busy = true;
+    error = null;
+    try {
+      const rule: AutomationRule = {
+        id: crypto.randomUUID(),
+        process_pattern,
+        metric,
+        threshold,
+        duration_secs,
+        action,
+      };
+      await invoke("add_automation_rule", { rule });
+      await loadRules();
+    } catch (e) {
+      error = t("automations.errorAdd", { error: String(e) });
+    } finally {
+      busy = false;
+    }
   }
 
   async function removeRule(id: string) {
-    await invoke("remove_automation_rule", { id });
-    await loadRules();
+    busy = true;
+    error = null;
+    try {
+      await invoke("remove_automation_rule", { id });
+      await loadRules();
+    } catch (e) {
+      error = t("automations.errorRemove", { error: String(e) });
+    } finally {
+      busy = false;
+    }
   }
 
-  onMount(() => {
-    loadRules();
+  onMount(async () => {
+    loading = true;
+    await loadRules();
+    loading = false;
   });
 </script>
 
@@ -69,33 +101,41 @@
     </header>
 
     <div class="automations-body">
-      <div class="builder">
-        <input class="auto-input" type="text" bind:value={process_pattern} placeholder={t("automations.processNameRegex")} />
-        <select class="auto-select" bind:value={metric}>
-          <option value="ram">{t("automations.ramMb")}</option>
-          <option value="cpu">{t("automations.cpuPct")}</option>
-        </select>
-        <input class="auto-input" type="number" bind:value={threshold} placeholder={t("automations.threshold")} />
-        <input class="auto-input" type="number" bind:value={duration_secs} placeholder={t("automations.durationSeconds")} />
-        <select class="auto-select" bind:value={action}>
-          <option value="alert">{t("automations.alert")}</option>
-          <option value="kill">{t("automations.killProcess")}</option>
-        </select>
-        <Button variant="primary" type="button" onclick={addRule}>{t("automations.addRule")}</Button>
-      </div>
+      {#if error}
+        <div class="automations-error" role="alert">{error}</div>
+      {/if}
 
-      <div class="rules-list">
-        {#if rules.length === 0}
-          <EmptyState icon={Settings} title={t("automations.emptyTitle")} description={t("automations.emptyBody")} />
-        {:else}
-          {#each rules as rule}
-            <div class="rule-item">
-              <span class="rule-desc">{t("automations.ruleDescription", { process: rule.process_pattern, threshold: rule.threshold, metric: rule.metric, duration: rule.duration_secs, action: rule.action })}</span>
-              <Button variant="danger" size="sm" type="button" onclick={() => removeRule(rule.id)}>{t("automations.delete")}</Button>
-            </div>
-          {/each}
-        {/if}
-      </div>
+      {#if loading}
+        <p class="automations-status">{t("automations.loading")}</p>
+      {:else}
+        <div class="builder">
+          <input class="auto-input" type="text" bind:value={process_pattern} placeholder={t("automations.processNameRegex")} disabled={busy} />
+          <select class="auto-select" bind:value={metric} disabled={busy}>
+            <option value="ram">{t("automations.ramMb")}</option>
+            <option value="cpu">{t("automations.cpuPct")}</option>
+          </select>
+          <input class="auto-input" type="number" bind:value={threshold} placeholder={t("automations.threshold")} disabled={busy} />
+          <input class="auto-input" type="number" bind:value={duration_secs} placeholder={t("automations.durationSeconds")} disabled={busy} />
+          <select class="auto-select" bind:value={action} disabled={busy}>
+            <option value="alert">{t("automations.alert")}</option>
+            <option value="kill">{t("automations.killProcess")}</option>
+          </select>
+          <Button variant="primary" type="button" disabled={busy} onclick={addRule}>{t("automations.addRule")}</Button>
+        </div>
+
+        <div class="rules-list">
+          {#if rules.length === 0}
+            <EmptyState icon={Settings} title={t("automations.emptyTitle")} description={t("automations.emptyBody")} />
+          {:else}
+            {#each rules as rule (rule.id)}
+              <div class="rule-item">
+                <span class="rule-desc">{t("automations.ruleDescription", { process: rule.process_pattern, threshold: rule.threshold, metric: rule.metric, duration: rule.duration_secs, action: rule.action })}</span>
+                <Button variant="danger" size="sm" type="button" disabled={busy} onclick={() => removeRule(rule.id)}>{t("automations.delete")}</Button>
+              </div>
+            {/each}
+          {/if}
+        </div>
+      {/if}
     </div>
   </div>
 </div>
@@ -145,6 +185,20 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+  }
+
+  .automations-error {
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--danger);
+    background: var(--bg-secondary);
+    color: var(--danger);
+    font-size: calc(var(--base-font-size) * 0.95);
+  }
+
+  .automations-status {
+    margin: 0;
+    color: var(--text-secondary);
   }
 
   .builder {

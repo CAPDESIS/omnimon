@@ -214,6 +214,23 @@ export const refreshInterval = writable(3000);
 export const favoriteProcesses = writable<string[]>([]);
 export const notificationLevel = writable<"off" | "critical" | "all">("all");
 
+/**
+ * Redact process names, exe paths, tab titles, URLs, and external IPs in
+ * the prompt that is sent to remote LLM providers. When enabled, the LLM
+ * still sees structural data (counts, bytes, ports, process shapes) but
+ * never the raw identifiers. Persisted as `aiPrivacyMode` in camelCase,
+ * matching the Rust `Settings.ai_privacy_mode` field.
+ */
+export const aiPrivacyMode = writable<boolean>(false);
+
+/**
+ * Hard ceiling on LLM calls allowed per UTC day across all AI commands.
+ * `null` means "use the core default (200)"; `0` disables the cap entirely
+ * (intended for local-only providers like Ollama where there is no cost).
+ * Persisted as `aiDailyLimit`.
+ */
+export const aiDailyLimit = writable<number | null>(null);
+
 function sanitizePortList(raw: unknown): number[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -541,6 +558,18 @@ export async function loadPreferences(): Promise<void> {
       userMode.set(savedUserMode);
     }
 
+    const savedAiPrivacyMode = await store.get("aiPrivacyMode");
+    if (typeof savedAiPrivacyMode === "boolean") {
+      aiPrivacyMode.set(savedAiPrivacyMode);
+    }
+
+    const savedAiDailyLimit = await store.get("aiDailyLimit");
+    if (savedAiDailyLimit === null || savedAiDailyLimit === undefined) {
+      aiDailyLimit.set(null);
+    } else if (typeof savedAiDailyLimit === "number" && Number.isInteger(savedAiDailyLimit) && savedAiDailyLimit >= 0 && savedAiDailyLimit <= 100_000) {
+      aiDailyLimit.set(savedAiDailyLimit);
+    }
+
     const savedCustomTheme = await store.get("customTheme");
     if (savedCustomTheme && typeof savedCustomTheme === "object") {
       const ct = savedCustomTheme as CustomThemeOverrides;
@@ -641,6 +670,14 @@ export async function savePreferences(): Promise<void> {
     await store.set("aiChatPanelHeight", get(aiChatPanelHeight));
     await store.set("localePreference", get(localePreference));
 
+    await store.set("aiPrivacyMode", get(aiPrivacyMode));
+    // `null` means "use the core default" — we write a JSON null so the
+    // Rust side (`Settings.ai_daily_limit: Option<u32>`) sees `None` and
+    // falls back to `DEFAULT_AI_DAILY_LIMIT`. Calling `store.delete` here
+    // would be equivalent but it is not universally exposed on the Tauri
+    // store plugin mocks used in tests, so we use `set` uniformly.
+    await store.set("aiDailyLimit", get(aiDailyLimit));
+
     await store.set("customTheme", get(customTheme));
     await store.set("networkAlertRules", get(networkAlertRules));
     
@@ -696,6 +733,8 @@ export function initPreferenceSubscriptions(): () => void {
     networkPanelHeight.subscribe(() => debouncedSave()),
     aiChatPanelHeight.subscribe(() => debouncedSave()),
     localePreference.subscribe(() => debouncedSave()),
+    aiPrivacyMode.subscribe(() => debouncedSave()),
+    aiDailyLimit.subscribe(() => debouncedSave()),
     displayName.subscribe(() => debouncedSave()),
     profilePreset.subscribe(() => debouncedSave()),
     dashboardLayout.subscribe(() => debouncedSave()),

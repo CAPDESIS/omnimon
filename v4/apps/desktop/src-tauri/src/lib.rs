@@ -440,41 +440,83 @@ const LEGACY_STORE_FILENAME: &str = "ai_keys.json";
 
 /// Retrieve an API key from the OS keyring.
 ///
-/// If a legacy Tauri Store key exists, it is migrated to the keyring and
-/// removed from the store.  Plain-text storage is never used for new keys.
+/// If a legacy Tauri Store key exists, it is migrated to the keyring.
+/// Plain-text storage is never used for new keys.
+///
+/// # Safety contract
+///
+/// The legacy plain-text value is **erased from disk before any keyring
+/// operation is attempted**. This guarantees there is no window in which
+/// both the plain-text copy on disk *and* a keyring entry coexist, and
+/// that a mid-flight crash (or a keyring that hangs forever) cannot leave
+/// the secret readable on the filesystem.
+///
+/// Failure modes:
+/// - Keyring save succeeds → key is returned; plain-text is already gone.
+/// - Keyring save fails → the caller still receives the key in memory
+///   for this session (so the AI call can proceed), but the plain-text
+///   copy on disk has already been wiped. The user must re-enter the key
+///   next session if the keyring remains unavailable. There is never a
+///   state in which the disk copy survives a failed migration.
 fn get_api_key_with_fallback(app: &AppHandle, provider: &str) -> Result<String, String> {
     let ai_provider = macmon_core::ai::AiProvider::from_str(provider)?;
 
-    // 1) Try OS keyring (secure path)
+    // 1) Try OS keyring (secure path) first.
     if let Ok(key) = macmon_core::ai::get_api_key(ai_provider) {
         return Ok(key);
     }
 
-    // 2) Check for legacy plain-text key and migrate it to keyring
-    if let Ok(store) = app.store(LEGACY_STORE_FILENAME) {
-        if let Some(legacy_key) = store
-            .get(ai_provider.keyring_service())
-            .and_then(|v| v.as_str().map(|s| s.to_string()))
-        {
-            tracing::warn!(
-                "Migrating legacy plain-text API key for {} to OS keyring",
-                provider
-            );
-            if macmon_core::ai::save_api_key(ai_provider, &legacy_key).is_ok() {
-                store.delete(ai_provider.keyring_service());
-                let _ = store.save();
-                return Ok(legacy_key);
-            }
-            // Keyring still broken — return the legacy key this one time but warn
-            tracing::error!(
-                "OS keyring unavailable — legacy key used but migration failed for {}",
-                provider
-            );
-            return Ok(legacy_key);
-        }
+    // 2) Legacy plain-text migration: delete-first, then attempt secure save.
+    let store = match app.store(LEGACY_STORE_FILENAME) {
+        Ok(store) => store,
+        Err(_) => return Err(format!("error_no_api_key:{}", provider)),
+    };
+
+    let service = ai_provider.keyring_service();
+    let legacy_key = match store
+        .get(service)
+        .and_then(|v| v.as_str().map(|s| s.to_string()))
+    {
+        Some(key) => key,
+        None => return Err(format!("error_no_api_key:{}", provider)),
+    };
+
+    // Wipe plain-text from the store and persist the deletion BEFORE we touch
+    // the keyring. If the app crashes between here and the save call below,
+    // the worst case is that the user must re-enter the key — the secret is
+    // never left on disk after this function has observed it.
+    store.delete(service);
+    if let Err(e) = store.save() {
+        tracing::error!(
+            "Failed to persist legacy-store deletion for {} ({}). Continuing with in-memory key; \
+             the disk copy may survive and must be removed manually if this error repeats.",
+            provider,
+            e
+        );
     }
 
-    Err(format!("error_no_api_key:{}", provider))
+    match macmon_core::ai::save_api_key(ai_provider, &legacy_key) {
+        Ok(()) => {
+            tracing::info!(
+                "Migrated legacy plain-text API key for {} to OS keyring (plain-text wiped)",
+                provider
+            );
+            Ok(legacy_key)
+        }
+        Err(e) => {
+            // Keyring unavailable. The disk copy is already erased (see above),
+            // so there is no persistent plain-text leak. Return the in-memory
+            // copy for this session only; next session the user will be asked
+            // to re-enter the key if the keyring is still broken.
+            tracing::error!(
+                "OS keyring unavailable during migration for {} ({}). Plain-text was wiped from \
+                 disk; user must re-enter the key next session if keyring remains broken.",
+                provider,
+                e
+            );
+            Ok(legacy_key)
+        }
+    }
 }
 
 /// IPC: Save AI Configuration — keyring only, no plain-text fallback.
@@ -535,6 +577,32 @@ fn get_ai_rules_schema() -> String {
     macmon_core::rules_engine::ai_rules_schema_json()
 }
 
+/// Effective per-UTC-day AI call ceiling for the current user.
+///
+/// All remote AI commands (`ai_chat`, `analyze_processes`, `analyze_context`,
+/// `validate_api_key`) share the same `ai_daily` bucket, so a user that spent
+/// their budget on chat cannot spend another copy of it on analysis. This
+/// mirrors how cost on the LLM-provider side works — tokens are fungible.
+fn ai_daily_limit_effective() -> u32 {
+    macmon_core::settings::read_settings()
+        .ai_daily_limit
+        .unwrap_or(macmon_core::rate_limit::DEFAULT_AI_DAILY_LIMIT)
+}
+
+/// Shared bucket name for the daily AI budget. Every remote AI command
+/// spends one token from this bucket. Local-only providers (Ollama) should
+/// configure `ai_daily_limit = Some(0)` to disable the cap.
+const AI_DAILY_BUCKET: &str = "ai_daily";
+
+/// IPC: Return `(used_today, configured_limit)` for the shared AI budget.
+/// The UI can render "X / Y calls today" without mutating the counter.
+#[tauri::command]
+#[tracing::instrument(skip_all)]
+fn get_ai_daily_usage() -> (u32, u32) {
+    let (used, _stored_limit) = macmon_core::rate_limit::daily_usage(AI_DAILY_BUCKET);
+    (used, ai_daily_limit_effective())
+}
+
 /// IPC: Validate AI API key by making a test request
 #[tauri::command]
 #[tracing::instrument(skip_all)]
@@ -543,6 +611,7 @@ async fn validate_api_key(provider: String, key: String) -> Result<bool, String>
         "validate_api_key",
         &macmon_core::rate_limit::profiles::AI,
     )?;
+    macmon_core::rate_limit::check_daily_limit(AI_DAILY_BUCKET, ai_daily_limit_effective())?;
     let trimmed_key = key.trim().to_string();
     if trimmed_key.is_empty() {
         return Err("error_api_key_empty".to_string());
@@ -567,6 +636,7 @@ async fn analyze_processes(
         "analyze_processes",
         &macmon_core::rate_limit::profiles::AI,
     )?;
+    macmon_core::rate_limit::check_daily_limit(AI_DAILY_BUCKET, ai_daily_limit_effective())?;
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
     let api_key = get_api_key_with_fallback(&app, &provider)?;
 
@@ -617,6 +687,7 @@ async fn analyze_context(
         "analyze_context",
         &macmon_core::rate_limit::profiles::AI,
     )?;
+    macmon_core::rate_limit::check_daily_limit(AI_DAILY_BUCKET, ai_daily_limit_effective())?;
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
     let api_key = get_api_key_with_fallback(&app, &provider)?;
     macmon_core::ai::analyze_context_key(ai_provider, &model, &context, &api_key)
@@ -727,6 +798,7 @@ async fn ai_chat(
     cache_ttl_minutes: Option<u64>,
 ) -> Result<macmon_core::ai::ChatResponse, String> {
     macmon_core::rate_limit::check_rate_limit("ai_chat", &macmon_core::rate_limit::profiles::AI)?;
+    macmon_core::rate_limit::check_daily_limit(AI_DAILY_BUCKET, ai_daily_limit_effective())?;
     macmon_core::ai::check_prompt_injection(&message).map_err(|e| e.to_string())?;
     let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
 
@@ -737,24 +809,46 @@ async fn ai_chat(
         String::new()
     };
 
-    // Build system prompt with live OS state + open browser tabs
+    // Build system prompt with live OS state + open browser tabs.
+    //
+    // Privacy: if the user has enabled `ai_privacy_mode` in their settings,
+    // process names are replaced by stable pseudonymous tokens before being
+    // sent to the remote LLM provider. The AI can still reason about
+    // "process X keeps appearing" but cannot correlate tokens back to real
+    // application identities without access to the local machine.
     let sys_state = macmon_core::watcher::get_cached_state();
-    let mut system_prompt = macmon_core::ai::build_chat_system_prompt(&sys_state);
+    let privacy_mode = macmon_core::settings::read_settings()
+        .ai_privacy_mode
+        .unwrap_or(false);
+    let mut system_prompt =
+        macmon_core::ai::build_chat_system_prompt_with_privacy(&sys_state, privacy_mode);
 
-    // Append browser tabs context so AI can make informed close_tabs decisions
+    // Append browser tabs context so AI can make informed close_tabs decisions.
+    //
+    // Privacy: tab titles and URLs routinely contain customer names, ticket
+    // IDs, internal hostnames, and session tokens. When privacy mode is on
+    // we redact each to a stable token so the LLM can still issue a
+    // `close_tabs` pattern (matched locally on the real title/URL) without
+    // having seen the plain text.
     if let Ok(tabs) = get_browser_tabs() {
         if !tabs.is_empty() {
             system_prompt.push_str("\n\n## Open Browser Tabs\n");
             for tab in tabs.iter().take(30) {
                 system_prompt.push_str(&format!(
                     "- [{:?}] {} | {}\n",
-                    tab.browser, tab.title, tab.url
+                    tab.browser,
+                    macmon_core::ai::redact_tab_title(&tab.title, privacy_mode),
+                    macmon_core::ai::redact_url(&tab.url, privacy_mode)
                 ));
             }
             if tabs.len() > 30 {
                 system_prompt.push_str(&format!("... and {} more tabs\n", tabs.len() - 30));
             }
-            system_prompt.push_str("\nWhen using close_tabs, the pattern matches against tab URLs and titles. Use pipe (|) to separate multiple patterns. To close all EXCEPT certain tabs, use close_tabs with patterns matching the tabs TO CLOSE (not the ones to keep).");
+            if privacy_mode {
+                system_prompt.push_str("\nPrivacy mode is active: tab titles/URLs have been tokenized. You may still ask the user to close tabs by category (e.g. \"all youtube tabs\"), and the frontend will match your pattern against the real titles locally.");
+            } else {
+                system_prompt.push_str("\nWhen using close_tabs, the pattern matches against tab URLs and titles. Use pipe (|) to separate multiple patterns. To close all EXCEPT certain tabs, use close_tabs with patterns matching the tabs TO CLOSE (not the ones to keep).");
+            }
         }
     }
 
@@ -778,36 +872,44 @@ async fn ai_chat(
     .await
     .map_err(|e| e.to_string())?;
 
-    // If AI requested a tool call, execute it
+    // If AI requested a tool call, build a plan for the frontend to confirm.
+    //
+    // CONFIRMATION CONTRACT: automation tools are **not** executed server-side
+    // anymore — an LLM could otherwise silently register an `action: "kill"`
+    // rule that later terminates processes without user consent. We validate
+    // the shape here and hand the payload back to the UI, which stages it as
+    // a pending action and only invokes the actual `add_automation_rule` /
+    // `remove_automation_rule` IPC after the user explicitly confirms.
     let tool_result = tool_call.map(|call| match call.tool.as_str() {
         "add_automation_rule" => {
-            if let Ok(rule) =
-                serde_json::from_value::<automations::AutomationRule>(call.args.clone())
-            {
-                automations::add_rule(&app, rule);
-                macmon_core::ai::ToolResult {
-                    tool: call.tool,
-                    success: true,
-                    details: "automation_rule_added".into(),
-                    payload: None,
+            match serde_json::from_value::<automations::AutomationRule>(call.args.clone()) {
+                Ok(rule) => {
+                    let summary = format!(
+                        "add_automation_rule:{}:{}:{}",
+                        rule.process_pattern, rule.metric, rule.action
+                    );
+                    macmon_core::ai::ToolResult {
+                        tool: call.tool,
+                        success: true,
+                        details: summary,
+                        payload: Some(call.args.clone()),
+                    }
                 }
-            } else {
-                macmon_core::ai::ToolResult {
+                Err(_) => macmon_core::ai::ToolResult {
                     tool: call.tool,
                     success: false,
                     details: "automation_rule_args_invalid".into(),
                     payload: None,
-                }
+                },
             }
         }
         "remove_automation_rule" => {
             if let Some(id) = call.args["id"].as_str() {
-                automations::remove_rule(&app, id);
                 macmon_core::ai::ToolResult {
                     tool: call.tool,
                     success: true,
-                    details: "automation_rule_removed".into(),
-                    payload: None,
+                    details: format!("remove_automation_rule:{}", id),
+                    payload: Some(serde_json::json!({ "id": id })),
                 }
             } else {
                 macmon_core::ai::ToolResult {
@@ -1152,6 +1254,7 @@ pub fn run() {
             zombie_killer::list_zombie_candidates,
             zombie_killer::kill_zombie,
             zombie_killer::kill_all_zombies,
+            get_ai_daily_usage,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| {

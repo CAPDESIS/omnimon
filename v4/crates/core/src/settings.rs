@@ -43,6 +43,19 @@ pub struct Settings {
     pub automation_interval_secs: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ai_profile: Option<String>,
+    /// Privacy toggle for AI prompts. When `Some(true)`, process names, exe
+    /// paths, and window titles are redacted to stable pseudonymous tokens
+    /// before being sent to any LLM provider. Defaults to `None` (treated as
+    /// disabled). Stored in camelCase as `aiPrivacyMode`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_privacy_mode: Option<bool>,
+    /// Hard ceiling on LLM calls allowed per UTC day. Complements the burst
+    /// token bucket by preventing runaway-cost scenarios (e.g. an infinite
+    /// retry loop overnight). `None` applies [`DEFAULT_AI_DAILY_LIMIT`].
+    /// `Some(0)` disables the daily cap entirely — useful for Ollama/local
+    /// providers where there is no per-call cost. Stored as `aiDailyLimit`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_daily_limit: Option<u32>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub profile_presets: Vec<ProfilePreset>,
     #[serde(flatten)]
@@ -60,6 +73,8 @@ impl Default for Settings {
             poll_interval_ms: Some(DEFAULT_POLL_INTERVAL_MS),
             automation_interval_secs: Some(DEFAULT_AUTOMATION_INTERVAL_SECS),
             ai_profile: Some("general".to_string()),
+            ai_privacy_mode: None,
+            ai_daily_limit: None,
             profile_presets: default_profile_presets(),
             rest: HashMap::new(),
         }
