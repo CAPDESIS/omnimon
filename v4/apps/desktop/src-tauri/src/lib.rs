@@ -1,5 +1,6 @@
 pub mod automations;
 pub mod plugins;
+pub mod zombie_killer;
 use macmon_core::browser::{
     sanitize_tab_id, sanitize_tab_url, BrowserKind, BrowserTab, NativeTabProvider, TabProvider,
 };
@@ -921,6 +922,7 @@ pub fn run() {
             macmon_core::watcher::start_watcher();
             automations::start_engine(app.handle().clone());
             let _ = plugins::start_engine(app.handle().clone());
+            zombie_killer::start_engine(app.handle().clone());
 
             // Emit dynamic security alerts to frontend in real time.
             // Guard: only spawn the alert thread once, even if setup() is called multiple times.
@@ -1145,6 +1147,11 @@ pub fn run() {
             plugins::install_plugin,
             plugins::set_plugin_enabled,
             plugins::remove_plugin,
+            zombie_killer::get_zombie_killer_config,
+            zombie_killer::set_zombie_killer_config,
+            zombie_killer::list_zombie_candidates,
+            zombie_killer::kill_zombie,
+            zombie_killer::kill_all_zombies,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| {
