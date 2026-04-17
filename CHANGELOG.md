@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 6.7.0 (2026-04-17)
 
 ### Zombie Killer
 - Nuevo motor que detecta procesos con CPU o RAM altos sostenidos durante ventanas prolongadas y los ofrece para terminación con confirmación del usuario
