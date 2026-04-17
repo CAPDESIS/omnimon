@@ -67,7 +67,7 @@ pub fn top_processes_by_memory(limit: usize) -> Vec<ProcessMemoryEntry> {
     if !state.cached_process_info.is_empty() {
         let mut refs: Vec<&crate::watcher::CachedProcessInfo> =
             state.cached_process_info.iter().collect();
-        refs.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
+        refs.sort_by_key(|p| std::cmp::Reverse(p.memory_bytes));
         return refs
             .into_iter()
             .take(limit)
@@ -93,7 +93,7 @@ pub fn top_processes_by_memory(limit: usize) -> Vec<ProcessMemoryEntry> {
         })
         .collect();
 
-    entries.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
+    entries.sort_by_key(|e| std::cmp::Reverse(e.memory_bytes));
     entries.truncate(limit);
     entries
 }
@@ -222,7 +222,7 @@ pub fn aggregate_super_processes_with_network(
     }
 
     let mut super_processes: Vec<SuperProcess> = grouped.into_values().collect();
-    super_processes.sort_by(|a, b| b.total_memory_bytes.cmp(&a.total_memory_bytes));
+    super_processes.sort_by_key(|s| std::cmp::Reverse(s.total_memory_bytes));
 
     if let Some(max) = limit {
         super_processes.truncate(max);
