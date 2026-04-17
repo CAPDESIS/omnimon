@@ -263,6 +263,11 @@ pub fn start_watcher() {
                 VecDeque::with_capacity(12);
             let mut previous_network_snapshot: Option<crate::network_alerts::NetworkSnapshot> =
                 None;
+            // Evaluator state lives for the lifetime of the watcher thread —
+            // it is passed as `&mut` to the per-tick evaluator so debounce
+            // counters and cooldown timestamps survive across ticks without
+            // touching any process-global.
+            let mut network_alerts_state = crate::network_alerts::EvaluatorState::new();
 
             let initial = collect_state(&mut system, &mut buffers);
             if let Ok(mut guard) = cache.write() {
@@ -310,6 +315,7 @@ pub fn start_watcher() {
                         &network_snapshot,
                         previous_network_snapshot.as_ref(),
                         history_slice,
+                        &mut network_alerts_state,
                     );
                     let heartbeat = crate::audit::build_security_heartbeat(
                         network_snapshot.process_throughput.len(),
