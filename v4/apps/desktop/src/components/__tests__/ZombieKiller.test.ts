@@ -190,6 +190,127 @@ describe("ZombieKiller", () => {
     });
   });
 
+  it("formatea memoria y uptime en los diferentes tramos (KB/MB/GB, d/h/m)", async () => {
+    zombies = [
+      makeCandidate({
+        pid: 1,
+        name: "small",
+        memoryBytes: 500, // bytes branch
+        ageSecs: 45 * 60, // minutes branch: 45m
+        reason: "ram_sustained",
+      }),
+      makeCandidate({
+        pid: 2,
+        name: "kilobytes",
+        memoryBytes: 500 * 1024, // KB branch
+        ageSecs: 2 * 3600, // hours branch: 2h
+        reason: "cpu_and_ram_sustained",
+      }),
+      makeCandidate({
+        pid: 3,
+        name: "gigabytes",
+        memoryBytes: 2 * 1_073_741_824, // GB branch
+        ageSecs: 5 * 24 * 3600, // days branch: 5d 0h
+        reason: "cpu_sustained",
+      }),
+    ];
+
+    render(ZombieKiller, { props: { onclose: vi.fn() } });
+
+    await waitFor(() => {
+      expect(screen.getByText("small")).toBeInTheDocument();
+      expect(screen.getByText("kilobytes")).toBeInTheDocument();
+      expect(screen.getByText("gigabytes")).toBeInTheDocument();
+    });
+
+    // Each size and age formatter branch should have been exercised.
+    expect(screen.getByText(/500 B/)).toBeInTheDocument();
+    expect(screen.getByText(/KB/)).toBeInTheDocument();
+    expect(screen.getByText(/GB/)).toBeInTheDocument();
+    expect(screen.getByText(/Age 45m/)).toBeInTheDocument();
+    expect(screen.getByText(/Age 2h$/)).toBeInTheDocument();
+    expect(screen.getByText(/Age 5d 0h/)).toBeInTheDocument();
+    // Reason labels: two of the three are unique strings; the third
+    // ("Sustained high CPU") is a prefix of "Sustained high CPU + RAM",
+    // so check its count rather than uniqueness.
+    expect(screen.getByText("Sustained high RAM")).toBeInTheDocument();
+    expect(screen.getByText("Sustained high CPU and RAM")).toBeInTheDocument();
+    expect(screen.getByText("Sustained high CPU")).toBeInTheDocument();
+  });
+
+  it("muestra error cuando kill_zombie falla y conserva el candidato", async () => {
+    zombies = [makeCandidate({ pid: 77, name: "stuck" })];
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "get_zombie_killer_config") return { ...config };
+      if (command === "list_zombie_candidates") return [...zombies];
+      if (command === "kill_zombie") throw new Error("perms denied");
+      return undefined;
+    });
+
+    render(ZombieKiller, { props: { onclose: vi.fn() } });
+
+    await waitFor(() => {
+      expect(screen.getByText("stuck")).toBeInTheDocument();
+    });
+
+    await fireEvent.click(screen.getByRole("button", { name: /^Kill$/ }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toMatch(/perms denied/);
+    });
+    // Candidate should still be listed because the kill failed.
+    expect(screen.getByText("stuck")).toBeInTheDocument();
+  });
+
+  it("muestra error cuando kill_all_zombies falla", async () => {
+    zombies = [makeCandidate({ pid: 1, name: "a" })];
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "get_zombie_killer_config") return { ...config };
+      if (command === "list_zombie_candidates") return [...zombies];
+      if (command === "kill_all_zombies") throw new Error("all failed");
+      return undefined;
+    });
+
+    render(ZombieKiller, { props: { onclose: vi.fn() } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Detected processes \(1\)/)).toBeInTheDocument();
+    });
+
+    await fireEvent.click(screen.getByRole("button", { name: /Kill all/ }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toMatch(/all failed/);
+    });
+  });
+
+  it("ignora entradas duplicadas en la blocklist y agrega con Enter", async () => {
+    render(ZombieKiller, { props: { onclose: vi.fn() } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Never kill/)).toBeInTheDocument();
+    });
+
+    const input = screen.getByPlaceholderText(/AdobePremierePro/) as HTMLInputElement;
+
+    // Add via Enter key — exercises the onkeydown branch.
+    await fireEvent.input(input, { target: { value: "OBS" } });
+    await fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => {
+      expect(screen.getByText("OBS")).toBeInTheDocument();
+    });
+
+    // Duplicate (case-insensitive) is dropped silently.
+    await fireEvent.input(input, { target: { value: "obs" } });
+    await fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.getAllByText(/obs/i).length).toBeLessThan(3);
+
+    // Empty trimmed entry is also ignored.
+    await fireEvent.input(input, { target: { value: "   " } });
+    await fireEvent.keyDown(input, { key: "Enter" });
+    expect(input.value).toBe("   ");
+  });
+
   it("agrega y quita entradas de la blocklist 'nunca matar'", async () => {
     render(ZombieKiller, { props: { onclose: vi.fn() } });
 

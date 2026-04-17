@@ -4,6 +4,7 @@ import {
   validateAlertRule,
   detectPromptInjection,
   buildConfigPrompt,
+  validateAiRule,
 } from "../aiConfigBridge";
 
 describe("validateConfigPatch", () => {
@@ -178,6 +179,74 @@ describe("detectPromptInjection", () => {
 
   it("allows normal questions", () => {
     expect(detectPromptInjection("What is using the most memory?")).toBe(false);
+  });
+});
+
+describe("validateAiRule", () => {
+  const base = {
+    id: "rule-1",
+    name: "Block Chrome → Russia",
+    enabled: true,
+    kind: "process_country",
+  };
+
+  it("accepts a minimal valid rule and applies defaults", () => {
+    const out = validateAiRule(base);
+    expect(out.id).toBe("rule-1");
+    expect(out.protocol).toBe("any");
+    expect(out.temporal_correlation).toBeNull();
+    expect(out.country_code).toBeNull();
+  });
+
+  it("rejects non-object input", () => {
+    expect(() => validateAiRule(null)).toThrow(/expected an object/);
+    expect(() => validateAiRule("nope")).toThrow(/expected an object/);
+  });
+
+  it("rejects missing or empty id / name", () => {
+    expect(() => validateAiRule({ ...base, id: "" })).toThrow(/non-empty string 'id'/);
+    expect(() => validateAiRule({ ...base, name: 42 })).toThrow(/non-empty string 'name'/);
+  });
+
+  it("rejects non-boolean enabled", () => {
+    expect(() => validateAiRule({ ...base, enabled: "yes" })).toThrow(/'enabled' must be a boolean/);
+  });
+
+  it("rejects unknown rule kind and unknown protocol", () => {
+    expect(() => validateAiRule({ ...base, kind: "process_unknown" })).toThrow(/'kind' must be one of/);
+    expect(() => validateAiRule({ ...base, protocol: "icmp" })).toThrow(/'protocol' must be one of/);
+  });
+
+  it("rejects malformed temporal_correlation", () => {
+    expect(() =>
+      validateAiRule({ ...base, temporal_correlation: [] }),
+    ).toThrow(/'temporal_correlation' must be an object or null/);
+    expect(() =>
+      validateAiRule({
+        ...base,
+        temporal_correlation: { rule_id: "", within_seconds: 10 },
+      }),
+    ).toThrow(/rule_id must be a non-empty string/);
+    expect(() =>
+      validateAiRule({
+        ...base,
+        temporal_correlation: { rule_id: "a", within_seconds: -1 },
+      }),
+    ).toThrow(/within_seconds must be a positive integer/);
+    expect(() =>
+      validateAiRule({
+        ...base,
+        temporal_correlation: { rule_id: "a", within_seconds: 1.5 },
+      }),
+    ).toThrow(/within_seconds must be a positive integer/);
+  });
+
+  it("accepts a well-formed temporal_correlation", () => {
+    const out = validateAiRule({
+      ...base,
+      temporal_correlation: { rule_id: "alert-x", within_seconds: 30 },
+    });
+    expect(out.temporal_correlation).toEqual({ rule_id: "alert-x", within_seconds: 30 });
   });
 });
 
