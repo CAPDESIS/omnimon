@@ -373,7 +373,7 @@
           </div>
         </details>
       </div>
-      <button class="cdp-help-dismiss" onclick={() => showCdpHelp = false} title={t("cdpHelp.dismiss")}>✕</button>
+      <button class="cdp-help-dismiss" onclick={() => showCdpHelp = false} title={t("cdpHelp.dismiss")} aria-label={t("cdpHelp.dismiss")}>✕</button>
     </div>
   </div>
 {/if}

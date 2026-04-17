@@ -141,6 +141,8 @@ vi.mock("../stores/preferences", () => {
     refreshInterval: writable(500),
     favoriteProcesses: writable([]),
     notificationLevel: writable("all"),
+    aiPrivacyMode: writable(false),
+    aiDailyLimit: writable<number | null>(null),
     loadPreferences: vi.fn(async () => {}),
     savePreferences: vi.fn(async () => {}),
     initPreferenceSubscriptions: vi.fn(() => () => {}),
