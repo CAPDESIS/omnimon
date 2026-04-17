@@ -729,7 +729,7 @@ pub fn build_chat_system_prompt_with_privacy(
     };
 
     let mut top_procs = state.cached_process_info.clone();
-    top_procs.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
+    top_procs.sort_by_key(|p| std::cmp::Reverse(p.memory_bytes));
     top_procs.truncate(15);
 
     let procs_list: Vec<String> = top_procs

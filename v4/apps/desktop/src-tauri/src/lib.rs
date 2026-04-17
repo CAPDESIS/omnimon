@@ -642,7 +642,7 @@ async fn analyze_processes(
 
     let sys_state = macmon_core::watcher::get_cached_state();
     let mut top_procs = sys_state.cached_process_info;
-    top_procs.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
+    top_procs.sort_by_key(|p| std::cmp::Reverse(p.memory_bytes));
     top_procs.truncate(30);
 
     let mut procs_to_send = Vec::new();

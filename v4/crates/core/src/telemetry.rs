@@ -115,7 +115,7 @@ pub fn telemetry_snapshot(limit: Option<usize>) -> TelemetrySnapshot {
         })
         .collect::<Vec<_>>();
 
-    processes.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
+    processes.sort_by_key(|p| std::cmp::Reverse(p.memory_bytes));
     if let Some(max) = limit {
         processes.truncate(max);
     }
@@ -200,7 +200,7 @@ fn super_processes_from_state(
     }
 
     let mut values: Vec<_> = grouped.into_values().collect();
-    values.sort_by(|a, b| b.total_memory_bytes.cmp(&a.total_memory_bytes));
+    values.sort_by_key(|v| std::cmp::Reverse(v.total_memory_bytes));
     if let Some(max) = limit {
         values.truncate(max);
     }
