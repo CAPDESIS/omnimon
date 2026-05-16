@@ -1,3 +1,4 @@
+# 2026-05-15: migrated Linux jobs to self-hosted runner (was ubuntu-latest); macOS/Windows stay on cloud
 name: OmniMon CI/CD
 
 on:
@@ -30,7 +31,7 @@ env:
 jobs:
   lint:
     name: Lint (fmt + clippy)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, global]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -66,7 +67,7 @@ jobs:
       matrix:
         include:
           - platform: linux
-            os: ubuntu-latest
+            os: [self-hosted, global]
           - platform: macos
             os: macos-latest
           - platform: windows
@@ -123,7 +124,7 @@ jobs:
   coverage:
     name: Coverage Gates
     needs: [lint]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, global]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -169,7 +170,7 @@ jobs:
   security:
     name: Security Audit
     needs: [coverage]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, global]
     continue-on-error: true
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -257,7 +258,7 @@ jobs:
       matrix:
         include:
           - platform: linux
-            os: ubuntu-latest
+            os: [self-hosted, global]
             args: ""
           - platform: macos-universal
             os: macos-latest
@@ -291,7 +292,7 @@ jobs:
           workspaces: "v4"
 
       - name: Install Linux Dependencies (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -321,7 +322,7 @@ jobs:
     name: Sign Release Artifacts (SHA-256 + Ed25519)
     needs: [release]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, global]
     permissions:
       contents: write
     steps:
@@ -456,7 +457,7 @@ jobs:
     name: Rename Release Assets
     needs: [release, sign-release]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, global]
     permissions:
       contents: write
     steps:
