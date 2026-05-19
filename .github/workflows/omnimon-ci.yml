@@ -31,7 +31,7 @@ env:
 jobs:
   lint:
     name: Lint (fmt + clippy)
-    runs-on: [self-hosted, global]
+    runs-on: [self-hosted, build-heavy]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -67,7 +67,7 @@ jobs:
       matrix:
         include:
           - platform: linux
-            os: [self-hosted, global]
+            os: [self-hosted, build-heavy]
           - platform: macos
             os: macos-latest
           - platform: windows
@@ -124,7 +124,7 @@ jobs:
   coverage:
     name: Coverage Gates
     needs: [lint]
-    runs-on: [self-hosted, global]
+    runs-on: [self-hosted, build-heavy]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -170,7 +170,7 @@ jobs:
   security:
     name: Security Audit
     needs: [coverage]
-    runs-on: [self-hosted, global]
+    runs-on: [self-hosted, build-heavy]
     continue-on-error: true
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -258,7 +258,7 @@ jobs:
       matrix:
         include:
           - platform: linux
-            os: [self-hosted, global]
+            os: [self-hosted, build-heavy]
             args: ""
           - platform: macos-universal
             os: macos-latest
@@ -322,7 +322,7 @@ jobs:
     name: Sign Release Artifacts (SHA-256 + Ed25519)
     needs: [release]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: [self-hosted, global]
+    runs-on: [self-hosted, build-heavy]
     permissions:
       contents: write
     steps:
@@ -457,7 +457,7 @@ jobs:
     name: Rename Release Assets
     needs: [release, sign-release]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: [self-hosted, global]
+    runs-on: [self-hosted, build-heavy]
     permissions:
       contents: write
     steps:
