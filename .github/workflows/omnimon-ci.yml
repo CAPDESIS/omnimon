@@ -555,3 +555,4 @@ jobs:
             gh api "repos/$REPO/releases/assets/$ID" -X PATCH -f name="$NEW_NAME" -f label="$LABEL" --silent
           done <<< "$ASSETS"
           echo "All assets renamed successfully."
+# Migration trigger re-evaluation 2026-05-20T14:56:07Z
