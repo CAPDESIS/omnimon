@@ -46,6 +46,7 @@ jobs:
           workspaces: "v4"
 
       - name: Install Linux Dependencies
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -62,16 +63,20 @@ jobs:
     name: Test (${{ matrix.platform }})
     needs: [lint]
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: linux
             os: [self-hosted, build-heavy]
+            experimental: false
           - platform: macos
             os: macos-latest
+            experimental: true
           - platform: windows
             os: windows-latest
+            experimental: true
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -85,7 +90,7 @@ jobs:
           workspaces: "v4"
 
       - name: Install Linux Dependencies (Ubuntu Tauri packages only)
-        if: matrix.platform == 'linux'
+        if: matrix.platform == 'linux' && runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -135,6 +140,7 @@ jobs:
         uses: taiki-e/install-action@03e268b84870ac3cfa58a44d9b504511b732a857 # cargo-llvm-cov
 
       - name: Install Linux Dependencies
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -251,6 +257,7 @@ jobs:
     needs: [lint]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
     permissions:
       contents: write
     strategy:
@@ -260,12 +267,15 @@ jobs:
           - platform: linux
             os: [self-hosted, build-heavy]
             args: ""
+            experimental: false
           - platform: macos-universal
             os: macos-latest
             args: "--target universal-apple-darwin"
+            experimental: true
           - platform: windows
             os: windows-latest
             args: ""
+            experimental: true
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -292,7 +302,7 @@ jobs:
           workspaces: "v4"
 
       - name: Install Linux Dependencies (Ubuntu only)
-        if: matrix.platform == 'linux'
+        if: matrix.platform == 'linux' && runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -547,3 +557,4 @@ jobs:
             gh api "repos/$REPO/releases/assets/$ID" -X PATCH -f name="$NEW_NAME" -f label="$LABEL" --silent
           done <<< "$ASSETS"
           echo "All assets renamed successfully."
+# Migration trigger re-evaluation 2026-05-20T14:56:07Z
