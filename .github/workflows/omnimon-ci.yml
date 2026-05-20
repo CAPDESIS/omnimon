@@ -46,6 +46,7 @@ jobs:
           workspaces: "v4"
 
       - name: Install Linux Dependencies
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -89,7 +90,7 @@ jobs:
           workspaces: "v4"
 
       - name: Install Linux Dependencies (Ubuntu Tauri packages only)
-        if: matrix.platform == 'linux'
+        if: matrix.platform == 'linux' && runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -139,6 +140,7 @@ jobs:
         uses: taiki-e/install-action@03e268b84870ac3cfa58a44d9b504511b732a857 # cargo-llvm-cov
 
       - name: Install Linux Dependencies
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -300,7 +302,7 @@ jobs:
           workspaces: "v4"
 
       - name: Install Linux Dependencies (Ubuntu only)
-        if: matrix.platform == 'linux'
+        if: matrix.platform == 'linux' && runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
