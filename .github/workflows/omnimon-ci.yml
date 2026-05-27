@@ -30,7 +30,7 @@ env:
 jobs:
   lint:
     name: Lint (fmt + clippy)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ci-runner-node, build-heavy]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -44,10 +44,12 @@ jobs:
         with:
           workspaces: "v4"
 
-      - name: Install Linux Dependencies
+      - name: Verify Linux Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          pkg-config --exists webkit2gtk-4.1
+          pkg-config --exists appindicator3-0.1
+          pkg-config --exists librsvg-2.0
+          command -v patchelf
 
       - name: Check Formatting
         run: cargo fmt --check
@@ -60,17 +62,17 @@ jobs:
   test:
     name: Test (${{ matrix.platform }})
     needs: [lint]
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ fromJSON(matrix.runner) }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: linux
-            os: ubuntu-latest
+            runner: '["self-hosted","ci-runner-node","build-heavy"]'
           - platform: macos
-            os: macos-latest
+            runner: '"macos-latest"'
           - platform: windows
-            os: windows-latest
+            runner: '"windows-latest"'
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -83,11 +85,13 @@ jobs:
         with:
           workspaces: "v4"
 
-      - name: Install Linux Dependencies (Ubuntu Tauri packages only)
+      - name: Verify Linux Dependencies
         if: matrix.platform == 'linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          pkg-config --exists webkit2gtk-4.1
+          pkg-config --exists appindicator3-0.1
+          pkg-config --exists librsvg-2.0
+          command -v patchelf
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
@@ -123,7 +127,7 @@ jobs:
   coverage:
     name: Coverage Gates
     needs: [lint]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ci-runner-node, build-heavy]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -133,10 +137,12 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@03e268b84870ac3cfa58a44d9b504511b732a857 # cargo-llvm-cov
 
-      - name: Install Linux Dependencies
+      - name: Verify Linux Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          pkg-config --exists webkit2gtk-4.1
+          pkg-config --exists appindicator3-0.1
+          pkg-config --exists librsvg-2.0
+          command -v patchelf
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
@@ -169,7 +175,7 @@ jobs:
   security:
     name: Security Audit
     needs: [coverage]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ci-runner-node, build-heavy]
     continue-on-error: true
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -249,7 +255,7 @@ jobs:
     name: Release Builder (${{ matrix.platform }})
     needs: [lint]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ fromJSON(matrix.runner) }}
     permissions:
       contents: write
     strategy:
@@ -257,13 +263,13 @@ jobs:
       matrix:
         include:
           - platform: linux
-            os: ubuntu-latest
+            runner: '["self-hosted","ci-runner-node","build-heavy"]'
             args: ""
           - platform: macos-universal
-            os: macos-latest
+            runner: '"macos-latest"'
             args: "--target universal-apple-darwin"
           - platform: windows
-            os: windows-latest
+            runner: '"windows-latest"'
             args: ""
 
     steps:
@@ -290,11 +296,13 @@ jobs:
         with:
           workspaces: "v4"
 
-      - name: Install Linux Dependencies (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Verify Linux Dependencies
+        if: matrix.platform == 'linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          pkg-config --exists webkit2gtk-4.1
+          pkg-config --exists appindicator3-0.1
+          pkg-config --exists librsvg-2.0
+          command -v patchelf
 
       - name: Build and Release with Tauri Action
         uses: tauri-apps/tauri-action@73fb865345c54760d875b94642314f8c0c894afa # v0
@@ -321,7 +329,7 @@ jobs:
     name: Sign Release Artifacts (SHA-256 + Ed25519)
     needs: [release]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ci-runner-node, build-heavy]
     permissions:
       contents: write
     steps:
@@ -456,7 +464,7 @@ jobs:
     name: Rename Release Assets
     needs: [release, sign-release]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ci-runner-node, build-heavy]
     permissions:
       contents: write
     steps:
