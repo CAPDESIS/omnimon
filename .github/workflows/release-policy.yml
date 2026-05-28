@@ -1,0 +1,21 @@
+name: Release Policy
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'docs/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'docs/**'
+  workflow_dispatch:
+
+jobs:
+  release-policy:
+    uses: CAPDESIS/.github/.github/workflows/release-policy-check.yml@main
+    with:
+      enforce: false
+      runner-label: test-light
+      production-day: monday
