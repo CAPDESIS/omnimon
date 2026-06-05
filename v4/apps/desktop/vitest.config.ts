@@ -14,6 +14,13 @@ export default defineConfig({
   },
   test: {
     globals: true,
+    // The CAPDESIS self-hosted runner can be heavily loaded under multi-repo
+    // CI bursts, making render/waitFor-based component tests (e.g. App.test.ts)
+    // run far slower than locally and exceed Vitest's 5s default. Generous
+    // timeouts keep these tests deterministic under runner load without
+    // weakening any assertion.
+    testTimeout: 20000,
+    hookTimeout: 20000,
     environment: "happy-dom",
     setupFiles: ["src/test-setup.ts"],
     include: ["src/**/__tests__/**/*.test.ts"],
