@@ -467,11 +467,29 @@ mod tests {
         start_watcher();
         std::thread::sleep(Duration::from_millis(2500));
         let state = get_cached_state();
-        assert!(state.total_memory_bytes > 0);
+
+        // `updated_at_unix_ms` comes from `SystemTime::now()`, not sysinfo, so it is the
+        // sysinfo-independent proof that the watcher actually ran and refreshed the cache
+        // (the unstarted default state has `updated_at_unix_ms == 0`).
+        assert!(
+            state.updated_at_unix_ms > 0,
+            "watcher tick should have populated the cache"
+        );
+
+        // Memory invariants must hold for any reading, zero-valued or not.
         assert!(state.total_memory_bytes >= state.used_memory_bytes);
         assert!(state.total_memory_bytes >= state.free_memory_bytes);
         assert!(state.free_percent <= 100);
-        assert!(state.updated_at_unix_ms > 0);
+
+        // On isolated CI runners sysinfo can report 0 for total memory. Only assert the
+        // strict non-zero metric when the live reading is actually non-zero, so the test
+        // keeps its full strength on real hosts without flaking where sysinfo is blind.
+        if System::new_all().total_memory() > 0 {
+            assert!(
+                state.total_memory_bytes > 0,
+                "watcher should record non-zero total memory when sysinfo can read it"
+            );
+        }
     }
 
     #[test]
