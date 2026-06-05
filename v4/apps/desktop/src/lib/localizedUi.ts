@@ -147,7 +147,6 @@ export function localizeBackendError(message: string): string {
   if (trimmed === "error_cdp_not_localhost") return t("errors.cdpNotLocalhost");
   if (trimmed === "error_firefox_not_supported") return t("errors.firefoxNotSupported");
   if (/^error_tab_id_/i.test(trimmed) || /^error_tab_url_/i.test(trimmed)) return t("errors.invalidTabInput");
-  if (/^error_unknown_browser:/i.test(trimmed)) return t("errors.unknownBrowser");
   if (/Unknown AI provider/i.test(trimmed)) return t("errors.unknownAiProvider");
   if (/Ollama is not running/i.test(trimmed)) return t("aiChat.errorApi");
   if (/Invalid API key/i.test(trimmed)) return t("settings.apiKeyFailed");
