@@ -292,11 +292,12 @@ fn integration_network_snapshot_filter_alert_pipeline() {
         notify_ai: false,
     }];
 
-    assert!(evaluate_network_alerts(&flow_snapshot, None, &rules, &[]).is_empty());
+    let mut state = network_alerts::EvaluatorState::new();
+    assert!(evaluate_network_alerts(&flow_snapshot, None, &rules, &[], &mut state).is_empty());
     flow_snapshot.captured_at_unix_ms += 2_000;
-    assert!(evaluate_network_alerts(&flow_snapshot, None, &rules, &[]).is_empty());
+    assert!(evaluate_network_alerts(&flow_snapshot, None, &rules, &[], &mut state).is_empty());
     flow_snapshot.captured_at_unix_ms += 2_000;
-    let alerts = evaluate_network_alerts(&flow_snapshot, None, &rules, &[]);
+    let alerts = evaluate_network_alerts(&flow_snapshot, None, &rules, &[], &mut state);
     assert_eq!(alerts.len(), 1);
     assert_eq!(alerts[0].process_name.as_deref(), Some("chrome"));
     assert!(alerts[0].message.contains("chrome"));
@@ -1389,7 +1390,7 @@ fn integration_security_scan_to_mitre_to_report_pipeline() {
 
 #[test]
 fn integration_network_alerts_pipeline_emits_after_three_snapshots() {
-    network_alerts::reset_network_alert_state_for_tests();
+    let mut state = network_alerts::EvaluatorState::new();
     let rules = vec![network_alerts::NetworkAlertRule {
         id: "suspicious-port".to_string(),
         name: "Puerto sospechoso".to_string(),
@@ -1432,11 +1433,17 @@ fn integration_network_alerts_pipeline_emits_after_three_snapshots() {
         captured_at_unix_ms: 1_000,
     };
 
-    assert!(network_alerts::evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+    assert!(
+        network_alerts::evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state)
+            .is_empty()
+    );
     snapshot.captured_at_unix_ms += 2_000;
-    assert!(network_alerts::evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+    assert!(
+        network_alerts::evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state)
+            .is_empty()
+    );
     snapshot.captured_at_unix_ms += 2_000;
-    let alerts = network_alerts::evaluate_network_alerts(&snapshot, None, &rules, &[]);
+    let alerts = network_alerts::evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state);
     assert_eq!(alerts.len(), 1);
     assert_eq!(alerts[0].rule_name, "Puerto sospechoso");
 }

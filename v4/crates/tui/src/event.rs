@@ -87,15 +87,11 @@ fn handle_process_key(app: &mut App, key: KeyEvent) {
 fn handle_chat_key(app: &mut App, key: KeyEvent) {
     match key.code {
         KeyCode::Esc => app.active_panel = ActivePanel::Processes,
-        KeyCode::Char(c) => {
-            if !app.chat_loading {
-                app.chat_input.push(c);
-            }
+        KeyCode::Char(c) if !app.chat_loading => {
+            app.chat_input.push(c);
         }
-        KeyCode::Backspace => {
-            if !app.chat_loading {
-                app.chat_input.pop();
-            }
+        KeyCode::Backspace if !app.chat_loading => {
+            app.chat_input.pop();
         }
         KeyCode::Enter => {
             if app.chat_loading || app.chat_input.trim().is_empty() {

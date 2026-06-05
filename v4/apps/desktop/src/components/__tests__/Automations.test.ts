@@ -100,4 +100,74 @@ describe("Automations", () => {
     expect(screen.getByText("Automations Engine")).toBeInTheDocument();
     expect(container.querySelectorAll(".rule-item")).toHaveLength(0);
   });
+
+  it("bloquea agregar una regla con patrón vacío y muestra error", async () => {
+    rules = [];
+    const { container } = render(Automations, { props: { onclose: vi.fn() } });
+
+    // Wait for the builder form to be mounted (not the loading spinner).
+    await waitFor(() => {
+      expect(container.querySelector(".builder")).not.toBeNull();
+    });
+
+    const addBtn = container.querySelector(
+      '.builder button[data-variant="primary"]',
+    ) as HTMLButtonElement;
+    expect(addBtn).toBeTruthy();
+    await fireEvent.click(addBtn);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    // add_automation_rule must not have been invoked.
+    expect(
+      mockInvoke.mock.calls.find((call) => call[0] === "add_automation_rule"),
+    ).toBeUndefined();
+  });
+
+  it("muestra error cuando loadRules falla", async () => {
+    mockInvoke.mockReset();
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "get_automation_rules") {
+        throw new Error("backend unreachable");
+      }
+      return undefined;
+    });
+
+    render(Automations, { props: { onclose: vi.fn() } });
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("alert").textContent).toMatch(/backend unreachable/);
+  });
+
+  it("muestra error cuando removeRule falla", async () => {
+    mockInvoke.mockReset();
+    let callCount = 0;
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "get_automation_rules") {
+        callCount += 1;
+        return callCount === 1 ? [...rules] : rules;
+      }
+      if (command === "remove_automation_rule") {
+        throw new Error("remove boom");
+      }
+      return undefined;
+    });
+
+    render(Automations, { props: { onclose: vi.fn() } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Chrome > 80 cpu/)).toBeInTheDocument();
+    });
+
+    await fireEvent.click(screen.getAllByText("Delete")[0]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toMatch(/remove boom/);
+    });
+    // Rule should still be visible because the remove failed.
+    expect(screen.getByText(/Chrome > 80 cpu/)).toBeInTheDocument();
+  });
 });

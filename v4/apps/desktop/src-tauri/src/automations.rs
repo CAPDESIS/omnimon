@@ -223,6 +223,7 @@ pub fn remove_automation_rule(app: AppHandle, id: String) -> Result<(), String> 
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
 
@@ -351,7 +352,7 @@ mod tests {
         let value_above = 1500.0;
         let value_below = 512.0;
         assert!(value_above > rule.threshold);
-        assert!(!(value_below > rule.threshold));
+        assert!(value_below <= rule.threshold);
     }
 }
 

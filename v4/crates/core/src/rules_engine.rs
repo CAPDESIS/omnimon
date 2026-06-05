@@ -650,7 +650,7 @@ mod tests {
             memory_bytes: 128 * 1_048_576,
         }];
 
-        let alerts = evaluate_events(&[udp_event.clone()], &runtime);
+        let alerts = evaluate_events(std::slice::from_ref(&udp_event), &runtime);
         assert_eq!(alerts.len(), 2);
         assert!(alerts.iter().any(|alert| alert.rule_id == "udp-rule"));
         assert!(alerts

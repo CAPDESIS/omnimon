@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 /// Per-bucket configuration: how many tokens and the refill rate.
 #[derive(Debug, Clone, Copy)]
@@ -126,6 +126,127 @@ pub fn reset_all() {
     if let Ok(mut guard) = limiters().lock() {
         guard.clear();
     }
+    if let Ok(mut guard) = daily_limiters().lock() {
+        guard.clear();
+    }
+}
+
+// =============================================================================
+// Daily limit (cost containment, not DDoS protection).
+// =============================================================================
+
+/// Fallback cap when no user-configured limit is available. Chosen to be
+/// generous for interactive use (about 8 calls/hour continuous) yet bounded
+/// enough to protect against a runaway loop burning tokens on a paid LLM
+/// provider overnight.
+pub const DEFAULT_AI_DAILY_LIMIT: u32 = 200;
+
+/// Per-UTC-day call counter. Complements [`TokenBucket`]: the token bucket
+/// prevents *bursts* (e.g. a loop hitting the API 100x in one second), and
+/// the daily bucket caps *total cost per day*. Both fire independently.
+///
+/// The counter resets when the UTC day index advances. Persisting the
+/// counter across app restarts is deliberately not done — a restart-evasion
+/// attack would require the user to actively restart the app many times in
+/// a day, which is both unlikely and already rate-limited by the token
+/// bucket.
+#[derive(Debug)]
+pub struct DailyBucket {
+    count: u32,
+    limit: u32,
+    day_index: u64,
+}
+
+impl DailyBucket {
+    pub const fn new(limit: u32) -> Self {
+        Self {
+            count: 0,
+            limit,
+            day_index: 0,
+        }
+    }
+
+    fn current_day_index() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs() / 86_400)
+            .unwrap_or(0)
+    }
+
+    /// Try to consume one call. Returns `true` if allowed, `false` if the
+    /// daily limit has been reached. The counter resets when the UTC day
+    /// index advances (so the first call after midnight UTC always
+    /// succeeds if the limit is >= 1).
+    pub fn try_acquire(&mut self, effective_limit: u32) -> bool {
+        let today = Self::current_day_index();
+        if today != self.day_index {
+            self.day_index = today;
+            self.count = 0;
+        }
+        self.limit = effective_limit;
+        if self.count < self.limit {
+            self.count += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Returns `(used_today, configured_limit)`. If the day rolled over,
+    /// `used_today` is reported as 0 even before the next `try_acquire`.
+    pub fn snapshot(&self) -> (u32, u32) {
+        let today = Self::current_day_index();
+        let used = if today == self.day_index {
+            self.count
+        } else {
+            0
+        };
+        (used, self.limit)
+    }
+}
+
+static DAILY_LIMITERS: OnceLock<Mutex<HashMap<&'static str, DailyBucket>>> = OnceLock::new();
+
+fn daily_limiters() -> &'static Mutex<HashMap<&'static str, DailyBucket>> {
+    DAILY_LIMITERS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Check whether a command is within its daily budget.
+///
+/// `effective_limit` is the per-call cap from user settings (e.g. 200).
+/// Passing 0 disables the daily check entirely (the limit becomes
+/// unenforceable and every call is allowed), which lets the UI offer an
+/// explicit "unlimited" mode for offline providers like Ollama.
+pub fn check_daily_limit(bucket_name: &'static str, effective_limit: u32) -> Result<(), String> {
+    if effective_limit == 0 {
+        return Ok(());
+    }
+    let mut guard = daily_limiters()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let bucket = guard
+        .entry(bucket_name)
+        .or_insert_with(|| DailyBucket::new(effective_limit));
+    if bucket.try_acquire(effective_limit) {
+        Ok(())
+    } else {
+        let (used, limit) = bucket.snapshot();
+        Err(format!(
+            "Daily AI call limit reached ({used}/{limit}). Raise ai_daily_limit in settings or wait until UTC midnight to continue."
+        ))
+    }
+}
+
+/// Non-destructive read of a daily bucket, useful for UIs that want to
+/// show "X / Y calls today".
+pub fn daily_usage(bucket_name: &'static str) -> (u32, u32) {
+    let guard = daily_limiters()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    guard
+        .get(bucket_name)
+        .map(|bucket| bucket.snapshot())
+        .unwrap_or((0, 0))
 }
 
 #[cfg(test)]
@@ -199,6 +320,74 @@ mod tests {
         let config = BucketConfig::new(0, 0.0);
         let err = check_rate_limit("my_command", &config).unwrap_err();
         assert!(err.contains("my_command"));
+    }
+
+    // --- Daily bucket ---
+
+    // NOTE on test isolation: these tests deliberately avoid calling
+    // `reset_all()` because it is shared across every parallel test in
+    // the file. Each daily-bucket test uses a unique bucket name instead,
+    // which provides the same isolation without racing against peer tests
+    // that also wipe the global map.
+
+    #[test]
+    fn daily_bucket_allows_up_to_limit() {
+        assert!(check_daily_limit("daily_allows_up_to_limit", 3).is_ok());
+        assert!(check_daily_limit("daily_allows_up_to_limit", 3).is_ok());
+        assert!(check_daily_limit("daily_allows_up_to_limit", 3).is_ok());
+        // 4th call in the same UTC day must be rejected.
+        let err = check_daily_limit("daily_allows_up_to_limit", 3).unwrap_err();
+        assert!(err.contains("Daily AI call limit reached"));
+        assert!(err.contains("3/3"));
+    }
+
+    #[test]
+    fn daily_bucket_zero_limit_means_unlimited() {
+        // Useful for Ollama users: the daily cap is off because there is no
+        // per-call cost. Burst bucket still protects against runaway loops.
+        for _ in 0..100 {
+            assert!(check_daily_limit("daily_zero_limit_unlimited", 0).is_ok());
+        }
+    }
+
+    #[test]
+    fn daily_usage_reports_counter_and_limit() {
+        let _ = check_daily_limit("daily_usage_reports", 10);
+        let _ = check_daily_limit("daily_usage_reports", 10);
+        let (used, limit) = daily_usage("daily_usage_reports");
+        assert_eq!(used, 2);
+        assert_eq!(limit, 10);
+    }
+
+    #[test]
+    fn daily_usage_of_unknown_bucket_is_zero() {
+        let (used, limit) = daily_usage("daily_never_touched_sentinel");
+        assert_eq!(used, 0);
+        assert_eq!(limit, 0);
+    }
+
+    #[test]
+    fn daily_bucket_tracks_day_rollover_logic() {
+        // Directly exercise the struct to avoid depending on the real clock.
+        let mut bucket = DailyBucket::new(2);
+        bucket.day_index = DailyBucket::current_day_index();
+        assert!(bucket.try_acquire(2));
+        assert!(bucket.try_acquire(2));
+        assert!(!bucket.try_acquire(2));
+        // Simulate a day rollover — counter must reset.
+        bucket.day_index = bucket.day_index.saturating_sub(1);
+        assert!(bucket.try_acquire(2));
+        let (used, limit) = bucket.snapshot();
+        assert_eq!(used, 1);
+        assert_eq!(limit, 2);
+    }
+
+    #[test]
+    fn default_ai_daily_limit_is_non_trivial() {
+        const {
+            assert!(DEFAULT_AI_DAILY_LIMIT >= 50);
+            assert!(DEFAULT_AI_DAILY_LIMIT <= 10_000);
+        }
     }
 
     #[test]

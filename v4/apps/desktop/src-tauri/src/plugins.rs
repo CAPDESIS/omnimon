@@ -246,12 +246,11 @@ fn sanitize_file_stem(file_name: &str) -> Result<String, String> {
         };
 
         match normalized {
-            Some('-') => {
-                if !last_dash {
-                    sanitized.push('-');
-                    last_dash = true;
-                }
+            Some('-') if !last_dash => {
+                sanitized.push('-');
+                last_dash = true;
             }
+            Some('-') => {}
             Some(value) => {
                 sanitized.push(value);
                 last_dash = false;
@@ -292,7 +291,7 @@ fn truncate_string(value: Option<String>) -> Option<String> {
 fn build_context() -> PluginContext {
     let snapshot = macmon_core::watcher::get_cached_state();
     let mut top_processes = snapshot.cached_process_info;
-    top_processes.sort_by(|left, right| right.memory_bytes.cmp(&left.memory_bytes));
+    top_processes.sort_by_key(|p| std::cmp::Reverse(p.memory_bytes));
     top_processes.truncate(24);
 
     PluginContext {
@@ -922,8 +921,8 @@ mod tests {
 
     #[test]
     fn validate_rounds_value_to_two_decimals() {
-        let metrics = validate_metrics(vec![make_metric_input("precise", 3.14159)]).unwrap();
-        assert!((metrics[0].value - 3.14).abs() < 0.01);
+        let metrics = validate_metrics(vec![make_metric_input("precise", 4.56789)]).unwrap();
+        assert!((metrics[0].value - 4.57).abs() < 0.01);
     }
 
     #[test]

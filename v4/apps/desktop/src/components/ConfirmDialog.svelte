@@ -58,7 +58,7 @@
           {#each $confirmDialogState.items as item}
             <li class="confirm-item">
               {#if item.icon}
-                <img class="confirm-item-icon" src={item.icon} alt="" />
+                <img class="confirm-item-icon" src={item.icon} alt="" aria-hidden="true" />
               {:else}
                 <div class="confirm-item-icon confirm-item-icon--placeholder">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

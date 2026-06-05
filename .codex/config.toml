@@ -1,0 +1,18 @@
+# Project-scoped Codex configuration. Keep model selection in each user's global profile.
+
+project_doc_max_bytes = 65536
+
+[features]
+multi_agent = true
+fast_mode = true
+shell_snapshot = true
+unified_exec = true
+skill_mcp_dependency_install = true
+
+[agents]
+max_threads = 6
+max_depth = 1
+job_max_runtime_seconds = 1800
+
+[mcp_servers.openaiDeveloperDocs]
+url = "https://developers.openai.com/mcp"

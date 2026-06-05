@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
   import {
     displayName,
     profilePreset,
@@ -6,11 +8,55 @@
     refreshInterval,
     favoriteProcesses,
     notificationLevel,
+    aiPrivacyMode,
+    aiDailyLimit,
   } from "../stores/preferences";
   import { t } from "../lib/i18n";
   import Button from "./Button.svelte";
 
   let newFavorite = $state("");
+  // Mirrored string binding for the number input so the user can temporarily
+  // clear the field (which makes the store null = "use default") without
+  // fighting Svelte's number coercion.
+  let aiDailyLimitText = $state<string>(
+    $aiDailyLimit === null ? "" : String($aiDailyLimit),
+  );
+  let aiDailyUsed = $state<number>(0);
+  let aiDailyLimitEffective = $state<number>(0);
+
+  $effect(() => {
+    // Keep the text field in sync when the store changes externally.
+    const current = $aiDailyLimit;
+    aiDailyLimitText = current === null ? "" : String(current);
+  });
+
+  function onAiDailyLimitInput(ev: Event) {
+    const raw = (ev.target as HTMLInputElement).value.trim();
+    if (raw === "") {
+      aiDailyLimit.set(null);
+      return;
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0 || parsed > 100_000) {
+      // Ignore invalid input — the user can keep typing to reach a valid value.
+      return;
+    }
+    aiDailyLimit.set(parsed);
+  }
+
+  async function refreshDailyUsage() {
+    try {
+      const [used, limit] = await invoke<[number, number]>("get_ai_daily_usage");
+      aiDailyUsed = used;
+      aiDailyLimitEffective = limit;
+    } catch (e) {
+      console.warn("[ProfileSettings] get_ai_daily_usage failed:", e);
+    }
+  }
+
+  onMount(() => {
+    refreshDailyUsage();
+  });
 
   const DEFAULT_DISPLAY_NAME = "";
 
@@ -21,6 +67,8 @@
     $refreshInterval = 500;
     $favoriteProcesses = [];
     $notificationLevel = "all";
+    $aiPrivacyMode = false;
+    $aiDailyLimit = null;
   }
 
   function addFavorite() {
@@ -150,6 +198,44 @@
         {/each}
       </ul>
     {/if}
+  </div>
+
+  <div class="form-group full-width ai-privacy">
+    <h3>{t("profileSettings.aiPrivacySection")}</h3>
+
+    <label class="toggle-row">
+      <input
+        id="aiPrivacyMode"
+        type="checkbox"
+        bind:checked={$aiPrivacyMode}
+      />
+      <span class="toggle-label">{t("profileSettings.aiPrivacyMode")}</span>
+    </label>
+    <p class="help">{t("profileSettings.aiPrivacyModeHelp")}</p>
+
+    <label class="limit-row" for="aiDailyLimit">
+      <span class="toggle-label">{t("profileSettings.aiDailyLimit")}</span>
+      <input
+        id="aiDailyLimit"
+        type="number"
+        min="0"
+        max="100000"
+        step="1"
+        placeholder={t("profileSettings.aiDailyLimitDefault")}
+        value={aiDailyLimitText}
+        oninput={onAiDailyLimitInput}
+      />
+    </label>
+    <p class="help">
+      {t("profileSettings.aiDailyLimitHelp")} ·
+      {t("profileSettings.aiDailyLimitUsage", {
+        used: aiDailyUsed,
+        limit: aiDailyLimitEffective === 0 ? "∞" : String(aiDailyLimitEffective),
+      })}
+      <button type="button" class="link-btn" onclick={refreshDailyUsage}>
+        {t("profileSettings.aiDailyLimitRefresh")}
+      </button>
+    </p>
   </div>
 
   <div class="actions full-width">
@@ -324,6 +410,56 @@
     margin-top: 4px;
     padding-top: 16px;
     border-top: 1px solid var(--border);
+  }
+
+  .ai-privacy {
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    user-select: none;
+    cursor: pointer;
+  }
+
+  .toggle-row input[type="checkbox"] {
+    width: auto;
+  }
+
+  .toggle-label {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .limit-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .limit-row input[type="number"] {
+    max-width: 140px;
+    text-align: right;
+  }
+
+  .help {
+    margin: 0;
+    font-size: calc(var(--base-font-size, 12px) * 0.85);
+    color: var(--text-secondary);
+  }
+
+  .link-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: inherit;
+    padding: 0 4px;
+    text-decoration: underline;
   }
 
   /* Responsive: collapse to 1 column on narrow windows */

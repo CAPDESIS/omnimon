@@ -1,5 +1,41 @@
 # Changelog
 
+## 6.7.0 (2026-04-17)
+
+### Zombie Killer
+- Nuevo motor que detecta procesos con CPU o RAM altos sostenidos durante ventanas prolongadas y los ofrece para terminación con confirmación del usuario
+- Core `zombie_killer` stateless (`identify_candidates`, `sanitize_config`) con clamps de configuración (umbral de CPU, uptime mínimo, sustained, `never_kill`) e invariantes en compile-time para el throttle de notificaciones
+- Motor Tauri stateful con clave compuesta `(pid, start_time)` segura ante reuso de PID, tick body con `catch_unwind`, guard de re-entrada y 5 comandos IPC (`get/set_zombie_killer_config`, `list_zombie_candidates`, `kill_zombie`, `kill_all_zombies`)
+- Modal `ZombieKiller.svelte` con atajo Cmd/Ctrl+Shift+Z, i18n EN/ES y evento push `zombie-killer-update`
+
+### Privacidad de IA y presupuesto diario
+- `Settings.ai_privacy_mode` (default `false`) activa helpers de redacción en `core/ai.rs`: nombres de proceso, paths, URLs, títulos de pestaña y hostnames/IPs se reemplazan por tokens pseudónimos estables (24-bit SipHash) para que el LLM razone sobre identidad sin ver los strings reales; IPs privadas (RFC 1918, loopback, link-local, `fc00::/7`, `fe80::/10`) colapsan a `<lan>`
+- `Settings.ai_daily_limit` (default `200`, `0` = ilimitado) complementa el token bucket de ráfaga con una cubeta diaria UTC compartida por `ai_chat`, `analyze_processes`, `analyze_context` y `validate_api_key`; nuevo IPC `get_ai_daily_usage` devuelve `(usado, límite)`
+- Sección "AI Privacy & Budget" en `ProfileSettings` con toggle, input numérico y contador vivo con botón de refresh
+
+### Confirmación frontend de acciones destructivas de IA
+- `add_automation_rule` y `remove_automation_rule` ya no se ejecutan server-side en `ai_chat`; devuelven un plan en `details` + payload que `AIChat.svelte` muestra como `pendingAction` e invoca el IPC real sólo tras confirmación explícita (mismo patrón que `kill_process` y `close_tabs`)
+
+### Endurecimiento del keyring
+- `get_api_key_with_fallback` ahora borra el almacén legacy en texto plano **antes** de intentar la escritura segura en keyring; si el proceso se interrumpe a mitad del flujo ya no queda la API key legible en disco
+
+### Badge DPI en StatusBar
+- Nuevo indicador `role="status" aria-live="polite"` (icono Radar, lucide) que aparece cuando `$networkTelemetryStatus.dpiActive === true`; tooltip explica que OmniMon lee metadatos de paquetes (no payload) y cómo apagar DPI desde settings
+
+### CSP local Ollama
+- `tauri.conf.json` permite `http://localhost:11434` y `http://127.0.0.1:11434` en `connect-src` sin relajar el resto de la política
+
+### Refactor de `EvaluatorState` (breaking)
+- `crates/core/src/network_alerts.rs`: se elimina el singleton `OnceLock<RwLock<EvaluatorState>>` y las funciones `evaluate_network_alerts` / `evaluate_active_network_alerts` reciben `state: &mut EvaluatorState` como último argumento
+- El watcher asigna un `EvaluatorState` una vez al arranque del thread y lo reusa entre ticks (hot path sin asignaciones); cada test ya construye su propio estado local
+- Resuelve el flake `active_rules_drive_evaluate_active_network_alerts` que surgía porque el `consecutive_matches` global se contaminaba entre test threads
+- Migración: `evaluate_network_alerts(&snap, prev, &rules, &history, &mut state)` — mantener `state` vivo entre ticks para preservar debounce + cooldown
+
+### Calidad
+- Rust: 288 core + 95 integration + 53 tauri + 18 + 4 tui tests, `cargo clippy --workspace --all-targets -- -D warnings` limpio bajo Rust 1.95 (nuevos lints `unnecessary_sort_by` y `collapsible_match` arreglados en 10 call sites pre-existentes)
+- Frontend: 689 Vitest cases; coverage 70.37–70.80% branches, 86% statements/functions/lines
+- Tests nuevos: 17 redacción en `ai.rs`, 5 `DailyBucket`, 8 `zombie_killer` (core) + 8 (tauri), 5 `ProfileSettings` (privacy/budget), 4 `Automations` (errores IPC), 4 `ZombieKiller` (formatters, error paths, blocklist), 7 `validateAiRule`
+
 ## 6.3.0 (2026-03-10)
 
 ### Perfiles de Usuario

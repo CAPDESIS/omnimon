@@ -82,22 +82,38 @@ pub struct NetworkAlert {
     pub details: Vec<String>,
 }
 
-#[derive(Default)]
-struct EvaluatorState {
+/// Mutable per-tick state for the alert evaluator. Holds debounce counters
+/// and cooldown timestamps, plus the running set of destinations we've seen.
+///
+/// This used to be a process-global `OnceLock<RwLock<EvaluatorState>>`, which
+/// made tests contaminate each other's counters whenever they ran in parallel.
+/// It is now owned by the caller (watcher tick in production, each test in
+/// test code), which completely eliminates that class of flake.
+#[derive(Default, Debug)]
+pub struct EvaluatorState {
     consecutive_matches: HashMap<String, u32>,
     last_triggered_ms: HashMap<String, u128>,
     known_destinations: HashSet<String>,
 }
 
+impl EvaluatorState {
+    /// Build a fresh evaluator with empty counters and no known destinations.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Drop every accumulated counter and destination memory.
+    pub fn clear(&mut self) {
+        self.consecutive_matches.clear();
+        self.last_triggered_ms.clear();
+        self.known_destinations.clear();
+    }
+}
+
 static RULES: OnceLock<RwLock<Vec<NetworkAlertRule>>> = OnceLock::new();
-static EVALUATOR_STATE: OnceLock<RwLock<EvaluatorState>> = OnceLock::new();
 
 fn rules_state() -> &'static RwLock<Vec<NetworkAlertRule>> {
     RULES.get_or_init(|| RwLock::new(Vec::new()))
-}
-
-fn evaluator_state() -> &'static RwLock<EvaluatorState> {
-    EVALUATOR_STATE.get_or_init(|| RwLock::new(EvaluatorState::default()))
 }
 
 pub fn set_active_rules(rules: Vec<NetworkAlertRule>) {
@@ -113,25 +129,32 @@ pub fn active_rules() -> Vec<NetworkAlertRule> {
         .unwrap_or_default()
 }
 
+/// Evaluate alerts against the globally configured rule set.
+///
+/// Thin wrapper over [`evaluate_network_alerts`] that reads the current rules
+/// from the shared [`RULES`] store. Callers that already own their rules
+/// should prefer `evaluate_network_alerts` directly to avoid the RwLock
+/// read.
 pub fn evaluate_active_network_alerts(
     snapshot: &NetworkSnapshot,
     prev_snapshot: Option<&NetworkSnapshot>,
     history: &[NetworkSnapshot],
+    state: &mut EvaluatorState,
 ) -> Vec<NetworkAlert> {
     let rules = active_rules();
-    evaluate_network_alerts(snapshot, prev_snapshot, &rules, history)
+    evaluate_network_alerts(snapshot, prev_snapshot, &rules, history, state)
 }
 
+/// Evaluate `rules` against `snapshot`, advancing `state`'s debounce and
+/// cooldown bookkeeping in place. Safe to call from multiple threads as long
+/// as each thread owns its own `state` (there is no hidden global).
 pub fn evaluate_network_alerts(
     snapshot: &NetworkSnapshot,
     prev_snapshot: Option<&NetworkSnapshot>,
     rules: &[NetworkAlertRule],
     history: &[NetworkSnapshot],
+    state: &mut EvaluatorState,
 ) -> Vec<NetworkAlert> {
-    let Ok(mut state) = evaluator_state().write() else {
-        return Vec::new();
-    };
-
     let mut alerts = Vec::new();
     let mut seen_external_destinations = HashSet::new();
 
@@ -142,8 +165,8 @@ pub fn evaluate_network_alerts(
     }
 
     for rule in rules.iter().filter(|rule| rule.enabled) {
-        let Some(candidate) = check_rule(rule, snapshot, prev_snapshot, history, &state) else {
-            clear_rule_debounce(rule, &mut state);
+        let Some(candidate) = check_rule(rule, snapshot, prev_snapshot, history, state) else {
+            clear_rule_debounce(rule, state);
             continue;
         };
 
@@ -592,10 +615,10 @@ fn round2(value: f64) -> f64 {
     (value * 100.0).round() / 100.0
 }
 
+/// Clear the globally configured rule set. The per-tick evaluator state is
+/// now owned by the caller, so this function no longer resets counters —
+/// callers create a fresh [`EvaluatorState`] for each test.
 pub fn reset_network_alert_state_for_tests() {
-    if let Ok(mut guard) = evaluator_state().write() {
-        *guard = EvaluatorState::default();
-    }
     if let Ok(mut guard) = rules_state().write() {
         guard.clear();
     }
@@ -607,6 +630,24 @@ mod tests {
     use crate::network::{
         NetworkCaptureBackend, ProcessNetworkThroughput, TrafficDirection, TransportProtocol,
     };
+    use std::sync::{Mutex, OnceLock};
+
+    /// Serializes only the tests that touch the globally configured
+    /// [`RULES`] store (i.e. those that call [`set_active_rules`] or
+    /// [`evaluate_active_network_alerts`]).
+    ///
+    /// The previous process-global `EVALUATOR_STATE` has been eliminated —
+    /// each test now instantiates its own [`EvaluatorState`] and passes it
+    /// to [`evaluate_network_alerts`], so counters can no longer leak
+    /// across parallel test threads. Tests that build their own rule slice
+    /// locally do not need this guard.
+    fn test_guard() -> std::sync::MutexGuard<'static, ()> {
+        static GUARD: OnceLock<Mutex<()>> = OnceLock::new();
+        GUARD
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
 
     fn sample() -> NetworkSnapshot {
         NetworkSnapshot {
@@ -633,7 +674,7 @@ mod tests {
 
     #[test]
     fn emits_alert_after_three_consecutive_matches() {
-        reset_network_alert_state_for_tests();
+        let mut state = EvaluatorState::new();
         let rules = vec![NetworkAlertRule {
             id: "port-watch".to_string(),
             name: "Puerto sospechoso".to_string(),
@@ -658,11 +699,11 @@ mod tests {
             bytes: 512,
         }];
 
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).is_empty());
         snapshot.captured_at_unix_ms += 2_000;
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).is_empty());
         snapshot.captured_at_unix_ms += 2_000;
-        let alerts = evaluate_network_alerts(&snapshot, None, &rules, &[]);
+        let alerts = evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state);
         assert_eq!(alerts.len(), 1);
         assert_eq!(alerts[0].rule_id, "port-watch");
         assert!(alerts[0].notify_ai);
@@ -670,7 +711,7 @@ mod tests {
 
     #[test]
     fn cooldown_suppresses_duplicate_alerts() {
-        reset_network_alert_state_for_tests();
+        let mut state = EvaluatorState::new();
         let rules = vec![NetworkAlertRule {
             id: "bandwidth".to_string(),
             name: "Bandwidth".to_string(),
@@ -689,21 +730,27 @@ mod tests {
         snapshot.process_throughput[0].tx_bytes_per_sec = 5_000_000;
 
         snapshot.captured_at_unix_ms = 10_000;
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).is_empty());
         snapshot.captured_at_unix_ms = 12_000;
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).is_empty());
         snapshot.captured_at_unix_ms = 14_000;
         assert_eq!(
-            evaluate_network_alerts(&snapshot, None, &rules, &[]).len(),
+            evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).len(),
             1
         );
         snapshot.captured_at_unix_ms = 16_000;
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).is_empty());
     }
 
     #[test]
     fn active_rules_drive_evaluate_active_network_alerts() {
+        // The ONLY remaining test that touches the globally configured
+        // `RULES` store. The guard prevents a future test from corrupting
+        // this one by writing rules concurrently; every other test in this
+        // module now carries its own [`EvaluatorState`] and local rules.
+        let _guard = test_guard();
         reset_network_alert_state_for_tests();
+        let mut state = EvaluatorState::new();
         set_active_rules(vec![NetworkAlertRule {
             id: "new-external".to_string(),
             name: "Nueva externa".to_string(),
@@ -728,11 +775,11 @@ mod tests {
             bytes: 1024,
         }];
 
-        assert!(evaluate_active_network_alerts(&snapshot, None, &[]).is_empty());
+        assert!(evaluate_active_network_alerts(&snapshot, None, &[], &mut state).is_empty());
         snapshot.captured_at_unix_ms += 2_000;
-        assert!(evaluate_active_network_alerts(&snapshot, None, &[]).is_empty());
+        assert!(evaluate_active_network_alerts(&snapshot, None, &[], &mut state).is_empty());
         snapshot.captured_at_unix_ms += 2_000;
-        let alerts = evaluate_active_network_alerts(&snapshot, None, &[]);
+        let alerts = evaluate_active_network_alerts(&snapshot, None, &[], &mut state);
         assert_eq!(alerts.len(), 1);
         assert_eq!(alerts[0].rule_id, "new-external");
         reset_network_alert_state_for_tests();
@@ -740,7 +787,7 @@ mod tests {
 
     #[test]
     fn known_destinations_suppress_new_external_alerts_when_requested() {
-        reset_network_alert_state_for_tests();
+        let mut state = EvaluatorState::new();
         let rules = vec![NetworkAlertRule {
             id: "external-known".to_string(),
             name: "Destinos nuevos".to_string(),
@@ -777,21 +824,23 @@ mod tests {
             notify_ai: false,
         }];
 
-        assert!(evaluate_network_alerts(&snapshot, None, &warmup_rules, &[]).is_empty());
+        assert!(
+            evaluate_network_alerts(&snapshot, None, &warmup_rules, &[], &mut state).is_empty()
+        );
         snapshot.captured_at_unix_ms += 2_000;
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).is_empty());
         snapshot.captured_at_unix_ms += 2_000;
-        let first = evaluate_network_alerts(&snapshot, None, &rules, &[]);
+        let first = evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state);
         assert!(first.is_empty());
 
         snapshot.captured_at_unix_ms += 2_000;
-        let second = evaluate_network_alerts(&snapshot, None, &rules, &[]);
+        let second = evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state);
         assert!(second.is_empty());
     }
 
     #[test]
     fn suspicious_destination_rule_matches_regex_patterns() {
-        reset_network_alert_state_for_tests();
+        let mut state = EvaluatorState::new();
         let rules = vec![NetworkAlertRule {
             id: "dest-regex".to_string(),
             name: "Destino regex".to_string(),
@@ -816,11 +865,11 @@ mod tests {
             bytes: 128,
         }];
 
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).is_empty());
         snapshot.captured_at_unix_ms += 2_000;
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).is_empty());
         snapshot.captured_at_unix_ms += 2_000;
-        let alerts = evaluate_network_alerts(&snapshot, None, &rules, &[]);
+        let alerts = evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state);
         assert_eq!(alerts.len(), 1);
         assert_eq!(alerts[0].destination.as_deref(), Some("198.51.100.24:53"));
         assert!(alerts[0].notify_ai);
@@ -828,7 +877,7 @@ mod tests {
 
     #[test]
     fn process_spike_uses_history_baseline() {
-        reset_network_alert_state_for_tests();
+        let mut state = EvaluatorState::new();
         let rules = vec![NetworkAlertRule {
             id: "spike".to_string(),
             name: "Spike".to_string(),
@@ -855,11 +904,11 @@ mod tests {
         snapshot.process_throughput[0].rx_bytes_per_sec = 2_000_000;
         snapshot.process_throughput[0].tx_bytes_per_sec = 2_000_000;
 
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &history).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &history, &mut state).is_empty());
         snapshot.captured_at_unix_ms += 2_000;
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &history).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &history, &mut state).is_empty());
         snapshot.captured_at_unix_ms += 2_000;
-        let alerts = evaluate_network_alerts(&snapshot, None, &rules, &history);
+        let alerts = evaluate_network_alerts(&snapshot, None, &rules, &history, &mut state);
         assert_eq!(alerts.len(), 1);
         assert_eq!(alerts[0].process_name.as_deref(), Some("chrome"));
         assert!(alerts[0].bandwidth_mbps.unwrap_or_default() > 0.0);
@@ -867,7 +916,7 @@ mod tests {
 
     #[test]
     fn connection_count_rule_can_target_specific_process() {
-        reset_network_alert_state_for_tests();
+        let mut state = EvaluatorState::new();
         let rules = vec![NetworkAlertRule {
             id: "conn-count".to_string(),
             name: "Connection count".to_string(),
@@ -897,11 +946,11 @@ mod tests {
             make_event(77, "9.9.9.9", 53),
         ];
 
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).is_empty());
         snapshot.captured_at_unix_ms += 2_000;
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).is_empty());
         snapshot.captured_at_unix_ms += 2_000;
-        let alerts = evaluate_network_alerts(&snapshot, None, &rules, &[]);
+        let alerts = evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state);
         assert_eq!(alerts.len(), 1);
         assert_eq!(alerts[0].pid, Some(42));
         assert_eq!(alerts[0].connection_count, Some(3));
@@ -909,7 +958,7 @@ mod tests {
 
     #[test]
     fn disabled_rules_and_rule_clear_reset_consecutive_matches() {
-        reset_network_alert_state_for_tests();
+        let mut state = EvaluatorState::new();
         let disabled_rule = NetworkAlertRule {
             id: "disabled".to_string(),
             name: "Disabled".to_string(),
@@ -924,7 +973,9 @@ mod tests {
 
         let mut snapshot = sample();
         snapshot.recent_connections = vec![make_event(42, "8.8.8.8", 4444)];
-        assert!(evaluate_network_alerts(&snapshot, None, &[disabled_rule], &[]).is_empty());
+        assert!(
+            evaluate_network_alerts(&snapshot, None, &[disabled_rule], &[], &mut state).is_empty()
+        );
 
         let rule = NetworkAlertRule {
             id: "toggle".to_string(),
@@ -938,16 +989,30 @@ mod tests {
             notify_ai: false,
         };
 
-        assert!(evaluate_network_alerts(&snapshot, None, &[rule.clone()], &[]).is_empty());
+        assert!(evaluate_network_alerts(
+            &snapshot,
+            None,
+            std::slice::from_ref(&rule),
+            &[],
+            &mut state
+        )
+        .is_empty());
         let no_match_snapshot = sample();
-        assert!(evaluate_network_alerts(&no_match_snapshot, None, &[rule.clone()], &[]).is_empty());
-        let second_match = evaluate_network_alerts(&snapshot, None, &[rule], &[]);
+        assert!(evaluate_network_alerts(
+            &no_match_snapshot,
+            None,
+            std::slice::from_ref(&rule),
+            &[],
+            &mut state
+        )
+        .is_empty());
+        let second_match = evaluate_network_alerts(&snapshot, None, &[rule], &[], &mut state);
         assert!(second_match.is_empty());
     }
 
     #[test]
     fn connection_count_without_matching_process_or_regexless_destination_do_not_alert() {
-        reset_network_alert_state_for_tests();
+        let mut state = EvaluatorState::new();
         let count_rule = NetworkAlertRule {
             id: "conn-specific".to_string(),
             name: "Specific process".to_string(),
@@ -966,7 +1031,9 @@ mod tests {
             make_event(42, "8.8.8.8", 443),
             make_event(42, "1.1.1.1", 80),
         ];
-        assert!(evaluate_network_alerts(&snapshot, None, &[count_rule], &[]).is_empty());
+        assert!(
+            evaluate_network_alerts(&snapshot, None, &[count_rule], &[], &mut state).is_empty()
+        );
 
         let regex_rule = NetworkAlertRule {
             id: "bad-regex".to_string(),
@@ -979,7 +1046,9 @@ mod tests {
             cooldown_seconds: 0,
             notify_ai: false,
         };
-        assert!(evaluate_network_alerts(&snapshot, None, &[regex_rule], &[]).is_empty());
+        assert!(
+            evaluate_network_alerts(&snapshot, None, &[regex_rule], &[], &mut state).is_empty()
+        );
     }
 
     #[test]
@@ -999,7 +1068,7 @@ mod tests {
 
     #[test]
     fn cooldown_allows_retrigger_after_window_expires() {
-        reset_network_alert_state_for_tests();
+        let mut state = EvaluatorState::new();
         let rules = vec![NetworkAlertRule {
             id: "cooldown-expire".to_string(),
             name: "Cooldown expire".to_string(),
@@ -1015,25 +1084,25 @@ mod tests {
         let mut snapshot = sample();
         snapshot.recent_connections = vec![make_event(42, "8.8.8.8", 4444)];
 
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).is_empty());
         snapshot.captured_at_unix_ms += 2_000;
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).is_empty());
         snapshot.captured_at_unix_ms += 2_000;
         assert_eq!(
-            evaluate_network_alerts(&snapshot, None, &rules, &[]).len(),
+            evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).len(),
             1
         );
 
         snapshot.captured_at_unix_ms += 6_000;
         assert_eq!(
-            evaluate_network_alerts(&snapshot, None, &rules, &[]).len(),
+            evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).len(),
             1
         );
     }
 
     #[test]
     fn high_bandwidth_system_rule_covers_download_path() {
-        reset_network_alert_state_for_tests();
+        let mut state = EvaluatorState::new();
         let rules = vec![NetworkAlertRule {
             id: "system-download".to_string(),
             name: "System download".to_string(),
@@ -1051,11 +1120,11 @@ mod tests {
         let mut snapshot = sample();
         snapshot.net_rx_bytes_per_sec = 5_000_000;
 
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).is_empty());
         snapshot.captured_at_unix_ms += 2_000;
-        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[]).is_empty());
+        assert!(evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state).is_empty());
         snapshot.captured_at_unix_ms += 2_000;
-        let alerts = evaluate_network_alerts(&snapshot, None, &rules, &[]);
+        let alerts = evaluate_network_alerts(&snapshot, None, &rules, &[], &mut state);
         assert_eq!(alerts.len(), 1);
         assert_eq!(alerts[0].process_name, None);
         assert!(alerts[0].message.contains("download"));

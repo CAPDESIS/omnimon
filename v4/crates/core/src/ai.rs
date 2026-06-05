@@ -595,8 +595,131 @@ pub struct ChatResponse {
     pub tool_call: Option<ToolResult>,
 }
 
+/// Produce a stable 24-bit pseudonymous token for `input`. Shared by every
+/// privacy-mode helper so identical strings map to the same token across all
+/// redaction surfaces (name, path, URL, etc.).
+fn pseudonym(input: &str) -> u32 {
+    let mut hasher = DefaultHasher::new();
+    input.hash(&mut hasher);
+    (hasher.finish() & 0x00FF_FFFF) as u32
+}
+
+/// Redact a process name for LLM consumption when privacy mode is enabled.
+///
+/// The redacted form is a stable pseudonymous token derived from a hash of
+/// the original name. Same name → same token across calls, so the LLM can
+/// still reason about "process X appears multiple times" without ever seeing
+/// the real identifier. If `privacy_mode` is false, the name is returned
+/// unchanged.
+///
+/// The hash is [`DefaultHasher`] (siphash 1-3): adequate for a stable short
+/// pseudonym, and explicitly *not* a cryptographic commitment — the goal is
+/// privacy from the LLM provider, not resistance against a local attacker
+/// who already has `ps` access.
+pub fn redact_process_name(name: &str, privacy_mode: bool) -> String {
+    if !privacy_mode {
+        return name.to_string();
+    }
+    format!("process_{:06x}", pseudonym(name))
+}
+
+/// Redact an executable or filesystem path when privacy mode is enabled.
+/// Preserves the extension so the LLM can still reason about file types
+/// (`.app` vs `.py` vs `.sh`), but replaces the full path with a token.
+pub fn redact_path(path: &str, privacy_mode: bool) -> String {
+    if !privacy_mode {
+        return path.to_string();
+    }
+    let token = pseudonym(path);
+    let ext = std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    if ext.is_empty() {
+        format!("path_{:06x}", token)
+    } else {
+        format!("path_{:06x}.{}", token, ext)
+    }
+}
+
+/// Redact a URL when privacy mode is enabled. The scheme (http vs https) is
+/// preserved so the LLM can still distinguish secure from insecure endpoints,
+/// but the host, path, and query string are all collapsed into a token.
+pub fn redact_url(url: &str, privacy_mode: bool) -> String {
+    if !privacy_mode {
+        return url.to_string();
+    }
+    let token = pseudonym(url);
+    let scheme = if url.starts_with("https://") {
+        "https"
+    } else if url.starts_with("http://") {
+        "http"
+    } else if url.starts_with("file://") {
+        "file"
+    } else {
+        "url"
+    };
+    format!("{}://redacted-{:06x}", scheme, token)
+}
+
+/// Redact a browser tab title when privacy mode is enabled. Tab titles often
+/// leak document names, ticket numbers, or customer identifiers.
+pub fn redact_tab_title(title: &str, privacy_mode: bool) -> String {
+    if !privacy_mode {
+        return title.to_string();
+    }
+    format!("tab_{:06x}", pseudonym(title))
+}
+
+/// Redact an IPv4/IPv6 literal or hostname. Keeps RFC 1918 / loopback /
+/// link-local traffic as `<lan>` (not sensitive; helps the LLM reason about
+/// traffic topology). External IPs and hostnames collapse to per-value
+/// tokens.
+pub fn redact_hostname_or_ip(value: &str, privacy_mode: bool) -> String {
+    if !privacy_mode {
+        return value.to_string();
+    }
+    if value.is_empty() {
+        return "<empty>".to_string();
+    }
+    if let Ok(ip) = value.parse::<std::net::IpAddr>() {
+        if is_private_ip(&ip) {
+            return "<lan>".to_string();
+        }
+        return format!("<ip-{:06x}>", pseudonym(value));
+    }
+    format!("<host-{:06x}>", pseudonym(value))
+}
+
+fn is_private_ip(ip: &std::net::IpAddr) -> bool {
+    use std::net::IpAddr;
+    match ip {
+        IpAddr::V4(v4) => v4.is_private() || v4.is_loopback() || v4.is_link_local(),
+        IpAddr::V6(v6) => {
+            let segs = v6.segments();
+            v6.is_loopback()
+                // fc00::/7 (unique local) + fe80::/10 (link-local)
+                || (segs[0] & 0xfe00) == 0xfc00
+                || (segs[0] & 0xffc0) == 0xfe80
+        }
+    }
+}
+
 /// Builds a system prompt injected with live OS state for tool-calling.
+///
+/// Equivalent to calling [`build_chat_system_prompt_with_privacy`] with
+/// `privacy_mode = false`. Kept for backwards compatibility with the TUI
+/// and integration-test callers that do not send data to remote providers.
 pub fn build_chat_system_prompt(state: &crate::watcher::SystemState) -> String {
+    build_chat_system_prompt_with_privacy(state, false)
+}
+
+/// Builds a system prompt injected with live OS state, with optional
+/// privacy-mode redaction of process names and network process labels.
+pub fn build_chat_system_prompt_with_privacy(
+    state: &crate::watcher::SystemState,
+    privacy_mode: bool,
+) -> String {
     let ram_total_gb = state.total_memory_bytes as f64 / BYTES_PER_GB;
     let ram_used_gb = state.used_memory_bytes as f64 / BYTES_PER_GB;
     let ram_pct = if state.total_memory_bytes > 0 {
@@ -606,7 +729,7 @@ pub fn build_chat_system_prompt(state: &crate::watcher::SystemState) -> String {
     };
 
     let mut top_procs = state.cached_process_info.clone();
-    top_procs.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
+    top_procs.sort_by_key(|p| std::cmp::Reverse(p.memory_bytes));
     top_procs.truncate(15);
 
     let procs_list: Vec<String> = top_procs
@@ -615,7 +738,7 @@ pub fn build_chat_system_prompt(state: &crate::watcher::SystemState) -> String {
             format!(
                 "  - PID {} | {} | {:.0}MB RAM | {:.1}% CPU",
                 p.pid,
-                p.name,
+                redact_process_name(&p.name, privacy_mode),
                 p.memory_bytes as f64 / BYTES_PER_MB,
                 p.cpu_pct
             )
@@ -627,10 +750,11 @@ pub fn build_chat_system_prompt(state: &crate::watcher::SystemState) -> String {
     let net_procs_list: Vec<String> = net_top_procs
         .iter()
         .map(|p| {
+            let label = p.process_name.as_deref().unwrap_or("unknown");
             format!(
                 "  - PID {} ({}) | RX {} B/s | TX {} B/s",
                 p.pid,
-                p.process_name.as_deref().unwrap_or("unknown"),
+                redact_process_name(label, privacy_mode),
                 p.rx_bytes_per_sec,
                 p.tx_bytes_per_sec
             )
@@ -650,7 +774,11 @@ pub fn build_chat_system_prompt(state: &crate::watcher::SystemState) -> String {
         .map(|c| {
             format!(
                 "  - PID {} | {}:{} | {:?} | {} bytes",
-                c.pid, c.dst_ip, c.dst_port, c.protocol, c.bytes
+                c.pid,
+                redact_hostname_or_ip(&c.dst_ip, privacy_mode),
+                c.dst_port,
+                c.protocol,
+                c.bytes
             )
         })
         .collect();
@@ -1779,10 +1907,206 @@ fn validate_safe_pattern(value: &str, field: &str) -> Result<(), String> {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
     use std::str::FromStr;
     use std::sync::{Arc, Mutex};
+
+    // --- Privacy-mode redaction ---
+
+    #[test]
+    fn redact_returns_name_unchanged_when_privacy_off() {
+        assert_eq!(redact_process_name("Google Chrome", false), "Google Chrome");
+        assert_eq!(redact_process_name("", false), "");
+    }
+
+    #[test]
+    fn redact_returns_pseudonymous_token_when_privacy_on() {
+        let redacted = redact_process_name("Google Chrome", true);
+        assert!(redacted.starts_with("process_"));
+        assert_eq!(redacted.len(), "process_".len() + 6);
+        assert!(redacted
+            .chars()
+            .skip("process_".len())
+            .all(|c| c.is_ascii_hexdigit()));
+        assert!(!redacted.contains("Chrome"));
+        assert!(!redacted.contains("google"));
+    }
+
+    #[test]
+    fn redact_is_stable_across_calls() {
+        let a = redact_process_name("AdobeIPCBroker", true);
+        let b = redact_process_name("AdobeIPCBroker", true);
+        assert_eq!(a, b, "same name must map to the same token");
+    }
+
+    #[test]
+    fn redact_distinguishes_different_names() {
+        let a = redact_process_name("chrome", true);
+        let b = redact_process_name("firefox", true);
+        assert_ne!(
+            a, b,
+            "distinct process names should almost always map to distinct tokens"
+        );
+    }
+
+    // --- Extended redaction (paths, URLs, hostnames, tab titles) ---
+
+    #[test]
+    fn redact_path_keeps_extension_and_shape() {
+        assert_eq!(
+            redact_path("/Users/jorge/secret.sh", false),
+            "/Users/jorge/secret.sh"
+        );
+        let redacted = redact_path("/Users/jorge/secret.sh", true);
+        assert!(redacted.starts_with("path_"));
+        assert!(redacted.ends_with(".sh"));
+        assert!(!redacted.contains("Users"));
+        assert!(!redacted.contains("jorge"));
+        assert!(!redacted.contains("secret"));
+    }
+
+    #[test]
+    fn redact_path_without_extension_returns_bare_token() {
+        let redacted = redact_path("/usr/local/bin/foo", true);
+        assert!(redacted.starts_with("path_"));
+        assert!(!redacted.contains('.'));
+    }
+
+    #[test]
+    fn redact_path_is_stable_across_calls() {
+        let a = redact_path("/Users/jorge/tax-return.pdf", true);
+        let b = redact_path("/Users/jorge/tax-return.pdf", true);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn redact_url_preserves_scheme_only() {
+        assert_eq!(
+            redact_url("https://github.com/chochy2001/omnimon", false),
+            "https://github.com/chochy2001/omnimon"
+        );
+        let https = redact_url("https://internal.company.net/crm/456?token=abc", true);
+        assert!(https.starts_with("https://redacted-"));
+        assert!(!https.contains("company"));
+        assert!(!https.contains("crm"));
+        assert!(!https.contains("token"));
+
+        let http = redact_url("http://intranet.lan/", true);
+        assert!(http.starts_with("http://redacted-"));
+        let file = redact_url("file:///Users/jorge/Desktop/a.pdf", true);
+        assert!(file.starts_with("file://redacted-"));
+        let unknown = redact_url("mailto:user@example.com", true);
+        assert!(unknown.starts_with("url://redacted-"));
+    }
+
+    #[test]
+    fn redact_tab_title_hides_content() {
+        assert_eq!(
+            redact_tab_title("Customer CRM - Acme Corp", false),
+            "Customer CRM - Acme Corp"
+        );
+        let redacted = redact_tab_title("Customer CRM - Acme Corp", true);
+        assert!(redacted.starts_with("tab_"));
+        assert!(!redacted.contains("Acme"));
+        assert!(!redacted.contains("CRM"));
+    }
+
+    #[test]
+    fn redact_hostname_or_ip_keeps_lan_as_label() {
+        assert_eq!(redact_hostname_or_ip("192.168.1.1", true), "<lan>");
+        assert_eq!(redact_hostname_or_ip("10.0.0.5", true), "<lan>");
+        assert_eq!(redact_hostname_or_ip("172.16.0.1", true), "<lan>");
+        assert_eq!(redact_hostname_or_ip("127.0.0.1", true), "<lan>");
+        assert_eq!(redact_hostname_or_ip("::1", true), "<lan>");
+        assert_eq!(redact_hostname_or_ip("fe80::1", true), "<lan>");
+    }
+
+    #[test]
+    fn redact_hostname_or_ip_tokenizes_external_addresses() {
+        let public_v4 = redact_hostname_or_ip("8.8.8.8", true);
+        assert!(public_v4.starts_with("<ip-"));
+        assert!(public_v4.ends_with('>'));
+
+        let public_v6 = redact_hostname_or_ip("2001:4860:4860::8888", true);
+        assert!(public_v6.starts_with("<ip-"));
+
+        let hostname = redact_hostname_or_ip("api.openai.com", true);
+        assert!(hostname.starts_with("<host-"));
+        assert!(!hostname.contains("openai"));
+    }
+
+    #[test]
+    fn redact_hostname_or_ip_passthrough_when_off() {
+        assert_eq!(redact_hostname_or_ip("8.8.8.8", false), "8.8.8.8");
+        assert_eq!(redact_hostname_or_ip("example.com", false), "example.com");
+    }
+
+    #[test]
+    fn redact_hostname_or_ip_handles_empty_input_safely() {
+        assert_eq!(redact_hostname_or_ip("", true), "<empty>");
+        assert_eq!(redact_hostname_or_ip("", false), "");
+    }
+
+    #[test]
+    fn build_chat_system_prompt_redacts_external_dst_ip() {
+        let conn = crate::network::ProcessConnectionEvent {
+            pid: 7,
+            protocol: crate::network::TransportProtocol::Tcp,
+            direction: crate::network::TrafficDirection::Outbound,
+            src_ip: "10.0.0.1".to_string(),
+            dst_ip: "8.8.8.8".to_string(),
+            src_port: 60000,
+            dst_port: 443,
+            bytes: 1024,
+        };
+        let state = crate::watcher::SystemState {
+            total_memory_bytes: 8 * 1024 * 1024 * 1024,
+            used_memory_bytes: 4 * 1024 * 1024 * 1024,
+            recent_network_connections: vec![conn],
+            ..Default::default()
+        };
+
+        let plaintext = build_chat_system_prompt_with_privacy(&state, false);
+        assert!(plaintext.contains("8.8.8.8"));
+
+        let redacted = build_chat_system_prompt_with_privacy(&state, true);
+        assert!(
+            !redacted.contains("8.8.8.8"),
+            "privacy mode must remove the literal external IP from the prompt"
+        );
+        assert!(redacted.contains("<ip-"));
+        // Port is still present — useful to the LLM.
+        assert!(redacted.contains(":443"));
+    }
+
+    #[test]
+    fn build_chat_system_prompt_with_privacy_hides_real_names() {
+        let state = crate::watcher::SystemState {
+            total_memory_bytes: 16 * 1024 * 1024 * 1024,
+            used_memory_bytes: 8 * 1024 * 1024 * 1024,
+            cached_process_info: vec![crate::watcher::CachedProcessInfo {
+                pid: 42,
+                name: "MySecretInternalDaemon".to_string(),
+                exec_name: "MySecretInternalDaemon".to_string(),
+                memory_bytes: 100 * 1024 * 1024,
+                cpu_pct: 12.5,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+
+        let plaintext = build_chat_system_prompt_with_privacy(&state, false);
+        assert!(plaintext.contains("MySecretInternalDaemon"));
+
+        let redacted = build_chat_system_prompt_with_privacy(&state, true);
+        assert!(
+            !redacted.contains("MySecretInternalDaemon"),
+            "privacy mode must remove the literal process name from the prompt"
+        );
+        assert!(redacted.contains("process_"));
+    }
 
     #[test]
     fn ai_provider_from_str_works() {

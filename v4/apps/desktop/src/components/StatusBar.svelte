@@ -1,6 +1,8 @@
 <script lang="ts">
   import { stats, filtered, processes } from "../stores/processes";
+  import { networkTelemetryStatus } from "../stores/security";
   import { t } from "../lib/i18n";
+  import { Radar } from "lucide-svelte";
 
   let ramColor = $derived(
     $stats
@@ -73,6 +75,23 @@
       <span class="label">{t("status.idle")}</span>
       <span class="value">{idleCount}</span>
     </div>
+    {#if $networkTelemetryStatus.dpiActive}
+      <!--
+        DPI disclosure. Surfaces the fact that Deep Packet Inspection is
+        active so users on regulated networks (GDPR, workplace policy) are
+        never monitored without seeing it in the UI.
+      -->
+      <div
+        class="metric dpi-badge"
+        role="status"
+        aria-live="polite"
+        title={t("status.dpiTooltip")}
+      >
+        <Radar size={12} aria-hidden="true" />
+        <span class="label dpi-label">{t("status.dpi")}</span>
+        <span class="value dpi-value">{t("status.dpiActive")}</span>
+      </div>
+    {/if}
   </div>
 {/if}
 
@@ -121,5 +140,24 @@
     height: 100%;
     border-radius: 2px;
     transition: width 0.3s ease;
+  }
+
+  .dpi-badge {
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--warning, var(--accent));
+    color: var(--warning, var(--accent));
+    gap: 4px;
+  }
+
+  .dpi-label {
+    color: var(--warning, var(--accent));
+  }
+
+  .dpi-value {
+    color: var(--warning, var(--accent));
+    font-weight: 600;
   }
 </style>
