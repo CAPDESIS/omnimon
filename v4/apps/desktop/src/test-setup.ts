@@ -1,5 +1,13 @@
 import "@testing-library/jest-dom/vitest";
+import { configure } from "@testing-library/svelte";
 import { writable, derived, get } from "svelte/store";
+
+// @testing-library's waitFor/findBy default to a 1000ms timeout. On the loaded
+// CAPDESIS self-hosted CI runner, render-heavy component interactions (e.g.
+// App.test.ts opening modals) settle slower than locally and can exceed 1000ms,
+// failing intermittently. Give async utilities more slack so they stay
+// deterministic under runner load (passes locally with this set).
+configure({ asyncUtilTimeout: 8000 });
 
 // Polyfill Element.prototype.animate for Svelte transitions in happy-dom
 if (typeof Element.prototype.animate !== "function") {
