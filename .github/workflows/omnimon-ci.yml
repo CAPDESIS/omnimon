@@ -188,20 +188,30 @@ jobs:
     name: Security Audit
     needs: [coverage]
     runs-on: [self-hosted, public-only, ci-runner-node, build-heavy]
-    continue-on-error: true
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install cargo-audit
         uses: taiki-e/install-action@1929cdef3ca26202efbfbb4719c58ecf43e84097 # cargo-audit
 
-      - name: Cargo Audit (CVE Scan)
-        continue-on-error: true
+      - name: Generate Rust audit report
+        if: always()
         run: |
           mkdir -p ../reports
           cargo audit --json > ../reports/rust-audit.json 2>/dev/null || true
+        working-directory: ./v4
+
+      - name: Cargo Audit (CVE Scan)
+        run: |
           echo "## Cargo Audit Results"
-          cargo audit --deny warnings 2>&1 || echo "::warning::Vulnerabilities found in dependencies (see CVE report artifact)"
+          # Fail the build on actual vulnerabilities (RUSTSEC advisories with a
+          # security impact). Plain `cargo audit` exits non-zero only on
+          # vulnerabilities, not on `unmaintained`/`unsound`/`yanked` warnings —
+          # the latter are dominated by upstream GTK3 bindings that tauri/wry
+          # require on Linux and cannot be fixed from this repository. The CVE
+          # report artifact (generated above and uploaded below) captures those
+          # warnings for tracking.
+          cargo audit
         working-directory: ./v4
 
       - name: Set up Node
