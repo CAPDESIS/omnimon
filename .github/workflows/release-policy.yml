@@ -15,7 +15,7 @@ on:
 jobs:
   audit:
     name: Audit release gates
-    runs-on: [self-hosted, ci-runner-node, policy-light]
+    runs-on: [self-hosted, public-only, ci-runner-node, test-light]
     permissions:
       contents: read
 
