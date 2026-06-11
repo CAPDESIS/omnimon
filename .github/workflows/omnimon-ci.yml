@@ -188,20 +188,52 @@ jobs:
     name: Security Audit
     needs: [coverage]
     runs-on: [self-hosted, public-only, ci-runner-node, build-heavy]
-    continue-on-error: true
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      # cargo-audit shells out to `cargo`, which is not on PATH globally on the
+      # self-hosted runner. Every other Rust job sets up the toolchain first;
+      # without this step `cargo audit` exits 127 (command not found).
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
 
       - name: Install cargo-audit
         uses: taiki-e/install-action@1929cdef3ca26202efbfbb4719c58ecf43e84097 # cargo-audit
 
-      - name: Cargo Audit (CVE Scan)
-        continue-on-error: true
+      - name: Generate Rust audit report
+        if: always()
         run: |
           mkdir -p ../reports
-          cargo audit --json > ../reports/rust-audit.json 2>/dev/null || true
+          # cargo audit --json exits non-zero when it FINDS vulnerabilities, so a
+          # non-zero exit does not by itself mean the JSON is bad. Capture to a
+          # temp file and only promote it to the artifact if it actually parses as
+          # JSON. A bare `> file || true` would truncate the artifact to an empty,
+          # invalid-JSON file when cargo-audit is missing (install failure) or the
+          # advisory DB fetch fails — that empty file then gets embedded under a
+          # ```json fence in the CVE report. Fall back to a minimal valid JSON
+          # placeholder so the artifact stays machine-readable.
+          tmp="$(mktemp)"
+          cargo audit --json >"$tmp" 2>/dev/null || true
+          if [ -s "$tmp" ] && python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$tmp" 2>/dev/null; then
+            mv "$tmp" ../reports/rust-audit.json
+          else
+            printf '{"error":"cargo audit did not produce valid JSON (audit failed to run; see Cargo Audit (CVE Scan) step logs)"}\n' \
+              > ../reports/rust-audit.json
+            rm -f "$tmp"
+          fi
+        working-directory: ./v4
+
+      - name: Cargo Audit (CVE Scan)
+        run: |
           echo "## Cargo Audit Results"
-          cargo audit --deny warnings 2>&1 || echo "::warning::Vulnerabilities found in dependencies (see CVE report artifact)"
+          # Fail the build on actual vulnerabilities (RUSTSEC advisories with a
+          # security impact). Plain `cargo audit` exits non-zero only on
+          # vulnerabilities, not on `unmaintained`/`unsound`/`yanked` warnings —
+          # the latter are dominated by upstream GTK3 bindings that tauri/wry
+          # require on Linux and cannot be fixed from this repository. The CVE
+          # report artifact (generated above and uploaded below) captures those
+          # warnings for tracking.
+          cargo audit
         working-directory: ./v4
 
       - name: Set up Node
