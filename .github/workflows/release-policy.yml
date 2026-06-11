@@ -13,9 +13,158 @@ on:
   workflow_dispatch:
 
 jobs:
-  release-policy:
-    uses: CAPDESIS/.github/.github/workflows/release-policy-check.yml@main
-    with:
-      enforce: false
-      runner-label: test-light
-      production-day: monday
+  audit:
+    name: Audit release gates
+    runs-on: [self-hosted, ci-runner-node, policy-light]
+    permissions:
+      contents: read
+
+    steps:
+      - name: Validate VPS self-hosted runner
+        run: |
+          if [ "${{ runner.environment }}" != "self-hosted" ]; then
+            echo "::error::This workflow must run on the VPS self-hosted runner"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Audit workflows
+        env:
+          ENFORCE: 'false'
+          PRODUCTION_DAY: 'monday'
+        run: |
+          set -euo pipefail
+
+          findings=0
+          warnings=0
+          summary="${GITHUB_STEP_SUMMARY:-/tmp/release-policy-summary.md}"
+
+          note() {
+            printf '%s\n' "$*" | tee -a "$summary"
+          }
+
+          warn() {
+            warnings=$((warnings + 1))
+            note "- WARNING: $*"
+          }
+
+          fail() {
+            findings=$((findings + 1))
+            note "- FAIL: $*"
+          }
+
+          has_top_level_key() {
+            local file="$1"
+            local key="$2"
+            grep -Eq "^${key}:" "$file"
+          }
+
+          workflow_has() {
+            local file="$1"
+            local pattern="$2"
+            grep -Eiq "$pattern" "$file"
+          }
+
+          note "# CAPDESIS Release Policy Audit"
+          note ""
+          note "- Repository: \`${GITHUB_REPOSITORY}\`"
+          note "- Production release day: \`${PRODUCTION_DAY}\`"
+          note "- Enforcement: \`${ENFORCE}\`"
+          note ""
+
+          if [ ! -d .github/workflows ]; then
+            note "No workflows found. This repo has no deploy automation to audit yet."
+            exit 0
+          fi
+
+          mapfile -t workflow_files < <(find .github/workflows -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) | sort)
+          if [ "${#workflow_files[@]}" -eq 0 ]; then
+            note "No YAML workflows found. This repo has no deploy automation to audit yet."
+            exit 0
+          fi
+
+          deploy_count=0
+          staging_count=0
+          production_count=0
+
+          note "## Workflow Findings"
+          note ""
+
+          for file in "${workflow_files[@]}"; do
+            base="$(basename "$file")"
+            is_policy=false
+            case "$base" in
+              release-policy.yml|release-policy.yaml)
+                is_policy=true
+                ;;
+            esac
+
+            is_deploy=false
+            is_staging=false
+            is_prod=false
+
+            if [[ "$base" =~ [Dd]eploy ]] || workflow_has "$file" "docker compose|rsync|ssh .+@|scp |kubectl|fly deploy|vercel|hostinger"; then
+              is_deploy=true
+              deploy_count=$((deploy_count + 1))
+            fi
+            if workflow_has "$file" "environment:[[:space:]]*staging|staging-node|staging[.-]|STAGING_"; then
+              is_staging=true
+              staging_count=$((staging_count + 1))
+            fi
+            if workflow_has "$file" "environment:[[:space:]]*production|deploy-prod|production|PRODUCTION_|web-app-proxy|ancare"; then
+              is_prod=true
+              production_count=$((production_count + 1))
+            fi
+
+            if [ "$is_policy" = true ]; then
+              continue
+            fi
+
+            if [ "$is_deploy" = true ] && ! has_top_level_key "$file" "concurrency"; then
+              warn "\`${base}\` is deploy-like but has no top-level \`concurrency\`. Serialize deploys to avoid overlapping releases."
+            fi
+
+            if [ "$is_staging" = true ] && ! workflow_has "$file" "environment:[[:space:]]*staging"; then
+              warn "\`${base}\` references staging but does not declare \`environment: staging\`."
+            fi
+
+            if [ "$is_prod" = true ]; then
+              if ! workflow_has "$file" "environment:[[:space:]]*production"; then
+                warn "\`${base}\` references production but does not declare \`environment: production\`."
+              fi
+              if ! workflow_has "$file" "workflow_dispatch"; then
+                warn "\`${base}\` references production but has no manual \`workflow_dispatch\` entrypoint."
+              fi
+              if workflow_has "$file" "branches:[[:space:]]*\\[[^]]*main|branches:[[:space:]]*\\[[^]]*master|branches:" && workflow_has "$file" "push:"; then
+                warn "\`${base}\` appears to deploy from push. Production should promote a staging-validated SHA through approval."
+              fi
+            fi
+
+            if workflow_has "$file" "runs-on:[[:space:]]*ubuntu-latest"; then
+              warn "\`${base}\` still uses \`ubuntu-latest\`. Linux CI should prefer \`[self-hosted, ci-runner-node, ...]\` unless intentionally cloud-hosted."
+            fi
+          done
+
+          note ""
+          note "## Fleet Contract"
+          note ""
+          note "- Every merge to \`main\` should deploy to staging or produce a deployable artifact."
+          note "- Production promotion should use \`workflow_dispatch\`, \`environment: production\`, and a staging-validated SHA."
+          note "- Normal production releases happen on \`${PRODUCTION_DAY}\`; emergency hotfixes require explicit approval."
+          note "- Database migrations must be backward-compatible and backed up before production."
+          note "- Deploy jobs must run on \`ci-runner-node\` with \`deploy-only\`, not on production app hosts."
+          note ""
+          note "## Counts"
+          note ""
+          note "- Workflows scanned: ${#workflow_files[@]}"
+          note "- Deploy-like workflows: ${deploy_count}"
+          note "- Staging references: ${staging_count}"
+          note "- Production references: ${production_count}"
+          note "- Warnings: ${warnings}"
+          note "- Failures: ${findings}"
+
+          if [ "$ENFORCE" = "true" ] && { [ "$warnings" -gt 0 ] || [ "$findings" -gt 0 ]; }; then
+            echo "::error::Release policy findings found with enforce=true"
+            exit 1
+          fi
