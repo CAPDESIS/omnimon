@@ -191,6 +191,12 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+      # cargo-audit shells out to `cargo`, which is not on PATH globally on the
+      # self-hosted runner. Every other Rust job sets up the toolchain first;
+      # without this step `cargo audit` exits 127 (command not found).
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+
       - name: Install cargo-audit
         uses: taiki-e/install-action@1929cdef3ca26202efbfbb4719c58ecf43e84097 # cargo-audit
 
