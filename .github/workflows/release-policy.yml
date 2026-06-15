@@ -15,6 +15,12 @@ on:
 jobs:
   audit:
     name: Audit release gates
+    # Skip fork PRs: this is a public repo and the job runs on a self-hosted
+    # runner. Fork PRs are not served by the public-builds runner group, so
+    # without this guard they queue forever; it also prevents untrusted
+    # contributions from consuming self-hosted capacity. Mirrors the guard on
+    # the lint job in omnimon-ci.yml.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, public-only, ci-runner-node, test-light]
     permissions:
       contents: read
