@@ -433,4 +433,45 @@ mod tests {
         .unwrap_or_default();
         assert!(high > low);
     }
+
+    #[tokio::test]
+    async fn top_processes_by_memory_async_matches_sync_ordering() {
+        let async_top = top_processes_by_memory_async(15).await;
+        assert!(async_top.len() <= 15);
+        // The async wrapper must delegate to the sync implementation, so the
+        // sort-desc invariant of the sync function must hold here too.
+        for pair in async_top.windows(2) {
+            assert!(
+                pair[0].memory_bytes >= pair[1].memory_bytes,
+                "async list is not sorted desc: {} < {}",
+                pair[0].memory_bytes,
+                pair[1].memory_bytes
+            );
+        }
+        // A limit of zero must yield an empty vec, matching truncate semantics.
+        let empty = top_processes_by_memory_async(0).await;
+        assert!(empty.is_empty());
+    }
+
+    #[tokio::test]
+    async fn aggregate_super_processes_async_respects_limit() {
+        let grouped = aggregate_super_processes_async(Some(20)).await;
+        assert!(grouped.len() <= 20);
+        for super_process in &grouped {
+            assert!(super_process.process_count >= 1);
+            assert_eq!(super_process.pids.len(), super_process.process_count);
+        }
+    }
+
+    #[tokio::test]
+    async fn aggregate_super_processes_from_watcher_async_is_consistent() {
+        // Without a started watcher the cached state carries no network rows,
+        // so this must behave like an aggregation with an empty network slice.
+        let grouped = aggregate_super_processes_from_watcher_async(Some(10)).await;
+        assert!(grouped.len() <= 10);
+        for super_process in &grouped {
+            // Aggregated PID list length must always equal the counter.
+            assert_eq!(super_process.pids.len(), super_process.process_count);
+        }
+    }
 }
