@@ -536,12 +536,12 @@ fn save_ai_config_with<F>(provider: &str, key: &str, mut save_key: F) -> Result<
 where
     F: FnMut(macmon_core::ai::AiProvider, &str) -> Result<(), String>,
 {
-    let trimmed_key = key.trim().to_string();
+    let trimmed_key = key.trim();
     if trimmed_key.is_empty() {
         return Err("error_api_key_empty".to_string());
     }
     let ai_provider = macmon_core::ai::AiProvider::from_str(provider)?;
-    save_key(ai_provider, &trimmed_key)
+    save_key(ai_provider, trimmed_key)
 }
 
 #[tauri::command]
