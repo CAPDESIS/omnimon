@@ -413,26 +413,38 @@ pub struct KillProcessesResult {
     pub failed: Vec<(u32, String)>,
 }
 
+fn kill_processes_with<F>(pids: Vec<u32>, mut kill_one: F) -> Result<KillProcessesResult, String>
+where
+    F: FnMut(u32) -> Result<(), String>,
+{
+    if pids.len() > MAX_KILL_BATCH {
+        return Err(format!("error_batch_limit:{}", MAX_KILL_BATCH));
+    }
+
+    let mut killed = Vec::new();
+    let mut failed = Vec::new();
+    for pid in pids {
+        match kill_one(pid) {
+            Ok(()) => killed.push(pid),
+            Err(err) => failed.push((pid, err)),
+        }
+    }
+    Ok(KillProcessesResult { killed, failed })
+}
+
 /// IPC: Kill multiple processes by PIDs. Returns killed and failed PIDs with error messages.
 #[tauri::command]
 #[tracing::instrument(skip_all)]
 fn kill_processes(pids: Vec<u32>) -> Result<KillProcessesResult, String> {
-    if pids.len() > MAX_KILL_BATCH {
-        return Err(format!("error_batch_limit:{}", MAX_KILL_BATCH));
-    }
-    let mut killed = Vec::new();
-    let mut failed = Vec::new();
-    for pid in pids {
+    kill_processes_with(pids, |pid| {
         macmon_core::rate_limit::check_rate_limit(
             "kill_processes",
             &macmon_core::rate_limit::profiles::KILL,
         )?;
-        match macmon_core::killer::kill_process_safe(pid as i32, &[]) {
-            Ok(_) => killed.push(pid),
-            Err(e) => failed.push((pid, e.to_string())),
-        }
-    }
-    Ok(KillProcessesResult { killed, failed })
+        macmon_core::killer::kill_process_safe(pid as i32, &[])
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    })
 }
 
 /// Legacy store filename — only used for migrating existing plain-text keys.
@@ -520,6 +532,18 @@ fn get_api_key_with_fallback(app: &AppHandle, provider: &str) -> Result<String, 
 }
 
 /// IPC: Save AI Configuration — keyring only, no plain-text fallback.
+fn save_ai_config_with<F>(provider: &str, key: &str, mut save_key: F) -> Result<(), String>
+where
+    F: FnMut(macmon_core::ai::AiProvider, &str) -> Result<(), String>,
+{
+    let trimmed_key = key.trim().to_string();
+    if trimmed_key.is_empty() {
+        return Err("error_api_key_empty".to_string());
+    }
+    let ai_provider = macmon_core::ai::AiProvider::from_str(provider)?;
+    save_key(ai_provider, &trimmed_key)
+}
+
 #[tauri::command]
 #[tracing::instrument(skip_all)]
 fn save_ai_config(
@@ -532,17 +556,13 @@ fn save_ai_config(
         "save_ai_config",
         &macmon_core::rate_limit::profiles::CONFIG,
     )?;
-    let trimmed_key = key.trim().to_string();
-    if trimmed_key.is_empty() {
-        return Err("error_api_key_empty".to_string());
-    }
-    let ai_provider = macmon_core::ai::AiProvider::from_str(&provider)?;
-
-    macmon_core::ai::save_api_key(ai_provider, &trimmed_key).map_err(|e| {
-        format!(
-            "Failed to save API key to OS keyring: {e}. \
-             Ensure your OS keyring service is available."
-        )
+    save_ai_config_with(&provider, &key, |ai_provider, trimmed_key| {
+        macmon_core::ai::save_api_key(ai_provider, trimmed_key).map_err(|e| {
+            format!(
+                "Failed to save API key to OS keyring: {e}. \
+                 Ensure your OS keyring service is available."
+            )
+        })
     })
 }
 
@@ -553,6 +573,19 @@ fn check_api_key(app: AppHandle, provider: String) -> Result<bool, String> {
     Ok(get_api_key_with_fallback(&app, &provider).is_ok())
 }
 
+fn apply_ai_rules_with<F>(payload: &str, mut upsert_rules: F) -> Result<usize, String>
+where
+    F: FnMut(&str) -> Result<usize, String>,
+{
+    if payload.len() > MAX_AI_RULES_PAYLOAD_BYTES {
+        return Err(format!(
+            "payload exceeds {}KB limit",
+            MAX_AI_RULES_PAYLOAD_BYTES / 1024
+        ));
+    }
+    upsert_rules(payload)
+}
+
 /// IPC: Apply AI-generated rules payload directly into core rules engine.
 #[tauri::command]
 #[tracing::instrument(skip_all)]
@@ -561,13 +594,10 @@ fn apply_ai_rules(payload: String) -> Result<usize, String> {
         "apply_ai_rules",
         &macmon_core::rate_limit::profiles::CONFIG,
     )?;
-    if payload.len() > MAX_AI_RULES_PAYLOAD_BYTES {
-        return Err(format!(
-            "payload exceeds {}KB limit",
-            MAX_AI_RULES_PAYLOAD_BYTES / 1024
-        ));
-    }
-    macmon_core::rules_engine::upsert_rules_from_ai_json(&payload)
+    apply_ai_rules_with(
+        &payload,
+        macmon_core::rules_engine::upsert_rules_from_ai_json,
+    )
 }
 
 /// IPC: Return JSON schema contract for AI rules payload.
@@ -702,14 +732,25 @@ fn set_network_alert_rules(payload_json: String) -> Result<usize, String> {
         "set_network_alert_rules",
         &macmon_core::rate_limit::profiles::CONFIG,
     )?;
+    set_network_alert_rules_with(&payload_json, macmon_core::network_alerts::set_active_rules)
+}
+
+fn parse_network_alert_rules_payload(
+    payload_json: &str,
+) -> Result<Vec<macmon_core::network_alerts::NetworkAlertRule>, String> {
     if payload_json.len() > MAX_NETWORK_ALERT_RULES_PAYLOAD_BYTES {
         return Err("error_payload_too_large".to_string());
     }
+    serde_json::from_str(payload_json).map_err(|e| format!("error_invalid_json:{}", e))
+}
 
-    let rules: Vec<macmon_core::network_alerts::NetworkAlertRule> =
-        serde_json::from_str(&payload_json).map_err(|e| format!("error_invalid_json:{}", e))?;
+fn set_network_alert_rules_with<F>(payload_json: &str, mut set_rules: F) -> Result<usize, String>
+where
+    F: FnMut(Vec<macmon_core::network_alerts::NetworkAlertRule>),
+{
+    let rules = parse_network_alert_rules_payload(payload_json)?;
     let count = rules.len();
-    macmon_core::network_alerts::set_active_rules(rules);
+    set_rules(rules);
     Ok(count)
 }
 
@@ -1261,4 +1302,150 @@ pub fn run() {
             eprintln!("[omnimon] fatal: tauri application failed to start: {e}");
             std::process::exit(1);
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn kill_processes_with_rejects_batches_above_limit() {
+        let err = kill_processes_with(vec![42; MAX_KILL_BATCH + 1], |_| {
+            panic!("kill callback must not run when batch is rejected")
+        })
+        .unwrap_err();
+
+        assert_eq!(err, format!("error_batch_limit:{MAX_KILL_BATCH}"));
+    }
+
+    #[test]
+    fn kill_processes_with_collects_success_and_failure_per_pid() {
+        let result = kill_processes_with(vec![101, 202, 303], |pid| match pid {
+            202 => Err("permission_denied".to_string()),
+            _ => Ok(()),
+        })
+        .unwrap();
+
+        assert_eq!(result.killed, vec![101, 303]);
+        assert_eq!(result.failed, vec![(202, "permission_denied".to_string())]);
+    }
+
+    #[test]
+    fn save_ai_config_with_rejects_empty_key_after_trim() {
+        let mut called = false;
+        let err = save_ai_config_with("openai", "   ", |_, _| {
+            called = true;
+            Ok(())
+        })
+        .unwrap_err();
+
+        assert_eq!(err, "error_api_key_empty");
+        assert!(!called);
+    }
+
+    #[test]
+    fn save_ai_config_with_trims_key_before_persisting() {
+        let mut captured: Option<(macmon_core::ai::AiProvider, String)> = None;
+
+        save_ai_config_with("openai", "  sk-test-value  ", |provider, key| {
+            captured = Some((provider, key.to_string()));
+            Ok(())
+        })
+        .unwrap();
+
+        let (provider, key) = captured.expect("expected saved key capture");
+        assert_eq!(provider, macmon_core::ai::AiProvider::OpenAI);
+        assert_eq!(key, "sk-test-value");
+    }
+
+    #[test]
+    fn save_ai_config_with_rejects_unknown_provider() {
+        let err = save_ai_config_with("unknown-provider", "key", |_, _| Ok(())).unwrap_err();
+        assert!(err.contains("Unknown AI provider"));
+    }
+
+    #[test]
+    fn apply_ai_rules_with_rejects_payload_above_limit() {
+        let payload = "x".repeat(MAX_AI_RULES_PAYLOAD_BYTES + 1);
+        let err = apply_ai_rules_with(&payload, |_| Ok(0)).unwrap_err();
+
+        assert_eq!(
+            err,
+            format!(
+                "payload exceeds {}KB limit",
+                MAX_AI_RULES_PAYLOAD_BYTES / 1024
+            )
+        );
+    }
+
+    #[test]
+    fn apply_ai_rules_with_forwards_payload_to_rules_engine() {
+        let payload = r#"{"schema_version":1,"rules":[]}"#;
+        let mut seen_payload = String::new();
+
+        let count = apply_ai_rules_with(payload, |body| {
+            seen_payload = body.to_string();
+            Ok(7)
+        })
+        .unwrap();
+
+        assert_eq!(count, 7);
+        assert_eq!(seen_payload, payload);
+    }
+
+    fn network_rules_payload() -> String {
+        json!([
+            {
+                "id": "bandwidth-spike",
+                "name": "Bandwidth spike",
+                "enabled": true,
+                "condition": {
+                    "kind": "high_bandwidth",
+                    "threshold_mbps": 180.0,
+                    "direction": "both",
+                    "process": "chrome"
+                },
+                "severity": "warning",
+                "cooldown_seconds": 30,
+                "notify_ai": false
+            }
+        ])
+        .to_string()
+    }
+
+    #[test]
+    fn parse_network_alert_rules_payload_rejects_too_large_payload() {
+        let payload = "x".repeat(MAX_NETWORK_ALERT_RULES_PAYLOAD_BYTES + 1);
+        let err = parse_network_alert_rules_payload(&payload).unwrap_err();
+        assert_eq!(err, "error_payload_too_large");
+    }
+
+    #[test]
+    fn set_network_alert_rules_with_parses_and_applies_rules() {
+        let payload = network_rules_payload();
+        let mut applied: Option<Vec<macmon_core::network_alerts::NetworkAlertRule>> = None;
+
+        let count = set_network_alert_rules_with(&payload, |rules| {
+            applied = Some(rules);
+        })
+        .unwrap();
+
+        let rules = applied.expect("expected applied rules");
+        assert_eq!(count, 1);
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].id, "bandwidth-spike");
+    }
+
+    #[test]
+    fn set_network_alert_rules_with_rejects_invalid_json_without_applying() {
+        let mut applied = false;
+        let err = set_network_alert_rules_with("{not-valid-json", |_| {
+            applied = true;
+        })
+        .unwrap_err();
+
+        assert!(err.starts_with("error_invalid_json:"));
+        assert!(!applied);
+    }
 }
