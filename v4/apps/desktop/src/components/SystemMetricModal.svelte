@@ -61,10 +61,7 @@
   });
 
   function closeOnEscape(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      onclose();
-      return;
-    }
+    if (event.key === "Escape") return;
     trapFocus(event, modalEl);
   }
 
@@ -214,9 +211,11 @@
   );
 </script>
 
+<svelte:window onkeydown={closeOnEscape} />
+
 <div transition:fade={fadeConfig}>
   <ModalShell titleId="metric-modal-title" backdropClass="backdrop" panelClass="modal" onclose={onclose}>
-  <div bind:this={modalEl} onkeydown={closeOnEscape} transition:scale={scaleConfig}>
+  <div bind:this={modalEl} transition:scale={scaleConfig}>
     <div class="header">
       <div>
         <div class="eyebrow">{t("status.deepDive")}</div>
@@ -352,11 +351,11 @@
     align-items: center;
     gap: 12px;
   }
-  .ask-ai-btn {
+  :global(.ask-ai-btn) {
     font-size: calc(var(--base-font-size, 12px) * 0.9);
   }
 
-  .close-btn {
+  :global(.close-btn) {
     font-size: 18px;
   }
 
@@ -522,7 +521,7 @@
     color: var(--fg-dim);
   }
 
-  .show-more-btn {
+  :global(.show-more-btn) {
     align-self: center;
   }
 

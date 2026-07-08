@@ -329,7 +329,7 @@
               type="button"
               onclick={() => applyPreset(t(preset.prompt))}
             >
-              <span aria-hidden="true"><svelte:component this={preset.icon} size={14} /></span>
+              <span aria-hidden="true"><preset.icon size={14} /></span>
               <span>{t(preset.label)}</span>
             </button>
           {/each}
