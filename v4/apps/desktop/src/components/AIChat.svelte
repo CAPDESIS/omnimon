@@ -820,7 +820,7 @@
                 onclick={() => applyPreset(t(preset.prompt))}
                 aria-label={t("aiChat.presetLabel", { label: t(preset.label) })}
               >
-                <span class="preset-icon"><svelte:component this={preset.icon} size={14} /></span>
+                <span class="preset-icon"><preset.icon size={14} /></span>
                 <span>{t(preset.label)}</span>
               </button>
             {/each}

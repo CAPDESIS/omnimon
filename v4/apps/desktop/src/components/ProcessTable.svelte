@@ -403,11 +403,12 @@
 
 {#snippet colCell(key: ColumnKey, proc: ProcessEntry)}
   {#if key === "name"}
+    {@const IconComponent = getProcessIconComponent(proc.name)}
     <td class="col-name" title={proc.exec_name}>
       {#if isNativeIconDataUrl(proc.icon_data_url)}
         <img class="proc-icon native" src={proc.icon_data_url} alt="" aria-hidden="true" />
       {:else}
-        <span class="process-icon" aria-hidden="true"><svelte:component this={getProcessIconComponent(proc.name)} size={16} /></span>
+        <span class="process-icon" aria-hidden="true"><IconComponent size={16} /></span>
       {/if}
       <span class="name-text">{proc.name}</span>
       {#if !grouping && proc.process_count > 1}<span class="badge grouped">x{proc.process_count}</span>{/if}

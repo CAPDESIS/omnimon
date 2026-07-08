@@ -198,21 +198,18 @@
     });
   });
 
-  function handleBackdropKeydown(e: KeyboardEvent) {
-    if (e.key === "Escape") {
-      onclose();
-      return;
-    }
+  function handleWindowKeydown(e: KeyboardEvent) {
+    if (e.key === "Escape") return;
     trapFocus(e, modalEl);
   }
 </script>
+
+<svelte:window onkeydown={handleWindowKeydown} />
 
 <div transition:fade={fadeConfig}>
   <ModalShell titleId="modal-title" backdropClass="backdrop" panelClass="modal" onclose={onclose} width="500px" maxHeight="85vh">
   <div
     bind:this={modalEl}
-    onkeydown={handleBackdropKeydown}
-    role="document"
     transition:scale={scaleConfig}
   >
     <div class="header">
@@ -396,7 +393,7 @@
     flex-shrink: 0;
   }
 
-  .close-btn {
+  :global(.close-btn) {
     font-size: calc(var(--base-font-size) * 1.2);
     line-height: 1;
   }

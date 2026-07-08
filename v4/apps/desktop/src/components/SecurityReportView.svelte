@@ -178,16 +178,15 @@
   });
 
   function handleDialogKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      onclose();
-      return;
-    }
+    if (event.key === "Escape") return;
     trapFocus(event, modalEl);
   }
 </script>
 
+<svelte:window onkeydown={handleDialogKeydown} />
+
 <ModalShell titleId="report-title" backdropClass="report-backdrop" panelClass="report-modal" onclose={onclose} width="560px" maxHeight="85vh">
-  <div bind:this={modalEl} onkeydown={handleDialogKeydown} role="document">
+  <div bind:this={modalEl}>
     <div class="report-header">
       <div class="report-title-row">
         <h2 id="report-title" class="report-title">{t("securityReport.title")}</h2>
@@ -351,7 +350,7 @@
     color: var(--fg-dim);
   }
 
-  .report-close {
+  :global(.report-close) {
     font-size: 18px;
   }
 
@@ -369,7 +368,7 @@
     margin-bottom: 12px;
   }
 
-  .quick-scan-btn {
+  :global(.quick-scan-btn) {
     border: 1px solid var(--accent);
     background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 62%, white 18%));
     color: white;
@@ -380,13 +379,13 @@
     transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
   }
 
-  .quick-scan-btn:hover:not(:disabled) {
+  :global(.quick-scan-btn:hover:not(:disabled)) {
     transform: translateY(-1px);
     box-shadow: 0 12px 22px rgba(0, 0, 0, 0.18);
     filter: saturate(1.08);
   }
 
-  .quick-scan-btn:disabled {
+  :global(.quick-scan-btn:disabled) {
     cursor: progress;
     filter: brightness(0.88);
   }
@@ -567,8 +566,8 @@
   .finding-header:hover { background: var(--bg-hover); }
 
   .finding-header:focus-visible,
-  .report-close:focus-visible,
-  .quick-scan-btn:focus-visible {
+  :global(.report-close:focus-visible),
+  :global(.quick-scan-btn:focus-visible) {
     outline: none;
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, var(--bg));
   }
@@ -710,7 +709,7 @@
   }
 
   @media (max-width: 720px) {
-    .report-modal {
+    :global(.report-modal) {
       width: min(92vw, 560px);
     }
 
