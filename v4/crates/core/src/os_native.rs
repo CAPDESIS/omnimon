@@ -211,3 +211,34 @@ pub(crate) fn kill_process_force(
     }
     Err(KillError::KillFailed(pid))
 }
+
+#[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn kill_process_force_refuses_protected_process_on_trusted_path() {
+        // `launchd` is in the immutable protected set on every platform, and
+        // `/sbin/launchd` (macOS) / a `/sbin/` path (Linux) is a trusted system
+        // path, so the guard must short-circuit with `Blocked` BEFORE issuing
+        // any real signal. PID 999_999_999 would never be terminated regardless
+        // because the function returns early.
+        let result = kill_process_force(999_999_999, "launchd", Some(Path::new("/sbin/launchd")));
+        assert!(
+            matches!(result, Err(KillError::Blocked(ref name)) if name == "launchd"),
+            "expected Blocked(launchd), got {result:?}"
+        );
+    }
+
+    #[test]
+    fn kill_process_force_is_case_insensitive_for_protected_names() {
+        // Name matching lowercases the input, so an upper-case protected name on
+        // a trusted path must still be blocked (never actually killed).
+        let result =
+            kill_process_force(999_999_998, "LaunchD", Some(Path::new("/usr/sbin/launchd")));
+        assert!(
+            matches!(result, Err(KillError::Blocked(ref name)) if name == "LaunchD"),
+            "expected Blocked(LaunchD), got {result:?}"
+        );
+    }
+}

@@ -307,6 +307,39 @@ mod tests {
     }
 
     #[test]
+    fn detect_tier_premium_from_subscription_string() {
+        let body = serde_json::json!({"subscription": "Pro Monthly"});
+        assert_eq!(detect_tier_from_response(&body), CloudTier::Premium);
+    }
+
+    #[test]
+    fn detect_tier_free_from_subscription_string() {
+        let body = serde_json::json!({"subscription": "starter"});
+        assert_eq!(detect_tier_from_response(&body), CloudTier::Free);
+    }
+
+    #[test]
+    fn detect_tier_free_from_nested_subscription_plan() {
+        let body = serde_json::json!({"subscription": {"plan": "free"}});
+        assert_eq!(detect_tier_from_response(&body), CloudTier::Free);
+    }
+
+    #[test]
+    fn detect_tier_unknown_from_unrelated_subscription_string() {
+        // A subscription string that matches no known keyword must not be
+        // misclassified as a paid or free tier.
+        let body = serde_json::json!({"subscription": "trial-cohort-7"});
+        assert_eq!(detect_tier_from_response(&body), CloudTier::Unknown);
+    }
+
+    #[test]
+    fn detect_tier_premium_from_tier_alias_field() {
+        // The `tier` field is an accepted alias for `plan`.
+        let body = serde_json::json!({"tier": "enterprise"});
+        assert_eq!(detect_tier_from_response(&body), CloudTier::Premium);
+    }
+
+    #[test]
     fn cloud_validation_serializes_correctly() {
         let v = CloudValidation::success(CloudTier::Free, Some("TestOrg".to_string()));
         let json = serde_json::to_string(&v).expect("serialize");

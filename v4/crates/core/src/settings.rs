@@ -325,4 +325,54 @@ mod tests {
         assert_eq!(settings.active_profile_preset.as_deref(), Some("custom"));
         assert_eq!(settings.ai_profile.as_deref(), Some("general"));
     }
+
+    #[test]
+    fn sanitize_settings_keeps_existing_active_preset() {
+        // When the active preset id already matches one of the presets, it must
+        // be preserved verbatim (the "found" branch), not reset to the first.
+        let mut settings = Settings {
+            active_profile_preset: Some("gaming".into()),
+            ai_profile: Some("developer".into()),
+            profile_presets: vec![
+                ProfilePreset {
+                    id: "general".into(),
+                    label: "General".into(),
+                    idle_threshold: 1.0,
+                    poll_interval_ms: 1000,
+                    automation_interval_secs: 5,
+                    ai_profile: "general".into(),
+                },
+                ProfilePreset {
+                    id: "gaming".into(),
+                    label: "Gaming".into(),
+                    idle_threshold: 1.0,
+                    poll_interval_ms: 1000,
+                    automation_interval_secs: 5,
+                    ai_profile: "gaming".into(),
+                },
+            ],
+            ..Settings::default()
+        };
+
+        sanitize_settings(&mut settings);
+
+        // Active preset present in the list is preserved (not the first entry).
+        assert_eq!(settings.active_profile_preset.as_deref(), Some("gaming"));
+        // A recognized ai_profile passes through normalization unchanged.
+        assert_eq!(settings.ai_profile.as_deref(), Some("developer"));
+    }
+
+    #[test]
+    fn sanitize_settings_preserves_all_recognized_ai_profiles() {
+        for profile in ["general", "developer", "gaming", "battery"] {
+            let mut settings = Settings {
+                ai_profile: Some(profile.to_uppercase()),
+                ..Settings::default()
+            };
+            sanitize_settings(&mut settings);
+            // Recognized profiles are lowercased and preserved (valid branch of
+            // normalize_ai_profile), never coerced back to "general".
+            assert_eq!(settings.ai_profile.as_deref(), Some(profile));
+        }
+    }
 }
