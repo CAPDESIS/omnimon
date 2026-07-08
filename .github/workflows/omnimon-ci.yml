@@ -11,8 +11,9 @@ on:
 
   schedule:
     # Local-first policy: PR/push validation runs on the developer machine.
-    # Remote CI is manual or staggered nightly to avoid runner bottlenecks.
-    - cron: '20 8 * * 6'
+    # Remote CI is manual or staggered daily to avoid runner bottlenecks.
+    # Release/sign jobs stay gated to tags and workflow_dispatch (no daily deploys).
+    - cron: '0 12 * * *'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

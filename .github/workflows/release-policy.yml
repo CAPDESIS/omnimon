@@ -5,8 +5,8 @@ on:
 
   schedule:
     # Local-first policy: PR/push validation runs on the developer machine.
-    # Remote CI is manual or staggered nightly to avoid runner bottlenecks.
-    - cron: '20 8 * * 6'
+    # Remote CI is manual or staggered daily to avoid runner bottlenecks.
+    - cron: '0 12 * * *'
 jobs:
   audit:
     name: Audit release gates
