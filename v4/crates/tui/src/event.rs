@@ -237,7 +237,10 @@ mod tests {
     #[test]
     fn ctrl_c_sets_should_quit() {
         let mut app = App::new();
-        handle_key(&mut app, KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL),
+        );
         assert!(app.should_quit);
     }
 
@@ -254,7 +257,10 @@ mod tests {
     #[test]
     fn process_panel_q_quits() {
         let mut app = App::new();
-        handle_key(&mut app, KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE),
+        );
         assert!(app.should_quit);
     }
 
@@ -269,7 +275,10 @@ mod tests {
     fn process_panel_sort_cycles() {
         let mut app = App::new();
         assert_eq!(app.sort_col, SortColumn::Memory);
-        handle_key(&mut app, KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE));
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE),
+        );
         assert_eq!(app.sort_col, SortColumn::Name);
     }
 
