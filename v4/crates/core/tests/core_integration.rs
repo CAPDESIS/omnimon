@@ -6,7 +6,7 @@ use std::sync::{Mutex, OnceLock};
 
 fn rules_test_guard() -> std::sync::MutexGuard<'static, ()> {
     static GUARD: OnceLock<Mutex<()>> = OnceLock::new();
-    GUARD.get_or_init(|| Mutex::new(())).lock().unwrap()
+    GUARD.get_or_init(|| Mutex::new(())).lock().unwrap_or_else(|e| e.into_inner())
 }
 
 fn wait_for_watcher_data() -> watcher::SystemState {

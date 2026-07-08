@@ -191,3 +191,80 @@ impl App {
         self.selected = (self.selected + page).min(max);
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::items_after_test_module)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_new_has_default_state() {
+        let app = App::new();
+        assert_eq!(app.sort_col, SortColumn::Memory);
+        assert!(!app.sort_asc);
+        assert_eq!(app.selected, 0);
+        assert_eq!(app.active_panel, ActivePanel::Processes);
+        assert!(!app.should_quit);
+        assert_eq!(app.chat_messages.len(), 1);
+    }
+
+    #[test]
+    fn next_sort_cycles_columns() {
+        let mut app = App::new();
+        assert_eq!(app.sort_col, SortColumn::Memory);
+        app.next_sort();
+        assert_eq!(app.sort_col, SortColumn::Name);
+        app.next_sort();
+        assert_eq!(app.sort_col, SortColumn::Net);
+        app.next_sort();
+        assert_eq!(app.sort_col, SortColumn::Energy);
+        app.next_sort();
+        assert_eq!(app.sort_col, SortColumn::Cpu);
+        app.next_sort();
+        assert_eq!(app.sort_col, SortColumn::Memory);
+    }
+
+    #[test]
+    fn toggle_sort_dir_flips_flag() {
+        let mut app = App::new();
+        assert!(!app.sort_asc);
+        app.toggle_sort_dir();
+        assert!(app.sort_asc);
+        app.toggle_sort_dir();
+        assert!(!app.sort_asc);
+    }
+
+    #[test]
+    fn select_up_does_not_go_below_zero() {
+        let mut app = App::new();
+        app.selected = 0;
+        app.select_up();
+        assert_eq!(app.selected, 0);
+    }
+
+    #[test]
+    fn select_down_respects_bounds() {
+        let mut app = App::new();
+        app.selected = 0;
+        // Empty list: can't go down
+        app.select_down();
+        assert_eq!(app.selected, 0);
+    }
+
+    #[test]
+    fn select_page_up_saturates_to_zero() {
+        let mut app = App::new();
+        app.selected = 3;
+        app.select_page_up(10);
+        assert_eq!(app.selected, 0);
+    }
+
+    #[test]
+    fn select_page_down_clamps_to_max() {
+        let mut app = App::new();
+        app.selected = 0;
+        app.select_page_down(5);
+        // Empty list: max is 0
+        assert_eq!(app.selected, 0);
+    }
+}

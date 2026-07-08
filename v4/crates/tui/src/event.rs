@@ -227,3 +227,58 @@ fn resolve_ai_config() -> (core::ai::AiProvider, String, String) {
         String::new(),
     )
 }
+
+#[cfg(test)]
+#[allow(clippy::items_after_test_module)]
+mod tests {
+    use super::*;
+    use crate::app::SortColumn;
+
+    #[test]
+    fn ctrl_c_sets_should_quit() {
+        let mut app = App::new();
+        handle_key(&mut app, KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+        assert!(app.should_quit);
+    }
+
+    #[test]
+    fn tab_toggles_active_panel() {
+        let mut app = App::new();
+        assert_eq!(app.active_panel, ActivePanel::Processes);
+        handle_key(&mut app, KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        assert_eq!(app.active_panel, ActivePanel::Chat);
+        handle_key(&mut app, KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        assert_eq!(app.active_panel, ActivePanel::Processes);
+    }
+
+    #[test]
+    fn process_panel_q_quits() {
+        let mut app = App::new();
+        handle_key(&mut app, KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
+        assert!(app.should_quit);
+    }
+
+    #[test]
+    fn process_panel_esc_quits() {
+        let mut app = App::new();
+        handle_key(&mut app, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        assert!(app.should_quit);
+    }
+
+    #[test]
+    fn process_panel_sort_cycles() {
+        let mut app = App::new();
+        assert_eq!(app.sort_col, SortColumn::Memory);
+        handle_key(&mut app, KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE));
+        assert_eq!(app.sort_col, SortColumn::Name);
+    }
+
+    #[test]
+    fn chat_panel_esc_returns_to_processes() {
+        let mut app = App::new();
+        handle_key(&mut app, KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        assert_eq!(app.active_panel, ActivePanel::Chat);
+        handle_key(&mut app, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        assert_eq!(app.active_panel, ActivePanel::Processes);
+    }
+}
