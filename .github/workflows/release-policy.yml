@@ -1,17 +1,12 @@
 name: Release Policy
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/**'
-      - 'docs/**'
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/**'
-      - 'docs/**'
   workflow_dispatch:
 
+  schedule:
+    # Local-first policy: PR/push validation runs on the developer machine.
+    # Remote CI is manual or staggered nightly to avoid runner bottlenecks.
+    - cron: '20 8 * * 6'
 jobs:
   audit:
     name: Audit release gates

@@ -2,17 +2,6 @@
 name: OmniMon CI/CD
 
 on:
-  push:
-    branches: [ "main" ]
-    tags: [ "v*" ]
-    paths:
-      - "v4/**"
-      - ".github/workflows/**"
-  pull_request:
-    branches: [ "main" ]
-    paths:
-      - "v4/**"
-      - ".github/workflows/**"
   workflow_dispatch:
     inputs:
       tag:
@@ -20,6 +9,10 @@ on:
         required: true
         type: string
 
+  schedule:
+    # Local-first policy: PR/push validation runs on the developer machine.
+    # Remote CI is manual or staggered nightly to avoid runner bottlenecks.
+    - cron: '20 8 * * 6'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
