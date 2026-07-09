@@ -360,6 +360,7 @@ fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::{ActivePanel, App, ChatMessage, ChatRole};
 
     #[test]
     fn format_bytes_units() {
@@ -386,5 +387,66 @@ mod tests {
     fn wrap_text_newlines() {
         let lines = wrap_text("line1\nline2", 80);
         assert_eq!(lines, vec!["line1", "line2"]);
+    }
+
+    #[test]
+    fn wrap_text_zero_width_returns_full() {
+        let lines = wrap_text("abc", 0);
+        assert_eq!(lines, vec!["abc"]);
+    }
+
+    #[test]
+    fn gauge_color_thresholds() {
+        assert_eq!(gauge_color(10).fg, Some(Color::Green));
+        assert_eq!(gauge_color(60).fg, Some(Color::Yellow));
+        assert_eq!(gauge_color(90).fg, Some(Color::Red));
+    }
+
+    #[test]
+    fn draw_renders_on_test_backend() {
+        let backend = ratatui::backend::TestBackend::new(120, 40);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut app = App::new();
+        app.state.total_memory_bytes = 8 * 1024 * 1024 * 1024;
+        app.state.used_memory_bytes = 4 * 1024 * 1024 * 1024;
+        app.state.cpu_usage_percent = 42.0;
+        app.state.net_rx_bytes_per_sec = 1024;
+        app.state.net_tx_bytes_per_sec = 2048;
+        app.sorted_processes = vec![core::watcher::CachedProcessInfo {
+            pid: 1,
+            name: "omnimon".into(),
+            group_name: "omnimon".into(),
+            memory_bytes: 1024 * 1024,
+            virtual_memory_bytes: 2 * 1024 * 1024,
+            cpu_pct: 1.5,
+            exec_name: "omnimon".into(),
+            exe_path: None,
+            bundle_id: None,
+            disk_read_bytes: 0,
+            disk_write_bytes: 0,
+            net_rx_bytes_per_sec: 10,
+            net_tx_bytes_per_sec: 20,
+            energy_impact_score: Some(1.0),
+            start_time: 0,
+        }];
+        app.chat_messages.push(ChatMessage {
+            role: ChatRole::User,
+            text: "hello coverage".into(),
+        });
+        app.chat_messages.push(ChatMessage {
+            role: ChatRole::Ai,
+            text: "response".into(),
+        });
+        app.chat_input = "typed".into();
+        app.active_panel = ActivePanel::Chat;
+
+        terminal.draw(|f| draw(f, &mut app)).unwrap();
+
+        // Second draw with process panel active and alternate sort columns.
+        app.active_panel = ActivePanel::Processes;
+        for _ in 0..5 {
+            app.next_sort();
+            terminal.draw(|f| draw(f, &mut app)).unwrap();
+        }
     }
 }

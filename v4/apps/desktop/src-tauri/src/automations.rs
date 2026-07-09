@@ -354,6 +354,119 @@ mod tests {
         assert!(value_above > rule.threshold);
         assert!(value_below <= rule.threshold);
     }
+
+    #[test]
+    fn detect_system_locale_returns_valid_variant() {
+        assert!(matches!(
+            detect_system_locale(),
+            UiLocale::En | UiLocale::Es
+        ));
+    }
+
+    #[test]
+    fn metric_label_and_notification_copy() {
+        assert_eq!(metric_label(METRIC_RAM, UiLocale::En), "RAM");
+        assert_eq!(metric_label("cpu", UiLocale::Es), "CPU");
+        assert!(!notification_title(UiLocale::Es, true).is_empty());
+        assert!(!notification_title(UiLocale::En, false).is_empty());
+        let body = notification_body(UiLocale::En, true, "node", 42, 90.0, "cpu");
+        assert!(body.contains("node"));
+        assert!(body.contains("42"));
+        let body_es = notification_body(UiLocale::Es, false, "chrome", 7, 80.0, METRIC_RAM);
+        assert!(body_es.contains("chrome"));
+        assert!(body_es.contains("RAM"));
+    }
+
+    #[test]
+    fn add_and_remove_rule_mutates_shared_store() {
+        // Use unique ids so parallel/serial runs do not collide with leftover state.
+        let id = format!("cov-rule-{}", std::process::id());
+        let rule = make_rule(&id, "coverage-proc", "cpu", 99.0);
+        {
+            let arc = get_rules();
+            let mut rules = write_lock_or_recover(&arc);
+            rules.retain(|r| r.id != id);
+            rules.push(rule.clone());
+        }
+        {
+            let arc = get_rules();
+            let rules = read_lock_or_recover(&arc);
+            assert!(rules.iter().any(|r| r.id == id));
+        }
+        {
+            let arc = get_rules();
+            let mut rules = write_lock_or_recover(&arc);
+            rules.retain(|r| r.id != id);
+        }
+        let arc = get_rules();
+        let rules = read_lock_or_recover(&arc);
+        assert!(!rules.iter().any(|r| r.id == id));
+    }
+
+    #[test]
+    fn evaluate_rule_hits_matches_cpu_and_ram() {
+        let rules = vec![
+            make_rule("cpu-rule", "node", "cpu", 10.0),
+            make_rule("ram-rule", "chrome", METRIC_RAM, 100.0),
+        ];
+        let procs = vec![
+            macmon_core::watcher::CachedProcessInfo {
+                pid: 1,
+                name: "node helper".into(),
+                exec_name: "node".into(),
+                cpu_pct: 55.0,
+                memory_bytes: 10 * 1024 * 1024,
+                ..Default::default()
+            },
+            macmon_core::watcher::CachedProcessInfo {
+                pid: 2,
+                name: "Google Chrome".into(),
+                exec_name: "chrome".into(),
+                cpu_pct: 1.0,
+                memory_bytes: 512 * 1024 * 1024,
+                ..Default::default()
+            },
+            macmon_core::watcher::CachedProcessInfo {
+                pid: 3,
+                name: "safe".into(),
+                exec_name: "safe".into(),
+                cpu_pct: 1.0,
+                memory_bytes: 1,
+                ..Default::default()
+            },
+        ];
+        let hits = evaluate_rule_hits(&rules, &procs);
+        assert_eq!(hits.len(), 2);
+        assert!(hits.iter().any(|(r, pid, _, _)| r.id == "cpu-rule" && *pid == 1));
+        assert!(hits.iter().any(|(r, pid, _, _)| r.id == "ram-rule" && *pid == 2));
+    }
+
+}
+
+
+/// Pure evaluation of which (rule_id, pid) pairs currently exceed thresholds.
+fn evaluate_rule_hits(
+    rules: &[AutomationRule],
+    procs: &[macmon_core::watcher::CachedProcessInfo],
+) -> Vec<(AutomationRule, u32, String, f64)> {
+    let mut hits = Vec::new();
+    for rule in rules {
+        for proc in procs {
+            if proc.name.contains(&rule.process_pattern)
+                || proc.exec_name.contains(&rule.process_pattern)
+            {
+                let value = if rule.metric == METRIC_RAM {
+                    (proc.memory_bytes as f64) / BYTES_PER_MB
+                } else {
+                    proc.cpu_pct as f64
+                };
+                if value > rule.threshold {
+                    hits.push((rule.clone(), proc.pid, proc.name.clone(), value));
+                }
+            }
+        }
+    }
+    hits
 }
 
 pub fn start_engine(app: AppHandle) {
@@ -377,64 +490,46 @@ pub fn start_engine(app: AppHandle) {
             let now = Instant::now();
             let mut new_violations = HashMap::new();
 
-            for rule in rules {
-                for proc in procs {
-                    if proc.name.contains(&rule.process_pattern)
-                        || proc.exec_name.contains(&rule.process_pattern)
-                    {
-                        let value = if rule.metric == METRIC_RAM {
-                            (proc.memory_bytes as f64) / BYTES_PER_MB
-                        } else {
-                            proc.cpu_pct as f64
-                        };
+            for (rule, pid, proc_name, _value) in evaluate_rule_hits(&rules, procs) {
+                let key = (rule.id.clone(), pid);
+                let first_seen = violations.get(&key).copied().unwrap_or(now);
+                new_violations.insert(key.clone(), first_seen);
 
-                        if value > rule.threshold {
-                            let key = (rule.id.clone(), proc.pid);
-                            let first_seen = violations.get(&key).copied().unwrap_or(now);
-                            new_violations.insert(key.clone(), first_seen);
-
-                            if now.duration_since(first_seen).as_secs() >= rule.duration_secs {
-                                // Action time!
-                                if rule.action == ACTION_KILL {
-                                    if macmon_core::killer::kill_process_safe(proc.pid as i32, &[])
-                                        .is_ok()
-                                    {
-                                        let locale = read_ui_locale(&app);
-                                        let _ = app
-                                            .notification()
-                                            .builder()
-                                            .title(notification_title(locale, true))
-                                            .body(notification_body(
-                                                locale,
-                                                true,
-                                                &proc.name,
-                                                proc.pid,
-                                                rule.threshold,
-                                                &rule.metric,
-                                            ))
-                                            .show();
-                                    }
-                                } else {
-                                    let locale = read_ui_locale(&app);
-                                    let _ = app
-                                        .notification()
-                                        .builder()
-                                        .title(notification_title(locale, false))
-                                        .body(notification_body(
-                                            locale,
-                                            false,
-                                            &proc.name,
-                                            proc.pid,
-                                            rule.threshold,
-                                            &rule.metric,
-                                        ))
-                                        .show();
-                                }
-                                // Reset violation to avoid spamming
-                                new_violations.remove(&key);
-                            }
+                if now.duration_since(first_seen).as_secs() >= rule.duration_secs {
+                    if rule.action == ACTION_KILL {
+                        if macmon_core::killer::kill_process_safe(pid as i32, &[]).is_ok() {
+                            let locale = read_ui_locale(&app);
+                            let _ = app
+                                .notification()
+                                .builder()
+                                .title(notification_title(locale, true))
+                                .body(notification_body(
+                                    locale,
+                                    true,
+                                    &proc_name,
+                                    pid,
+                                    rule.threshold,
+                                    &rule.metric,
+                                ))
+                                .show();
                         }
+                    } else {
+                        let locale = read_ui_locale(&app);
+                        let _ = app
+                            .notification()
+                            .builder()
+                            .title(notification_title(locale, false))
+                            .body(notification_body(
+                                locale,
+                                false,
+                                &proc_name,
+                                pid,
+                                rule.threshold,
+                                &rule.metric,
+                            ))
+                            .show();
                     }
+                    new_violations.remove(&key);
                 }
             }
             violations = new_violations;

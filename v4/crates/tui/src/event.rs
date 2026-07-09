@@ -290,4 +290,94 @@ mod tests {
         handle_key(&mut app, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
         assert_eq!(app.active_panel, ActivePanel::Processes);
     }
+
+    fn sample_processes(n: u32) -> Vec<core::watcher::CachedProcessInfo> {
+        (0..n)
+            .map(|i| core::watcher::CachedProcessInfo {
+                pid: i,
+                name: format!("p{i}"),
+                group_name: format!("g{i}"),
+                memory_bytes: i as u64 * 1024,
+                virtual_memory_bytes: i as u64 * 2048,
+                cpu_pct: i as f32,
+                exec_name: format!("p{i}"),
+                exe_path: None,
+                bundle_id: None,
+                disk_read_bytes: 0,
+                disk_write_bytes: 0,
+                net_rx_bytes_per_sec: i as u64,
+                net_tx_bytes_per_sec: 0,
+                energy_impact_score: Some(i as f32),
+                start_time: 0,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn process_panel_navigation_keys() {
+        let mut app = App::new();
+        app.sorted_processes = sample_processes(50);
+        app.selected = 10;
+        handle_key(&mut app, KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(app.selected, 9);
+        handle_key(&mut app, KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        assert_eq!(app.selected, 10);
+        handle_key(&mut app, KeyEvent::new(KeyCode::Home, KeyModifiers::NONE));
+        assert_eq!(app.selected, 0);
+        handle_key(&mut app, KeyEvent::new(KeyCode::End, KeyModifiers::NONE));
+        assert_eq!(app.selected, 49);
+        handle_key(&mut app, KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE));
+        assert_eq!(app.selected, 49);
+        handle_key(&mut app, KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
+        assert_eq!(app.selected, 29);
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE),
+        );
+        assert!(app.sort_asc);
+    }
+
+    #[test]
+    fn chat_panel_typing_and_backspace() {
+        let mut app = App::new();
+        handle_key(&mut app, KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE),
+        );
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE),
+        );
+        assert_eq!(app.chat_input, "hi");
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE),
+        );
+        assert_eq!(app.chat_input, "h");
+    }
+
+    #[test]
+    fn chat_enter_with_empty_input_is_noop() {
+        let mut app = App::new();
+        handle_key(&mut app, KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        let before = app.chat_messages.len();
+        handle_key(&mut app, KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert_eq!(app.chat_messages.len(), before);
+        assert!(!app.chat_loading);
+    }
+
+    #[test]
+    fn resolve_ai_config_returns_provider() {
+        let (provider, model, _key) = resolve_ai_config();
+        assert!(!model.is_empty());
+        let _ = provider;
+    }
+
+    #[test]
+    fn poll_ai_response_without_pending_is_noop() {
+        let mut app = App::new();
+        poll_ai_response(&mut app);
+        assert!(!app.chat_loading);
+    }
 }

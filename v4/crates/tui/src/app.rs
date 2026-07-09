@@ -267,4 +267,50 @@ mod tests {
         // Empty list: max is 0
         assert_eq!(app.selected, 0);
     }
+
+    #[test]
+    fn app_navigation_with_prefilled_processes() {
+        let mut app = App::new();
+        app.sorted_processes = vec![
+            CachedProcessInfo {
+                pid: 1,
+                name: "zeta".into(),
+                group_name: "z".into(),
+                memory_bytes: 100,
+                cpu_pct: 1.0,
+                net_rx_bytes_per_sec: 5,
+                energy_impact_score: Some(1.0),
+                ..Default::default()
+            },
+            CachedProcessInfo {
+                pid: 2,
+                name: "alpha".into(),
+                group_name: "a".into(),
+                memory_bytes: 500,
+                cpu_pct: 9.0,
+                net_rx_bytes_per_sec: 50,
+                energy_impact_score: Some(9.0),
+                ..Default::default()
+            },
+            CachedProcessInfo {
+                pid: 3,
+                name: "mid".into(),
+                group_name: "m".into(),
+                memory_bytes: 250,
+                cpu_pct: 4.0,
+                ..Default::default()
+            },
+        ];
+        app.selected = 1;
+        app.select_up();
+        assert_eq!(app.selected, 0);
+        app.select_down();
+        assert_eq!(app.selected, 1);
+        app.select_page_down(10);
+        assert_eq!(app.selected, 2);
+        app.select_page_up(10);
+        assert_eq!(app.selected, 0);
+        app.next_sort();
+        assert_eq!(app.sort_col, SortColumn::Name);
+    }
 }
