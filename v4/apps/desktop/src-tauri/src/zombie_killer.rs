@@ -539,13 +539,8 @@ mod tests {
         assert!(first.is_empty(), "should not confirm on first sighting");
         assert!(first_seen.contains_key(&(555, 1_000)));
 
-        let later = promote_confirmed_zombies(
-            &[proc],
-            &config,
-            now + 30,
-            &mut first_seen,
-            &mut notified,
-        );
+        let later =
+            promote_confirmed_zombies(&[proc], &config, now + 30, &mut first_seen, &mut notified);
         assert_eq!(later.len(), 1);
         assert_eq!(later[0].pid, 555);
     }

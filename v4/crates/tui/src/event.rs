@@ -326,7 +326,10 @@ mod tests {
         assert_eq!(app.selected, 0);
         handle_key(&mut app, KeyEvent::new(KeyCode::End, KeyModifiers::NONE));
         assert_eq!(app.selected, 49);
-        handle_key(&mut app, KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE));
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE),
+        );
         assert_eq!(app.selected, 49);
         handle_key(&mut app, KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
         assert_eq!(app.selected, 29);

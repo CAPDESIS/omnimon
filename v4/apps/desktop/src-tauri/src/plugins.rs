@@ -1064,8 +1064,7 @@ mod tests {
 
     #[test]
     fn run_plugin_source_rejects_missing_collect() {
-        let err = run_plugin_source("bad.lua", "function manifest() return {} end")
-            .unwrap_err();
+        let err = run_plugin_source("bad.lua", "function manifest() return {} end").unwrap_err();
         assert!(err.contains("collect"));
     }
 
@@ -1082,7 +1081,8 @@ mod tests {
 
     #[test]
     fn plugin_engine_install_list_enable_remove_and_poll() {
-        let root = std::env::temp_dir().join(format!("omnimon-plugin-engine-{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("omnimon-plugin-engine-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let engine = PluginEngine::from_root(root.clone()).expect("engine");
@@ -1101,9 +1101,7 @@ mod tests {
         let listed = engine.list_plugins();
         assert_eq!(listed.len(), 1);
 
-        let disabled = engine
-            .set_enabled("demo-plugin", false)
-            .expect("disable");
+        let disabled = engine.set_enabled("demo-plugin", false).expect("disable");
         assert!(!disabled.enabled);
         assert_eq!(disabled.status, "disabled");
 
@@ -1133,9 +1131,7 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         let engine = PluginEngine::from_root(root.clone()).unwrap();
         let huge = "x".repeat(MAX_SCRIPT_BYTES + 1);
-        let err = engine
-            .install_plugin("huge.lua".into(), huge)
-            .unwrap_err();
+        let err = engine.install_plugin("huge.lua".into(), huge).unwrap_err();
         assert!(err.contains("exceeds"));
         let _ = fs::remove_dir_all(&root);
     }

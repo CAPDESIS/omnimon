@@ -1883,10 +1883,16 @@ mod tests {
 
     #[test]
     fn ai_provider_maps_to_core_defaults() {
-        assert_eq!(AiProvider::Openai.to_core_provider(), core_ai::AiProvider::OpenAI);
+        assert_eq!(
+            AiProvider::Openai.to_core_provider(),
+            core_ai::AiProvider::OpenAI
+        );
         assert_eq!(AiProvider::Anthropic.display_name(), "Anthropic");
         assert_eq!(AiProvider::Gemini.default_model(), "gemini-2.0-flash");
-        assert_eq!(AiProvider::Openrouter.default_model(), "meta-llama/llama-3.2-3b-instruct:free");
+        assert_eq!(
+            AiProvider::Openrouter.default_model(),
+            "meta-llama/llama-3.2-3b-instruct:free"
+        );
     }
 
     #[test]
@@ -1994,12 +2000,7 @@ mod tests {
     fn release_checksum_of_temp_file_succeeds() {
         let path = std::env::temp_dir().join("omnimon-cli-checksum-test.bin");
         std::fs::write(&path, b"omnimon-coverage").unwrap();
-        let cli = Cli::parse_from([
-            "omnimon",
-            "release",
-            "checksum",
-            path.to_str().unwrap(),
-        ]);
+        let cli = Cli::parse_from(["omnimon", "release", "checksum", path.to_str().unwrap()]);
         assert!(run_cli(cli).is_ok());
         let _ = std::fs::remove_file(path);
     }
@@ -2253,7 +2254,10 @@ mod tests {
 
     #[test]
     fn release_sign_missing_key_file_returns_error() {
-        let artifact = std::env::temp_dir().join(format!("omnimon-sign-missing-key-{}.bin", std::process::id()));
+        let artifact = std::env::temp_dir().join(format!(
+            "omnimon-sign-missing-key-{}.bin",
+            std::process::id()
+        ));
         std::fs::write(&artifact, b"bytes").unwrap();
         let cli = Cli::parse_from([
             "omnimon",
@@ -2360,5 +2364,4 @@ mod tests {
         ]);
         assert_eq!(run_cli(cli), Err(1));
     }
-
 }

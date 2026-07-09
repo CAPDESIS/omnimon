@@ -151,7 +151,6 @@ impl AiProvider {
     }
 }
 
-
 fn resolve_api_url(provider: AiProvider) -> String {
     let env_key = match provider {
         AiProvider::OpenAI => "OMNIMON_OPENAI_API_URL",
@@ -162,7 +161,6 @@ fn resolve_api_url(provider: AiProvider) -> String {
     };
     std::env::var(env_key).unwrap_or_else(|_| provider.api_url().to_string())
 }
-
 
 impl std::str::FromStr for AiProvider {
     type Err = String;
@@ -474,7 +472,8 @@ async fn analyze_anthropic(
     });
 
     let resp = send_with_retry(|| {
-        add_anthropic_headers(client.post(resolve_api_url(AiProvider::Anthropic)), api_key).json(&body)
+        add_anthropic_headers(client.post(resolve_api_url(AiProvider::Anthropic)), api_key)
+            .json(&body)
     })
     .await?;
 
@@ -529,7 +528,8 @@ pub async fn analyze_context_key(
             "messages": [{ "role": "user", "content": context }]
         });
         let resp = send_with_retry(|| {
-            add_anthropic_headers(client.post(resolve_api_url(AiProvider::Anthropic)), api_key).json(&body)
+            add_anthropic_headers(client.post(resolve_api_url(AiProvider::Anthropic)), api_key)
+                .json(&body)
         })
         .await?;
         let resp_text = check_response_status(resp).await?;
@@ -1272,7 +1272,8 @@ pub async fn chat_with_tools(
             "messages": msg_array
         });
         let resp = send_with_retry(|| {
-            add_anthropic_headers(client.post(resolve_api_url(AiProvider::Anthropic)), api_key).json(&body)
+            add_anthropic_headers(client.post(resolve_api_url(AiProvider::Anthropic)), api_key)
+                .json(&body)
         })
         .await?;
         let status = resp.status();
@@ -1422,10 +1423,11 @@ where
             "messages": msg_array,
             "stream": true
         });
-        let resp = add_anthropic_headers(client.post(resolve_api_url(AiProvider::Anthropic)), api_key)
-            .json(&body)
-            .send()
-            .await?;
+        let resp =
+            add_anthropic_headers(client.post(resolve_api_url(AiProvider::Anthropic)), api_key)
+                .json(&body)
+                .send()
+                .await?;
         let status = resp.status();
         if !status.is_success() {
             let body_text = resp.text().await.unwrap_or_default();
@@ -2774,8 +2776,6 @@ mod tests {
         };
         assert!(validate_tool_call(good).is_ok());
     }
-
-
 
     #[tokio::test]
     async fn analyze_with_ai_key_parses_anthropic_response() {

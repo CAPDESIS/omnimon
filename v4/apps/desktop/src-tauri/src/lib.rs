@@ -1495,7 +1495,10 @@ mod tests {
         assert!(metrics.stats.ram_total_gb >= 0.0);
         assert!(metrics.stats.cpu_usage_pct >= 0.0);
         // total_processes matches processes vec length
-        assert_eq!(metrics.stats.total_processes, metrics.processes.len() as u32);
+        assert_eq!(
+            metrics.stats.total_processes,
+            metrics.processes.len() as u32
+        );
     }
 
     #[test]
@@ -1555,12 +1558,8 @@ mod tests {
     #[test]
     fn prepare_browser_tab_accepts_chrome() {
         // May fail on rate limit if previous tests exhausted the bucket; accept either.
-        let result = prepare_browser_tab(
-            "focus_browser_tab",
-            "1",
-            "https://example.com/",
-            "Chrome",
-        );
+        let result =
+            prepare_browser_tab("focus_browser_tab", "1", "https://example.com/", "Chrome");
         match result {
             Ok((tab, kind)) => {
                 assert_eq!(tab.id, "1");

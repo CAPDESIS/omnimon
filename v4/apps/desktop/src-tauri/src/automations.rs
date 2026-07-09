@@ -437,12 +437,14 @@ mod tests {
         ];
         let hits = evaluate_rule_hits(&rules, &procs);
         assert_eq!(hits.len(), 2);
-        assert!(hits.iter().any(|(r, pid, _, _)| r.id == "cpu-rule" && *pid == 1));
-        assert!(hits.iter().any(|(r, pid, _, _)| r.id == "ram-rule" && *pid == 2));
+        assert!(hits
+            .iter()
+            .any(|(r, pid, _, _)| r.id == "cpu-rule" && *pid == 1));
+        assert!(hits
+            .iter()
+            .any(|(r, pid, _, _)| r.id == "ram-rule" && *pid == 2));
     }
-
 }
-
 
 /// Pure evaluation of which (rule_id, pid) pairs currently exceed thresholds.
 fn evaluate_rule_hits(
