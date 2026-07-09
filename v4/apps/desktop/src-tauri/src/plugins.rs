@@ -469,7 +469,13 @@ fn descriptor_from(plugin: &StoredPlugin, runtime: Option<&PluginRunState>) -> P
 impl PluginEngine {
     fn new(app: &AppHandle) -> Result<Self, String> {
         let root_dir = plugin_root(app)?;
+        Self::from_root(root_dir)
+    }
+
+    /// Build an engine rooted at an arbitrary directory (used by unit tests).
+    fn from_root(root_dir: PathBuf) -> Result<Self, String> {
         let scripts_dir = root_dir.join("scripts");
+        fs::create_dir_all(&scripts_dir).map_err(|err| err.to_string())?;
         let manifest_path = root_dir.join(MANIFEST_FILENAME);
         let manifest = load_manifest(&manifest_path);
 
@@ -1025,5 +1031,112 @@ mod tests {
         // Should be after 2020-01-01 and before 2100-01-01
         assert!(ms > 1_577_836_800_000);
         assert!(ms < 4_102_444_800_000);
+    }
+
+    #[test]
+    fn build_context_returns_snapshot_fields() {
+        let ctx = build_context();
+        assert!(ctx.timestamp_ms > 0);
+        assert!(ctx.cpu_usage_percent >= 0.0);
+        assert!(ctx.process_count <= 24);
+    }
+
+    #[test]
+    fn run_plugin_source_collects_metrics() {
+        let source = r#"
+            function manifest()
+              return { name = "Coverage Plugin", version = "1.2.3", description = "test" }
+            end
+            function collect(ctx)
+              return {
+                metrics = {
+                  { name = "cpu_sample", value = ctx.cpu_usage_percent or 0, kind = "gauge", unit = "%" }
+                }
+              }
+            end
+        "#;
+        let result = run_plugin_source("coverage-plugin.lua", source).expect("lua plugin");
+        assert_eq!(result.name, "Coverage Plugin");
+        assert_eq!(result.version.as_deref(), Some("1.2.3"));
+        assert_eq!(result.metrics.len(), 1);
+        assert_eq!(result.metrics[0].name, "cpu_sample");
+    }
+
+    #[test]
+    fn run_plugin_source_rejects_missing_collect() {
+        let err = run_plugin_source("bad.lua", "function manifest() return {} end")
+            .unwrap_err();
+        assert!(err.contains("collect"));
+    }
+
+    #[test]
+    fn run_plugin_source_rejects_syntax_error() {
+        let err = run_plugin_source("bad.lua", "this is not lua !!!").unwrap_err();
+        assert!(!err.is_empty());
+    }
+
+    #[test]
+    fn default_manifest_schema_is_one() {
+        assert_eq!(default_manifest_schema(), 1);
+    }
+
+    #[test]
+    fn plugin_engine_install_list_enable_remove_and_poll() {
+        let root = std::env::temp_dir().join(format!("omnimon-plugin-engine-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let engine = PluginEngine::from_root(root.clone()).expect("engine");
+
+        let source = r#"
+            function collect(ctx)
+              return { metrics = { { name = "ok", value = 1.0, kind = "gauge" } } }
+            end
+        "#;
+        let installed = engine
+            .install_plugin("demo-plugin.lua".into(), source.into())
+            .expect("install");
+        assert_eq!(installed.id, "demo-plugin");
+        assert!(installed.enabled);
+
+        let listed = engine.list_plugins();
+        assert_eq!(listed.len(), 1);
+
+        let disabled = engine
+            .set_enabled("demo-plugin", false)
+            .expect("disable");
+        assert!(!disabled.enabled);
+        assert_eq!(disabled.status, "disabled");
+
+        let enabled = engine.set_enabled("demo-plugin", true).expect("enable");
+        assert!(enabled.enabled);
+
+        engine.poll_once();
+        let after_poll = engine.list_plugins();
+        assert_eq!(after_poll[0].status, "ok");
+        assert!(!after_poll[0].metrics.is_empty());
+
+        engine.remove_plugin("demo-plugin").expect("remove");
+        assert!(engine.list_plugins().is_empty());
+
+        let err = engine
+            .install_plugin("demo-plugin.lua".into(), "   ".into())
+            .unwrap_err();
+        assert!(err.contains("empty"));
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn plugin_engine_rejects_oversized_source() {
+        let root = std::env::temp_dir().join(format!("omnimon-plugin-big-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let engine = PluginEngine::from_root(root.clone()).unwrap();
+        let huge = "x".repeat(MAX_SCRIPT_BYTES + 1);
+        let err = engine
+            .install_plugin("huge.lua".into(), huge)
+            .unwrap_err();
+        assert!(err.contains("exceeds"));
+        let _ = fs::remove_dir_all(&root);
     }
 }

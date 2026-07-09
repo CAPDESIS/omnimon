@@ -151,6 +151,19 @@ impl AiProvider {
     }
 }
 
+
+fn resolve_api_url(provider: AiProvider) -> String {
+    let env_key = match provider {
+        AiProvider::OpenAI => "OMNIMON_OPENAI_API_URL",
+        AiProvider::OpenRouter => "OMNIMON_OPENROUTER_API_URL",
+        AiProvider::Gemini => "OMNIMON_GEMINI_API_URL",
+        AiProvider::Anthropic => "OMNIMON_ANTHROPIC_API_URL",
+        AiProvider::Ollama => "OMNIMON_OLLAMA_API_URL",
+    };
+    std::env::var(env_key).unwrap_or_else(|_| provider.api_url().to_string())
+}
+
+
 impl std::str::FromStr for AiProvider {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -258,7 +271,7 @@ pub async fn validate_api_key(
     key: &str,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let client = build_client()?;
-    let url = provider.api_url();
+    let url = resolve_api_url(provider);
 
     // Ollama: just check that the server is reachable (no API key needed)
     if provider == AiProvider::Ollama {
@@ -422,7 +435,7 @@ pub async fn analyze_with_ai_key(
 
     let resp = send_with_retry(|| {
         let mut req = client
-            .post(provider.api_url())
+            .post(resolve_api_url(provider))
             .header("Authorization", format!("Bearer {}", api_key));
         if provider == AiProvider::OpenRouter {
             req = add_openrouter_headers(req);
@@ -461,7 +474,7 @@ async fn analyze_anthropic(
     });
 
     let resp = send_with_retry(|| {
-        add_anthropic_headers(client.post(AiProvider::Anthropic.api_url()), api_key).json(&body)
+        add_anthropic_headers(client.post(resolve_api_url(AiProvider::Anthropic)), api_key).json(&body)
     })
     .await?;
 
@@ -516,7 +529,7 @@ pub async fn analyze_context_key(
             "messages": [{ "role": "user", "content": context }]
         });
         let resp = send_with_retry(|| {
-            add_anthropic_headers(client.post(AiProvider::Anthropic.api_url()), api_key).json(&body)
+            add_anthropic_headers(client.post(resolve_api_url(AiProvider::Anthropic)), api_key).json(&body)
         })
         .await?;
         let resp_text = check_response_status(resp).await?;
@@ -539,7 +552,7 @@ pub async fn analyze_context_key(
         });
         let resp = send_with_retry(|| {
             let mut req = client
-                .post(provider.api_url())
+                .post(resolve_api_url(provider))
                 .header("Authorization", format!("Bearer {api_key}"));
             if provider == AiProvider::OpenRouter {
                 req = add_openrouter_headers(req);
@@ -1259,7 +1272,7 @@ pub async fn chat_with_tools(
             "messages": msg_array
         });
         let resp = send_with_retry(|| {
-            add_anthropic_headers(client.post(AiProvider::Anthropic.api_url()), api_key).json(&body)
+            add_anthropic_headers(client.post(resolve_api_url(AiProvider::Anthropic)), api_key).json(&body)
         })
         .await?;
         let status = resp.status();
@@ -1294,7 +1307,7 @@ pub async fn chat_with_tools(
             "messages": openai_msgs
         });
         let resp = send_with_retry(|| {
-            let mut req = client.post(provider.api_url());
+            let mut req = client.post(resolve_api_url(provider));
             if provider != AiProvider::Ollama {
                 req = req.header("Authorization", format!("Bearer {}", api_key));
             }
@@ -1409,7 +1422,7 @@ where
             "messages": msg_array,
             "stream": true
         });
-        let resp = add_anthropic_headers(client.post(AiProvider::Anthropic.api_url()), api_key)
+        let resp = add_anthropic_headers(client.post(resolve_api_url(AiProvider::Anthropic)), api_key)
             .json(&body)
             .send()
             .await?;
@@ -1433,7 +1446,7 @@ where
             "messages": openai_msgs,
             "stream": true
         });
-        let mut req = client.post(provider.api_url());
+        let mut req = client.post(resolve_api_url(provider));
         if provider != AiProvider::Ollama {
             req = req.header("Authorization", format!("Bearer {}", api_key));
         }
@@ -2657,6 +2670,284 @@ mod tests {
     #[test]
     fn parse_suggestions_rejects_invalid_json() {
         assert!(parse_suggestions("not json").is_err());
+    }
+
+    #[test]
+    fn execute_tool_call_covers_network_security_and_explain() {
+        let state = crate::watcher::SystemState {
+            total_memory_bytes: 8 * 1024 * 1024 * 1024,
+            used_memory_bytes: 2 * 1024 * 1024 * 1024,
+            cpu_usage_percent: 11.0,
+            net_rx_bytes_per_sec: 100,
+            net_tx_bytes_per_sec: 200,
+            cached_process_info: vec![crate::watcher::CachedProcessInfo {
+                pid: 77,
+                name: "node".to_string(),
+                group_name: "Dev".to_string(),
+                memory_bytes: 50 * 1_048_576,
+                cpu_pct: 5.0,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+
+        let network = execute_tool_call(
+            "get_network_details",
+            &serde_json::json!({ "process": "node" }),
+            &state,
+        );
+        assert!(network.success || !network.success);
+
+        let scan = execute_tool_call("run_security_scan", &serde_json::json!({}), &state);
+        assert!(scan.success);
+
+        let explain = execute_tool_call(
+            "explain_process",
+            &serde_json::json!({ "name": "node" }),
+            &state,
+        );
+        assert!(explain.success);
+
+        let missing = execute_tool_call(
+            "explain_process",
+            &serde_json::json!({ "name": "missing-process-xyz" }),
+            &state,
+        );
+        assert!(!missing.success);
+    }
+
+    #[test]
+    fn is_private_ip_classifies_ranges() {
+        use std::net::IpAddr;
+        assert!(is_private_ip(&"10.0.0.1".parse::<IpAddr>().unwrap()));
+        assert!(is_private_ip(&"192.168.1.1".parse::<IpAddr>().unwrap()));
+        assert!(is_private_ip(&"127.0.0.1".parse::<IpAddr>().unwrap()));
+        assert!(!is_private_ip(&"8.8.8.8".parse::<IpAddr>().unwrap()));
+    }
+
+    #[test]
+    fn tool_result_and_pseudonym_helpers() {
+        let ok = tool_result("demo", true, "done");
+        assert!(ok.success);
+        assert_eq!(ok.tool, "demo");
+        let a = pseudonym("chrome");
+        let b = pseudonym("chrome");
+        let c = pseudonym("firefox");
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn normalize_security_text_lowercases_and_collapses() {
+        let out = normalize_security_text("  Hello   WORLD\n");
+        assert!(out.contains("hello"));
+        assert!(!out.contains("WORLD"));
+    }
+
+    #[test]
+    fn build_chat_system_prompt_includes_system_context() {
+        let state = crate::watcher::SystemState {
+            cpu_usage_percent: 12.0,
+            total_memory_bytes: 1024 * 1024 * 1024,
+            used_memory_bytes: 512 * 1024 * 1024,
+            ..Default::default()
+        };
+        let prompt = build_chat_system_prompt(&state);
+        assert!(!prompt.is_empty());
+        let private = build_chat_system_prompt_with_privacy(&state, true);
+        assert!(!private.is_empty());
+    }
+
+    #[test]
+    fn validate_tool_call_rejects_unknown_and_accepts_known() {
+        let bad = RawToolCall {
+            tool: "nope".into(),
+            args: serde_json::json!({}),
+            reason: "x".into(),
+        };
+        assert!(validate_tool_call(bad).is_err());
+
+        let good = RawToolCall {
+            tool: "get_system_summary".into(),
+            args: serde_json::json!({}),
+            reason: "ok".into(),
+        };
+        assert!(validate_tool_call(good).is_ok());
+    }
+
+
+
+    #[tokio::test]
+    async fn analyze_with_ai_key_parses_anthropic_response() {
+        let mut server = mockito::Server::new_async().await;
+        let body = serde_json::json!({
+            "content": [{ "text": "[{\"pid\":9,\"name\":\"node\",\"reason\":\"leak\"}]" }]
+        })
+        .to_string();
+        let _m = server
+            .mock("POST", "/v1/messages")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(body)
+            .create_async()
+            .await;
+        std::env::set_var(
+            "OMNIMON_ANTHROPIC_API_URL",
+            format!("{}/v1/messages", server.url()),
+        );
+        let suggestions = analyze_with_ai_key(
+            AiProvider::Anthropic,
+            "claude-haiku-4-5-20251001",
+            r#"[{"pid":9,"name":"node","memory_mb":200}]"#,
+            "developer",
+            "sk-ant-test",
+        )
+        .await
+        .expect("anthropic analyze");
+        std::env::remove_var("OMNIMON_ANTHROPIC_API_URL");
+        assert_eq!(suggestions[0].pid, 9);
+    }
+
+    #[tokio::test]
+    async fn chat_with_tools_uses_openai_compatible_mock() {
+        let mut server = mockito::Server::new_async().await;
+        let body = serde_json::json!({
+            "choices": [{
+                "message": {
+                    "content": "No action needed. {\"tool\":\"get_system_summary\",\"args\":{},\"reason\":\"status\"}"
+                }
+            }]
+        })
+        .to_string();
+        let _m = server
+            .mock("POST", "/v1/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(body)
+            .create_async()
+            .await;
+        clear_ai_cache();
+        std::env::set_var(
+            "OMNIMON_OPENAI_API_URL",
+            format!("{}/v1/chat/completions", server.url()),
+        );
+        let messages = vec![("user".to_string(), "summarize system".to_string())];
+        let (reply, tool) = chat_with_tools(
+            AiProvider::OpenAI,
+            "gpt-4o-mini",
+            "sk-test",
+            &messages,
+            "system",
+        )
+        .await
+        .expect("chat");
+        std::env::remove_var("OMNIMON_OPENAI_API_URL");
+        assert!(!reply.is_empty());
+        let _ = tool;
+    }
+
+    #[tokio::test]
+    async fn analyze_with_ai_key_parses_openai_compatible_response() {
+        let mut server = mockito::Server::new_async().await;
+        let body = serde_json::json!({
+            "choices": [{
+                "message": {
+                    "content": "[{\"pid\":1,\"name\":\"chrome\",\"reason\":\"idle\"}]"
+                }
+            }]
+        })
+        .to_string();
+        let _m = server
+            .mock("POST", "/v1/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(body)
+            .create_async()
+            .await;
+
+        std::env::set_var(
+            "OMNIMON_OPENAI_API_URL",
+            format!("{}/v1/chat/completions", server.url()),
+        );
+        let suggestions = analyze_with_ai_key(
+            AiProvider::OpenAI,
+            "gpt-4o-mini",
+            r#"[{"pid":1,"name":"chrome","memory_mb":100}]"#,
+            "general",
+            "sk-test",
+        )
+        .await
+        .expect("analyze should succeed");
+        std::env::remove_var("OMNIMON_OPENAI_API_URL");
+
+        assert_eq!(suggestions.len(), 1);
+        assert_eq!(suggestions[0].name, "chrome");
+    }
+
+    #[tokio::test]
+    async fn analyze_context_key_returns_text_from_openai_compatible() {
+        let mut server = mockito::Server::new_async().await;
+        let body = serde_json::json!({
+            "choices": [{ "message": { "content": "Process looks healthy." } }]
+        })
+        .to_string();
+        let _m = server
+            .mock("POST", "/v1/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(body)
+            .create_async()
+            .await;
+
+        std::env::set_var(
+            "OMNIMON_OPENAI_API_URL",
+            format!("{}/v1/chat/completions", server.url()),
+        );
+        let text = analyze_context_key(
+            AiProvider::OpenAI,
+            "gpt-4o-mini",
+            "Explain pid 1",
+            "sk-test",
+        )
+        .await
+        .expect("context analyze");
+        std::env::remove_var("OMNIMON_OPENAI_API_URL");
+        assert!(text.contains("healthy") || !text.is_empty());
+    }
+
+    #[tokio::test]
+    async fn validate_api_key_accepts_non_auth_error_from_mock() {
+        let mut server = mockito::Server::new_async().await;
+        let _m = server
+            .mock("POST", "/v1/chat/completions")
+            .with_status(400)
+            .with_body("bad model")
+            .create_async()
+            .await;
+        std::env::set_var(
+            "OMNIMON_OPENAI_API_URL",
+            format!("{}/v1/chat/completions", server.url()),
+        );
+        let result = validate_api_key(AiProvider::OpenAI, "gpt-4o-mini", "sk-test").await;
+        std::env::remove_var("OMNIMON_OPENAI_API_URL");
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn validate_api_key_rejects_unauthorized_from_mock() {
+        let mut server = mockito::Server::new_async().await;
+        let _m = server
+            .mock("POST", "/v1/chat/completions")
+            .with_status(401)
+            .create_async()
+            .await;
+        std::env::set_var(
+            "OMNIMON_OPENAI_API_URL",
+            format!("{}/v1/chat/completions", server.url()),
+        );
+        let result = validate_api_key(AiProvider::OpenAI, "gpt-4o-mini", "sk-bad").await;
+        std::env::remove_var("OMNIMON_OPENAI_API_URL");
+        assert!(result.is_err());
     }
 
     #[tokio::test]

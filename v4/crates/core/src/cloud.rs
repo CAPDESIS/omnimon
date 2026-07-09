@@ -8,6 +8,11 @@ use std::time::Duration;
 const CN_KEYRING_SERVICE: &str = "omnimon";
 const CN_KEYRING_ACCOUNT: &str = "crabnebula_api_key";
 const CN_API_BASE: &str = "https://api.crabnebula.dev/v1";
+
+/// Optional override for tests (and rare staging setups). Production leaves this unset.
+fn cloud_api_base() -> String {
+    std::env::var("OMNIMON_CN_API_BASE").unwrap_or_else(|_| CN_API_BASE.to_string())
+}
 const VALIDATION_TIMEOUT_SECS: u64 = 10;
 
 /// Cloud subscription tier determined from the API key.
@@ -131,7 +136,7 @@ pub async fn validate_cloud_key(key: &str) -> CloudValidation {
         Err(e) => return CloudValidation::failed(format!("http client: {e}")),
     };
 
-    let url = format!("{CN_API_BASE}/account");
+    let url = format!("{}/account", cloud_api_base());
     let response = match client
         .get(&url)
         .header("Authorization", format!("Bearer {}", key.trim()))
@@ -367,5 +372,60 @@ mod tests {
         let result = validate_stored_cloud_key().await;
         // Either fails because no key or because no network — both are valid
         assert!(!result.valid || result.tier != CloudTier::Unknown);
+    }
+
+    #[tokio::test]
+    async fn validate_cloud_key_accepts_mocked_premium_account() {
+        let mut server = mockito::Server::new_async().await;
+        let _m = server
+            .mock("GET", "/account")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"plan":"premium","organization":"Acme"}"#)
+            .create_async()
+            .await;
+
+        // SAFETY: test-only env override; serial test threads keep this isolated enough.
+        std::env::set_var("OMNIMON_CN_API_BASE", server.url());
+        let result = validate_cloud_key("cn_live_test_key_ok").await;
+        std::env::remove_var("OMNIMON_CN_API_BASE");
+
+        assert!(result.valid);
+        assert_eq!(result.tier, CloudTier::Premium);
+        assert_eq!(result.organization.as_deref(), Some("Acme"));
+    }
+
+    #[tokio::test]
+    async fn validate_cloud_key_maps_unauthorized() {
+        let mut server = mockito::Server::new_async().await;
+        let _m = server
+            .mock("GET", "/account")
+            .with_status(401)
+            .create_async()
+            .await;
+
+        std::env::set_var("OMNIMON_CN_API_BASE", server.url());
+        let result = validate_cloud_key("cn_live_bad_key").await;
+        std::env::remove_var("OMNIMON_CN_API_BASE");
+
+        assert!(!result.valid);
+        assert!(result.error.unwrap().contains("invalid or expired"));
+    }
+
+    #[tokio::test]
+    async fn validate_cloud_key_maps_server_error_status() {
+        let mut server = mockito::Server::new_async().await;
+        let _m = server
+            .mock("GET", "/account")
+            .with_status(500)
+            .create_async()
+            .await;
+
+        std::env::set_var("OMNIMON_CN_API_BASE", server.url());
+        let result = validate_cloud_key("cn_live_server_error").await;
+        std::env::remove_var("OMNIMON_CN_API_BASE");
+
+        assert!(!result.valid);
+        assert!(result.error.unwrap().contains("API returned status"));
     }
 }
