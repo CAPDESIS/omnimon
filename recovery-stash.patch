@@ -1,0 +1,200 @@
+diff --git a/.github/actionlint.yaml b/.github/actionlint.yaml
+new file mode 100644
+index 0000000..bc6a8f6
+--- /dev/null
++++ b/.github/actionlint.yaml
+@@ -0,0 +1,11 @@
++self-hosted-runner:
++  labels:
++    - ci-runner-node
++    - build-heavy
++    - deploy-only
++    - docker
++    - policy-light
++    - public-only
++    - test-light
++
++config-variables: null
+diff --git a/v4/apps/desktop/src/components/AIChat.svelte b/v4/apps/desktop/src/components/AIChat.svelte
+index bcb0a34..8d237ca 100644
+--- a/v4/apps/desktop/src/components/AIChat.svelte
++++ b/v4/apps/desktop/src/components/AIChat.svelte
+@@ -820,7 +820,7 @@
+                 onclick={() => applyPreset(t(preset.prompt))}
+                 aria-label={t("aiChat.presetLabel", { label: t(preset.label) })}
+               >
+-                <span class="preset-icon"><svelte:component this={preset.icon} size={14} /></span>
++                <span class="preset-icon"><preset.icon size={14} /></span>
+                 <span>{t(preset.label)}</span>
+               </button>
+             {/each}
+diff --git a/v4/apps/desktop/src/components/AiCommandBar.svelte b/v4/apps/desktop/src/components/AiCommandBar.svelte
+index e139ade..9bbaa9a 100644
+--- a/v4/apps/desktop/src/components/AiCommandBar.svelte
++++ b/v4/apps/desktop/src/components/AiCommandBar.svelte
+@@ -329,7 +329,7 @@
+               type="button"
+               onclick={() => applyPreset(t(preset.prompt))}
+             >
+-              <span aria-hidden="true"><svelte:component this={preset.icon} size={14} /></span>
++              <span aria-hidden="true"><preset.icon size={14} /></span>
+               <span>{t(preset.label)}</span>
+             </button>
+           {/each}
+diff --git a/v4/apps/desktop/src/components/ProcessDetailsModal.svelte b/v4/apps/desktop/src/components/ProcessDetailsModal.svelte
+index f0dab0f..dee2563 100644
+--- a/v4/apps/desktop/src/components/ProcessDetailsModal.svelte
++++ b/v4/apps/desktop/src/components/ProcessDetailsModal.svelte
+@@ -207,12 +207,13 @@
+   }
+ </script>
+ 
++<svelte:window onkeydown={handleBackdropKeydown} />
++
+ <div transition:fade={fadeConfig}>
+   <ModalShell titleId="modal-title" backdropClass="backdrop" panelClass="modal" onclose={onclose} width="500px" maxHeight="85vh">
+   <div
+     bind:this={modalEl}
+-    onkeydown={handleBackdropKeydown}
+-    role="document"
++    role="presentation"
+     transition:scale={scaleConfig}
+   >
+     <div class="header">
+@@ -396,7 +397,7 @@
+     flex-shrink: 0;
+   }
+ 
+-  .close-btn {
++  :global(.close-btn) {
+     font-size: calc(var(--base-font-size) * 1.2);
+     line-height: 1;
+   }
+diff --git a/v4/apps/desktop/src/components/ProcessTable.svelte b/v4/apps/desktop/src/components/ProcessTable.svelte
+index e43e063..7c10f55 100644
+--- a/v4/apps/desktop/src/components/ProcessTable.svelte
++++ b/v4/apps/desktop/src/components/ProcessTable.svelte
+@@ -403,11 +403,12 @@
+ 
+ {#snippet colCell(key: ColumnKey, proc: ProcessEntry)}
+   {#if key === "name"}
++    {@const IconComponent = getProcessIconComponent(proc.name)}
+     <td class="col-name" title={proc.exec_name}>
+       {#if isNativeIconDataUrl(proc.icon_data_url)}
+         <img class="proc-icon native" src={proc.icon_data_url} alt="" aria-hidden="true" />
+       {:else}
+-        <span class="process-icon" aria-hidden="true"><svelte:component this={getProcessIconComponent(proc.name)} size={16} /></span>
++        <span class="process-icon" aria-hidden="true"><IconComponent size={16} /></span>
+       {/if}
+       <span class="name-text">{proc.name}</span>
+       {#if !grouping && proc.process_count > 1}<span class="badge grouped">x{proc.process_count}</span>{/if}
+diff --git a/v4/apps/desktop/src/components/SecurityReportView.svelte b/v4/apps/desktop/src/components/SecurityReportView.svelte
+index c775381..cbc3676 100644
+--- a/v4/apps/desktop/src/components/SecurityReportView.svelte
++++ b/v4/apps/desktop/src/components/SecurityReportView.svelte
+@@ -186,8 +186,10 @@
+   }
+ </script>
+ 
++<svelte:window onkeydown={handleDialogKeydown} />
++
+ <ModalShell titleId="report-title" backdropClass="report-backdrop" panelClass="report-modal" onclose={onclose} width="560px" maxHeight="85vh">
+-  <div bind:this={modalEl} onkeydown={handleDialogKeydown} role="document">
++  <div bind:this={modalEl} role="presentation">
+     <div class="report-header">
+       <div class="report-title-row">
+         <h2 id="report-title" class="report-title">{t("securityReport.title")}</h2>
+@@ -351,7 +353,7 @@
+     color: var(--fg-dim);
+   }
+ 
+-  .report-close {
++  :global(.report-close) {
+     font-size: 18px;
+   }
+ 
+@@ -369,7 +371,7 @@
+     margin-bottom: 12px;
+   }
+ 
+-  .quick-scan-btn {
++  :global(.quick-scan-btn) {
+     border: 1px solid var(--accent);
+     background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 62%, white 18%));
+     color: white;
+@@ -380,13 +382,13 @@
+     transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+   }
+ 
+-  .quick-scan-btn:hover:not(:disabled) {
++  :global(.quick-scan-btn:hover:not(:disabled)) {
+     transform: translateY(-1px);
+     box-shadow: 0 12px 22px rgba(0, 0, 0, 0.18);
+     filter: saturate(1.08);
+   }
+ 
+-  .quick-scan-btn:disabled {
++  :global(.quick-scan-btn:disabled) {
+     cursor: progress;
+     filter: brightness(0.88);
+   }
+@@ -567,8 +569,8 @@
+   .finding-header:hover { background: var(--bg-hover); }
+ 
+   .finding-header:focus-visible,
+-  .report-close:focus-visible,
+-  .quick-scan-btn:focus-visible {
++  :global(.report-close:focus-visible),
++  :global(.quick-scan-btn:focus-visible) {
+     outline: none;
+     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, var(--bg));
+   }
+@@ -710,7 +712,7 @@
+   }
+ 
+   @media (max-width: 720px) {
+-    .report-modal {
++    :global(.report-modal) {
+       width: min(92vw, 560px);
+     }
+ 
+diff --git a/v4/apps/desktop/src/components/SystemMetricModal.svelte b/v4/apps/desktop/src/components/SystemMetricModal.svelte
+index 55b0010..0f761ee 100644
+--- a/v4/apps/desktop/src/components/SystemMetricModal.svelte
++++ b/v4/apps/desktop/src/components/SystemMetricModal.svelte
+@@ -214,9 +214,11 @@
+   );
+ </script>
+ 
++<svelte:window onkeydown={closeOnEscape} />
++
+ <div transition:fade={fadeConfig}>
+   <ModalShell titleId="metric-modal-title" backdropClass="backdrop" panelClass="modal" onclose={onclose}>
+-  <div bind:this={modalEl} onkeydown={closeOnEscape} transition:scale={scaleConfig}>
++  <div bind:this={modalEl} role="presentation" transition:scale={scaleConfig}>
+     <div class="header">
+       <div>
+         <div class="eyebrow">{t("status.deepDive")}</div>
+@@ -352,11 +354,11 @@
+     align-items: center;
+     gap: 12px;
+   }
+-  .ask-ai-btn {
++  :global(.ask-ai-btn) {
+     font-size: calc(var(--base-font-size, 12px) * 0.9);
+   }
+ 
+-  .close-btn {
++  :global(.close-btn) {
+     font-size: 18px;
+   }
+ 
+@@ -522,7 +524,7 @@
+     color: var(--fg-dim);
+   }
+ 
+-  .show-more-btn {
++  :global(.show-more-btn) {
+     align-self: center;
+   }
+ 
