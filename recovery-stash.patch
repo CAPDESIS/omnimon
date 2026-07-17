@@ -1,0 +1,306 @@
+diff --git a/v4/crates/tui/src/app.rs b/v4/crates/tui/src/app.rs
+index f1fff2d..05be1a6 100644
+--- a/v4/crates/tui/src/app.rs
++++ b/v4/crates/tui/src/app.rs
+@@ -191,3 +191,134 @@ impl App {
+         self.selected = (self.selected + page).min(max);
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    /// Build an `App` with a synthetic process list of `n` rows so navigation
++    /// clamping can be exercised without touching the global watcher.
++    fn app_with_rows(n: usize) -> App {
++        let mut app = App::new();
++        app.sorted_processes = (0..n)
++            .map(|i| CachedProcessInfo {
++                pid: i as u32,
++                name: format!("proc{i}"),
++                ..Default::default()
++            })
++            .collect();
++        app
++    }
++
++    #[test]
++    fn new_starts_on_processes_panel_sorted_by_memory_desc() {
++        let app = App::new();
++        assert_eq!(app.active_panel, ActivePanel::Processes);
++        assert_eq!(app.sort_col, SortColumn::Memory);
++        assert!(!app.sort_asc, "default sort must be descending");
++        assert_eq!(app.selected, 0);
++        assert_eq!(app.scroll_offset, 0);
++        assert!(!app.should_quit);
++        assert!(!app.chat_loading);
++        // The seed chat history is exactly one System message.
++        assert_eq!(app.chat_messages.len(), 1);
++        assert_eq!(app.chat_messages[0].role, ChatRole::System);
++    }
++
++    #[test]
++    fn next_sort_cycles_through_every_column_and_wraps() {
++        let mut app = App::new();
++        // Start = Memory. The cycle is Memory -> Name -> Net -> Energy -> Cpu -> Memory.
++        let expected = [
++            SortColumn::Name,
++            SortColumn::Net,
++            SortColumn::Energy,
++            SortColumn::Cpu,
++            SortColumn::Memory,
++        ];
++        for col in expected {
++            app.next_sort();
++            assert_eq!(app.sort_col, col);
++            // Every column switch resets the direction to descending.
++            assert!(!app.sort_asc);
++        }
++    }
++
++    #[test]
++    fn next_sort_resets_ascending_flag_to_descending() {
++        let mut app = App::new();
++        app.toggle_sort_dir();
++        assert!(app.sort_asc);
++        app.next_sort();
++        assert!(!app.sort_asc, "changing column must force descending");
++    }
++
++    #[test]
++    fn toggle_sort_dir_flips_between_asc_and_desc() {
++        let mut app = App::new();
++        assert!(!app.sort_asc);
++        app.toggle_sort_dir();
++        assert!(app.sort_asc);
++        app.toggle_sort_dir();
++        assert!(!app.sort_asc);
++    }
++
++    #[test]
++    fn select_up_saturates_at_zero() {
++        let mut app = app_with_rows(3);
++        app.selected = 0;
++        app.select_up();
++        assert_eq!(app.selected, 0, "must not underflow below the first row");
++        app.selected = 2;
++        app.select_up();
++        assert_eq!(app.selected, 1);
++    }
++
++    #[test]
++    fn select_down_clamps_at_last_row() {
++        let mut app = app_with_rows(3);
++        app.selected = 0;
++        app.select_down();
++        assert_eq!(app.selected, 1);
++        app.selected = 2; // already last
++        app.select_down();
++        assert_eq!(app.selected, 2, "must not move past the last row");
++    }
++
++    #[test]
++    fn select_down_is_noop_on_empty_list() {
++        let mut app = app_with_rows(0);
++        app.selected = 0;
++        app.select_down();
++        assert_eq!(app.selected, 0);
++    }
++
++    #[test]
++    fn select_page_up_saturates_without_underflow() {
++        let mut app = app_with_rows(50);
++        app.selected = 5;
++        app.select_page_up(20);
++        assert_eq!(app.selected, 0, "page up from row 5 lands on the first row");
++        app.selected = 30;
++        app.select_page_up(20);
++        assert_eq!(app.selected, 10);
++    }
++
++    #[test]
++    fn select_page_down_clamps_to_last_row() {
++        let mut app = app_with_rows(50);
++        app.selected = 0;
++        app.select_page_down(20);
++        assert_eq!(app.selected, 20);
++        app.selected = 45;
++        app.select_page_down(20);
++        assert_eq!(app.selected, 49, "page down must clamp to the final index");
++    }
++
++    #[test]
++    fn select_page_down_on_empty_list_stays_at_zero() {
++        let mut app = app_with_rows(0);
++        app.select_page_down(20);
++        assert_eq!(app.selected, 0, "no rows means index stays clamped at zero");
++    }
++}
+diff --git a/v4/crates/tui/src/event.rs b/v4/crates/tui/src/event.rs
+index c30aeb3..8955405 100644
+--- a/v4/crates/tui/src/event.rs
++++ b/v4/crates/tui/src/event.rs
+@@ -194,6 +194,162 @@ pub fn poll_ai_response(app: &mut App) {
+     });
+ }
+ 
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::app::{App, SortColumn};
++
++    fn key(code: KeyCode) -> KeyEvent {
++        KeyEvent::new(code, KeyModifiers::NONE)
++    }
++
++    fn ctrl(code: KeyCode) -> KeyEvent {
++        KeyEvent::new(code, KeyModifiers::CONTROL)
++    }
++
++    /// Populate the process list so navigation keys have rows to move over,
++    /// without touching the live watcher.
++    fn app_with_rows(n: usize) -> App {
++        let mut app = App::new();
++        app.sorted_processes = (0..n)
++            .map(|i| core::watcher::CachedProcessInfo {
++                pid: i as u32,
++                name: format!("proc{i}"),
++                ..Default::default()
++            })
++            .collect();
++        app
++    }
++
++    #[test]
++    fn ctrl_c_requests_quit_from_any_panel() {
++        let mut app = App::new();
++        app.active_panel = ActivePanel::Chat;
++        handle_key(&mut app, ctrl(KeyCode::Char('c')));
++        assert!(app.should_quit, "Ctrl+C must set the quit flag");
++    }
++
++    #[test]
++    fn tab_toggles_active_panel_both_ways() {
++        let mut app = App::new();
++        assert_eq!(app.active_panel, ActivePanel::Processes);
++        handle_key(&mut app, key(KeyCode::Tab));
++        assert_eq!(app.active_panel, ActivePanel::Chat);
++        handle_key(&mut app, key(KeyCode::Tab));
++        assert_eq!(app.active_panel, ActivePanel::Processes);
++    }
++
++    #[test]
++    fn q_and_esc_quit_from_processes_panel() {
++        let mut app = App::new();
++        handle_key(&mut app, key(KeyCode::Char('q')));
++        assert!(app.should_quit);
++
++        let mut app2 = App::new();
++        handle_key(&mut app2, key(KeyCode::Esc));
++        assert!(app2.should_quit);
++    }
++
++    #[test]
++    fn arrow_and_vim_keys_move_selection() {
++        let mut app = app_with_rows(5);
++        handle_key(&mut app, key(KeyCode::Down));
++        assert_eq!(app.selected, 1);
++        handle_key(&mut app, key(KeyCode::Char('j')));
++        assert_eq!(app.selected, 2);
++        handle_key(&mut app, key(KeyCode::Up));
++        assert_eq!(app.selected, 1);
++        handle_key(&mut app, key(KeyCode::Char('k')));
++        assert_eq!(app.selected, 0);
++    }
++
++    #[test]
++    fn home_and_end_jump_to_edges() {
++        let mut app = app_with_rows(10);
++        app.selected = 4;
++        handle_key(&mut app, key(KeyCode::End));
++        assert_eq!(app.selected, 9, "End jumps to the last row");
++        handle_key(&mut app, key(KeyCode::Home));
++        assert_eq!(app.selected, 0, "Home jumps to the first row");
++    }
++
++    #[test]
++    fn page_keys_move_by_twenty_and_clamp() {
++        let mut app = app_with_rows(50);
++        handle_key(&mut app, key(KeyCode::PageDown));
++        assert_eq!(app.selected, 20);
++        handle_key(&mut app, key(KeyCode::PageUp));
++        assert_eq!(app.selected, 0);
++    }
++
++    #[test]
++    fn s_cycles_sort_column_and_r_toggles_direction() {
++        let mut app = App::new();
++        assert_eq!(app.sort_col, SortColumn::Memory);
++        handle_key(&mut app, key(KeyCode::Char('s')));
++        assert_eq!(app.sort_col, SortColumn::Name);
++        assert!(!app.sort_asc);
++        handle_key(&mut app, key(KeyCode::Char('r')));
++        assert!(app.sort_asc, "r toggles the sort direction");
++    }
++
++    #[test]
++    fn typing_in_chat_appends_and_backspace_removes() {
++        let mut app = App::new();
++        app.active_panel = ActivePanel::Chat;
++        handle_key(&mut app, key(KeyCode::Char('h')));
++        handle_key(&mut app, key(KeyCode::Char('i')));
++        assert_eq!(app.chat_input, "hi");
++        handle_key(&mut app, key(KeyCode::Backspace));
++        assert_eq!(app.chat_input, "h");
++    }
++
++    #[test]
++    fn chat_input_is_ignored_while_loading() {
++        let mut app = App::new();
++        app.active_panel = ActivePanel::Chat;
++        app.chat_loading = true;
++        handle_key(&mut app, key(KeyCode::Char('x')));
++        handle_key(&mut app, key(KeyCode::Backspace));
++        assert!(
++            app.chat_input.is_empty(),
++            "no edits should register while an AI request is in flight"
++        );
++    }
++
++    #[test]
++    fn esc_in_chat_returns_focus_to_processes() {
++        let mut app = App::new();
++        app.active_panel = ActivePanel::Chat;
++        handle_key(&mut app, key(KeyCode::Esc));
++        assert_eq!(app.active_panel, ActivePanel::Processes);
++    }
++
++    #[test]
++    fn enter_on_empty_chat_input_does_nothing() {
++        let mut app = App::new();
++        app.active_panel = ActivePanel::Chat;
++        let before = app.chat_messages.len();
++        handle_key(&mut app, key(KeyCode::Enter));
++        assert_eq!(
++            app.chat_messages.len(),
++            before,
++            "blank input must not enqueue a message or dispatch a request"
++        );
++        assert!(!app.chat_loading);
++    }
++
++    #[test]
++    fn poll_ai_response_is_noop_without_pending_request() {
++        // With no in-flight receiver stored, polling must not alter chat state.
++        let mut app = App::new();
++        let before = app.chat_messages.len();
++        poll_ai_response(&mut app);
++        assert_eq!(app.chat_messages.len(), before);
++        assert!(!app.chat_loading);
++    }
++}
++
+ /// Resolve the best available AI provider + model + API key.
+ fn resolve_ai_config() -> (core::ai::AiProvider, String, String) {
+     // Prefer Ollama (local, no key required).
