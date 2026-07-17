@@ -40,7 +40,6 @@ export default defineConfig({
         "src/vite-env.d.ts",
         "src/lib/types.ts",
         "src/App.svelte",
-        "src/components/StatusBar.svelte",
       ],
     },
   },
