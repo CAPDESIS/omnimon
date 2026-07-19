@@ -1,3 +1,6 @@
+// @vitest-environment jsdom
+// DOMPurify >=3.4 requires a standards-compliant DOM to sanitize; happy-dom
+// parses <script> inconsistently there, so this suite runs under jsdom.
 import { describe, expect, it } from "vitest";
 
 import { renderMarkdown } from "../markdown";

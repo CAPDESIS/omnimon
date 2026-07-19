@@ -52,6 +52,42 @@ get_asset_url() {
     printf '%s' "$release_json" | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*'"${ext}"'"' | head -1 | sed 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"//;s/"//'
 }
 
+# Downloads SHA256SUMS.txt from the release and verifies the given artifact
+# against it. Fails closed: any missing piece (checksum file, entry, or
+# checksum tool) aborts the install instead of running unverified binaries.
+verify_artifact() {
+    local file_path="$1"
+    local asset_name="${file_path##*/}"
+    local sums_url sums_file line count
+
+    sums_url=$(get_asset_url "SHA256SUMS\.txt")
+    if [[ -z "$sums_url" ]]; then
+        error "SHA256SUMS.txt not found in latest release. Refusing to install an unverified artifact."
+    fi
+
+    sums_file="${TMPDIR_INSTALL}/SHA256SUMS.txt"
+    info "Downloading SHA256SUMS.txt to verify ${asset_name}..."
+    curl -fsSL -o "$sums_file" "$sums_url" || error "Failed to download SHA256SUMS.txt. Refusing to install an unverified artifact."
+
+    line=$(awk -v n="$asset_name" '{f=$NF; sub(/^\*/, "", f); if (f == n) print}' "$sums_file")
+    count=$(printf '%s\n' "$line" | grep -c .)
+    if [[ "$count" -ne 1 ]]; then
+        error "Expected exactly one SHA256 entry for ${asset_name} in SHA256SUMS.txt (found ${count}). Refusing to install."
+    fi
+
+    info "Verifying SHA256 checksum of ${asset_name}..."
+    if command -v sha256sum >/dev/null 2>&1; then
+        (cd "$TMPDIR_INSTALL" && printf '%s\n' "$line" | sha256sum -c -) \
+            || error "SHA256 verification failed for ${asset_name}. Aborting install."
+    elif command -v shasum >/dev/null 2>&1; then
+        (cd "$TMPDIR_INSTALL" && printf '%s\n' "$line" | shasum -a 256 -c -) \
+            || error "SHA256 verification failed for ${asset_name}. Aborting install."
+    else
+        error "Neither sha256sum nor shasum is available. Refusing to install an unverified artifact."
+    fi
+    info "Checksum OK: ${asset_name}"
+}
+
 TMPDIR_INSTALL=$(mktemp -d "${TMPDIR:-/tmp}/omnimon-install.XXXXXXXXXX")
 trap 'rm -rf "$TMPDIR_INSTALL"' EXIT
 
@@ -63,9 +99,10 @@ if [[ "$OS" == "Darwin" ]]; then
         error "Could not find .dmg in latest release. Visit: https://github.com/$REPO/releases"
     fi
     
-    dmg_path="${TMPDIR_INSTALL}/OmniMon.dmg"
+    dmg_path="${TMPDIR_INSTALL}/${asset_url##*/}"
     info "Downloading $asset_url ..."
     curl -fSL -o "$dmg_path" "$asset_url" || error "Failed to download DMG"
+    verify_artifact "$dmg_path"
     
     info "Mounting DMG. Please drag OmniMon to your Applications folder."
     hdiutil attach "$dmg_path"
@@ -82,18 +119,20 @@ elif [[ "$OS" == "Linux" ]]; then
     fi
 
     if [[ "$asset_url" == *.rpm ]]; then
-        rpm_path="${TMPDIR_INSTALL}/omnimon.rpm"
+        rpm_path="${TMPDIR_INSTALL}/${asset_url##*/}"
         info "Downloading $asset_url ..."
         curl -fSL -o "$rpm_path" "$asset_url" || error "Failed to download RPM"
+        verify_artifact "$rpm_path"
         info "Installing rpm package (requires sudo)..."
         sudo rpm -Uvh "$rpm_path"
         info "OmniMon installed successfully."
         exit 0
     fi
 
-    deb_path="${TMPDIR_INSTALL}/omnimon.deb"
+    deb_path="${TMPDIR_INSTALL}/${asset_url##*/}"
     info "Downloading $asset_url ..."
     curl -fSL -o "$deb_path" "$asset_url" || error "Failed to download DEB"
+    verify_artifact "$deb_path"
     
     info "Installing deb package (requires sudo)..."
     sudo dpkg -i "$deb_path" || sudo apt-get install -f -y
@@ -107,9 +146,10 @@ elif [[ "$OS" == *"MINGW"* ]] || [[ "$OS" == *"CYGWIN"* ]] || [[ "$OS" == *"MSYS
         error "Could not find .msi in latest release. Visit: https://github.com/$REPO/releases"
     fi
     
-    exe_path="${TMPDIR_INSTALL}/omnimon-setup.msi"
+    exe_path="${TMPDIR_INSTALL}/${asset_url##*/}"
     info "Downloading $asset_url ..."
     curl -fSL -o "$exe_path" "$asset_url" || error "Failed to download EXE"
+    verify_artifact "$exe_path"
     
     info "Launching installer..."
     start msiexec /i "$exe_path"

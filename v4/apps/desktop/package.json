@@ -18,7 +18,7 @@
     "@tauri-apps/plugin-autostart": "^2",
     "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-store": "^2",
-    "dompurify": "^3.3.2",
+    "dompurify": "^3.4.12",
     "lightweight-charts": "^5.1.0",
     "lucide-svelte": "^0.577.0",
     "marked": "^17.0.4"
@@ -41,10 +41,11 @@
     "@wdio/spec-reporter": "^9.24.0",
     "expect-webdriverio": "^5.6.4",
     "happy-dom": "^20.8.3",
+    "jsdom": "^29.1.1",
     "svelte": "^5",
     "typescript": "^5.7",
-    "vite": "^6",
-    "vitest": "^4.0.18",
+    "vite": "^6.4.3",
+    "vitest": "^4.1.10",
     "webdriverio": "^9.24.0"
   }
 }

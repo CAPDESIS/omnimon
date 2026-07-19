@@ -237,6 +237,10 @@ fn detect_tier_from_response(body: &serde_json::Value) -> CloudTier {
 mod tests {
     use super::*;
 
+    /// Serializes tests that override the shared `OMNIMON_CN_API_BASE` env var
+    /// so the suite passes under `cargo test`'s default parallel execution.
+    static CN_API_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn validate_key_format_rejects_empty() {
         assert!(validate_key_format("").is_err());
@@ -375,7 +379,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn validate_cloud_key_accepts_mocked_premium_account() {
+        let _cn_api_env_guard = CN_API_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut server = mockito::Server::new_async().await;
         let _m = server
             .mock("GET", "/account")
@@ -385,7 +391,7 @@ mod tests {
             .create_async()
             .await;
 
-        // SAFETY: test-only env override; serial test threads keep this isolated enough.
+        // Env override is serialized via CN_API_ENV_LOCK (see mod tests).
         std::env::set_var("OMNIMON_CN_API_BASE", server.url());
         let result = validate_cloud_key("cn_live_test_key_ok").await;
         std::env::remove_var("OMNIMON_CN_API_BASE");
@@ -396,7 +402,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn validate_cloud_key_maps_unauthorized() {
+        let _cn_api_env_guard = CN_API_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut server = mockito::Server::new_async().await;
         let _m = server
             .mock("GET", "/account")
@@ -413,7 +421,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn validate_cloud_key_maps_server_error_status() {
+        let _cn_api_env_guard = CN_API_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut server = mockito::Server::new_async().await;
         let _m = server
             .mock("GET", "/account")

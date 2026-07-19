@@ -1928,6 +1928,11 @@ mod tests {
     use std::str::FromStr;
     use std::sync::{Arc, Mutex};
 
+    /// Serializes tests that mutate process-global state (the
+    /// `OMNIMON_OPENAI_API_URL` env var and the shared `AI_CACHE`) so the
+    /// suite passes under `cargo test`'s default parallel execution.
+    static AI_TEST_LOCK: Mutex<()> = Mutex::new(());
+
     // --- Privacy-mode redaction ---
 
     #[test]
@@ -2577,6 +2582,7 @@ mod tests {
 
     #[test]
     fn ai_cache_clear_empties_global() {
+        let _ai_test_guard = AI_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         set_ai_cache_ttl_minutes(5);
         {
             let mut global_cache = get_ai_cache().write().unwrap();
@@ -2593,7 +2599,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn chat_with_tools_returns_cached_response_and_tool_call() {
+        let _ai_test_guard = AI_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let messages = vec![("user".to_string(), "close youtube tabs".to_string())];
         let system_prompt = "system prompt";
         let cache_key = calculate_hash(&(
@@ -2809,7 +2817,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn chat_with_tools_uses_openai_compatible_mock() {
+        let _ai_test_guard = AI_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut server = mockito::Server::new_async().await;
         let body = serde_json::json!({
             "choices": [{
@@ -2847,7 +2857,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn analyze_with_ai_key_parses_openai_compatible_response() {
+        let _ai_test_guard = AI_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut server = mockito::Server::new_async().await;
         let body = serde_json::json!({
             "choices": [{
@@ -2885,7 +2897,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn analyze_context_key_returns_text_from_openai_compatible() {
+        let _ai_test_guard = AI_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut server = mockito::Server::new_async().await;
         let body = serde_json::json!({
             "choices": [{ "message": { "content": "Process looks healthy." } }]
@@ -2916,7 +2930,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn validate_api_key_accepts_non_auth_error_from_mock() {
+        let _ai_test_guard = AI_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut server = mockito::Server::new_async().await;
         let _m = server
             .mock("POST", "/v1/chat/completions")
@@ -2934,7 +2950,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn validate_api_key_rejects_unauthorized_from_mock() {
+        let _ai_test_guard = AI_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut server = mockito::Server::new_async().await;
         let _m = server
             .mock("POST", "/v1/chat/completions")
