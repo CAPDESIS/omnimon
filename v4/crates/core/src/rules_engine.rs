@@ -436,6 +436,11 @@ fn default_geo_db() -> Vec<ParsedGeoCidr> {
 mod tests {
     use super::*;
 
+    /// Serializes tests that mutate the shared `RULES_STATE` (rules, GeoIP DB,
+    /// temporal-correlation timestamps) so the suite passes under `cargo
+    /// test`'s default parallel execution.
+    static RULES_STATE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn schema_json_is_versioned() {
         let schema = ai_rules_schema_json();
@@ -445,6 +450,7 @@ mod tests {
 
     #[test]
     fn ai_rules_are_loaded_and_matched() {
+        let _rules_state_guard = RULES_STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let payload = r#"{"schema_version":1,"rules":[{"id":"r1","name":"CN process","enabled":true,"kind":"process_country","process_contains":"chrome","country_code":"CN","destination_ip":null,"destination_cidr":null,"destination_port":null,"protocol":"tcp","process_memory_mb_gt":null,"mitre_technique_id":"T1571"}]}"#;
         let count = upsert_rules_from_ai_json(payload).expect("load rules");
         assert_eq!(count, 1);
@@ -471,6 +477,7 @@ mod tests {
 
     #[test]
     fn memory_rule_matches_threshold() {
+        let _rules_state_guard = RULES_STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let payload = r#"{"schema_version":1,"rules":[{"id":"r2","name":"node high mem","enabled":true,"kind":"process_memory","process_contains":"node","country_code":null,"destination_ip":null,"destination_cidr":null,"destination_port":null,"protocol":"any","process_memory_mb_gt":1024,"mitre_technique_id":"T1499"}]}"#;
         let _ = upsert_rules_from_ai_json(payload).expect("load memory rule");
         let events = vec![crate::network::ProcessConnectionEvent {
@@ -494,6 +501,7 @@ mod tests {
 
     #[test]
     fn temporal_correlation_requires_prior_rule_match() {
+        let _rules_state_guard = RULES_STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // Rule A: simple port match (no correlation)
         // Rule B: port match WITH temporal correlation to rule A
         let payload = r#"{"schema_version":1,"rules":[
@@ -554,6 +562,7 @@ mod tests {
 
     #[test]
     fn cidr_rule_matches_ip_in_range() {
+        let _rules_state_guard = RULES_STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let payload = r#"{"schema_version":1,"rules":[{"id":"r-cidr","name":"10.0.0.0/8 block","enabled":true,"kind":"process_cidr","process_contains":null,"country_code":null,"destination_ip":null,"destination_cidr":"10.0.0.0/8","destination_port":null,"protocol":"any","process_memory_mb_gt":null,"mitre_technique_id":"T1048","temporal_correlation":null}]}"#;
         upsert_rules_from_ai_json(payload).expect("load cidr rule");
 
@@ -602,6 +611,7 @@ mod tests {
 
     #[test]
     fn disabled_rule_does_not_fire() {
+        let _rules_state_guard = RULES_STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let payload = r#"{"schema_version":1,"rules":[{"id":"r-off","name":"disabled rule","enabled":false,"kind":"process_port","process_contains":null,"country_code":null,"destination_ip":null,"destination_cidr":null,"destination_port":443,"protocol":"any","process_memory_mb_gt":null,"mitre_technique_id":"T1571","temporal_correlation":null}]}"#;
         upsert_rules_from_ai_json(payload).expect("load disabled rule");
 
@@ -626,6 +636,7 @@ mod tests {
 
     #[test]
     fn evaluate_events_uses_pid_fallback_default_mitre_and_protocol_filter() {
+        let _rules_state_guard = RULES_STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let payload = r#"{"schema_version":1,"rules":[
             {"id":"udp-rule","name":"UDP match","enabled":true,"kind":"process_port","process_contains":"CHROME","country_code":null,"destination_ip":null,"destination_cidr":null,"destination_port":53,"protocol":"udp","process_memory_mb_gt":null,"mitre_technique_id":null,"temporal_correlation":null},
             {"id":"fallback-rule","name":"Fallback match","enabled":true,"kind":"process_port","process_contains":null,"country_code":null,"destination_ip":null,"destination_cidr":null,"destination_port":53,"protocol":"udp","process_memory_mb_gt":null,"mitre_technique_id":null,"temporal_correlation":null},
@@ -665,6 +676,8 @@ mod tests {
 
     #[test]
     fn replace_geoip_db_ignores_invalid_cidrs_and_normalizes_country_codes() {
+        let _rules_state_guard = RULES_STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let original_geo_db = state().read().unwrap().geo_db.clone();
         let geo_json = r#"[
             {"cidr":"100.0.0.0/8","country_code":"ru"},
             {"cidr":"999.0.0.0/8","country_code":"xx"},
@@ -689,5 +702,8 @@ mod tests {
         let alerts = evaluate_events(&events, &[]);
         assert_eq!(alerts.len(), 1);
         assert_eq!(alerts[0].country_code.as_deref(), Some("RU"));
+
+        // Restore the GeoIP DB so later tests in this process are unaffected.
+        state().write().unwrap().geo_db = original_geo_db;
     }
 }
