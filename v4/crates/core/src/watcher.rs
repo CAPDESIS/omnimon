@@ -457,6 +457,12 @@ mod tests {
 
     #[test]
     fn cached_state_is_readable_without_starting_watcher() {
+        // The cache is process-global: if a parallel peer test already
+        // started the watcher, the pre-start default-state premise no
+        // longer holds and this test has nothing to assert.
+        if WATCHER_STARTED.load(Ordering::SeqCst) {
+            return;
+        }
         let state = get_cached_state();
         assert_eq!(state.total_memory_bytes, 0);
         assert_eq!(state.used_memory_bytes, 0);
@@ -465,8 +471,16 @@ mod tests {
     #[test]
     fn watcher_updates_cached_state() {
         start_watcher();
-        std::thread::sleep(Duration::from_millis(2500));
-        let state = get_cached_state();
+        // Poll instead of a fixed sleep: the first cache write happens on the
+        // watcher thread after building the tokio runtime and running a full
+        // sysinfo refresh, which can exceed 2.5s on a heavily loaded host
+        // (e.g. the whole core suite running in parallel).
+        let deadline = std::time::Instant::now() + Duration::from_secs(20);
+        let mut state = get_cached_state();
+        while state.updated_at_unix_ms == 0 && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(100));
+            state = get_cached_state();
+        }
 
         // `updated_at_unix_ms` comes from `SystemTime::now()`, not sysinfo, so it is the
         // sysinfo-independent proof that the watcher actually ran and refreshed the cache
