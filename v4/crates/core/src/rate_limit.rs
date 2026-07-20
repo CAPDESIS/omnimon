@@ -255,8 +255,17 @@ mod tests {
 
     const TEST_BUCKET: BucketConfig = BucketConfig::new(3, 100.0);
 
+    /// Serializes the burst-bucket tests: they all share the process-global
+    /// limiter maps and call `reset_all()`, which would wipe buckets out
+    /// from under parallel peers (e.g. a `reset_all()` landing between the
+    /// two `check_rate_limit` calls of `refills_over_time` recreates the
+    /// bucket at full capacity and fails the `is_err()` assertion).
+    /// The daily-bucket tests below avoid this with unique bucket names.
+    static BURST_TEST_LOCK: Mutex<()> = Mutex::new(());
+
     #[test]
     fn allows_requests_within_capacity() {
+        let _burst_guard = BURST_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         reset_all();
         assert!(check_rate_limit("test_cap", &TEST_BUCKET).is_ok());
         assert!(check_rate_limit("test_cap", &TEST_BUCKET).is_ok());
@@ -265,6 +274,7 @@ mod tests {
 
     #[test]
     fn rejects_after_capacity_exhausted() {
+        let _burst_guard = BURST_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         reset_all();
         let config = BucketConfig::new(2, 0.0); // no refill
         assert!(check_rate_limit("test_exhaust", &config).is_ok());
@@ -276,6 +286,7 @@ mod tests {
 
     #[test]
     fn separate_buckets_are_independent() {
+        let _burst_guard = BURST_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         reset_all();
         let config = BucketConfig::new(1, 0.0);
         assert!(check_rate_limit("bucket_a", &config).is_ok());
@@ -288,6 +299,7 @@ mod tests {
 
     #[test]
     fn refills_over_time() {
+        let _burst_guard = BURST_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         reset_all();
         let config = BucketConfig::new(1, 1000.0); // fast refill for test
         assert!(check_rate_limit("test_refill", &config).is_ok());
@@ -299,6 +311,7 @@ mod tests {
 
     #[test]
     fn does_not_exceed_capacity_on_long_wait() {
+        let _burst_guard = BURST_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         reset_all();
         let config = BucketConfig::new(2, 50.0);
         // Exhaust all tokens
@@ -316,6 +329,7 @@ mod tests {
 
     #[test]
     fn error_message_contains_bucket_name() {
+        let _burst_guard = BURST_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         reset_all();
         let config = BucketConfig::new(0, 0.0);
         let err = check_rate_limit("my_command", &config).unwrap_err();
