@@ -37,6 +37,7 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
         with:
+          toolchain: "1.97.1"
           components: rustfmt, clippy
 
       - name: Rust Cache
@@ -83,6 +84,8 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          toolchain: "1.97.1"
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
@@ -98,10 +101,12 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
+        with:
+          bun-version: "1.3.14"
 
       - name: Install Frontend Dependencies
         run: bun install --frozen-lockfile
@@ -141,6 +146,8 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          toolchain: "1.97.1"
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@03e268b84870ac3cfa58a44d9b504511b732a857 # cargo-llvm-cov
@@ -154,10 +161,12 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
+        with:
+          bun-version: "1.3.14"
 
       - name: Install Frontend Dependencies
         run: bun install --frozen-lockfile
@@ -197,6 +206,8 @@ jobs:
       # without this step `cargo audit` exits 127 (command not found).
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          toolchain: "1.97.1"
 
       - name: Install cargo-audit
         uses: taiki-e/install-action@1929cdef3ca26202efbfbb4719c58ecf43e84097 # cargo-audit
@@ -240,10 +251,12 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
+        with:
+          bun-version: "1.3.14"
 
       - name: Install Frontend Dependencies
         run: bun install --frozen-lockfile
@@ -334,10 +347,12 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
+        with:
+          bun-version: "1.3.14"
 
       - name: Install Frontend Dependencies
         run: bun install --frozen-lockfile
@@ -345,6 +360,8 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          toolchain: "1.97.1"
 
       - name: Add Intel target for universal macOS binary
         if: matrix.platform == 'macos-universal'

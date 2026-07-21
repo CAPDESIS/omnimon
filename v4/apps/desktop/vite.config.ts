@@ -20,10 +20,14 @@ export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          charts: ['lightweight-charts'],
-          icons: ['lucide-svelte'],
-          markdown: ['marked', 'dompurify'],
+        // Rolldown (Vite 8) no soporta `manualChunks` en forma de objeto;
+        // se migra a `codeSplitting` con grupos equivalentes.
+        codeSplitting: {
+          groups: [
+            { name: 'charts', test: /[\\/]node_modules[\\/]lightweight-charts[\\/]/ },
+            { name: 'icons', test: /[\\/]node_modules[\\/]lucide-svelte[\\/]/ },
+            { name: 'markdown', test: /[\\/]node_modules[\\/](marked|dompurify)[\\/]/ },
+          ],
         },
       },
     },
