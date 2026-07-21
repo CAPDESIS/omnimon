@@ -5,8 +5,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to build release for (e.g. v5.0.0)"
-        required: true
+        description: "Optional release tag (leave blank for validation only)"
+        required: false
         type: string
 
   schedule:
@@ -26,7 +26,11 @@ jobs:
   lint:
     name: Lint (fmt + clippy)
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, public-only, ci-runner-node, build-heavy]
+    # Scheduled validation for this public repository must not contend with the
+    # private fleet on the three-core VPS. GitHub-hosted capacity also provides
+    # safe burst/failover when the isolated public listener is unavailable.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -58,13 +62,14 @@ jobs:
     name: Test (${{ matrix.platform }})
     needs: [lint]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
     continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: linux
-            os: [self-hosted, public-only, ci-runner-node, build-heavy]
+            os: ubuntu-24.04
             experimental: false
           - platform: macos
             os: macos-latest
@@ -129,7 +134,8 @@ jobs:
   coverage:
     name: Coverage Gates
     needs: [lint]
-    runs-on: [self-hosted, public-only, ci-runner-node, build-heavy]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -181,7 +187,8 @@ jobs:
   security:
     name: Security Audit
     needs: [coverage]
-    runs-on: [self-hosted, public-only, ci-runner-node, build-heavy]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -297,7 +304,7 @@ jobs:
   release:
     name: Release Builder (${{ matrix.platform }})
     needs: [lint]
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental }}
     permissions:
@@ -378,7 +385,7 @@ jobs:
   sign-release:
     name: Sign Release Artifacts (SHA-256 + Ed25519)
     needs: [release]
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
     runs-on: [self-hosted, public-only, ci-runner-node, build-heavy]
     permissions:
       contents: write
@@ -513,7 +520,7 @@ jobs:
   rename-assets:
     name: Rename Release Assets
     needs: [release, sign-release]
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
     runs-on: [self-hosted, public-only, ci-runner-node, build-heavy]
     permissions:
       contents: write
