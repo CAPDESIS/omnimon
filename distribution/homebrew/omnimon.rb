@@ -1,6 +1,6 @@
 cask "omnimon" do
-  version "5.2.0"
-  sha256 "ee82df3fca4c66e701bf8cf75fc522eeb73a43491b22943d1cb1a3880e12e7d2"
+  version "6.6.6"
+  sha256 "8293a3f22f507b1144cb4492197176c0db4c537aeacf314c7521984fd0a289f2"
 
   url "https://github.com/chochy2001/omnimon/releases/download/v#{version}/OmniMon-#{version}-macOS-Universal.dmg"
   name "OmniMon"
