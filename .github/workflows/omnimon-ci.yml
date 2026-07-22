@@ -1,4 +1,6 @@
-# 2026-05-15: migrated Linux jobs to self-hosted runner (was ubuntu-latest); macOS/Windows stay on cloud
+# Trusted schedule/manual validation uses the preloaded fleet runners.  If a
+# pull_request trigger is added later, fork PRs must remain on GitHub-hosted
+# runners and must not execute on the public self-hosted pool.
 name: OmniMon CI/CD
 
 on:
@@ -26,10 +28,7 @@ jobs:
   lint:
     name: Lint (fmt + clippy)
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    # Scheduled validation for this public repository must not contend with the
-    # private fleet on the three-core VPS. GitHub-hosted capacity also provides
-    # safe burst/failover when the isolated public listener is unavailable.
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, public-only, ci-runner-node, build-heavy]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -70,13 +69,13 @@ jobs:
       matrix:
         include:
           - platform: linux
-            os: ubuntu-24.04
+            os: [self-hosted, public-only, ci-runner-node, build-heavy]
             experimental: false
           - platform: macos
-            os: macos-latest
+            os: [self-hosted, macbook-air-cicd]
             experimental: true
           - platform: windows
-            os: windows-latest
+            os: [self-hosted, windows-desktop-on-demand]
             experimental: true
 
     steps:
@@ -139,7 +138,7 @@ jobs:
   coverage:
     name: Coverage Gates
     needs: [lint]
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, public-only, ci-runner-node, build-heavy]
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -196,7 +195,7 @@ jobs:
   security:
     name: Security Audit
     needs: [coverage]
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, public-only, ci-runner-node, build-heavy]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -277,25 +276,27 @@ jobs:
         if: always()
         run: |
           mkdir -p reports
-          echo "# OmniMon CVE Report - $(date -u +%Y-%m-%dT%H:%M:%SZ)" > reports/cve-summary.md
-          echo "" >> reports/cve-summary.md
-          echo "## Rust Dependencies" >> reports/cve-summary.md
-          if [ -f reports/rust-audit.json ]; then
-            echo '```json' >> reports/cve-summary.md
-            cat reports/rust-audit.json >> reports/cve-summary.md
-            echo '```' >> reports/cve-summary.md
-          else
-            echo "No Rust audit data available." >> reports/cve-summary.md
-          fi
-          echo "" >> reports/cve-summary.md
-          echo "## Frontend Dependencies" >> reports/cve-summary.md
-          if [ -f reports/frontend-audit.txt ]; then
-            echo '```text' >> reports/cve-summary.md
-            cat reports/frontend-audit.txt >> reports/cve-summary.md
-            echo '```' >> reports/cve-summary.md
-          else
-            echo "No frontend audit data available." >> reports/cve-summary.md
-          fi
+          {
+            echo "# OmniMon CVE Report - $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+            echo "## Rust Dependencies"
+            if [ -f reports/rust-audit.json ]; then
+              echo '```json'
+              cat reports/rust-audit.json
+              echo '```'
+            else
+              echo "No Rust audit data available."
+            fi
+            echo ""
+            echo "## Frontend Dependencies"
+            if [ -f reports/frontend-audit.txt ]; then
+              echo '```text'
+              cat reports/frontend-audit.txt
+              echo '```'
+            else
+              echo "No frontend audit data available."
+            fi
+          } > reports/cve-summary.md
 
       - name: Upload CVE Report
         if: always()
@@ -331,11 +332,11 @@ jobs:
             args: ""
             experimental: false
           - platform: macos-universal
-            os: macos-latest
+            os: [self-hosted, macbook-air-cicd]
             args: "--target universal-apple-darwin"
             experimental: true
           - platform: windows
-            os: windows-latest
+            os: [self-hosted, windows-desktop-on-demand]
             args: ""
             experimental: true
 
@@ -461,8 +462,9 @@ jobs:
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           cd /tmp/release-artifacts
-          VERSION="${TAG#v}"
+          export VERSION="${TAG#v}"
           DATE=$(date -u +%Y-%m-%d)
+          export DATE
 
           # Build releases.json from individual .sig.json files
           python3 - <<'PY'

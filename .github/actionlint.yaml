@@ -1,0 +1,7 @@
+self-hosted-runner:
+  labels:
+    - public-only
+    - ci-runner-node
+    - build-heavy
+    - macbook-air-cicd
+    - windows-desktop-on-demand
