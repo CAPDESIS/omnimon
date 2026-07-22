@@ -59,25 +59,36 @@ jobs:
         run: cargo clippy --workspace -- -D warnings
         working-directory: ./v4
 
+  select-test-matrix:
+    name: Select validation platforms
+    needs: [lint]
+    runs-on: [self-hosted, public-only, ci-runner-node, build-heavy]
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - id: matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The daily schedule validates Linux on the public self-hosted pool.
+          # Native jobs are opt-in via workflow_dispatch because their secure
+          # runner groups intentionally reject this public repository.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            matrix='{"include":[{"platform":"linux","os":["self-hosted","public-only","ci-runner-node","build-heavy"],"experimental":false},{"platform":"macos","os":"macos-latest","experimental":true},{"platform":"windows","os":"windows-latest","experimental":true}]}'
+          else
+            matrix='{"include":[{"platform":"linux","os":["self-hosted","public-only","ci-runner-node","build-heavy"],"experimental":false}]}'
+          fi
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
   test:
     name: Test (${{ matrix.platform }})
-    needs: [lint]
+    needs: [lint, select-test-matrix]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - platform: linux
-            os: [self-hosted, public-only, ci-runner-node, build-heavy]
-            experimental: false
-          - platform: macos
-            os: macos-latest
-            experimental: true
-          - platform: windows
-            os: windows-latest
-            experimental: true
+      matrix: ${{ fromJSON(needs.select-test-matrix.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
