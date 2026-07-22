@@ -1,6 +1,7 @@
-# Trusted schedule/manual validation uses the preloaded fleet runners.  If a
-# pull_request trigger is added later, fork PRs must remain on GitHub-hosted
-# runners and must not execute on the public self-hosted pool.
+# Trusted Linux schedule/manual validation uses the preloaded public runner.
+# Native macOS/Windows jobs remain hosted because the managed Mac/Windows
+# groups intentionally reject public repositories; moving them requires an
+# explicit security allowlist change before those labels can be used here.
 name: OmniMon CI/CD
 
 on:
@@ -72,10 +73,10 @@ jobs:
             os: [self-hosted, public-only, ci-runner-node, build-heavy]
             experimental: false
           - platform: macos
-            os: [self-hosted, macbook-air-cicd]
+            os: macos-latest
             experimental: true
           - platform: windows
-            os: [self-hosted, windows-desktop-on-demand]
+            os: windows-latest
             experimental: true
 
     steps:
@@ -332,11 +333,11 @@ jobs:
             args: ""
             experimental: false
           - platform: macos-universal
-            os: [self-hosted, macbook-air-cicd]
+            os: macos-latest
             args: "--target universal-apple-darwin"
             experimental: true
           - platform: windows
-            os: [self-hosted, windows-desktop-on-demand]
+            os: windows-latest
             args: ""
             experimental: true
 
