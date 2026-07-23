@@ -32,8 +32,8 @@ jobs:
 
       - name: Audit workflows
         env:
-          ENFORCE: 'false'
-          PRODUCTION_DAY: 'monday'
+          ENFORCE: 'true'
+          PRODUCTION_DAY: 'weekly'
         run: |
           set -euo pipefail
 
@@ -70,7 +70,7 @@ jobs:
           note "# CAPDESIS Release Policy Audit"
           note ""
           note "- Repository: \`${GITHUB_REPOSITORY}\`"
-          note "- Production release day: \`${PRODUCTION_DAY}\`"
+          note "- Production release cadence: \`${PRODUCTION_DAY}\` (manual exact-main promotion)"
           note "- Enforcement: \`${ENFORCE}\`"
           note ""
 
@@ -138,7 +138,7 @@ jobs:
                 warn "\`${base}\` references production but has no manual \`workflow_dispatch\` entrypoint."
               fi
               if workflow_has "$file" "branches:[[:space:]]*\\[[^]]*main|branches:[[:space:]]*\\[[^]]*master|branches:" && workflow_has "$file" "push:"; then
-                warn "\`${base}\` appears to deploy from push. Production should promote a staging-validated SHA through approval."
+                warn "\`${base}\` appears to deploy from push. Production should promote an exact CI-green main SHA through approval."
               fi
             fi
 
@@ -150,9 +150,9 @@ jobs:
           note ""
           note "## Fleet Contract"
           note ""
-          note "- Every merge to \`main\` should deploy to staging or produce a deployable artifact."
-          note "- Production promotion should use \`workflow_dispatch\`, \`environment: production\`, and a staging-validated SHA."
-          note "- Normal production releases happen on \`${PRODUCTION_DAY}\`; emergency hotfixes require explicit approval."
+          note "- Every merge to \`main\` should produce a deployable artifact or validated package."
+          note "- Production promotion should use \`workflow_dispatch\`, \`environment: production\`, and an exact CI-green main SHA."
+          note "- Normal production releases happen weekly and manually; no staging/preview promotion or bypass path exists."
           note "- Database migrations must be backward-compatible and backed up before production."
           note "- Deploy jobs must run on \`ci-runner-node\` with \`deploy-only\`, not on production app hosts."
           note ""
@@ -160,7 +160,7 @@ jobs:
           note ""
           note "- Workflows scanned: ${#workflow_files[@]}"
           note "- Deploy-like workflows: ${deploy_count}"
-          note "- Staging references: ${staging_count}"
+          note "- Staging/preview references: ${staging_count} (must be 0; historical text is not an active path)"
           note "- Production references: ${production_count}"
           note "- Warnings: ${warnings}"
           note "- Failures: ${findings}"

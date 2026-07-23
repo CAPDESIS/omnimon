@@ -3,3 +3,4 @@ self-hosted-runner:
     - public-only
     - ci-runner-node
     - build-heavy
+    - test-light
