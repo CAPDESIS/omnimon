@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 
 export default defineConfig({
-  plugins: [svelte({ hot: false })],
+  plugins: [svelte()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
@@ -21,6 +21,10 @@ export default defineConfig({
     // weakening any assertion.
     testTimeout: 20000,
     hookTimeout: 20000,
+    // The persistent public runner is shared with other build jobs. Serial
+    // file execution prevents Svelte module transforms from being torn down
+    // while another test file is still importing the same component graph.
+    fileParallelism: false,
     environment: "happy-dom",
     setupFiles: ["src/test-setup.ts"],
     include: ["src/**/__tests__/**/*.test.ts"],
