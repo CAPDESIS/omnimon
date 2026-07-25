@@ -310,13 +310,9 @@ jobs:
             fi
           } > reports/cve-summary.md
 
-      - name: Upload CVE Report
+      - name: Publish CVE report in job summary
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: cve-report
-          path: reports/
-          retention-days: 90
+        run: cat reports/cve-summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Secret Scanning (TruffleHog)
         if: github.event_name == 'pull_request'
