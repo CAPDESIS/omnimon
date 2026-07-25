@@ -29,7 +29,7 @@ jobs:
   lint:
     name: Lint (fmt + clippy)
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, ci-runner-node, build-heavy]
+    runs-on: [self-hosted, public-only, ci-runner-node]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -62,7 +62,7 @@ jobs:
   select-test-matrix:
     name: Select validation platforms
     needs: [lint]
-    runs-on: [self-hosted, ci-runner-node, build-heavy]
+    runs-on: [self-hosted, public-only, ci-runner-node]
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
@@ -74,9 +74,9 @@ jobs:
           # Native jobs are opt-in via workflow_dispatch because their secure
           # runner groups intentionally reject this public repository.
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            matrix='{"include":[{"platform":"linux","os":["self-hosted","ci-runner-node","build-heavy"],"experimental":false},{"platform":"macos","os":"macos-latest","experimental":true},{"platform":"windows","os":"windows-latest","experimental":true}]}'
+            matrix='{"include":[{"platform":"linux","os":["self-hosted","public-only","ci-runner-node"],"experimental":false},{"platform":"macos","os":"macos-latest","experimental":true},{"platform":"windows","os":"windows-latest","experimental":true}]}'
           else
-            matrix='{"include":[{"platform":"linux","os":["self-hosted","ci-runner-node","build-heavy"],"experimental":false}]}'
+            matrix='{"include":[{"platform":"linux","os":["self-hosted","public-only","ci-runner-node"],"experimental":false}]}'
           fi
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
@@ -150,7 +150,7 @@ jobs:
   coverage:
     name: Coverage Gates
     needs: [lint]
-    runs-on: [self-hosted, ci-runner-node, build-heavy]
+    runs-on: [self-hosted, public-only, ci-runner-node]
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -207,7 +207,7 @@ jobs:
   security:
     name: Security Audit
     needs: [coverage]
-    runs-on: [self-hosted, ci-runner-node, build-heavy]
+    runs-on: [self-hosted, public-only, ci-runner-node]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -336,7 +336,7 @@ jobs:
       matrix:
         include:
           - platform: linux
-            os: [self-hosted, ci-runner-node, build-heavy]
+            os: [self-hosted, public-only, ci-runner-node]
             args: ""
             experimental: false
           - platform: macos-universal
@@ -412,7 +412,7 @@ jobs:
     name: Sign Release Artifacts (SHA-256 + Ed25519)
     needs: [release]
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
-    runs-on: [self-hosted, ci-runner-node, build-heavy]
+    runs-on: [self-hosted, public-only, ci-runner-node]
     permissions:
       contents: write
     steps:
@@ -548,7 +548,7 @@ jobs:
     name: Rename Release Assets
     needs: [release, sign-release]
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
-    runs-on: [self-hosted, ci-runner-node, build-heavy]
+    runs-on: [self-hosted, public-only, ci-runner-node]
     permissions:
       contents: write
     steps:
