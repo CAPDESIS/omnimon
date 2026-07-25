@@ -19,7 +19,7 @@ OmniMon is a next-generation, cross-platform system monitor built with Rust and 
 ## Highlights
 
 - **Real-time system monitoring** — CPU, memory, disk I/O, network throughput, and energy impact per process with 2-second refresh
-- **AI-powered optimization** — Multi-provider support (OpenAI, Anthropic, Gemini, OpenRouter, Ollama) with tool calling for hands-free process management
+- **AI-powered optimization** — Prefer **OpenRouter** (Capdesis fleet product AI standard); desktop also has optional BYO-key paths (Anthropic, Gemini, OpenAI, Ollama) that are not the fleet product standard
 - **Network intelligence** — Native packet capture (libpcap/eBPF/WinDivert), connection analysis, DNS enrichment, GeoIP, and MITRE ATT&CK correlation
 - **Browser tab control** — List, close, and focus tabs across Chrome, Safari, Brave, Edge, Arc, and Firefox via CDP and AppleScript
 - **Security & compliance** — CVE auditing, NIST SP 800-53 heartbeats, encrypted audit trails, Ed25519 release signing
@@ -93,13 +93,17 @@ Interactive htop-style dashboard with process table, system gauges, and built-in
 
 ## AI Providers
 
-| Provider | Model (default) | API Key Required |
-|----------|----------------|-----------------|
-| OpenAI | gpt-4o-mini | Yes |
-| Anthropic | claude-haiku-4-5 | Yes |
-| Gemini | gemini-2.0-flash | Yes |
-| OpenRouter | llama-3.2-3b (free) | Yes |
-| Ollama | llama3.2 (local) | No |
+Capdesis fleet product AI standard is **OpenRouter only** (server-side proxy in
+cloud products; desktop: prefer OpenRouter user key). Do not treat direct
+`api.openai.com` / `OPENAI_API_KEY` as the product default.
+
+| Provider | Model (default) | API Key Required | Notes |
+|----------|----------------|-----------------|-------|
+| **OpenRouter** | llama-3.2-3b (free) | Yes | **Preferred** fleet path |
+| Anthropic | claude-haiku-4-5 | Yes | Optional desktop BYO-key residual |
+| Gemini | gemini-2.0-flash | Yes | Optional desktop BYO-key residual |
+| OpenAI | gpt-4o-mini | Yes | Optional desktop residual — not fleet product standard |
+| Ollama | llama3.2 (local) | No | Local only |
 
 Store keys securely: `omnimon apikey --ai <provider> <key>` (stored in OS Keyring).
 
@@ -163,7 +167,7 @@ OmniMon es un monitor de sistema multiplataforma de nueva generación construido
 ## Características
 
 - **Monitoreo en tiempo real** — CPU, memoria, disco, red y consumo energético por proceso con refresco de 2 segundos
-- **Optimización con IA** — Soporte multi-proveedor (OpenAI, Anthropic, Gemini, OpenRouter, Ollama) con tool calling para gestión automática
+- **Optimización con IA** — Preferir **OpenRouter** (estándar flota Capdesis); rutas desktop BYO-key opcionales no son el estándar de producto
 - **Inteligencia de red** — Captura nativa (libpcap/eBPF/WinDivert), análisis de conexiones, DNS, GeoIP y correlación MITRE ATT&CK
 - **Control de pestañas** — Listar, cerrar y enfocar pestañas en Chrome, Safari, Brave, Edge, Arc y Firefox
 - **Seguridad y cumplimiento** — Auditoría CVE, heartbeats NIST SP 800-53, trails de auditoría cifrados, firma Ed25519
@@ -216,13 +220,16 @@ omnimon doctor                                    # Diagnóstico del sistema
 
 ## Proveedores de IA
 
-| Proveedor | Modelo (default) | Requiere API Key |
-|-----------|-----------------|-----------------|
-| OpenAI | gpt-4o-mini | Sí |
-| Anthropic | claude-haiku-4-5 | Sí |
-| Gemini | gemini-2.0-flash | Sí |
-| OpenRouter | llama-3.2-3b (gratis) | Sí |
-| Ollama | llama3.2 (local) | No |
+Estándar de IA de producto Capdesis: **solo OpenRouter**. No usar
+`OPENAI_API_KEY` / `api.openai.com` como default de producto.
+
+| Proveedor | Modelo (default) | Requiere API Key | Notas |
+|-----------|-----------------|-----------------|-------|
+| **OpenRouter** | llama-3.2-3b (gratis) | Sí | **Preferido** |
+| Anthropic | claude-haiku-4-5 | Sí | Residual desktop BYO-key |
+| Gemini | gemini-2.0-flash | Sí | Residual desktop BYO-key |
+| OpenAI | gpt-4o-mini | Sí | Residual desktop — no es estándar de flota |
+| Ollama | llama3.2 (local) | No | Solo local |
 
 Guarda claves de forma segura: `omnimon apikey --ai <proveedor> <clave>` (almacenado en Keyring del OS).
 
