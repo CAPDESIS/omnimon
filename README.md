@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/chochy2001/omnimon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/omnimon/actions) [![Version](https://img.shields.io/badge/version-6.7.0-brightgreen)](#) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_2_+_Svelte_5-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-💖-ff69b4)](https://github.com/sponsors/chochy2001)
 
+> Version note: manifests are pinned at **6.7.0**; the latest published tag is **v6.6.6** and cutting tag `v6.7.0` is pending decision.
+
 ```
   ___  __  __ _   _ ___ __  __  ___  _   _
  / _ \|  \/  | \ | |_ _|  \/  |/ _ \| \ | |

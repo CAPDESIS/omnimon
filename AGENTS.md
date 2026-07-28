@@ -10,8 +10,8 @@ for most product code lives under `v4/`.
 - `v4/crates/core/`: shared Rust logic
 - `v4/crates/cli/`: CLI crate
 - `v4/crates/tui/`: terminal UI crate
-- `omnimon_landing/`: landing-site area; treat generated or cache-only content
-  carefully
+- `omnimon_landing/` does NOT live in this repo; the landing site is a
+  separate repository (`chochy2001/omnimon_landing`)
 
 ## Commands
 
