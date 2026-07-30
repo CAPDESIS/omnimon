@@ -189,23 +189,41 @@ jobs:
       - name: Frontend coverage check
         working-directory: ./v4/apps/desktop
         run: |
+          # Vitest enforces thresholds (lines/functions/statements 85%, branches 70%).
+          # FILT excludes App.svelte, main.ts, vite-env.d.ts, lib/types.ts (see vitest.config.ts).
           bun run test:coverage -- --coverage.reporter=text-summary --coverage.reporter=json-summary
           python3 - <<'PY'
           import json
+          import os
           from pathlib import Path
 
-          threshold = 75
           summary = json.loads(Path("coverage/coverage-summary.json").read_text())
           lines = float(summary["total"]["lines"]["pct"])
-          print(f"Frontend line coverage: {lines:.2f}%")
-          if lines < threshold:
-              raise SystemExit(f"Frontend coverage {lines:.2f}% is below {threshold}%")
+          print(f"Frontend FILT line coverage (vitest include/exclude): {lines:.2f}%")
+          print("Excluded from vitest denominator: App.svelte, main.ts, vite-env.d.ts, lib/types.ts")
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "")
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as fh:
+                  fh.write("## Frontend coverage denominators\n\n")
+                  fh.write(f"- **FILT (vitest gate):** {lines:.2f}%\\n")
+                  fh.write("- **Outside gate:** App.svelte, main.ts, types (see vitest.config.ts exclude)\\n")
           PY
 
-      - name: Rust coverage check
+      - name: Rust coverage check (RAW honest gate)
         working-directory: ./v4
         run: |
-          cargo llvm-cov --workspace --fail-under-lines 70 --ignore-filename-regex "(ai\.rs|src-tauri|cli/src/main\.rs|os_native\.rs|network\.rs|tui/src/)" -- --test-threads=1
+          set -euo pipefail
+          # Fase 3 k27: gate uses RAW workspace llvm-cov total. The old regex filter
+          # (--ignore-filename-regex ai.rs|src-tauri|...) hid 42.1% of Rust and
+          # reported ~91.75% while honest RAW was ~84.06% (2026-07-30 measure).
+          # Ratchet 84 until T16 lifts honest workspace total to fleet 85+.
+          MIN_RAW=84
+          cargo llvm-cov --workspace --fail-under-lines "${MIN_RAW}" -- --test-threads=1
+          echo "Rust gate: RAW workspace lines >= ${MIN_RAW}% (ratchet toward 85%)"
+          echo "--- Legacy regex-filtered view (informational only, NOT the gate) ---"
+          cargo llvm-cov --workspace --summary-only \
+            --ignore-filename-regex "(ai\.rs|src-tauri|cli/src/main\.rs|os_native\.rs|network\.rs|tui/src/)" \
+            -- --test-threads=1 | grep -E '^TOTAL' || true
 
   security:
     name: Security Audit
