@@ -18,6 +18,7 @@ v4/target/
 v4/apps/desktop/node_modules/
 v4/apps/desktop/dist/
 v4/apps/desktop/coverage/
+v4/apps/desktop/test-results.json
 
 # macOS
 .DS_Store
