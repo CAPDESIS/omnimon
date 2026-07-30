@@ -19,32 +19,37 @@ test.describe("navegacion principal", () => {
 
     await openTopTab(page, /Settings/i);
     await expect(page.getByText(/OmniMon Settings/i)).toBeVisible();
-    await expect(page.getByRole("button", { name: /Open Settings Modal/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /AI Provider Settings/i })).toBeVisible();
 
     await page.getByRole("button", { name: /Security/i }).click();
-    await expect(page.getByRole("dialog", { name: /Security Report/i })).toBeVisible();
-    await page.getByRole("button", { name: /Close/i }).click();
+    const securityDialog = page.getByRole("dialog", { name: /Security Report/i });
+    await expect(securityDialog).toBeVisible();
+    await securityDialog.getByRole("button", { name: /^Close$/i }).click();
 
     await openTopTab(page, /^Processes$/i);
     await expect(page.getByRole("table", { name: /Process list/i })).toBeVisible();
   });
 
-  test("permite ocultar y restaurar paneles del lateral", async ({ page }) => {
+  test("permite ocultar y restaurar paneles", async ({ page }) => {
     await gotoApp(page);
 
-    const cpuCard = page.getByRole("button", { name: "CPU" });
+    const cpuCard = page.locator(".metric-card .metric-label", { hasText: /^CPU$/ });
     await expect(cpuCard).toBeVisible();
 
     await page.getByRole("button", { name: /Dashboard/i }).click();
     await expect(cpuCard).toHaveCount(0);
 
     await page.getByRole("button", { name: /Dashboard/i }).click();
-    await expect(page.getByRole("button", { name: "CPU" })).toBeVisible();
+    await expect(page.locator(".metric-card .metric-label", { hasText: /^CPU$/ })).toBeVisible();
 
-    const profileHeader = page.locator(".section-header").filter({ hasText: /AI profile/i });
-    await profileHeader.click();
-    await expect(page.getByRole("group", { name: /AI profile/i })).toHaveCount(0);
-    await profileHeader.click();
-    await expect(page.getByRole("group", { name: /AI profile/i })).toBeVisible();
+    await openTopTab(page, /AI Actions/i);
+    const aiConfigHeader = page.locator(".ai-config-panel .section-header");
+    await expect(aiConfigHeader).toBeVisible();
+
+    const aiConfigContent = page.locator(".ai-config-panel .config-content");
+    await aiConfigHeader.click();
+    await expect(aiConfigContent).toHaveCount(0);
+    await aiConfigHeader.click();
+    await expect(aiConfigContent).toBeVisible();
   });
 });
