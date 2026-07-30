@@ -509,12 +509,14 @@ mod tests {
 
     #[test]
     fn promote_confirmed_zombies_requires_sustained_window() {
-        let mut config = ZombieKillerConfig::default();
-        config.enabled = true;
-        config.cpu_threshold_pct = 50.0;
-        config.ram_threshold_bytes = 100 * 1024 * 1024;
-        config.sustained_secs = 30;
-        config.min_uptime_secs = 0;
+        let config = ZombieKillerConfig {
+            enabled: true,
+            cpu_threshold_pct: 50.0,
+            ram_threshold_bytes: 100 * 1024 * 1024,
+            sustained_secs: 30,
+            min_uptime_secs: 0,
+            ..Default::default()
+        };
 
         let proc = macmon_core::watcher::CachedProcessInfo {
             pid: 555,
@@ -530,7 +532,7 @@ mod tests {
         let mut notified = HashSet::new();
         let now = 1_000;
         let first = promote_confirmed_zombies(
-            &[proc.clone()],
+            std::slice::from_ref(&proc),
             &config,
             now,
             &mut first_seen,
