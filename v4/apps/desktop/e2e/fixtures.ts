@@ -4,6 +4,7 @@ import type { BrowserTab, Metrics, NetworkData } from "../src/lib/types";
 
 const MOCK_METRICS: Metrics = {
   stats: {
+    cpu_usage_pct: 12.5,
     ram_total_gb: 32,
     ram_used_pct: 58,
     swap_used_mb: 512,
@@ -263,7 +264,8 @@ const MOCK_NETWORK_DATA: NetworkData = {
 
 const INITIAL_STORE = {
   activeProfilePreset: "general",
-  locale: "en",
+  localePreference: "en",
+  profilePreset: "power",
   theme: "dark",
   userMode: "pro",
 };
@@ -315,6 +317,10 @@ async function installTauriMocks(page: Page) {
             throw new Error(chatError);
           case "save_ai_config":
           case "clear_ai_cache":
+            return undefined;
+          case "get_cloud_key":
+            return "";
+          case "save_cloud_key":
             return undefined;
           case "check_api_key":
           case "validate_api_key":

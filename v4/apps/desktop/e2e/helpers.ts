@@ -19,7 +19,7 @@ export async function openTopTab(page: Page, name: string | RegExp) {
 }
 
 export async function openSettingsModal(page: Page) {
-  await page.getByRole("button", { name: /AI Settings/i }).click();
+  await page.locator('button[title="AI Settings"], button[title="Ajustes de IA"]').first().click();
   await expect(page.getByRole("dialog", { name: /Settings|Ajustes/i })).toBeVisible();
 }
 

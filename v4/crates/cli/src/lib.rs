@@ -2055,17 +2055,19 @@ mod tests {
 
     #[test]
     fn top_network_processes_respects_limit() {
-        let mut state = watcher::SystemState::default();
-        state.top_network_processes = (0..5)
-            .map(|i| core::network::ProcessNetworkThroughput {
-                pid: i,
-                process_name: Some(format!("p{i}")),
-                rx_bytes_per_sec: i as u64,
-                tx_bytes_per_sec: 0,
-                tcp_packets_per_sec: 0,
-                udp_packets_per_sec: 0,
-            })
-            .collect();
+        let state = watcher::SystemState {
+            top_network_processes: (0..5)
+                .map(|i| core::network::ProcessNetworkThroughput {
+                    pid: i,
+                    process_name: Some(format!("p{i}")),
+                    rx_bytes_per_sec: i as u64,
+                    tx_bytes_per_sec: 0,
+                    tcp_packets_per_sec: 0,
+                    udp_packets_per_sec: 0,
+                })
+                .collect(),
+            ..Default::default()
+        };
         let top = top_network_processes(&state, 3);
         assert_eq!(top.len(), 3);
         assert_eq!(top[0].pid, 0);
