@@ -12,6 +12,9 @@ on:
         required: false
         type: string
 
+  pull_request:
+    branches: [main]
+
   schedule:
     # Local-first policy: PR/push validation runs on the developer machine.
     # Remote CI is manual or staggered daily to avoid runner bottlenecks.
