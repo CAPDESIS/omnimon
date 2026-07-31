@@ -444,6 +444,35 @@ mod tests {
             .iter()
             .any(|(r, pid, _, _)| r.id == "ram-rule" && *pid == 2));
     }
+
+    #[test]
+    fn evaluate_rule_hits_matches_exec_name_when_display_name_differs() {
+        let rules = vec![make_rule("exec-only", "node", "cpu", 5.0)];
+        let procs = vec![macmon_core::watcher::CachedProcessInfo {
+            pid: 9,
+            name: "background worker".into(),
+            exec_name: "node".into(),
+            cpu_pct: 42.0,
+            memory_bytes: 1,
+            ..Default::default()
+        }];
+        let hits = evaluate_rule_hits(&rules, &procs);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].1, 9);
+    }
+
+    #[test]
+    fn evaluate_rule_hits_skips_processes_below_threshold() {
+        let rules = vec![make_rule("cpu-rule", "node", "cpu", 90.0)];
+        let procs = vec![macmon_core::watcher::CachedProcessInfo {
+            pid: 11,
+            name: "node".into(),
+            exec_name: "node".into(),
+            cpu_pct: 10.0,
+            ..Default::default()
+        }];
+        assert!(evaluate_rule_hits(&rules, &procs).is_empty());
+    }
 }
 
 /// Pure evaluation of which (rule_id, pid) pairs currently exceed thresholds.

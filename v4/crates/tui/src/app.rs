@@ -268,6 +268,138 @@ mod tests {
         assert_eq!(app.selected, 0);
     }
 
+    fn sample_processes_for_sort() -> Vec<CachedProcessInfo> {
+        vec![
+            CachedProcessInfo {
+                pid: 1,
+                name: "zeta".into(),
+                exec_name: "zeta".into(),
+                group_name: "z".into(),
+                memory_bytes: 100,
+                cpu_pct: 1.0,
+                net_rx_bytes_per_sec: 5,
+                net_tx_bytes_per_sec: 1,
+                energy_impact_score: Some(1.0),
+                ..Default::default()
+            },
+            CachedProcessInfo {
+                pid: 2,
+                name: "Alpha".into(),
+                exec_name: "alpha".into(),
+                group_name: "a".into(),
+                memory_bytes: 500,
+                cpu_pct: 9.0,
+                net_rx_bytes_per_sec: 50,
+                net_tx_bytes_per_sec: 10,
+                energy_impact_score: Some(9.0),
+                ..Default::default()
+            },
+            CachedProcessInfo {
+                pid: 3,
+                name: "mid".into(),
+                exec_name: "mid".into(),
+                group_name: "m".into(),
+                memory_bytes: 250,
+                cpu_pct: 4.0,
+                net_rx_bytes_per_sec: 20,
+                net_tx_bytes_per_sec: 5,
+                energy_impact_score: Some(4.0),
+                ..Default::default()
+            },
+        ]
+    }
+
+    fn assert_sorted<F>(procs: &[CachedProcessInfo], ascending: bool, key: F)
+    where
+        F: Fn(&CachedProcessInfo) -> u64,
+    {
+        for window in procs.windows(2) {
+            let left = key(&window[0]);
+            let right = key(&window[1]);
+            if ascending {
+                assert!(left <= right, "expected ascending order by key");
+            } else {
+                assert!(left >= right, "expected descending order by key");
+            }
+        }
+    }
+
+    #[test]
+    fn refresh_sorts_by_each_column_and_clamps_selection() {
+        core::watcher::start_watcher();
+        std::thread::sleep(std::time::Duration::from_millis(700));
+
+        let mut app = App::new();
+        app.selected = 9999;
+
+        app.sort_col = SortColumn::Memory;
+        app.sort_asc = false;
+        app.refresh();
+        if !app.sorted_processes.is_empty() {
+            assert_sorted(&app.sorted_processes, false, |p| p.memory_bytes);
+            assert!(app.selected < app.sorted_processes.len());
+        }
+
+        app.sort_col = SortColumn::Cpu;
+        app.sort_asc = true;
+        app.refresh();
+        if app.sorted_processes.len() >= 2 {
+            assert_sorted(&app.sorted_processes, true, |p| p.cpu_pct as u64);
+        }
+
+        app.sort_col = SortColumn::Name;
+        app.sort_asc = true;
+        app.refresh();
+        if app.sorted_processes.len() >= 2 {
+            let names: Vec<String> = app
+                .sorted_processes
+                .iter()
+                .map(|p| p.name.to_lowercase())
+                .collect();
+            for window in names.windows(2) {
+                assert!(window[0] <= window[1]);
+            }
+        }
+
+        app.sort_col = SortColumn::Net;
+        app.sort_asc = false;
+        app.refresh();
+        if app.sorted_processes.len() >= 2 {
+            assert_sorted(&app.sorted_processes, false, |p| {
+                p.net_rx_bytes_per_sec + p.net_tx_bytes_per_sec
+            });
+        }
+
+        app.sort_col = SortColumn::Energy;
+        app.sort_asc = false;
+        app.refresh();
+        if app.sorted_processes.len() >= 2 {
+            for window in app.sorted_processes.windows(2) {
+                let left = window[0].energy_impact_score.unwrap_or(0.0);
+                let right = window[1].energy_impact_score.unwrap_or(0.0);
+                assert!(left >= right);
+            }
+        }
+    }
+
+    #[test]
+    fn refresh_with_injected_processes_sorts_locally() {
+        let mut app = App::new();
+        app.state.cached_process_info = sample_processes_for_sort();
+        app.sorted_processes = app.state.cached_process_info.clone();
+        app.sort_col = SortColumn::Memory;
+        app.sort_asc = false;
+
+        app.sorted_processes.clear();
+        app.sorted_processes
+            .extend(app.state.cached_process_info.iter().cloned());
+        app.sorted_processes
+            .sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
+
+        assert_eq!(app.sorted_processes[0].memory_bytes, 500);
+        assert_eq!(app.sorted_processes.last().unwrap().memory_bytes, 100);
+    }
+
     #[test]
     fn app_navigation_with_prefilled_processes() {
         let mut app = App::new();

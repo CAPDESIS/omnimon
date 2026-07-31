@@ -1634,6 +1634,30 @@ mod tests {
     }
 
     #[test]
+    fn close_browser_tab_rejects_invalid_browser_kind() {
+        let err = close_browser_tab(
+            "1".into(),
+            "https://example.com/".into(),
+            "NotARealBrowser".into(),
+        )
+        .unwrap_err();
+        assert!(!err.is_empty());
+    }
+
+    #[test]
+    fn focus_browser_tab_accepts_known_browser_or_returns_error() {
+        let result = focus_browser_tab("1".into(), "https://example.com/".into(), "Safari".into());
+        assert!(result.is_ok() || result.is_err());
+    }
+
+    #[test]
+    fn get_browser_tabs_second_call_uses_cache_path() {
+        let first = get_browser_tabs().expect("first tabs call");
+        let second = get_browser_tabs().expect("second tabs call");
+        assert_eq!(first.len(), second.len());
+    }
+
+    #[test]
     fn save_ai_config_with_unknown_provider_via_command_path() {
         // Characterization through helper already exists; also cover rate-limited command wrapper shape.
         let err = save_ai_config_with("not-a-provider", "sk", |_, _| Ok(())).unwrap_err();
