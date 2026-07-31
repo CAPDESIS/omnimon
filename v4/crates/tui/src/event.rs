@@ -383,4 +383,93 @@ mod tests {
         poll_ai_response(&mut app);
         assert!(!app.chat_loading);
     }
+
+    #[test]
+    fn chat_enter_with_message_records_user_and_sets_loading() {
+        let mut app = App::new();
+        handle_key(&mut app, KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE),
+        );
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE),
+        );
+        let before = app.chat_messages.len();
+        handle_key(&mut app, KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert!(app.chat_loading);
+        assert!(app.chat_input.is_empty());
+        assert!(app.chat_messages.len() >= before + 2);
+        assert!(app
+            .chat_messages
+            .iter()
+            .any(|m| m.role == ChatRole::User && m.text == "hi"));
+        assert!(app
+            .chat_messages
+            .iter()
+            .any(|m| m.role == ChatRole::Ai && m.text == "Pensando..."));
+    }
+
+    #[test]
+    fn poll_ai_response_replaces_pensando_placeholder() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send("respuesta de prueba".into()).unwrap();
+        PENDING_AI_RX.with(|cell| {
+            *cell.borrow_mut() = Some(rx);
+        });
+
+        let mut app = App::new();
+        app.chat_loading = true;
+        app.chat_messages.push(ChatMessage {
+            role: ChatRole::Ai,
+            text: "Pensando...".into(),
+        });
+
+        poll_ai_response(&mut app);
+        assert!(!app.chat_loading);
+        assert_eq!(
+            app.chat_messages.last().unwrap().text,
+            "respuesta de prueba"
+        );
+    }
+
+    #[test]
+    fn chat_input_ignored_while_loading() {
+        let mut app = App::new();
+        app.active_panel = ActivePanel::Chat;
+        app.chat_loading = true;
+        app.chat_input.clear();
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE),
+        );
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE),
+        );
+        assert!(app.chat_input.is_empty());
+    }
+
+    #[test]
+    fn process_panel_vim_keys_and_kill_do_not_panic() {
+        let mut app = App::new();
+        app.sorted_processes = sample_processes(3);
+        app.selected = 1;
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE),
+        );
+        assert_eq!(app.selected, 0);
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE),
+        );
+        assert_eq!(app.selected, 1);
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('K'), KeyModifiers::NONE),
+        );
+        assert!(!app.should_quit);
+    }
 }

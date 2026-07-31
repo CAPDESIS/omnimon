@@ -2366,4 +2366,93 @@ mod tests {
         ]);
         assert_eq!(run_cli(cli), Err(1));
     }
+
+    #[test]
+    fn network_watch_single_iteration_with_tcp_filter() {
+        std::env::set_var("OMNIMON_CLI_STARTUP_WAIT_MS", "0");
+        let cli = Cli::parse_from([
+            "omnimon",
+            "network",
+            "--watch",
+            "--watch-iterations",
+            "1",
+            "--filter",
+            "tcp",
+            "--port",
+            "443",
+            "--format",
+            "json",
+        ]);
+        assert!(run_cli(cli).is_ok());
+        std::env::remove_var("OMNIMON_CLI_STARTUP_WAIT_MS");
+    }
+
+    #[test]
+    fn apikey_with_invalid_openai_key_errors() {
+        let cli = Cli::parse_from([
+            "omnimon",
+            "apikey",
+            "--ai",
+            "openai",
+            "definitely-not-a-valid-openai-key",
+        ]);
+        assert_eq!(run_cli(cli), Err(1));
+    }
+
+    #[test]
+    fn tabs_close_valid_browser_runs_without_panic() {
+        let cli = Cli::parse_from([
+            "omnimon",
+            "tabs",
+            "close",
+            "--browser",
+            "Chrome",
+            "--id",
+            "999999",
+            "--url",
+            "https://example.com/",
+        ]);
+        let result = run_cli(cli);
+        assert!(result.is_ok() || result == Err(1));
+    }
+
+    #[test]
+    fn print_network_text_renders_populated_alerts_and_top() {
+        let state = watcher::SystemState {
+            net_capture_backend: "unit-test".into(),
+            net_dpi_active: true,
+            net_rx_bytes_per_sec: 4096,
+            net_tx_bytes_per_sec: 8192,
+            network_alerts: vec![core::network_alerts::NetworkAlert {
+                id: "alert-1".into(),
+                rule_id: "cov-alert".into(),
+                rule_name: "Coverage alert".into(),
+                severity: core::network_alerts::AlertSeverity::Warning,
+                condition_kind: "high_bandwidth".into(),
+                message: "throughput spike".into(),
+                triggered_at_unix_ms: 1,
+                notify_ai: false,
+                destination: Some("203.0.113.1".into()),
+                process_name: Some("chrome".into()),
+                pid: Some(42),
+                bandwidth_mbps: Some(12.5),
+                connection_count: None,
+                details: vec!["unit test".into()],
+            }],
+            top_network_processes: vec![core::network::ProcessNetworkThroughput {
+                pid: 7,
+                process_name: Some("chrome".into()),
+                rx_bytes_per_sec: 100,
+                tx_bytes_per_sec: 50,
+                tcp_packets_per_sec: 3,
+                udp_packets_per_sec: 1,
+            }],
+            ..Default::default()
+        };
+        let filter = NetworkFilter::default();
+        print_network_text(&state, NetworkView::Alerts, &filter);
+        print_network_text(&state, NetworkView::Top, &filter);
+        print_network_json(&state, NetworkView::Alerts, &filter);
+        print_network_json(&state, NetworkView::Top, &filter);
+    }
 }

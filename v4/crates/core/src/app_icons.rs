@@ -263,3 +263,53 @@ fn first_matching_file(dir: &Path, extensions: &[&str]) -> Option<PathBuf> {
     }
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_icon_cache_hit_after_miss() {
+        let name = format!("cov-icon-{}", std::process::id());
+        let first = resolve_process_icon_data_url(None, None, &name, &name);
+        let second = resolve_process_icon_data_url(None, None, &name, &name);
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn resolve_icon_uses_bundle_cache_key() {
+        let bundle = format!("bundle-cov-{}", std::process::id());
+        let first = resolve_process_icon_data_url(None, Some(&bundle), "proc", "proc");
+        let second = resolve_process_icon_data_url(None, Some(&bundle), "other", "other");
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn file_to_data_url_encodes_png() {
+        let path = std::env::temp_dir().join(format!("omnimon-icon-{}.png", std::process::id()));
+        std::fs::write(&path, b"\x89PNG\r\n\x1a\n").unwrap();
+        let url = file_to_data_url(&path).expect("png data url");
+        assert!(url.starts_with("data:image/png;base64,"));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn file_to_data_url_rejects_unknown_extension() {
+        let path = std::env::temp_dir().join(format!("omnimon-icon-{}.bin", std::process::id()));
+        std::fs::write(&path, b"data").unwrap();
+        assert!(file_to_data_url(&path).is_none());
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn linux_icon_lookup_exercises_system_search_paths() {
+        let _ = resolve_process_icon_data_url(Some("/usr/bin/bash"), None, "bash", "bash");
+        let _ = resolve_process_icon_data_url(
+            None,
+            None,
+            "definitely-not-a-real-process-name-xyz",
+            "definitely-not-a-real-process-name-xyz",
+        );
+    }
+}

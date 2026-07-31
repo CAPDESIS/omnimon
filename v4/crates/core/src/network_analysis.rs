@@ -2604,6 +2604,26 @@ short line
         assert!(result.is_ok());
     }
 
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn get_active_connections_returns_vec_on_linux() {
+        let result = get_active_connections();
+        assert!(result.is_ok());
+        let connections = result.unwrap();
+        for conn in &connections {
+            assert!(!conn.process_name.is_empty() || conn.pid > 0);
+            let _ = (conn.local_port, conn.remote_port, conn.pid);
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_get_connections_exercises_proc_and_ss_paths() {
+        let first = get_active_connections().expect("first linux connections");
+        let second = get_active_connections().expect("second linux connections");
+        assert_eq!(first.len(), second.len());
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn macos_connections_have_valid_pids() {
