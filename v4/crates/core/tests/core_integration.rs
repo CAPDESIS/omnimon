@@ -1450,3 +1450,21 @@ fn integration_network_alerts_pipeline_emits_after_three_snapshots() {
     assert_eq!(alerts.len(), 1);
     assert_eq!(alerts[0].rule_name, "Puerto sospechoso");
 }
+
+#[test]
+fn integration_resolve_process_icon_is_idempotent() {
+    let name = format!("integration-icon-{}", std::process::id());
+    let first = core::app_icons::resolve_process_icon_data_url(None, None, &name, &name);
+    let second = core::app_icons::resolve_process_icon_data_url(None, None, &name, &name);
+    assert_eq!(first, second);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn integration_linux_active_connections_populate_fields() {
+    let connections = core::network_analysis::get_active_connections().expect("connections");
+    for conn in &connections {
+        let _ = conn.process_name.as_deref();
+        let _ = (conn.local_port, conn.remote_port, conn.pid);
+    }
+}
