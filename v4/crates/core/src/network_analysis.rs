@@ -2611,7 +2611,7 @@ short line
         assert!(result.is_ok());
         let connections = result.unwrap();
         for conn in &connections {
-            let _ = conn.process_name.as_deref();
+            assert!(!conn.process_name.is_empty() || conn.pid > 0);
             let _ = (conn.local_port, conn.remote_port, conn.pid);
         }
     }

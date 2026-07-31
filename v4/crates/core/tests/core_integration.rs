@@ -1464,7 +1464,7 @@ fn integration_resolve_process_icon_is_idempotent() {
 fn integration_linux_active_connections_populate_fields() {
     let connections = core::network_analysis::get_active_connections().expect("connections");
     for conn in &connections {
-        let _ = conn.process_name.as_deref();
+        let _ = &conn.process_name;
         let _ = (conn.local_port, conn.remote_port, conn.pid);
     }
 }
