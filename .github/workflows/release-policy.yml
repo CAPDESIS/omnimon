@@ -16,7 +16,11 @@ jobs:
     # contributions from consuming self-hosted capacity. Mirrors the guard on
     # the lint job in omnimon-ci.yml.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, public-only, ci-runner-node, test-light]
+    # public-only is exclusive to the VPS public lane. Do NOT AND test-light:
+    # no online runner carries both labels, so the job queues forever
+    # (observed run 30914983210 queued ~7h).
+    runs-on: [self-hosted, public-only, ci-runner-node]
+    timeout-minutes: 15
     permissions:
       contents: read
 
