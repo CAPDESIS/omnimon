@@ -1,5 +1,10 @@
 # OmniMon Documentation Audit
 
+> Estado actual 2026-06-29: este reporte es una captura histórica del
+> 2026-03-08. La versión actual de la app, crates y Tauri metadata es 6.7.0, y
+> la guía operativa actualizada vive en `omnimon_apps/AGENTS.md`,
+> `omnimon_apps/MASTER_SPEC.md`, y `omnimon_apps/macmon/AGENTS.md`.
+
 Date: 2026-03-08
 Scope: `worktree-gpt-2` / branch `audit/gpt-docs`
 

@@ -41,7 +41,7 @@ We continuously model our threats based on the MITRE ATT&CK framework to defend 
 Starting with v5.0, every release binary is signed using Ed25519 cryptographic keys. Each artifact is accompanied by a SHA-256 checksum file. Users and automated systems can verify both the signature authenticity and file integrity before installation, ensuring that distributed binaries have not been tampered with.
 
 ### 5. Automated CVE Scanning
-Our CI/CD lifecycle includes static analysis tools like `cargo-audit`, `npm audit`, `Grype`, and the Dependabot ecosystem for continuous detection of Common Vulnerabilities and Exposures (CVEs). Both Rust (`cargo audit`) and JavaScript (`npm audit`) dependency trees are scanned on every pull request before merging, blocking compromised transitive dependencies.
+Our CI/CD lifecycle includes static analysis tools like `cargo-audit`, `bun audit` with an `audit-ci` fallback, `Grype`, and the Dependabot ecosystem for continuous detection of Common Vulnerabilities and Exposures (CVEs). Both Rust (`cargo audit`) and JavaScript (`bun audit`, or `audit-ci` when Bun audit is unavailable) dependency trees are scanned before merging, blocking compromised transitive dependencies.
 
 ### 6. Input Sanitization for System Calls (Frontend -> Backend IPC)
 All interactions between the frontend and native backend pass through a secure IPC bridge. This prevents malicious data injected from the frontend from compromising the system:
@@ -103,7 +103,7 @@ Modelamos constantemente nuestras amenazas basándonos en el framework MITRE ATT
 A partir de la v5.0, cada binario de release se firma con claves criptográficas Ed25519. Cada artefacto va acompañado de un archivo de checksum SHA-256. Los usuarios y sistemas automatizados pueden verificar tanto la autenticidad de la firma como la integridad del archivo antes de la instalación, asegurando que los binarios distribuidos no han sido manipulados.
 
 ### 5. Escaneos de CVEs Automatizados
-Nuestro ciclo de CI/CD incluye herramientas de análisis estático como `cargo-audit`, `npm audit`, `Grype` y el ecosistema de Dependabot para la detección continua de Vulnerabilidades y Exposiciones Comunes (CVE). Tanto el árbol de dependencias de Rust (`cargo audit`) como el de JavaScript (`npm audit`) se escanean en cada pull request antes de ser fusionado, bloqueando dependencias transitivas comprometidas.
+Nuestro ciclo de CI/CD incluye herramientas de análisis estático como `cargo-audit`, `bun audit` con respaldo de `audit-ci`, `Grype` y el ecosistema de Dependabot para la detección continua de Vulnerabilidades y Exposiciones Comunes (CVE). Tanto el árbol de dependencias de Rust (`cargo audit`) como el de JavaScript (`bun audit`, o `audit-ci` cuando Bun audit no esté disponible) se escanean antes de fusionar cambios, bloqueando dependencias transitivas comprometidas.
 
 ### 6. Sanitización de Entradas para Llamadas al Sistema (Frontend -> Backend IPC)
 Todas las interacciones entre el frontend y el backend nativo pasan a través de un puente de IPC Seguro. Esto previene que datos maliciosos inyectados desde el frontend comprometan el sistema:

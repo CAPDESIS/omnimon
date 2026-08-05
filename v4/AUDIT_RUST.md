@@ -1,5 +1,12 @@
 # AUDIT_RUST.md — Auditoría Exhaustiva del Backend Rust
 
+> Estado actual 2026-06-29: este reporte es una captura histórica del
+> 2026-03-08 para OmniMon v6.0.1. La fuente actual está en v6.7.0, el updater
+> `pubkey` ya está poblado en `apps/desktop/src-tauri/tauri.conf.json`, y en
+> esta continuación pasaron `cargo check --workspace`, `cargo clippy --workspace
+> -- -D warnings`, y `cargo test --workspace` desde `macmon/v4`. No usar las
+> secciones de clippy fallido o pubkey vacío como estado actual.
+
 **Proyecto:** OmniMon v6.0.1
 **Fecha:** 2026-03-08
 **Agente:** OPUS-RUST (Claude Opus)

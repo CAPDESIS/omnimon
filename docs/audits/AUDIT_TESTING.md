@@ -1,5 +1,13 @@
 # Audit Testing - OmniMon
 
+> Estado actual 2026-06-29: este reporte es una captura histórica del
+> 2026-03-08. La validación actual pasó `bun run typecheck`, `bun run test`
+> (45 archivos / 701 tests), `bun run build`, `bun run test:coverage`
+> (85.75% statements, 70.45% branches, 86.64% functions, 86.58% lines),
+> `cargo check --workspace`, `cargo clippy --workspace -- -D warnings`, y
+> `cargo test --workspace` (458 Rust tests). El workflow actual gatea frontend
+> line coverage >=75% y Rust line coverage >=70%, no 85%.
+
 ## Alcance
 
 - Worktree: `worktree-gpt-1`
@@ -123,8 +131,9 @@
   - componentes sin cobertura o casi nula: `Automations.svelte`, `CloudSync.svelte`, `Plugins.svelte`, `SmartAlerts.svelte`, `ConfirmDialog.svelte`, `AIChat.svelte`, `SystemMetricModal.svelte`
 - Coverage bajo en Rust fuera de los modulos prioritarios
   - especialmente `ai.rs`, `audit_trail.rs`, `cloud.rs`, `audit.rs`, `metrics.rs`, `rules_engine.rs`
-- Pipeline actual no impone un gate real de coverage en frontend
-  - corre `bun run test:coverage`, pero no falla por umbral
+- Pipeline actual impone un gate real de coverage frontend
+  - `.github/workflows/omnimon-ci.yml` corre `bun run test:coverage` y falla si
+    la cobertura de líneas cae por debajo de 75%
 - Matrix actual incompleta para calidad real multiplataforma
   - Linux corre frontend y coverage
   - macOS no corre frontend
@@ -161,10 +170,11 @@
 - Debilidades:
   - frontend solo se valida en Linux
   - Windows no prueba workspace completo
-  - `security` usa `continue-on-error: true`, por lo que CVEs no bloquean el pipeline
-  - no existe `bun audit`
+- `security` ahora falla ante vulnerabilidades reales de `cargo audit`
+- el workflow ejecuta audit frontend con `bun audit` cuando está disponible y
+  cae a `audit-ci` como fallback
   - no existe SAST de codigo/CodeQL
-  - no hay gate explicito de coverage frontend >= 85%
+- no hay gate explicito de coverage frontend >= 85%; el gate vigente es 75%
   - no hay fuzzing automatizado para parsers de input/red/IPC
 
 ## Mejoras propuestas de CI/CD (yaml)

@@ -1,5 +1,13 @@
 # MASTER_AUDIT.md — Auditoría Unificada OmniMon v6.0.1
 
+> Estado actual 2026-06-29: este documento es una captura histórica del
+> 2026-03-08. La app actual está en v6.7.0. En esta continuación pasaron las
+> compuertas locales de desktop frontend, Rust workspace, landing, clippy,
+> coverage frontend y `bun audit`. El updater `pubkey` ya está poblado y el
+> audit frontend de CI ya no es `continue-on-error`. Usar `omnimon_apps/MASTER_SPEC.md`
+> y `specs/001-ecosystem-doc-audit/audit/validation/seventy-second-continuation-2026-06-29.md`
+> como evidencia actual.
+
 **Fecha:** 2026-03-08
 **Coordinador:** Agente Opus (Claude Opus)
 **Proyecto:** OmniMon v6.0.1
