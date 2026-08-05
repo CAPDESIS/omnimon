@@ -52,13 +52,13 @@
 ### 4. CI/CD Hardening
 
 **Coverage Requirements:**
-- Rust backend: >= 85% line coverage (enforced via `cargo-llvm-cov --fail-under-lines 85`)
-- Frontend: >= 85% statement coverage (enforced via Vitest `--coverage`)
-- All three platforms: macOS, Linux, Windows
+- Rust backend: >= 70% line coverage in the current CI gate (`cargo llvm-cov --workspace --fail-under-lines 70 ...`)
+- Frontend: >= 75% line coverage in the current CI gate (`bun run test:coverage` plus `coverage-summary.json` check)
+- Linux is the blocking platform. macOS and Windows currently run as non-blocking experimental jobs.
 
 **CVE Scanning Pipeline:**
 - `cargo audit` for Rust dependency CVEs (RustSec Advisory DB)
-- `npm audit --audit-level=high` for Node.js dependency CVEs
+- `bun audit` for frontend dependency CVEs; the CI step is blocking as of 2026-06-29
 - TruffleHog for leaked secrets/credentials
 - `scripts/cve-report.sh` generates consolidated vulnerability reports
 

@@ -1,5 +1,12 @@
 # Auditoría de Seguridad — OmniMon v6.0.1
 
+> Estado actual 2026-06-29: este reporte es una captura histórica del
+> 2026-03-08. La app actual está en v6.7.0, el updater `pubkey` ya está
+> poblado, el audit frontend de CI dejó de ser `continue-on-error`, y `bun
+> audit` en `v4/apps/desktop` reportó `No vulnerabilities found`. Las tablas
+> históricas que mencionan pubkey vacío o audit frontend no bloqueante no
+> representan el estado actual.
+
 **Fecha:** 2026-03-08
 **Auditor:** Agente OPUS-SECURITY (Claude Opus)
 **Branch:** `audit/opus-security`
