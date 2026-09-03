@@ -73,14 +73,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # The daily schedule validates Linux on the public self-hosted pool.
-          # Native jobs are opt-in via workflow_dispatch because their secure
-          # runner groups intentionally reject this public repository.
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            matrix='{"include":[{"platform":"linux","os":["self-hosted","public-only","ci-runner-node"],"experimental":false},{"platform":"macos","os":"macos-latest","experimental":true},{"platform":"windows","os":"windows-latest","experimental":true}]}'
-          else
-            matrix='{"include":[{"platform":"linux","os":["self-hosted","public-only","ci-runner-node"],"experimental":false}]}'
-          fi
+          # Linux only on the public self-hosted pool. GitHub-hosted macos-latest
+          # / windows-latest are not allowed (billing). Private Mac/Windows
+          # runners are not attached to this public repo.
+          matrix='{"include":[{"platform":"linux","os":["self-hosted","public-only","ci-runner-node"],"experimental":false}]}'
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   test:
@@ -360,14 +356,6 @@ jobs:
             os: [self-hosted, public-only, ci-runner-node]
             args: ""
             experimental: false
-          - platform: macos-universal
-            os: macos-latest
-            args: "--target universal-apple-darwin"
-            experimental: true
-          - platform: windows
-            os: windows-latest
-            args: ""
-            experimental: true
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
