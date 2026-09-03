@@ -1,7 +1,6 @@
-# Trusted Linux schedule/manual validation uses the preloaded public runner.
-# Native macOS/Windows jobs remain hosted because the managed Mac/Windows
-# groups intentionally reject public repositories; moving them requires an
-# explicit security allowlist change before those labels can be used here.
+# Linux validation uses the public self-hosted pool.
+# macOS/Windows jobs use Capdesis private self-hosted nodes (MacBook Air and
+# Windows desktop on-demand). GitHub-hosted macos-latest/windows-latest are not allowed.
 name: OmniMon CI/CD
 
 on:
@@ -73,10 +72,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Linux only on the public self-hosted pool. GitHub-hosted macos-latest
-          # / windows-latest are not allowed (billing). Private Mac/Windows
-          # runners are not attached to this public repo.
-          matrix='{"include":[{"platform":"linux","os":["self-hosted","public-only","ci-runner-node"],"experimental":false}]}'
+          # Linux stays on the public self-hosted pool. Manual dispatch also
+          # validates macOS and Windows on private Capdesis self-hosted nodes.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            matrix='{"include":[{"platform":"linux","os":["self-hosted","public-only","ci-runner-node"],"experimental":false},{"platform":"macos","os":["self-hosted","macOS","ARM64","macbook-air-cicd"],"experimental":false},{"platform":"windows","os":["self-hosted","Windows","X64","windows-desktop-on-demand"],"experimental":false}]}'
+          else
+            matrix='{"include":[{"platform":"linux","os":["self-hosted","public-only","ci-runner-node"],"experimental":false}]}'
+          fi
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   test:
@@ -354,6 +356,14 @@ jobs:
         include:
           - platform: linux
             os: [self-hosted, public-only, ci-runner-node]
+            args: ""
+            experimental: false
+          - platform: macos-universal
+            os: [self-hosted, macOS, ARM64, macbook-air-cicd]
+            args: "--target universal-apple-darwin"
+            experimental: false
+          - platform: windows
+            os: [self-hosted, Windows, X64, windows-desktop-on-demand]
             args: ""
             experimental: false
 
