@@ -38,7 +38,9 @@ No se afirma “6.7.0 prod Mac de todos”.
 | `cd omnimon_landing && bun test src/lib` | 19 passed |
 | `cd omnimon_landing && bun run build` | 16 pages including `/privacy` `/terms` `/es/privacy` `/es/terms` |
 
-SHAs se anotan en los commits de cada repo. Landing SHA propio.
+Commits:
+- macmon `470f6e484e454f9f05ed2fbde1080ef17a47039e` feat(plugins): restrict Lua stdlib and drop sandbox claims
+- landing `ed56bcc225bc91f6a18e18cb72179b86aa66e6dc` feat: add privacy/terms pages and cookie-banner links (repo aparte)
 
 ## Residual
 
