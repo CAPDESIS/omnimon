@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Lua plugins: restricted stdlib (`no io/os/package/debug`, `load`/`loadfile`/`dofile` removed) plus tests; docs no longer call the VM a security sandbox
+- Desktop empty process table now uses real EN/ES copy instead of raw i18n keys
+- Homebrew cask remains on published tag `6.6.6`; workspace manifests stay `6.7.0` until a DMG exists
+- CVE report aligned with `v4/Cargo.lock` (`time 0.3.54`, `h2 0.4.16`)
+
 ## 6.7.0 (2026-04-17)
 
 ### Zombie Killer

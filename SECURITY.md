@@ -58,6 +58,9 @@ All sensitive IPC commands are protected by a token bucket rate limiter (`rate_l
 ### 8. Content Security Policy Hardening (v6.3.0+)
 Strict CSP in `tauri.conf.json`: `object-src 'none'; base-uri 'self'`. Only `self` plus explicitly allowed LLM API domains (OpenAI, Anthropic, Gemini, OpenRouter) are permitted for network connections.
 
+### 9. Lua plugins (restricted stdlib, not a sandbox)
+Embedded Lua 5.4 plugins load only `coroutine`/`table`/`string`/`utf8`/`math`. `io`, `os`, `package`, and `debug` are not loaded; `load`/`loadfile`/`dofile` are nilled. Memory (1 MiB) and instruction-budget (150 ms) limits apply. This is **not** a process/seccomp sandbox. Only install scripts you trust.
+
 ---
 
 # Política de Seguridad (Español)
@@ -119,3 +122,6 @@ Todos los comandos IPC sensibles están protegidos por un rate limiter de tipo t
 
 ### 8. Endurecimiento de CSP (v6.3.0+)
 CSP estricto en `tauri.conf.json`: `object-src 'none'; base-uri 'self'`. Solo `self` y los dominios de API de LLM explícitamente permitidos (OpenAI, Anthropic, Gemini, OpenRouter) se permiten para conexiones de red.
+
+### 9. Plugins Lua (stdlib restringida, no es sandbox)
+Los plugins Lua 5.4 embebidos cargan solo `coroutine`/`table`/`string`/`utf8`/`math`. No se cargan `io`, `os`, `package` ni `debug`; `load`/`loadfile`/`dofile` se anulan. Hay tope de memoria (1 MiB) y presupuesto de instrucciones (150 ms). **No** es un sandbox de proceso/seccomp. Solo instala scripts de confianza.

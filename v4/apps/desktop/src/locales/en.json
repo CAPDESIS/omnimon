@@ -292,7 +292,9 @@
     "toggleGroup": "Toggle {name} group",
     "idle": "idle",
     "tabsOpen": "{count} {browser} tab open",
-    "tabsOpenPlural": "{count} {browser} tabs open"
+    "tabsOpenPlural": "{count} {browser} tabs open",
+    "emptyTitle": "No processes to show",
+    "emptyDesc": "No running processes match the current filters."
   },
   "processes": {
     "confirmKillSelected": "Kill {count} processes?",
@@ -658,7 +660,7 @@
   "plugins": {
     "eyebrow": "Embedded Lua runtime",
     "title": "Plugins",
-    "subtitle": "Upload sandboxed Lua collectors, enable or disable them, and inspect the custom metrics they emit into OmniMon.",
+    "subtitle": "Upload Lua collectors with a restricted standard library, enable or disable them, and inspect the custom metrics they emit into OmniMon.",
     "uploadTitle": "Load a collector",
     "uploadBody": "Plugins run inside an embedded Lua VM with memory and execution limits. Export `collect(ctx)` and return `{ metrics = {...} }`.",
     "uploadButton": "Upload .lua",
