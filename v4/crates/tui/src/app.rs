@@ -84,7 +84,11 @@ impl App {
 
     /// Pull the latest watcher snapshot and rebuild the sorted process list.
     pub fn refresh(&mut self) {
-        self.state = core::watcher::get_cached_state();
+        self.refresh_from_state(core::watcher::get_cached_state());
+    }
+
+    fn refresh_from_state(&mut self, state: SystemState) {
+        self.state = state;
 
         self.sorted_processes.clear();
         self.sorted_processes
@@ -325,79 +329,89 @@ mod tests {
     }
 
     #[test]
-    fn refresh_sorts_by_each_column_and_clamps_selection() {
-        core::watcher::start_watcher();
-        std::thread::sleep(std::time::Duration::from_millis(700));
-
+    fn refresh_from_state_sorts_each_column_and_clamps_selection() {
         let mut app = App::new();
         app.selected = 9999;
 
-        app.sort_col = SortColumn::Memory;
-        app.sort_asc = false;
-        app.refresh();
-        if !app.sorted_processes.is_empty() {
-            assert_sorted(&app.sorted_processes, false, |p| p.memory_bytes);
+        for ascending in [false, true] {
+            app.sort_col = SortColumn::Memory;
+            app.sort_asc = ascending;
+            app.refresh_from_state(SystemState {
+                cached_process_info: sample_processes_for_sort(),
+                ..Default::default()
+            });
+            assert_sorted(&app.sorted_processes, ascending, |p| p.memory_bytes);
             assert!(app.selected < app.sorted_processes.len());
-        }
 
-        app.sort_col = SortColumn::Cpu;
-        app.sort_asc = true;
-        app.refresh();
-        if app.sorted_processes.len() >= 2 {
-            assert_sorted(&app.sorted_processes, true, |p| p.cpu_pct as u64);
-        }
+            app.sort_col = SortColumn::Cpu;
+            app.sort_asc = ascending;
+            app.refresh_from_state(SystemState {
+                cached_process_info: sample_processes_for_sort(),
+                ..Default::default()
+            });
+            assert_sorted(&app.sorted_processes, ascending, |p| p.cpu_pct as u64);
 
-        app.sort_col = SortColumn::Name;
-        app.sort_asc = true;
-        app.refresh();
-        if app.sorted_processes.len() >= 2 {
+            app.sort_col = SortColumn::Name;
+            app.sort_asc = ascending;
+            app.refresh_from_state(SystemState {
+                cached_process_info: sample_processes_for_sort(),
+                ..Default::default()
+            });
             let names: Vec<String> = app
                 .sorted_processes
                 .iter()
                 .map(|p| p.name.to_lowercase())
                 .collect();
             for window in names.windows(2) {
-                assert!(window[0] <= window[1]);
+                if ascending {
+                    assert!(window[0] <= window[1]);
+                } else {
+                    assert!(window[0] >= window[1]);
+                }
             }
-        }
 
-        app.sort_col = SortColumn::Net;
-        app.sort_asc = false;
-        app.refresh();
-        if app.sorted_processes.len() >= 2 {
-            assert_sorted(&app.sorted_processes, false, |p| {
+            app.sort_col = SortColumn::Net;
+            app.sort_asc = ascending;
+            app.refresh_from_state(SystemState {
+                cached_process_info: sample_processes_for_sort(),
+                ..Default::default()
+            });
+            assert_sorted(&app.sorted_processes, ascending, |p| {
                 p.net_rx_bytes_per_sec + p.net_tx_bytes_per_sec
             });
-        }
 
-        app.sort_col = SortColumn::Energy;
-        app.sort_asc = false;
-        app.refresh();
-        if app.sorted_processes.len() >= 2 {
+            app.sort_col = SortColumn::Energy;
+            app.sort_asc = ascending;
+            app.refresh_from_state(SystemState {
+                cached_process_info: sample_processes_for_sort(),
+                ..Default::default()
+            });
             for window in app.sorted_processes.windows(2) {
                 let left = window[0].energy_impact_score.unwrap_or(0.0);
                 let right = window[1].energy_impact_score.unwrap_or(0.0);
-                assert!(left >= right);
+                if ascending {
+                    assert!(left <= right);
+                } else {
+                    assert!(left >= right);
+                }
             }
         }
+
+        app.selected = 3;
+        app.scroll_offset = 2;
+        app.refresh_from_state(SystemState::default());
+        assert_eq!(app.selected, 0);
+        assert_eq!(app.scroll_offset, 0);
     }
 
     #[test]
-    fn refresh_with_injected_processes_sorts_locally() {
+    fn refresh_uses_cached_state() {
         let mut app = App::new();
-        app.state.cached_process_info = sample_processes_for_sort();
-        app.sorted_processes = app.state.cached_process_info.clone();
-        app.sort_col = SortColumn::Memory;
-        app.sort_asc = false;
-
-        app.sorted_processes.clear();
-        app.sorted_processes
-            .extend(app.state.cached_process_info.iter().cloned());
-        app.sorted_processes
-            .sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
-
-        assert_eq!(app.sorted_processes[0].memory_bytes, 500);
-        assert_eq!(app.sorted_processes.last().unwrap().memory_bytes, 100);
+        app.refresh();
+        assert_eq!(
+            app.sorted_processes.len(),
+            app.state.cached_process_info.len()
+        );
     }
 
     #[test]
