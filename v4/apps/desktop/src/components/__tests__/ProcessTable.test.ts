@@ -38,6 +38,16 @@ beforeEach(() => {
 });
 
 describe("rendering", () => {
+  it("shows translated empty copy instead of i18n keys", () => {
+    render(ProcessTable, { props: { processes: [] } });
+    expect(screen.getByText("No processes to show")).toBeInTheDocument();
+    expect(
+      screen.getByText("No running processes match the current filters."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("table.emptyTitle")).not.toBeInTheDocument();
+    expect(screen.queryByText("table.emptyDesc")).not.toBeInTheDocument();
+  });
+
   it("renders correct number of data rows", () => {
     const procs = [makeProc({ pid: 1 }), makeProc({ pid: 2 }), makeProc({ pid: 3 })];
     render(ProcessTable, { props: { processes: procs } });

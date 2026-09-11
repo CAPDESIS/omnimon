@@ -292,7 +292,9 @@
     "toggleGroup": "Alternar grupo {name}",
     "idle": "inact",
     "tabsOpen": "{count} pestaña de {browser} abierta",
-    "tabsOpenPlural": "{count} pestañas de {browser} abiertas"
+    "tabsOpenPlural": "{count} pestañas de {browser} abiertas",
+    "emptyTitle": "No hay procesos",
+    "emptyDesc": "Ningun proceso coincide con los filtros actuales."
   },
   "processes": {
     "confirmKillSelected": "¿Terminar {count} procesos?",

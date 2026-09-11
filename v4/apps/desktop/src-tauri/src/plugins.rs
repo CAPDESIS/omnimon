@@ -1,4 +1,4 @@
-use mlua::{Function, HookTriggers, Lua, LuaSerdeExt, VmState};
+use mlua::{Function, HookTriggers, Lua, LuaOptions, LuaSerdeExt, Nil, StdLib, VmState};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
@@ -17,6 +17,26 @@ const PLUGIN_LOOP_SECS: u64 = 4;
 const PLUGIN_TIMEOUT_MS: u64 = 150;
 const PLUGIN_HOOK_GRANULARITY: u32 = 10_000;
 const MANIFEST_FILENAME: &str = "index.json";
+
+/// Safe subset for plugin scripts: no io, os, package, or debug.
+/// This is not a security sandbox; plugins are local, user-supplied scripts.
+fn plugin_stdlib() -> StdLib {
+    StdLib::COROUTINE | StdLib::TABLE | StdLib::STRING | StdLib::UTF8 | StdLib::MATH
+}
+
+fn create_plugin_lua() -> Result<Lua, String> {
+    let lua = Lua::new_with(plugin_stdlib(), LuaOptions::default())
+        .map_err(|e| format!("failed to create Lua VM: {e}"))?;
+    let globals = lua.globals();
+    for name in [
+        "load", "loadfile", "dofile", "require", "io", "os", "package", "debug",
+    ] {
+        globals
+            .set(name, Nil)
+            .map_err(|e| format!("failed to restrict Lua global {name}: {e}"))?;
+    }
+    Ok(lua)
+}
 
 static ENGINE: OnceLock<Arc<PluginEngine>> = OnceLock::new();
 
@@ -373,7 +393,7 @@ fn validate_metrics(metrics: Vec<PluginMetricInput>) -> Result<Vec<PluginMetric>
 }
 
 fn run_plugin_source(file_name: &str, source: &str) -> Result<ValidationResult, String> {
-    let lua = Lua::new();
+    let lua = create_plugin_lua()?;
     lua.set_memory_limit(MAX_SCRIPT_MEMORY_BYTES)
         .map_err(|e| format!("failed to set Lua memory limit: {e}"))?;
 
@@ -1072,6 +1092,54 @@ mod tests {
     fn run_plugin_source_rejects_syntax_error() {
         let err = run_plugin_source("bad.lua", "this is not lua !!!").unwrap_err();
         assert!(!err.is_empty());
+    }
+
+    #[test]
+    fn run_plugin_source_does_not_expose_os_io_package_or_loadfile() {
+        let source = r#"
+            function collect(ctx)
+              local banned = {}
+              if os ~= nil then table.insert(banned, "os") end
+              if io ~= nil then table.insert(banned, "io") end
+              if package ~= nil then table.insert(banned, "package") end
+              if debug ~= nil then table.insert(banned, "debug") end
+              if loadfile ~= nil then table.insert(banned, "loadfile") end
+              if dofile ~= nil then table.insert(banned, "dofile") end
+              if load ~= nil then table.insert(banned, "load") end
+              if require ~= nil then table.insert(banned, "require") end
+              if #banned > 0 then
+                error("restricted libraries present: " .. table.concat(banned, ","))
+              end
+              return { metrics = { { name = "restricted", value = 1, kind = "gauge" } } }
+            end
+        "#;
+        let result = run_plugin_source("restricted-stdlib.lua", source)
+            .expect("restricted Lua stdlib must still run collect()");
+        assert_eq!(result.metrics.len(), 1);
+        assert_eq!(result.metrics[0].name, "restricted");
+    }
+
+    #[test]
+    fn run_plugin_source_allows_math_string_and_table() {
+        let source = r#"
+            function collect(ctx)
+              local name = string.lower("CPU")
+              local value = math.floor(math.pi)
+              local tags = { source = table.concat({"lua", "math"}, "-") }
+              return {
+                metrics = {
+                  { name = name, value = value, kind = "gauge", tags = tags }
+                }
+              }
+            end
+        "#;
+        let result = run_plugin_source("math-ok.lua", source).expect("safe libs");
+        assert_eq!(result.metrics[0].name, "cpu");
+        assert_eq!(result.metrics[0].value, 3.0);
+        assert_eq!(
+            result.metrics[0].tags.get("source").map(String::as_str),
+            Some("lua-math")
+        );
     }
 
     #[test]

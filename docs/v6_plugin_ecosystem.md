@@ -12,17 +12,17 @@ OmniMon V6 incorpora un ecosistema de plugins embebidos para que operadores y eq
 - Motor: `mlua` con runtime `lua54` vendorizado.
 - Modelo de ejecucion:
   - Cada plugin se ejecuta en una VM Lua fresca por corrida.
-  - No se exponen APIs de filesystem, red ni subprocess al script.
-  - El backend solo entrega un contexto serializado con telemetria segura y de solo lectura.
-  - Cada ejecucion usa limites de memoria e instrucciones para evitar cuelgues.
+  - Stdlib restringida: `coroutine`, `table`, `string`, `utf8`, `math`. No se cargan `io`, `os`, `package` ni `debug`. `load`/`loadfile`/`dofile` se anulan.
+  - El backend solo entrega un contexto serializado con telemetria de solo lectura.
+  - Cada ejecucion usa limites de memoria e instrucciones para acotar loops Lua.
 
-### 2. Sandbox y contencion
+### 2. Contencion (no es un sandbox de seguridad)
 
 - Límite de memoria por VM: `1 MiB`.
-- Límite de tiempo por corrida: `150 ms`.
-- Hook de instrucciones: aborta loops infinitos o cargas de CPU prolongadas.
+- Límite de tiempo por corrida: `150 ms` (hook de instrucciones; no interrumpe llamadas C bloqueantes).
 - Sin FFI, sin bindings a shell, sin acceso a Tauri desde Lua.
-- VM efimera por poll: un plugin no puede mantener estado mutable compartido entre corridas ni contaminar el host.
+- VM efimera por poll: un plugin no puede mantener estado mutable compartido entre corridas.
+- Esto **no** es un sandbox de proceso/seccomp. Un plugin es codigo local que el usuario instala; solo carga scripts de confianza.
 
 ### 3. Contrato publico de plugins
 
@@ -87,7 +87,7 @@ No se entrega acceso a APIs privilegiadas ni handles del sistema.
   - activar/desactivar plugins
   - eliminar plugins
   - refrescar estado y metricas emitidas
-  - inspeccionar errores de sandbox/validacion
+  - inspeccionar errores de validacion o de la VM restringida
 
 ### IPC expuesto al frontend
 
@@ -116,7 +116,7 @@ No se entrega acceso a APIs privilegiadas ni handles del sistema.
 ## Limitaciones actuales
 
 - La primera iteracion expone una API de lectura, no una API de acciones.
-- El aislamiento es fuerte a nivel de VM embebida, memoria y tiempo, pero no reemplaza un proceso separado o WASM capability-based para escenarios de amenaza extrema.
+- El aislamiento es stdlib restringida + memoria + tiempo en una VM embebida. No reemplaza un proceso separado, seccomp o WASM capability-based.
 - No existe aun firma criptografica ni marketplace de plugins.
 
 ## Evolucion sugerida V6.x
