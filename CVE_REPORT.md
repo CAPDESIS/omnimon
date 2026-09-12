@@ -1,35 +1,35 @@
 # OmniMon CVE Report
 
-Date: 2026-03-08
-Command: `cargo audit --json`
+Date: 2026-09-11
+Command: `cargo audit` (CI job in `.github/workflows/omnimon-ci.yml`) plus lockfile inspection
 Workspace: `v4/`
+Lockfile SoT: `v4/Cargo.lock`
 
 ## Executive Summary
 
-- Rust dependency vulnerabilities found: `1`
-- Informational dependency warnings also present: `unmaintained` and `unsound` crates in the GTK3/Linux desktop stack and related transitive dependencies
-- Highest confirmed actionable item in this audit: `CVE-2026-25727` in `time 0.3.45`
+- `CVE-2026-25727` / `RUSTSEC-2026-0009` in `time 0.3.45` is **mitigated in the current lockfile**.
+- Installed `time` version: **0.3.54** (patched floor is `>= 0.3.47`).
+- `RUSTSEC-2026-0258` in `h2 0.4.15` was present on 2026-09-11; lockfile bumped to **`h2 0.4.16`**.
+- Informational `unmaintained` / `unsound` warnings may still appear from the GTK3/Linux desktop stack; they are not counted as confirmed CVEs.
+- Re-run `cargo audit` in `v4/` before claiming a clean advisory set; this file tracks lockfile evidence plus the 2026-09-11 scan.
 
 ## Confirmed CVEs
 
-| CVE | RustSec | CVSS | Affected crate | Current version | Patched version | Risk | Status |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `CVE-2026-25727` | `RUSTSEC-2026-0009` | High availability impact (`CVSS:4.0/AV:N/AC:H/AT:N/PR:L/UI:A/VC:N/VI:N/VA:H/SC:N/SI:N/SA:H`) | `time` | `0.3.45` | `>= 0.3.47` | RFC 2822 parsing can trigger stack exhaustion and denial of service with malicious input | Pending |
+| CVE | RustSec | Affected crate | Lockfile version | Patched version | Status |
+| --- | --- | --- | --- | --- | --- |
+| `CVE-2026-25727` | `RUSTSEC-2026-0009` | `time` | `0.3.54` | `>= 0.3.47` | Mitigated in lockfile |
+| `RUSTSEC-2026-0258` | `RUSTSEC-2026-0258` | `h2` | `0.4.16` | `>= 0.4.16` | Mitigated in lockfile (was 0.4.15) |
 
 ## Vulnerability Detail
 
 ### `CVE-2026-25727` / `RUSTSEC-2026-0009`
 
 - Crate: `time`
-- Installed version: `0.3.45`
+- Historical report (2026-03-08): `0.3.45` pending, blocked by an older `mac-notification-sys` pin
+- Current lockfile: `0.3.54` (`v4/Cargo.lock` package `time`)
 - Fixed version: `0.3.47` or newer
-- Risk summary: specially crafted RFC 2822 date input can cause stack exhaustion and crash the parsing process.
-- Likely impact to OmniMon: low-to-moderate unless untrusted RFC 2822 date parsing is reachable in runtime paths; still should be patched because it is present in the shipped dependency graph.
-- Proposed remediation:
-  - run `cargo update -p time --precise 0.3.47` or newer,
-  - rebuild and rerun `cargo audit`,
-  - validate no transitive crate pins an older incompatible `time` version.
-- Status: not patched in this branch.
+- Risk summary: specially crafted RFC 2822 date input can cause stack exhaustion
+- Status: **mitigated** in this workspace lock. Do not `cargo update -p time` solely for this CVE unless `cargo audit` flags it again.
 
 ## Informational Warnings
 

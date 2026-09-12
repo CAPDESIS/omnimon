@@ -174,16 +174,18 @@ graph LR
 
 ```mermaid
 graph LR
-    LUA[Lua Plugin<br/>collect fn] --> SANDBOX[Sandbox<br/>150ms / 1MB]
-    SANDBOX --> METRICS[Custom Metrics]
+    LUA[Lua Plugin<br/>collect fn] --> LIMITS[Restricted stdlib<br/>150ms / 1MB]
+    LIMITS --> METRICS[Custom Metrics]
     METRICS --> UI[Frontend Display]
 ```
 
-Plugins are Lua scripts with a `collect(ctx)` entry point. Each plugin runs in a sandboxed environment with:
-- **150ms** execution timeout
+Plugins are Lua scripts with a `collect(ctx)` entry point. Each plugin runs in an embedded Lua 5.4 VM with a **restricted standard library** (no `io`/`os`/`package`/`debug`, and `load`/`loadfile`/`dofile` removed), plus:
+- **150ms** instruction-budget timeout (does not interrupt blocking C calls; those APIs are not loaded)
 - **1MB** memory limit
 - **64** max metrics per plugin
 - **32** max plugins total
+
+This is **not** a process or seccomp sandbox. Only load scripts you trust.
 
 Managed via IPC: `install_plugin`, `list_plugins`, `set_plugin_enabled`, `remove_plugin`.
 

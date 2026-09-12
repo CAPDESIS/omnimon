@@ -68,6 +68,7 @@ describe("Plugins", () => {
       expect(screen.getByRole("dialog", { name: "Plugins" })).toBeInTheDocument();
       expect(screen.getByText("No plugins installed")).toBeInTheDocument();
       expect(screen.getByText("Load a collector")).toBeInTheDocument();
+      expect(screen.queryByText(/sandbox/i)).not.toBeInTheDocument();
     });
   });
 

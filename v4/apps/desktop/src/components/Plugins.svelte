@@ -196,7 +196,7 @@ end`;
       <div class="banner success">{uploadState}</div>
     {/if}
     {#if error}
-      <div class="banner error">{error}</div>
+      <div class="banner error" role="alert">{error}</div>
     {/if}
 
     <div class="plugins-body">

@@ -27,7 +27,7 @@ OmniMon is a next-generation, cross-platform system monitor built with Rust and 
 - **Security & compliance** — CVE auditing, NIST SP 800-53 heartbeats, encrypted audit trails, Ed25519 release signing
 - **User profiles** — Preset configurations (minimal/balanced/power) with customizable dashboard layouts, refresh intervals, and favorite processes
 - **SRE automations** — User-defined rules for alerts and auto-actions with native OS notifications
-- **Plugin system** — Extend monitoring with Lua plugins (sandboxed, 150ms timeout, 1MB memory limit)
+- **Plugin system** — Extend monitoring with Lua plugins (restricted stdlib, 150ms timeout, 1MB memory limit; not a security sandbox)
 - **Three interfaces** — Desktop GUI, CLI, and interactive TUI (htop-style)
 
 ## Quick Start
@@ -175,7 +175,7 @@ OmniMon es un monitor de sistema multiplataforma de nueva generación construido
 - **Seguridad y cumplimiento** — Auditoría CVE, heartbeats NIST SP 800-53, trails de auditoría cifrados, firma Ed25519
 - **Perfiles de usuario** — Presets configurables (minimal/balanced/power) con layouts de dashboard, intervalos de refresco y procesos favoritos
 - **Automatizaciones SRE** — Reglas definidas por el usuario para alertas y acciones automáticas
-- **Sistema de plugins** — Extiende el monitoreo con plugins Lua (sandboxed)
+- **Sistema de plugins** — Extiende el monitoreo con plugins Lua (stdlib restringida, 150ms, 1MB; no es un sandbox de seguridad)
 - **Tres interfaces** — GUI de escritorio, CLI e interfaz TUI interactiva
 
 ## Inicio Rápido
