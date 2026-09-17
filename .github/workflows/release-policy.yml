@@ -38,6 +38,11 @@ jobs:
         env:
           ENFORCE: 'true'
           PRODUCTION_DAY: 'weekly'
+          # Fleet runner policy 2026-09-17: private repos stay 100% self-hosted,
+          # public repos move validation to GitHub-hosted (free and unmetered
+          # for public repositories). The ubuntu-latest audit below is therefore
+          # a finding only when the repository is private.
+          REPO_PRIVATE: ${{ github.event.repository.private }}
         run: |
           set -euo pipefail
 
@@ -147,7 +152,11 @@ jobs:
             fi
 
             if workflow_has "$file" "runs-on:[[:space:]]*ubuntu-latest"; then
-              warn "\`${base}\` still uses \`ubuntu-latest\`. Linux CI should prefer \`[self-hosted, ci-runner-node, ...]\` unless intentionally cloud-hosted."
+              if [ "${REPO_PRIVATE:-true}" = "true" ]; then
+                warn "\`${base}\` uses \`ubuntu-latest\` in a PRIVATE repository. Private repos bill GitHub-hosted minutes; use \`[self-hosted, ci-runner-node, ...]\`."
+              else
+                note "- OK: \`${base}\` uses \`ubuntu-latest\`. GitHub-hosted runners are free for public repositories, so validation must not consume the shared self-hosted pool (fleet runner policy 2026-09-17)."
+              fi
             fi
           done
 

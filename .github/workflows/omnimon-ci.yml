@@ -1,8 +1,16 @@
-# Trusted Linux validation uses the public test runner. Releases use the
-# separate public deploy runner so validation cannot consume deploy capacity.
-# Native macOS/Windows jobs remain hosted because the managed Mac/Windows
-# groups intentionally reject public repositories; moving them requires an
-# explicit security allowlist change before those labels can be used here.
+# Runner policy (CAPDESIS fleet, 2026-09-17): this repository is PUBLIC, so
+# GitHub-hosted runners are free and unmetered. All validation lanes (lint,
+# matrix selection, tests, coverage, security audit) therefore run on
+# ubuntu-latest / macos-latest / windows-latest and no longer consume the
+# shared self-hosted VPS pool.
+# The release lane keeps its Linux build on the public self-hosted deploy
+# runner (labels: self-hosted, public-only, ci-runner-node, deploy-only ->
+# ci-runner-node-public-deploy-1 in org runner group 6 "public-builds"), and
+# sign-release / rename-assets stay on the public self-hosted lane
+# (ci-runner-node-public-1) because they carry the release signing path.
+# macos-latest / windows-latest in the release matrix are deliberate: no
+# self-hosted Windows runner exists at all, and the macOS runner group
+# "macos-on-demand" is not visible to this public repository.
 name: OmniMon CI/CD
 
 on:
@@ -33,7 +41,7 @@ jobs:
   lint:
     name: Lint (fmt + clippy)
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, public-only, ci-runner-node, test-light]
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -53,7 +61,10 @@ jobs:
         if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y build-essential file libwebkit2gtk-4.1-dev librsvg2-dev patchelf libxdo-dev libssl-dev
+          # libappindicator3-dev was dropped in Ubuntu 24.04; ayatana is the
+          # replacement that tray-icon/libappindicator-sys links against.
+          sudo apt-get install -y libayatana-appindicator3-dev || sudo apt-get install -y libappindicator3-dev
 
       - name: Check Formatting
         run: cargo fmt --check
@@ -66,7 +77,7 @@ jobs:
   select-test-matrix:
     name: Select validation platforms
     needs: [lint]
-    runs-on: [self-hosted, public-only, ci-runner-node, test-light]
+    runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
@@ -74,13 +85,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # The daily schedule validates Linux on the public self-hosted pool.
-          # Native jobs are opt-in via workflow_dispatch because their secure
-          # runner groups intentionally reject this public repository.
+          # Public repository: GitHub-hosted runners are free, so the daily
+          # schedule validates Linux on ubuntu-latest. macOS/Windows stay
+          # opt-in via workflow_dispatch only to keep the daily run short;
+          # they are GitHub-hosted too and cost nothing here.
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            matrix='{"include":[{"platform":"linux","os":["self-hosted","public-only","ci-runner-node","test-light"],"experimental":false},{"platform":"macos","os":"macos-latest","experimental":true},{"platform":"windows","os":"windows-latest","experimental":true}]}'
+            matrix='{"include":[{"platform":"linux","os":"ubuntu-latest","experimental":false},{"platform":"macos","os":"macos-latest","experimental":true},{"platform":"windows","os":"windows-latest","experimental":true}]}'
           else
-            matrix='{"include":[{"platform":"linux","os":["self-hosted","public-only","ci-runner-node","test-light"],"experimental":false}]}'
+            matrix='{"include":[{"platform":"linux","os":"ubuntu-latest","experimental":false}]}'
           fi
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
@@ -111,7 +123,10 @@ jobs:
         if: matrix.platform == 'linux' && runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y build-essential file libwebkit2gtk-4.1-dev librsvg2-dev patchelf libxdo-dev libssl-dev
+          # libappindicator3-dev was dropped in Ubuntu 24.04; ayatana is the
+          # replacement that tray-icon/libappindicator-sys links against.
+          sudo apt-get install -y libayatana-appindicator3-dev || sudo apt-get install -y libappindicator3-dev
 
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -154,7 +169,7 @@ jobs:
   coverage:
     name: Coverage Gates
     needs: [lint]
-    runs-on: [self-hosted, public-only, ci-runner-node, test-light]
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -171,7 +186,10 @@ jobs:
         if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y build-essential file libwebkit2gtk-4.1-dev librsvg2-dev patchelf libxdo-dev libssl-dev
+          # libappindicator3-dev was dropped in Ubuntu 24.04; ayatana is the
+          # replacement that tray-icon/libappindicator-sys links against.
+          sudo apt-get install -y libayatana-appindicator3-dev || sudo apt-get install -y libappindicator3-dev
 
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -229,7 +247,7 @@ jobs:
   security:
     name: Security Audit
     needs: [coverage]
-    runs-on: [self-hosted, public-only, ci-runner-node, test-light]
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -407,7 +425,10 @@ jobs:
         if: matrix.platform == 'linux' && runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y build-essential file libwebkit2gtk-4.1-dev librsvg2-dev patchelf libxdo-dev libssl-dev
+          # libappindicator3-dev was dropped in Ubuntu 24.04; ayatana is the
+          # replacement that tray-icon/libappindicator-sys links against.
+          sudo apt-get install -y libayatana-appindicator3-dev || sudo apt-get install -y libappindicator3-dev
 
       - name: Build and Release with Tauri Action
         uses: tauri-apps/tauri-action@73fb865345c54760d875b94642314f8c0c894afa # v0
