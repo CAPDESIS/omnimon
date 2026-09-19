@@ -12,6 +12,9 @@ for most product code lives under `v4/`.
 - `v4/crates/tui/`: terminal UI crate
 - `omnimon_landing/` does NOT live in this repo; the landing site is a
   separate repository (`chochy2001/omnimon_landing`)
+- `tools/macos-memory-guard/`: optional macOS LaunchAgent (`omnimon-memory-guard`).
+  Validate with `bash tools/macos-memory-guard/memory-guard.sh selftest`. Do not
+  auto-kill Warp, Chrome, agents, or `fseventsd`.
 
 ## Commands
 

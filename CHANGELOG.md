@@ -2,9 +2,22 @@
 
 ## Unreleased
 
+## 6.8.0 (2026-09-19)
+
+### Memory Guard (macOS LaunchAgent)
+
+- Open-source daemon under `tools/macos-memory-guard/` (`omnimon-memory-guard`)
+- Deterministic classifier (`prove` table): only idle orphans (`ppid=1`, ≥1h). Never Warp, Chrome, agent CLIs, MCP, live tests, or `fseventsd`
+- One instance, fixed 15s sample, no osascript in the run loop
+- Month-old Warp/Cursor sessions notify; `review-sessions` is the only yes/no dialog
+- Complements in-app Zombie Killer (alert-only by default); does not change `never_kill` defaults
+- CI job `Memory Guard prove` on `ubuntu-latest`
+
+### Also from Unreleased
+
 - Lua plugins: restricted stdlib (`no io/os/package/debug`, `load`/`loadfile`/`dofile` removed) plus tests; docs no longer call the VM a security sandbox
 - Desktop empty process table now uses real EN/ES copy instead of raw i18n keys
-- Homebrew cask remains on published tag `6.6.6`; workspace manifests stay `6.7.0` until a DMG exists
+- Homebrew cask remains on published tag `6.6.6`; workspace manifests are `6.8.0` until a DMG exists
 - CVE report aligned with `v4/Cargo.lock` (`time 0.3.54`, `h2 0.4.16`)
 
 ## 6.7.0 (2026-04-17)
