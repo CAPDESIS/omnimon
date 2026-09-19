@@ -33,7 +33,20 @@ Implement native macOS desktop integration for OmniMon v4 with three capabilitie
 - Add Tauri IPC commands:
   - `get_autostart_enabled() -> bool`
   - `set_autostart_enabled(enabled: bool) -> ()`
-- Use official plugin manager APIs; no custom launch-agent scripts.
+- Use official plugin manager APIs for the **desktop app** autostart.
+
+### 3b) Optional Memory Guard LaunchAgent (macOS)
+
+Separate from Tauri autostart. User-installed:
+
+```bash
+bash tools/macos-memory-guard/install-memory-guard.sh
+omnimon-memory-guard prove
+```
+
+- Does **not** replace Zombie Killer.
+- Never SIGKILLs `fseventsd`, Warp, Chrome main, or agent CLIs with a living parent.
+- Suggested Zombie Killer UI `never_kill` tags (do not change engine defaults): `Warp`, `Google Chrome`. `fseventsd` is already immutable-blocked in `killer.rs`.
 
 ### 4) Frontend preference UX
 

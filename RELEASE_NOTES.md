@@ -1,3 +1,19 @@
+# OmniMon v6.8.0 Release Notes
+
+Release date: 2026-09-19
+
+## Memory Guard (macOS)
+
+Optional LaunchAgent in `tools/macos-memory-guard/`. Install with `bash tools/macos-memory-guard/install-memory-guard.sh`. The CLI is `omnimon-memory-guard`.
+
+It watches RAM pressure and only reaps **idle leftover orphans** (`ppid=1`, CPU idle, age ≥ 1 hour): leftover Flutter testers, `python -m http.server`, `php -S`, `next-server`, `git fsmonitor`, and stuck `head`/`tail` pipes. It **never** kills Warp, Chrome, Cursor, ChatGPT, agent CLIs with a living parent, MCP servers, or Apple's `fseventsd`.
+
+The run loop is deterministic: one process, fixed 15s sample, no osascript. Month-old Warp/Cursor sessions get a notification; the only yes/no dialog is `omnimon-memory-guard review-sessions`. `omnimon-memory-guard prove` is the classifier contract.
+
+This does not replace the in-app Zombie Killer (alert-only by default). Homebrew remains on published tag `6.6.6` until a Universal DMG exists.
+
+---
+
 # OmniMon v6.7.0 Release Notes
 
 Release date: 2026-04-17

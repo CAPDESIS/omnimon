@@ -74,6 +74,16 @@ jobs:
         run: cargo clippy --workspace -- -D warnings
         working-directory: ./v4
 
+  memory-guard:
+    name: Memory Guard prove
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Classifier contract
+        run: bash tools/macos-memory-guard/memory-guard.sh selftest
+
   select-test-matrix:
     name: Select validation platforms
     needs: [lint]
