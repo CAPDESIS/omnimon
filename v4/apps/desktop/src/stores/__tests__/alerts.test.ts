@@ -27,6 +27,7 @@ import {
 } from "../alerts";
 import type { ProcessEntry, SystemStats } from "../../lib/types";
 import { _resetToasts, toasts } from "../toasts";
+import { notificationLevel } from "../preferences";
 import * as ipcModule from "../../lib/ipc";
 import { askAiRequest, focusNetworkRequest } from "../uiActions";
 import { listen } from "@tauri-apps/api/event";
@@ -77,6 +78,7 @@ function makeProc(overrides?: Partial<ProcessEntry>): ProcessEntry {
 describe("alerts store", () => {
   beforeEach(() => {
     mockListen.mockReset();
+    notificationLevel.set("all");
     _resetAlerts();
     _resetToasts();
   });
@@ -350,6 +352,39 @@ describe("alerts store", () => {
     unsubscribe();
     expect(unlistenSecurity).toHaveBeenCalledOnce();
     expect(unlistenNetwork).toHaveBeenCalledOnce();
+  });
+
+  it("does not toast non-critical security alerts when the user asked for critical only", async () => {
+    const handlers: Record<string, (event: { payload: any }) => void> = {};
+    mockListen.mockImplementation(async (eventName: string, cb: (event: { payload: any }) => void) => {
+      handlers[eventName] = cb;
+      return vi.fn();
+    });
+    notificationLevel.set("critical");
+    _resetToasts();
+    await initSecurityAlertListener();
+
+    handlers["security-alert"]?.({
+      payload: {
+        pid: 11,
+        process_name: "node",
+        rule_name: "cpu",
+        message: "high",
+        severity: "warning",
+      },
+    });
+    expect(get(toasts)).toHaveLength(0);
+
+    handlers["security-alert"]?.({
+      payload: {
+        pid: 12,
+        process_name: "malware",
+        rule_name: "inject",
+        message: "bad",
+        severity: "critical",
+      },
+    });
+    expect(get(toasts)).toHaveLength(1);
   });
 
   it("returns noop unsubscriber when tauri listener init fails", async () => {

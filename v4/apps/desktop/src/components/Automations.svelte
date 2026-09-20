@@ -115,7 +115,7 @@
             <option value="cpu">{t("automations.cpuPct")}</option>
           </select>
           <input class="auto-input" type="number" bind:value={threshold} placeholder={t("automations.threshold")} disabled={busy} />
-          <input class="auto-input" type="number" bind:value={duration_secs} placeholder={t("automations.durationSeconds")} disabled={busy} />
+          <input class="auto-input" type="number" min="1" max="86400" bind:value={duration_secs} placeholder={t("automations.durationSeconds")} disabled={busy} />
           <select class="auto-select" bind:value={action} disabled={busy}>
             <option value="alert">{t("automations.alert")}</option>
             <option value="kill">{t("automations.killProcess")}</option>

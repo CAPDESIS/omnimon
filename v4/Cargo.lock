@@ -769,7 +769,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "cli"
-version = "6.7.0"
+version = "6.8.0"
 dependencies = [
  "assert_cmd",
  "base64 0.22.1",
@@ -852,7 +852,7 @@ dependencies = [
 
 [[package]]
 name = "core"
-version = "6.7.0"
+version = "6.8.0"
 dependencies = [
  "aes-gcm",
  "aya",
@@ -3332,7 +3332,7 @@ dependencies = [
 
 [[package]]
 name = "omnimon-desktop"
-version = "6.7.0"
+version = "6.8.0"
 dependencies = [
  "core",
  "keyring",
@@ -3353,7 +3353,7 @@ dependencies = [
 
 [[package]]
 name = "omnimon-tui"
-version = "6.7.0"
+version = "6.8.0"
 dependencies = [
  "core",
  "crossterm",

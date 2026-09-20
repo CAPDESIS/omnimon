@@ -370,9 +370,10 @@ export async function initSecurityAlertListener(): Promise<() => void> {
         return next.length > MAX_DYNAMIC ? next.slice(-MAX_DYNAMIC) : next;
       });
       const level = get(notificationLevel);
-      // Assuming security alerts might have severity, otherwise treat as critical
-      const isCritical = (alert as any).severity === "critical" || true;
-      if (level === "all" || (level === "critical" && isCritical)) {
+      const severity = typeof (alert as { severity?: unknown }).severity === "string"
+        ? (alert as { severity?: string }).severity
+        : undefined;
+      if (level === "all" || (level === "critical" && severity === "critical")) {
         toast.warning(formatDynamicAlertTitle(alert), formatDynamicAlertMessage(alert));
       }
     });
