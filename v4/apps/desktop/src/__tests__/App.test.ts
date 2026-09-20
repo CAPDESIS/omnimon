@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { writable, derived } from "svelte/store";
 import App from "../App.svelte";
 import { ipcAnalyzeContext } from "../lib/ipc";
+import { startPolling } from "../stores/processes";
+import { loadPreferences } from "../stores/preferences";
 
 vi.mock("../lib/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/ipc")>();
@@ -269,5 +271,25 @@ describe("App AI Command Bar", () => {
     await waitFor(() => {
       expect(screen.getAllByText(/unlock Network Map, deep diagnostics/i).length).toBeGreaterThan(0);
     });
+  });
+
+  it("does not start polling if unmounted before preferences resolve", async () => {
+    vi.mocked(startPolling).mockClear();
+    let resolvePrefs: (() => void) | undefined;
+    vi.mocked(loadPreferences).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolvePrefs = resolve;
+        }),
+    );
+
+    const { unmount } = render(App);
+    unmount();
+    expect(resolvePrefs).toBeDefined();
+    resolvePrefs!();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(startPolling).not.toHaveBeenCalled();
   });
 });

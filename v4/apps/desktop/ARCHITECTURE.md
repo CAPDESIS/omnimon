@@ -14,15 +14,15 @@ reactive view layer that never touches the OS directly.
 │  │                                                   │  │
 │  │  macmon_core::watcher ──▶ SystemStats (cached)    │  │
 │  │  macmon_core::metrics ──▶ ProcessMemoryEntry[]    │  │
-│  │  macmon_core::killer  ──▶ kill_process_safe()     │  │
+│  │  macmon_core::killer  ──▶ kill_process_identified()│  │
 │  │  sysinfo::System      ──▶ CPU / exe / uptime      │  │
 │  │                                                   │  │
 │  │  ┌─────────────────────────────────────────────┐  │  │
 │  │  │         Tauri IPC Commands (lib.rs)         │  │  │
 │  │  │                                             │  │  │
 │  │  │  get_metrics()  → Metrics { procs, stats }  │  │  │
-│  │  │  kill_process(pid)  → bool                  │  │  │
-│  │  │  kill_processes(pids)  → killed[]           │  │  │
+│  │  │  kill_process(pid, start_time) → bool       │  │  │
+│  │  │  kill_processes([{pid,startTime}]) → killed[]│  │  │
 │  │  └──────────────────┬──────────────────────────┘  │  │
 │  └─────────────────────┼─────────────────────────────┘  │
 │                        │ JSON over IPC                   │

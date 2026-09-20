@@ -46,7 +46,7 @@ omnimon-memory-guard prove
 
 - Does **not** replace Zombie Killer.
 - Never SIGKILLs `fseventsd`, Warp, Chrome main, or agent CLIs with a living parent.
-- Suggested Zombie Killer UI `never_kill` tags (do not change engine defaults): `Warp`, `Google Chrome`. `fseventsd` is already immutable-blocked in `killer.rs`.
+- Suggested Zombie Killer UI `never_kill` tags (do not change engine defaults): `Warp`, `Google Chrome`. Tags match process name **or** `exe_path` (Warp’s live binary is `.../Warp.app/Contents/MacOS/stable`). `fseventsd` is already immutable-blocked in `killer.rs`.
 
 ### 4) Frontend preference UX
 

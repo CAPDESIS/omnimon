@@ -15,13 +15,22 @@
   let activeTab = $state<"connections" | "processes">("connections");
 
   onMount(() => {
+    let disposed = false;
     let unlisten: (() => void) | null = null;
-    initNetworkListener().then(fn => {
+    initNetworkListener().then((fn) => {
+      if (disposed) {
+        fn();
+        return;
+      }
       unlisten = fn;
     });
 
     return () => {
-      if (unlisten) unlisten();
+      disposed = true;
+      if (unlisten) {
+        unlisten();
+        unlisten = null;
+      }
     };
   });
 

@@ -138,7 +138,9 @@ fn classify_process(
     }
 
     if config.never_kill.iter().any(|entry| {
-        entry.eq_ignore_ascii_case(&proc.name) || entry.eq_ignore_ascii_case(&proc.exec_name)
+        let path = proc.exe_path.as_deref().map(std::path::Path::new);
+        crate::killer::blocklist_entry_matches(entry, &proc.name, path)
+            || crate::killer::blocklist_entry_matches(entry, &proc.exec_name, path)
     }) {
         return None;
     }
@@ -237,6 +239,63 @@ mod tests {
         };
         let procs = vec![make_proc(1, "mydaemon", 99.0, 0, 0)];
         assert!(identify_candidates(&procs, &config, 10_000_000).is_empty());
+    }
+
+    #[test]
+    fn never_kill_warp_matches_stable_binary_path() {
+        let config = ZombieKillerConfig {
+            never_kill: vec!["Warp".to_string()],
+            ..Default::default()
+        };
+        let now = 10_000_000;
+        let start = now - (10 * 24 * 60 * 60);
+        let mut proc = make_proc(6186, "stable", 90.0, 512 * 1024 * 1024, start);
+        proc.exec_name = "stable".to_string();
+        proc.exe_path = Some("/Applications/Warp.app/Contents/MacOS/stable".into());
+        assert!(
+            identify_candidates(&[proc], &config, now).is_empty(),
+            "tag Warp must match exe_path Warp.app, not ucomm=stable"
+        );
+    }
+
+    #[test]
+    fn never_kill_warp_does_not_hide_unrelated_stable_without_path() {
+        let config = ZombieKillerConfig {
+            never_kill: vec!["Warp".to_string()],
+            ..Default::default()
+        };
+        let now = 10_000_000;
+        let start = now - (10 * 24 * 60 * 60);
+        let mut proc = make_proc(99, "stable", 90.0, 0, start);
+        proc.exec_name = "stable".to_string();
+        proc.exe_path = None;
+        assert_eq!(identify_candidates(&[proc], &config, now).len(), 1);
+    }
+
+    #[test]
+    fn never_kill_warp_does_not_hide_cloudflare_warp() {
+        let config = ZombieKillerConfig {
+            never_kill: vec!["Warp".to_string()],
+            ..Default::default()
+        };
+        let now = 10_000_000;
+        let start = now - (10 * 24 * 60 * 60);
+        let mut proc = make_proc(70, "Cloudflare WARP", 90.0, 0, start);
+        proc.exec_name = "Cloudflare WARP".to_string();
+        proc.exe_path =
+            Some("/Applications/Cloudflare WARP.app/Contents/MacOS/Cloudflare WARP".into());
+        assert_eq!(identify_candidates(&[proc], &config, now).len(), 1);
+    }
+
+    #[test]
+    fn default_never_kill_stays_empty_so_warp_can_still_be_a_candidate() {
+        let config = ZombieKillerConfig::default();
+        assert!(config.never_kill.is_empty());
+        let now = 10_000_000;
+        let start = now - (10 * 24 * 60 * 60);
+        let mut proc = make_proc(6186, "stable", 90.0, 512 * 1024 * 1024, start);
+        proc.exe_path = Some("/Applications/Warp.app/Contents/MacOS/stable".into());
+        assert_eq!(identify_candidates(&[proc], &config, now).len(), 1);
     }
 
     #[test]
