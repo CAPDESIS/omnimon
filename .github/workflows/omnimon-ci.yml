@@ -324,14 +324,29 @@ jobs:
         working-directory: ./v4/apps/desktop
 
       - name: Frontend Audit
-        continue-on-error: true
         run: |
           mkdir -p ../../reports
-          if bun audit --help >/dev/null 2>&1; then
-            bun audit 2>&1 | tee ../../reports/frontend-audit.txt
-          else
+          if ! bun audit --help >/dev/null 2>&1; then
             bunx audit-ci@^7 --moderate 2>&1 | tee ../../reports/frontend-audit.txt
+            exit $?
           fi
+          # Informe completo como artefacto, dependencias de desarrollo
+          # incluidas: son la mayoria y no llegan al binario.
+          bun audit 2>&1 | tee ../../reports/frontend-audit.txt || true
+
+          # Lo que bloquea: high o critical en una dependencia de PRODUCCION.
+          # Antes el paso entero llevaba `continue-on-error: true`, de modo que
+          # `bun audit` salia 1 y el build seguia verde: era el unico chequeo
+          # de seguridad de la flota incapaz de poner nada en rojo.
+          # Estado medido 2026-09-20 tras subir dompurify a 3.4.15: produccion
+          # tiene 1 moderate (devalue, arrastrado por svelte) y cero high, asi
+          # que este umbral no bloquea hoy y si bloqueara una regresion grave.
+          echo "--- dependencias de produccion ---"
+          bun audit --prod 2>&1 | tee -a ../../reports/frontend-audit.txt || true
+          bun audit --prod --audit-level=high >/dev/null 2>&1 || {
+            echo "::error::Vulnerabilidad high o critical en una dependencia de produccion; el informe completo esta en reports/frontend-audit.txt"
+            exit 1
+          }
         working-directory: ./v4/apps/desktop
 
       - name: Generate CVE Report
