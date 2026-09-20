@@ -292,7 +292,8 @@ export async function killSelected(): Promise<number[]> {
 export async function killSingle(pid: number, name?: string): Promise<boolean> {
   if (!(await confirmAction(t("processes.confirmKillSingle", { name: name ?? String(pid), pid })))) return false;
   try {
-    const ok = await ipcKillProcess(pid);
+    const startTime = get(processes).find((p) => p.pid === pid)?.start_time;
+    const ok = await ipcKillProcess(pid, startTime);
     if (ok) {
       processes.update(($procs) => $procs.filter((p) => p.pid !== pid));
       selectedPids.update(($pids) => {

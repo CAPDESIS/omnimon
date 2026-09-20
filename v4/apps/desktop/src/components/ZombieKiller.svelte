@@ -127,13 +127,13 @@
     return Math.min(Math.max(value, min), max);
   }
 
-  async function handleKillOne(pid: number) {
+  async function handleKillOne(zombie: ZombieCandidate) {
     error = null;
     try {
-      await invoke("kill_zombie", { pid });
-      zombies = zombies.filter((z) => z.pid !== pid);
+      await invoke("kill_zombie", { pid: zombie.pid, startTime: zombie.startTime });
+      zombies = zombies.filter((z) => !(z.pid === zombie.pid && z.startTime === zombie.startTime));
     } catch (e) {
-      error = t("zombieKiller.errorKillOne", { pid, error: String(e) });
+      error = t("zombieKiller.errorKillOne", { pid: zombie.pid, error: String(e) });
     }
   }
 
@@ -357,7 +357,7 @@
                     variant="danger"
                     size="sm"
                     type="button"
-                    onclick={() => handleKillOne(z.pid)}
+                    onclick={() => handleKillOne(z)}
                   >
                     {t("zombieKiller.kill")}
                   </Button>

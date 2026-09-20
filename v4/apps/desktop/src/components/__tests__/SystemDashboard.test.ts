@@ -39,7 +39,7 @@ function makeProc(overrides?: Record<string, unknown>) {
     energy_impact_score: 0,
     group_key: "other:a", group_identity_type: "normalized_name",
     grouped_name: "A", process_count: 1,
-    is_system: false, state: "R",
+    is_system: false, state: "R", start_time: 1_700_000_000,
     ...overrides,
   };
 }

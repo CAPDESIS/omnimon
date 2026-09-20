@@ -21,6 +21,7 @@ export interface ProcessEntry {
   is_system: boolean;
   idle: boolean;
   state: string;
+  start_time: number;
 }
 
 export interface SystemStats {

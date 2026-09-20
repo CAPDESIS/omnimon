@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use sysinfo::{Pid, ProcessRefreshKind, Signal, System};
 
@@ -86,6 +86,8 @@ pub enum KillError {
     Blocked(String),
     /// The kill signal was sent but the process did not terminate.
     KillFailed(u32),
+    /// PID is still in use but it is a different process (PID reuse).
+    IdentityMismatch { pid: u32 },
 }
 
 impl fmt::Display for KillError {
@@ -97,8 +99,70 @@ impl fmt::Display for KillError {
                 write!(f, "refusing to kill protected process: {name}")
             }
             KillError::KillFailed(pid) => write!(f, "failed to kill process: {pid}"),
+            KillError::IdentityMismatch { pid } => {
+                write!(
+                    f,
+                    "process identity changed for pid {pid} (possible PID reuse); kill aborted"
+                )
+            }
         }
     }
+}
+
+/// Snapshot of a live process used to decide whether a PID still names the
+/// intended target. `start_time` is unix seconds from sysinfo, which maps to
+/// macOS `kinfo_proc.p_starttime`, Linux `/proc/<pid>/stat` starttime, and
+/// Windows `FILETIME` process creation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProcessSnapshot {
+    pub pid: u32,
+    pub name: String,
+    pub exe_path: Option<PathBuf>,
+    pub start_time: u64,
+}
+
+/// Caller-supplied identity for a kill. PID alone is not an identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KillIdentity {
+    pub pid: u32,
+    pub start_time: Option<u64>,
+    pub name: Option<String>,
+    pub exe_path: Option<PathBuf>,
+}
+
+/// Returns true when `live` is still the process the caller intended to kill.
+pub fn identity_still_same(expected: &KillIdentity, live: &ProcessSnapshot) -> bool {
+    if expected.pid != live.pid {
+        return false;
+    }
+    if let Some(start) = expected.start_time {
+        if start != 0 && live.start_time != start {
+            return false;
+        }
+    }
+    if let Some(ref name) = expected.name {
+        if !name.eq_ignore_ascii_case(&live.name) {
+            return false;
+        }
+    }
+    match (&expected.exe_path, &live.exe_path) {
+        (Some(exp), Some(got)) => exp == got,
+        (Some(_), None) => false,
+        (None, _) => true,
+    }
+}
+
+pub fn refuse_if_identity_changed(
+    expected: &KillIdentity,
+    live: Option<&ProcessSnapshot>,
+) -> Result<(), KillError> {
+    let Some(live) = live else {
+        return Err(KillError::ProcessNotFound(expected.pid));
+    };
+    if !identity_still_same(expected, live) {
+        return Err(KillError::IdentityMismatch { pid: expected.pid });
+    }
+    Ok(())
 }
 
 impl std::error::Error for KillError {}
@@ -217,62 +281,88 @@ pub fn kill_process_safe(pid: i32, extra_blocklist: &[String]) -> Result<KillRes
     if pid <= 1 {
         return Err(KillError::InvalidPid(pid));
     }
+    kill_process_identified(
+        KillIdentity {
+            pid: pid as u32,
+            start_time: None,
+            name: None,
+            exe_path: None,
+        },
+        extra_blocklist,
+    )
+}
 
-    let pid_u32 = pid as u32;
-    // Only load process data — skip disks, networks, components, memory, CPU
+/// Kill only if the live process still matches `expected`.
+///
+/// When `start_time` is set, a recycled PID with a new creation time is
+/// refused *before* any signal is sent (POSIX/Windows process-handle rule).
+pub fn kill_process_identified(
+    expected: KillIdentity,
+    extra_blocklist: &[String],
+) -> Result<KillResult, KillError> {
+    if expected.pid <= 1 {
+        return Err(KillError::InvalidPid(expected.pid as i32));
+    }
+
+    let pid_u32 = expected.pid;
     let mut system = System::new();
     system.refresh_processes_specifics(ProcessRefreshKind::everything());
 
     let process_pid = Pid::from_u32(pid_u32);
+    let live = system.process(process_pid).map(|process| ProcessSnapshot {
+        pid: pid_u32,
+        name: process.name().to_string(),
+        exe_path: process.exe().map(|p| p.to_path_buf()),
+        start_time: process.start_time(),
+    });
+    refuse_if_identity_changed(&expected, live.as_ref())?;
+    let snapshot = live.expect("refuse_if_identity_changed checked Some");
 
-    // Extract process info and attempt graceful kill while the borrow is active.
-    let (process_name, process_exe) = {
+    if is_blocked_process_name(
+        &snapshot.name,
+        snapshot.exe_path.as_deref(),
+        extra_blocklist,
+    ) {
+        return Err(KillError::Blocked(snapshot.name));
+    }
+
+    {
         let process = system
             .process(process_pid)
             .ok_or(KillError::ProcessNotFound(pid_u32))?;
-
-        let name = process.name().to_string();
-        let exe = process.exe().map(|p| p.to_path_buf());
-
-        // Check blocklist before attempting any kill
-        if is_blocked_process_name(&name, exe.as_deref(), extra_blocklist) {
-            return Err(KillError::Blocked(name));
-        }
-
-        // Attempt graceful SIGTERM; ignore the result since we always
-        // follow up with a force kill if the process is still alive.
         let _ = process.kill_with(Signal::Term).unwrap_or(false) || process.kill();
-        (name, exe)
-    };
-    // The immutable borrow on `system` is now dropped.
+    }
 
-    // Wait for graceful SIGTERM to take effect.
     std::thread::sleep(Duration::from_millis(300));
 
-    let killed = if !process_is_alive(&mut system, pid_u32) {
-        // Process exited after SIGTERM — success.
+    let original_gone = |system: &mut System| {
+        !process_is_alive(system, pid_u32)
+            || !identity_matches(
+                system,
+                pid_u32,
+                &snapshot.name,
+                snapshot.exe_path.as_deref(),
+                Some(snapshot.start_time),
+            )
+    };
+
+    let killed = if original_gone(&mut system) {
         true
-    } else if !identity_matches(&mut system, pid_u32, &process_name, process_exe.as_deref()) {
-        // PID exists but identity changed (PID reuse) — the original
-        // process is dead, so this is a success.
-        true
-    } else if crate::os_native::kill_process_force(pid_u32, &process_name, process_exe.as_deref())
-        .is_ok()
+    } else if crate::os_native::kill_process_force(
+        pid_u32,
+        &snapshot.name,
+        snapshot.exe_path.as_deref(),
+    )
+    .is_ok()
     {
         std::thread::sleep(Duration::from_millis(200));
-        // After force kill, check if the process is gone.
-        if !process_is_alive(&mut system, pid_u32)
-            || !identity_matches(&mut system, pid_u32, &process_name, process_exe.as_deref())
-        {
+        if original_gone(&mut system) {
             true
         } else {
-            // Retry: wait a bit more and check again.
             std::thread::sleep(Duration::from_millis(200));
-            !process_is_alive(&mut system, pid_u32)
-                || !identity_matches(&mut system, pid_u32, &process_name, process_exe.as_deref())
+            original_gone(&mut system)
         }
     } else {
-        // Force kill call itself failed.
         false
     };
 
@@ -282,7 +372,7 @@ pub fn kill_process_safe(pid: i32, extra_blocklist: &[String]) -> Result<KillRes
 
     Ok(KillResult {
         pid: pid_u32,
-        process_name,
+        process_name: snapshot.name,
         killed,
     })
 }
@@ -297,21 +387,26 @@ fn identity_matches(
     pid: u32,
     expected_name: &str,
     expected_exe: Option<&Path>,
+    expected_start_time: Option<u64>,
 ) -> bool {
     system.refresh_processes_specifics(ProcessRefreshKind::everything());
     let Some(current) = system.process(Pid::from_u32(pid)) else {
         return false;
     };
-
-    if current.name() != expected_name {
-        return false;
-    }
-
-    match (expected_exe, current.exe()) {
-        (Some(expected), Some(current_exe)) => current_exe == expected,
-        (None, _) => true,
-        (Some(_), None) => false,
-    }
+    identity_still_same(
+        &KillIdentity {
+            pid,
+            start_time: expected_start_time,
+            name: Some(expected_name.to_string()),
+            exe_path: expected_exe.map(Path::to_path_buf),
+        },
+        &ProcessSnapshot {
+            pid,
+            name: current.name().to_string(),
+            exe_path: current.exe().map(|p| p.to_path_buf()),
+            start_time: current.start_time(),
+        },
+    )
 }
 
 #[cfg(test)]
@@ -514,6 +609,9 @@ mod tests {
             KillError::KillFailed(99).to_string(),
             "failed to kill process: 99"
         );
+        assert!(KillError::IdentityMismatch { pid: 8 }
+            .to_string()
+            .contains("PID reuse"));
     }
 
     #[test]
@@ -554,7 +652,13 @@ mod tests {
             candidate = candidate.saturating_add(1);
         }
 
-        assert!(!identity_matches(&mut system, candidate, "missing", None));
+        assert!(!identity_matches(
+            &mut system,
+            candidate,
+            "missing",
+            None,
+            None
+        ));
     }
 
     #[test]
@@ -574,12 +678,14 @@ mod tests {
             current_pid,
             "definitely-not-the-current-process",
             current_exe.as_deref(),
+            None,
         ));
 
         assert!(identity_matches(
             &mut system,
             current_pid,
             &current_name,
+            None,
             None
         ));
 
@@ -589,6 +695,68 @@ mod tests {
             current_pid,
             &current_name,
             Some(fake_exe),
+            None,
         ));
+    }
+
+    fn snap(pid: u32, name: &str, start_time: u64, exe: Option<&str>) -> ProcessSnapshot {
+        ProcessSnapshot {
+            pid,
+            name: name.to_string(),
+            exe_path: exe.map(PathBuf::from),
+            start_time,
+        }
+    }
+
+    fn want(pid: u32, name: &str, start_time: Option<u64>, exe: Option<&str>) -> KillIdentity {
+        KillIdentity {
+            pid,
+            start_time,
+            name: Some(name.to_string()),
+            exe_path: exe.map(PathBuf::from),
+        }
+    }
+
+    #[test]
+    fn same_pid_and_start_time_is_the_same_process() {
+        let expected = want(100, "chrome", Some(1_700_000_000), Some("/opt/chrome"));
+        let live = snap(100, "chrome", 1_700_000_000, Some("/opt/chrome"));
+        assert!(identity_still_same(&expected, &live));
+    }
+
+    #[test]
+    fn pid_reuse_with_new_start_time_is_not_the_same_process() {
+        let expected = want(100, "chrome", Some(1_700_000_000), None);
+        let live = snap(100, "chrome", 1_700_000_500, None);
+        assert!(!identity_still_same(&expected, &live));
+        assert!(matches!(
+            refuse_if_identity_changed(&expected, Some(&live)),
+            Err(KillError::IdentityMismatch { pid: 100 })
+        ));
+    }
+
+    #[test]
+    fn name_mismatch_is_not_the_same_process() {
+        let expected = want(7, "node", Some(50), None);
+        let live = snap(7, "python", 50, None);
+        assert!(!identity_still_same(&expected, &live));
+    }
+
+    #[test]
+    fn missing_live_process_is_not_found() {
+        let expected = want(9, "node", Some(1), None);
+        assert!(matches!(
+            refuse_if_identity_changed(&expected, None),
+            Err(KillError::ProcessNotFound(9))
+        ));
+    }
+
+    #[test]
+    fn unspecified_start_time_still_requires_name() {
+        let expected = want(3, "sleep", None, None);
+        let live = snap(3, "sleep", 99, None);
+        assert!(identity_still_same(&expected, &live));
+        let other = snap(3, "bash", 99, None);
+        assert!(!identity_still_same(&expected, &other));
     }
 }
