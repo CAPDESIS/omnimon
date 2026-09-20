@@ -388,19 +388,23 @@
     }
   }
 
-  function startTimeForPid(pid: number): number | undefined {
-    const startTime = get(processes).find((p) => p.pid === pid)?.start_time;
-    return startTime && startTime > 0 ? startTime : undefined;
+  function parseKillProcessDetails(details: string): { pid: number; name: string; startTime?: number } {
+    const parts = details.replace("kill_process:", "").split(":");
+    const pid = parseInt(parts[0], 10);
+    const startTimeRaw = parts.length >= 3 ? parseInt(parts[parts.length - 1], 10) : NaN;
+    const name = parts.slice(1, Math.max(parts.length - 1, 2)).join(":") || "unknown";
+    return {
+      pid,
+      name,
+      startTime: Number.isFinite(startTimeRaw) && startTimeRaw > 0 ? startTimeRaw : undefined,
+    };
   }
 
   async function executeKillProcess(details: string): Promise<{ success: boolean; message: string }> {
-    const parts = details.replace("kill_process:", "").split(":");
-    const pid = parseInt(parts[0], 10);
-    const name = parts[1] ?? "unknown";
+    const { pid, name, startTime } = parseKillProcessDetails(details);
     if (!pid || pid <= 0) {
-      return { success: false, message: t("aiChat.invalidPid", { pid: parts[0] }) };
+      return { success: false, message: t("aiChat.invalidPid", { pid: String(pid || 0) }) };
     }
-    const startTime = startTimeForPid(pid);
     if (startTime === undefined) {
       return { success: false, message: t("processes.killMissingIdentity") };
     }
@@ -419,10 +423,11 @@
     const pid = parseInt(parts[0], 10);
     const ip = parts[1];
     const port = parts[2];
+    const startTimeRaw = parseInt(parts[3] ?? "", 10);
+    const startTime = Number.isFinite(startTimeRaw) && startTimeRaw > 0 ? startTimeRaw : undefined;
     if (!pid || pid <= 0) {
       return { success: false, message: t("aiChat.invalidPid", { pid: parts[0] }) };
     }
-    const startTime = startTimeForPid(pid);
     if (startTime === undefined) {
       return { success: false, message: t("processes.killMissingIdentity") };
     }
@@ -440,16 +445,16 @@
   async function executeKillByName(details: string): Promise<{ success: boolean; message: string }> {
     const parts = details.replace("kill_by_name:", "").split(":");
     const name = parts[0] ?? "";
-    const pids = (parts[1] ?? "").split(",").map(p => parseInt(p, 10)).filter(p => p > 0);
-    if (pids.length === 0) {
-      return { success: false, message: t("aiChat.noValidPids", { name }) };
-    }
-    const targets = pids.flatMap((pid) => {
-      const startTime = startTimeForPid(pid);
-      return startTime === undefined ? [] : [{ pid, startTime }];
-    });
+    const targets = (parts[1] ?? "")
+      .split(",")
+      .flatMap((entry) => {
+        const [pidRaw, startRaw] = entry.split("@");
+        const pid = parseInt(pidRaw ?? "", 10);
+        const startTime = parseInt(startRaw ?? "", 10);
+        return pid > 0 && startTime > 0 ? [{ pid, startTime }] : [];
+      });
     if (targets.length === 0) {
-      return { success: false, message: t("processes.killMissingIdentity") };
+      return { success: false, message: t("aiChat.noValidPids", { name }) };
     }
     try {
       const result = await ipcKillProcesses(targets);
@@ -458,7 +463,7 @@
       if (killed > 0) {
         return {
           success: true,
-          message: t("aiChat.killedProcesses", { killed, total: pids.length, name, failedText: failed > 0 ? ` (${failed} failed)` : "" }),
+          message: t("aiChat.killedProcesses", { killed, total: targets.length, name, failedText: failed > 0 ? ` (${failed} failed)` : "" }),
         };
       }
       return { success: false, message: t("aiChat.failedKillAny", { name }) };

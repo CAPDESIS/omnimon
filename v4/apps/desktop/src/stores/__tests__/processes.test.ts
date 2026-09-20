@@ -364,6 +364,22 @@ describe("killSingle", () => {
     expect(mockInvoke).not.toHaveBeenCalled();
   });
 
+  it("uses start_time captured before confirm, not a recycled PID", async () => {
+    processes.set([makeProc({ pid: 1, start_time: 100 })]);
+    let resolveConfirm: (value: boolean) => void = () => {};
+    mockConfirmAction.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        resolveConfirm = resolve;
+      }),
+    );
+    mockInvoke.mockResolvedValue(true);
+    const pending = killSingle(1, "TestApp");
+    processes.set([makeProc({ pid: 1, start_time: 999 })]);
+    resolveConfirm(true);
+    expect(await pending).toBe(true);
+    expect(mockInvoke).toHaveBeenCalledWith("kill_process", { pid: 1, startTime: 100 });
+  });
+
   it("does not remove process when IPC returns false", async () => {
     processes.set([makeProc({ pid: 1 })]);
     mockInvoke.mockResolvedValue(false);

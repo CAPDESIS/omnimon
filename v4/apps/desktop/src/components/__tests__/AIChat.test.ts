@@ -650,7 +650,7 @@ describe("AIChat", () => {
       tool_call: {
         tool: "kill_process",
         success: true,
-        details: "kill_process:101:Chrome",
+        details: "kill_process:101:Chrome:1700000000",
       },
     });
     mockKillProcess.mockResolvedValueOnce(false);
@@ -698,7 +698,7 @@ describe("AIChat", () => {
       tool_call: {
         tool: "kill_by_name",
         success: true,
-        details: "kill_by_name:Chrome:101,102,103",
+        details: "kill_by_name:Chrome:101@1700000000,102@1700000000,103@1700000000",
       },
     });
     mockKillProcesses.mockResolvedValueOnce({ killed: [101, 102], failed: [103] });
@@ -727,7 +727,7 @@ describe("AIChat", () => {
       tool_call: {
         tool: "close_connection",
         success: true,
-        details: "close_connection:101:8.8.8.8:443",
+        details: "close_connection:101:8.8.8.8:443:1700000000",
       },
     });
     mockKillProcess.mockResolvedValueOnce(true);
@@ -799,7 +799,7 @@ describe("AIChat", () => {
       tool_call: {
         tool: "kill_process",
         success: true,
-        details: "kill_process:101:Chrome",
+        details: "kill_process:101:Chrome:1700000000",
       },
     });
 
