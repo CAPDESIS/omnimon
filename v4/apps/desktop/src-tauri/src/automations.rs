@@ -28,7 +28,9 @@ const MIN_DURATION_SECS: u64 = 1;
 const MAX_DURATION_SECS: u64 = 86_400;
 
 fn sanitize_rule(mut rule: AutomationRule) -> AutomationRule {
-    rule.duration_secs = rule.duration_secs.clamp(MIN_DURATION_SECS, MAX_DURATION_SECS);
+    rule.duration_secs = rule
+        .duration_secs
+        .clamp(MIN_DURATION_SECS, MAX_DURATION_SECS);
     rule
 }
 
