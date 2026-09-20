@@ -459,6 +459,7 @@
     document.documentElement.setAttribute("data-platform", platform);
 
     loadPreferences().then(() => {
+      if (disposed) return;
       console.debug("[APP] Preferences loaded, initializing i18n and polling.");
       initI18n($localePreference);
       startPolling($refreshInterval);

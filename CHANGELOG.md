@@ -14,6 +14,10 @@
 - Batch kill rate-limit is one token per request, not per PID
 - Memory Guard `safe_kill_pid` re-checks `ps -o lstart` (and host/protected names) before SIGKILL; notifications pass title/body as `osascript` argv
 - CLI `omnimon kill` and TUI `K` snapshot the live `(pid, start_time, name, exe)` and call `kill_process_identified`, so SIGKILL cannot hit a recycled PID. `start_time == 0` is refused.
+- `kill_process_safe` now snapshots live identity (same as `kill_process_current`); it is no longer a PID-only SIGTERM
+- Zombie Killer `never_kill` / extra-blocklist tags match `exe_path` as an exact `.app`/filename stem, so the suggested tag `Warp` covers `.../Warp.app/Contents/MacOS/stable` without matching `Cloudflare WARP.app`. Default `never_kill` stays empty
+- Desktop `startPolling` uses a generation token so overlapping `listen("metrics-update")` cannot leak a stale unlisten; App unmount ignores a late `loadPreferences` start
+- Memory Guard `session_dialog` (`review-sessions`) passes label/pid/days/timeout as `osascript` argv, same as `notify()`
 
 ### Desktop notifications and i18n (`#54`)
 

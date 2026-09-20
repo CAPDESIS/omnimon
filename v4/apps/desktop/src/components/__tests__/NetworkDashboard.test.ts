@@ -76,4 +76,24 @@ describe("NetworkDashboard", () => {
     expect(screen.getByText("Network usage by process")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Filter by process...")).not.toBeInTheDocument();
   });
+
+  it("drops the listener if unmounted before init resolves", async () => {
+    const unlisten = vi.fn();
+    let resolveListener: ((fn: () => void) => void) | undefined;
+    mockInitNetworkListener.mockImplementationOnce(
+      () =>
+        new Promise<() => void>((resolve) => {
+          resolveListener = resolve;
+        }),
+    );
+
+    const { unmount } = render(NetworkDashboard);
+    unmount();
+    expect(resolveListener).toBeDefined();
+    resolveListener!(unlisten);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(unlisten).toHaveBeenCalled();
+  });
 });

@@ -238,6 +238,51 @@ pub(crate) fn is_immutable_blocked_process(process_name: &str, exe_path: Option<
     }
 }
 
+/// Match a user `never_kill` / extra-blocklist tag against live identity.
+///
+/// Warp's `ucomm` is `stable`, so name-only compare is not enough. Path match
+/// is an exact component stem (`Warp` → `Warp.app` or `Warp.exe`), not a
+/// substring of the whole path (that would also hit `Cloudflare WARP.app`
+/// or `/Users/warp/...`).
+pub(crate) fn blocklist_entry_matches(
+    entry: &str,
+    process_name: &str,
+    exe_path: Option<&Path>,
+) -> bool {
+    let entry = entry.trim();
+    if entry.is_empty() {
+        return false;
+    }
+    if process_name.eq_ignore_ascii_case(entry) {
+        return true;
+    }
+    exe_path.is_some_and(|path| path_tag_matches(path, entry))
+}
+
+fn path_tag_matches(path: &Path, entry: &str) -> bool {
+    let needle = entry
+        .trim()
+        .trim_end_matches(".exe")
+        .trim_end_matches(".app")
+        .to_ascii_lowercase();
+    if needle.is_empty() {
+        return false;
+    }
+    let stem_eq = |raw: &str| -> bool {
+        let stem = raw.trim_end_matches(".exe").trim_end_matches(".app");
+        stem == needle
+    };
+    if path.components().any(|component| {
+        let raw = component.as_os_str().to_string_lossy().to_ascii_lowercase();
+        raw.ends_with(".app") && stem_eq(&raw)
+    }) {
+        return true;
+    }
+    path.file_name()
+        .map(|name| name.to_string_lossy().to_ascii_lowercase())
+        .is_some_and(|name| stem_eq(&name))
+}
+
 fn is_blocked_process_name(
     process_name: &str,
     exe_path: Option<&Path>,
@@ -247,7 +292,7 @@ fn is_blocked_process_name(
 
     let is_extra_blocked = extra_blocklist
         .iter()
-        .any(|name| name.eq_ignore_ascii_case(process_name));
+        .any(|name| blocklist_entry_matches(name, process_name, exe_path));
 
     is_default_blocked || is_extra_blocked
 }
@@ -278,24 +323,10 @@ fn kill_process_by_name(
 
 /// Attempt to terminate a process by PID, respecting the protected-process blocklist.
 ///
-/// Sends SIGTERM first, then escalates to a force kill if the process survives.
-/// Returns an error if the PID is invalid, not found, blocked, or if the kill fails.
-///
-/// CLI/TUI should prefer [`kill_process_current`]: this helper still omits
-/// `start_time`, so the SIGKILL re-check cannot refuse a recycled PID.
+/// Snapshots live `(pid, start_time)` first (same as [`kill_process_current`])
+/// so SIGKILL cannot hit a recycled PID.
 pub fn kill_process_safe(pid: i32, extra_blocklist: &[String]) -> Result<KillResult, KillError> {
-    if pid <= 1 {
-        return Err(KillError::InvalidPid(pid));
-    }
-    kill_process_identified(
-        KillIdentity {
-            pid: pid as u32,
-            start_time: None,
-            name: None,
-            exe_path: None,
-        },
-        extra_blocklist,
-    )
+    kill_process_current(pid, extra_blocklist)
 }
 
 /// Snapshot the live process as `(pid, start_time, name, exe)` and kill that identity.
@@ -589,6 +620,55 @@ mod tests {
             || true,
         );
         assert!(matches!(result, Err(KillError::Blocked(name)) if name == "mydaemon"));
+    }
+
+    #[test]
+    fn extra_blocklist_warp_matches_stable_binary_path() {
+        let extra = vec!["Warp".to_string()];
+        let result = kill_process_by_name(
+            6186,
+            "stable".to_string(),
+            Some(Path::new("/Applications/Warp.app/Contents/MacOS/stable")),
+            &extra,
+            || panic!("Warp.app must be blocked before SIGTERM"),
+        );
+        assert!(matches!(result, Err(KillError::Blocked(name)) if name == "stable"));
+    }
+
+    #[test]
+    fn extra_blocklist_warp_does_not_block_unrelated_stable_without_path() {
+        let extra = vec!["Warp".to_string()];
+        let result = kill_process_by_name(99, "stable".to_string(), None, &extra, || true);
+        assert!(matches!(result, Ok(KillResult { killed: true, .. })));
+    }
+
+    #[test]
+    fn extra_blocklist_warp_does_not_match_cloudflare_warp_or_username() {
+        let extra = vec!["Warp".to_string()];
+        let cloudflare = kill_process_by_name(
+            70,
+            "Cloudflare WARP".to_string(),
+            Some(Path::new(
+                "/Applications/Cloudflare WARP.app/Contents/MacOS/Cloudflare WARP",
+            )),
+            &extra,
+            || true,
+        );
+        assert!(
+            matches!(cloudflare, Ok(KillResult { killed: true, .. })),
+            "tag Warp must not substring-match Cloudflare WARP.app"
+        );
+        let home = kill_process_by_name(
+            71,
+            "stable".to_string(),
+            Some(Path::new("/Users/warp/bin/stable")),
+            &extra,
+            || true,
+        );
+        assert!(
+            matches!(home, Ok(KillResult { killed: true, .. })),
+            "tag Warp must not match a home directory named warp"
+        );
     }
 
     #[test]

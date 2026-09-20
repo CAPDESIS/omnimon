@@ -1106,33 +1106,40 @@ schedule_session_close() {
 
 session_dialog() {
   local label="$1" days="$2" pid="$3"
-  label="$(printf '%s' "$label" | /usr/bin/tr -d '"')"
+  local timeout="${MG_SESSION_DIALOG_TIMEOUT:-180}"
   if [[ "$MG_SESSION_DIALOG" != "1" ]]; then
     printf '%s\n' "snooze"
     return 0
   fi
-  /usr/bin/osascript 2>/dev/null <<EOF || printf '%s\n' "snooze"
-try
-  set r to display dialog "La sesión ${label} (pid ${pid}) lleva ${days} días abierta.
-
-Si aceptas, los agentes tendrán un margen para commit, documentar y no perder trabajo. Después se cierra.
-
-¿Cerrar esta sesión?" buttons {"Ahora no", "Sí, en 15 min", "Sí, en 1 hora"} default button "Ahora no" giving up after ${MG_SESSION_DIALOG_TIMEOUT}
-  if gave up of r then
+  [[ "$timeout" =~ ^[0-9]+$ ]] || timeout=180
+  if (( timeout < 1 || timeout > 3600 )); then
+    timeout=180
+  fi
+  /usr/bin/osascript - "$label" "$days" "$pid" "$timeout" 2>/dev/null <<'APPLESCRIPT' || printf '%s\n' "snooze"
+on run argv
+  set sessionLabel to item 1 of argv
+  set sessionDays to item 2 of argv
+  set sessionPid to item 3 of argv
+  set dialogTimeout to item 4 of argv as integer
+  try
+    set dialogText to "La sesión " & sessionLabel & " (pid " & sessionPid & ") lleva " & sessionDays & " días abierta." & return & return & "Si aceptas, los agentes tendrán un margen para commit, documentar y no perder trabajo. Después se cierra." & return & return & "¿Cerrar esta sesión?"
+    set r to display dialog dialogText buttons {"Ahora no", "Sí, en 15 min", "Sí, en 1 hora"} default button "Ahora no" giving up after dialogTimeout
+    if gave up of r then
+      return "snooze"
+    end if
+    set b to button returned of r
+    if b is "Sí, en 15 min" then
+      return "15"
+    else if b is "Sí, en 1 hora" then
+      return "60"
+    else
+      return "snooze"
+    end if
+  on error
     return "snooze"
-  end if
-  set b to button returned of r
-  if b is "Sí, en 15 min" then
-    return "15"
-  else if b is "Sí, en 1 hora" then
-    return "60"
-  else
-    return "snooze"
-  end if
-on error
-  return "snooze"
-end try
-EOF
+  end try
+end run
+APPLESCRIPT
 }
 
 list_month_sessions() {
@@ -1372,6 +1379,19 @@ CASES
   fi
   if ! printf '%s\n' "$src" | /usr/bin/grep -q 'on run argv'; then
     echo "FAIL prove notify argv"
+    fail=1
+  fi
+  src_dialog="$(declare -f session_dialog 2>/dev/null || true)"
+  if printf '%s\n' "$src_dialog" | /usr/bin/grep -q 'osascript -e'; then
+    echo "FAIL prove session_dialog osascript -e"
+    fail=1
+  fi
+  if printf '%s\n' "$src_dialog" | /usr/bin/grep -q '<<EOF'; then
+    echo "FAIL prove session_dialog interpolated heredoc"
+    fail=1
+  fi
+  if ! printf '%s\n' "$src_dialog" | /usr/bin/grep -q 'on run argv'; then
+    echo "FAIL prove session_dialog argv"
     fail=1
   fi
   return "$fail"

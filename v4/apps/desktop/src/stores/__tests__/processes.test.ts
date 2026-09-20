@@ -709,6 +709,31 @@ describe("polling", () => {
   it("stopPolling is safe before startPolling", () => {
     expect(() => stopPolling()).not.toThrow();
   });
+
+  it("overlapping startPolling does not keep a stale listener", async () => {
+    const unlisten1 = vi.fn();
+    const unlisten2 = vi.fn();
+    let resolveFirst: ((unlisten: () => void) => void) | undefined;
+    vi.mocked(listen)
+      .mockImplementationOnce(
+        () =>
+          new Promise<() => void>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(async () => unlisten2);
+
+    startPolling(1000);
+    startPolling(1000);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(resolveFirst).toBeDefined();
+    resolveFirst!(unlisten1);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(unlisten1).toHaveBeenCalled();
+    stopPolling();
+    expect(unlisten2).toHaveBeenCalled();
+  });
 });
 
 describe("handleMetricsUpdate", () => {

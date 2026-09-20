@@ -439,6 +439,7 @@ const ERROR_TOAST_THRESHOLD = 3;
 // --- Polling lifecycle ---
 let metricsUnlisten: UnlistenFn | null = null;
 let isPollingActive = false;
+let listenGeneration = 0;
 let tabIntervalId: ReturnType<typeof setInterval> | null = null;
 let networkIntervalId: ReturnType<typeof setInterval> | null = null;
 let pollingIntervalMs = 3000;
@@ -481,15 +482,16 @@ export function startPolling(intervalMs = 3000): void {
   pollingIntervalMs = intervalMs > 0 ? intervalMs : get(refreshInterval);
   stopPolling();
   isPollingActive = true;
+  const generation = listenGeneration;
   fetchMetrics();
   listen<Metrics>("metrics-update", (event: { payload: Metrics }) => {
     handleMetricsUpdate(event.payload);
   }).then((unlisten: () => void) => {
-    if (isPollingActive) {
-      metricsUnlisten = unlisten;
-    } else {
+    if (generation !== listenGeneration || !isPollingActive) {
       unlisten();
+      return;
     }
+    metricsUnlisten = unlisten;
   }).catch((e) => {
     console.warn("[processes] Failed to listen for metrics-update:", e);
   });
@@ -499,6 +501,7 @@ export function startPolling(intervalMs = 3000): void {
 
 /** Stops all active polling intervals for metrics and browser tabs. */
 export function stopPolling(): void {
+  listenGeneration += 1;
   isPollingActive = false;
   if (metricsUnlisten !== null) {
     metricsUnlisten();
