@@ -40,6 +40,7 @@
     "decreaseFontLabel": "Decrease font size",
     "increaseFont": "Increase font size ({mod}+=)",
     "increaseFontLabel": "Increase font size",
+    "fontSize": "Font size",
     "profileHelp": "AI analysis profile",
     "generalDesc": "Balanced monitoring for all use cases",
     "developerDesc": "Focuses on dev tools, compilers, and IDE processes",
@@ -267,6 +268,7 @@
     "confirmCloseSelected": "Close {count} selected tab(s)?",
     "confirmCloseAll": "Close all {count} tab(s)?",
     "closeErrorTitle": "Close failed",
+    "focusErrorTitle": "Focus failed",
     "closeCountFailed": "{count} tab(s) could not be closed"
   },
   "table": {
@@ -409,6 +411,8 @@
     "low": "Low",
     "none": "None",
     "healthy": "No security issues detected. Your system appears healthy.",
+    "noFindings": "No findings",
+    "noFindingsDesc": "The last scan did not flag any processes.",
     "summary": "Found {findings} security finding(s) across {processes} process(es). Review the details below.",
     "findings": "Findings",
     "whatHappened": "What happened",
@@ -851,7 +855,7 @@
   },
   "automations": {
     "title": "Automations Engine",
-    "processNameRegex": "Process name (regex)",
+    "processNameRegex": "Process name (substring)",
     "ramMb": "RAM (MB)",
     "cpuPct": "CPU (%)",
     "threshold": "Threshold",

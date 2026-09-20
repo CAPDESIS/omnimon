@@ -20,6 +20,16 @@ describe("i18n", () => {
     expect(t("networkAlerts.types.new_external_connection")).toBe("Nueva conexión externa");
   });
 
+  it("resolves empty-state and toolbar keys instead of printing the path", () => {
+    expect(t("securityReport.noFindings")).not.toBe("securityReport.noFindings");
+    expect(t("securityReport.noFindingsDesc")).not.toBe("securityReport.noFindingsDesc");
+    expect(t("tabs.focusErrorTitle")).not.toBe("tabs.focusErrorTitle");
+    expect(t("toolbar.fontSize")).not.toBe("toolbar.fontSize");
+    locale.set("es");
+    expect(t("securityReport.noFindings")).not.toBe("securityReport.noFindings");
+    expect(t("tabs.focusErrorTitle")).not.toBe("tabs.focusErrorTitle");
+  });
+
   it("falls back to key when translation does not exist", () => {
     locale.set("es");
     expect(t("missing.path.key")).toBe("missing.path.key");

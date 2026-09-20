@@ -24,6 +24,17 @@ const NOTIFICATION_TITLE_ALERT: &str = "Automations Engine Alert";
 
 /// Bytes in one mebibyte, used for memory conversion.
 const BYTES_PER_MB: f64 = 1_048_576.0;
+const MIN_DURATION_SECS: u64 = 1;
+const MAX_DURATION_SECS: u64 = 86_400;
+
+fn sanitize_rule(mut rule: AutomationRule) -> AutomationRule {
+    if rule.duration_secs < MIN_DURATION_SECS {
+        rule.duration_secs = MIN_DURATION_SECS;
+    } else if rule.duration_secs > MAX_DURATION_SECS {
+        rule.duration_secs = MAX_DURATION_SECS;
+    }
+    rule
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum UiLocale {
@@ -161,6 +172,7 @@ fn save_rules(app: &AppHandle, rules: &[AutomationRule]) {
 pub fn add_rule(app: &AppHandle, rule: AutomationRule) {
     let arc = get_rules();
     let mut rules = write_lock_or_recover(&arc);
+    let rule = sanitize_rule(rule);
     rules.push(rule.clone());
     save_rules(app, &rules);
 }
@@ -238,6 +250,17 @@ mod tests {
             duration_secs: 30,
             action: "alert".to_string(),
         }
+    }
+
+    #[test]
+    fn duration_zero_is_clamped_so_kill_rules_cannot_fire_on_first_sight() {
+        let mut rule = make_rule("r", "chrome", "cpu", 80.0);
+        rule.duration_secs = 0;
+        rule.action = "kill".to_string();
+        let sanitized = sanitize_rule(rule);
+        assert_eq!(sanitized.duration_secs, MIN_DURATION_SECS);
+        let now = Instant::now();
+        assert!(now.duration_since(now).as_secs() < sanitized.duration_secs);
     }
 
     #[test]

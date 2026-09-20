@@ -40,6 +40,7 @@
     "decreaseFontLabel": "Reducir tamaño de fuente",
     "increaseFont": "Aumentar tamaño de fuente ({mod}+=)",
     "increaseFontLabel": "Aumentar tamaño de fuente",
+    "fontSize": "Tamaño de fuente",
     "profileHelp": "Perfil de análisis AI",
     "generalDesc": "Monitoreo balanceado para todos los casos de uso",
     "developerDesc": "Enfocado en herramientas de desarrollo, compiladores e IDEs",
@@ -267,6 +268,7 @@
     "confirmCloseSelected": "¿Cerrar {count} pestaña(s) seleccionada(s)?",
     "confirmCloseAll": "¿Cerrar todas las {count} pestaña(s)?",
     "closeErrorTitle": "No se pudieron cerrar pestañas",
+    "focusErrorTitle": "No se pudo enfocar la pestaña",
     "closeCountFailed": "No se pudieron cerrar {count} pestaña(s)"
   },
   "table": {
@@ -409,6 +411,8 @@
     "low": "Bajo",
     "none": "Ninguno",
     "healthy": "No se detectaron problemas de seguridad. Tu sistema parece saludable.",
+    "noFindings": "Sin hallazgos",
+    "noFindingsDesc": "El último escaneo no marcó ningún proceso.",
     "summary": "Se encontraron {findings} hallazgo(s) de seguridad en {processes} proceso(s). Revisa los detalles a continuación.",
     "findings": "Hallazgos",
     "whatHappened": "Qué pasó",
@@ -851,7 +855,7 @@
   },
   "automations": {
     "title": "Motor de automatizaciones",
-    "processNameRegex": "Nombre del proceso (regex)",
+    "processNameRegex": "Nombre del proceso (subcadena)",
     "ramMb": "RAM (MB)",
     "cpuPct": "CPU (%)",
     "threshold": "Umbral",
