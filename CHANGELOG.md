@@ -13,7 +13,7 @@
 - Process list exposes `start_time`; UI and AI chat look it up before invoking kill
 - Batch kill rate-limit is one token per request, not per PID
 - Memory Guard `safe_kill_pid` re-checks `ps -o lstart` (and host/protected names) before SIGKILL; notifications pass title/body as `osascript` argv
-- CLI and TUI still call PID-only `kill_process_safe` (those UIs do not yet send start_time)
+- CLI `omnimon kill` and TUI `K` snapshot the live `(pid, start_time, name, exe)` and call `kill_process_identified`, so SIGKILL cannot hit a recycled PID. `start_time == 0` is refused.
 
 ### Desktop notifications and i18n (`#54`)
 

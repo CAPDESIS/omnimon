@@ -1,6 +1,5 @@
-# Tracks the last published GitHub tag. Workspace manifests are 6.8.0, but
-# there is no Universal DMG to checksum. Do not bump this cask until that
-# artifact exists (see README version note).
+# Tracks the last published GitHub tag (v6.6.6 Universal DMG). Workspace
+# manifests are 6.8.0; do not bump this cask until a 6.8.0 Universal DMG exists.
 cask "omnimon" do
   version "6.6.6"
   sha256 "8293a3f22f507b1144cb4492197176c0db4c537aeacf314c7521984fd0a289f2"
