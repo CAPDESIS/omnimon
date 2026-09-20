@@ -149,7 +149,11 @@ describe("AIChat", () => {
   });
 
   beforeEach(() => {
-    mockProcesses.set([makeProc()]);
+    mockProcesses.set([
+      makeProc({ pid: 101 }),
+      makeProc({ pid: 102 }),
+      makeProc({ pid: 103 }),
+    ]);
     mockAiProviderConfig.set({ provider: "openrouter", model: "test-model" });
     mockAiCacheTtlMinutes.set(5);
     mockUserMode.set("basic");
@@ -646,7 +650,7 @@ describe("AIChat", () => {
       tool_call: {
         tool: "kill_process",
         success: true,
-        details: "kill_process:101:Chrome",
+        details: "kill_process:101:Chrome:1700000000",
       },
     });
     mockKillProcess.mockResolvedValueOnce(false);
@@ -694,7 +698,7 @@ describe("AIChat", () => {
       tool_call: {
         tool: "kill_by_name",
         success: true,
-        details: "kill_by_name:Chrome:101,102,103",
+        details: "kill_by_name:Chrome:101@1700000000,102@1700000000,103@1700000000",
       },
     });
     mockKillProcesses.mockResolvedValueOnce({ killed: [101, 102], failed: [103] });
@@ -707,7 +711,11 @@ describe("AIChat", () => {
     await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
 
     await waitFor(() => {
-      expect(mockKillProcesses).toHaveBeenCalledWith([101, 102, 103]);
+      expect(mockKillProcesses).toHaveBeenCalledWith([
+        { pid: 101, startTime: 1_700_000_000 },
+        { pid: 102, startTime: 1_700_000_000 },
+        { pid: 103, startTime: 1_700_000_000 },
+      ]);
       expect(screen.getByText('Killed 2/3 processes matching "Chrome" \(1 failed\)')).toBeInTheDocument();
       expect(mockToast.success).toHaveBeenCalledWith("Action", 'Killed 2/3 processes matching "Chrome" (1 failed)');
     });
@@ -719,7 +727,7 @@ describe("AIChat", () => {
       tool_call: {
         tool: "close_connection",
         success: true,
-        details: "close_connection:101:8.8.8.8:443",
+        details: "close_connection:101:8.8.8.8:443:1700000000",
       },
     });
     mockKillProcess.mockResolvedValueOnce(true);
@@ -732,7 +740,7 @@ describe("AIChat", () => {
     await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
 
     await waitFor(() => {
-      expect(mockKillProcess).toHaveBeenCalledWith(101);
+      expect(mockKillProcess).toHaveBeenCalledWith(101, 1_700_000_000);
       expect(screen.getByText("Closed connection to 8.8.8.8:443 by terminating PID 101")).toBeInTheDocument();
     });
   });
@@ -791,7 +799,7 @@ describe("AIChat", () => {
       tool_call: {
         tool: "kill_process",
         success: true,
-        details: "kill_process:101:Chrome",
+        details: "kill_process:101:Chrome:1700000000",
       },
     });
 

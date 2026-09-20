@@ -309,7 +309,8 @@
     "metricsFetchFailedTitle": "Falló la carga de métricas",
     "metricsFetchFailedMessage": "Errores repetidos ({count}x): {error}",
     "partialKillTitle": "No se pudieron terminar algunos procesos",
-    "killErrorTitle": "Falló la terminación"
+    "killErrorTitle": "Falló la terminación",
+    "killMissingIdentity": "No se puede terminar: falta la hora de inicio, y un PID reciclado podría recibir la señal."
   },
   "aiChat": {
     "title": "Acciones AI",

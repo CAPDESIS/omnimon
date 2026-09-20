@@ -202,27 +202,31 @@ export async function ipcGetMetrics(idleThreshold?: number): Promise<Metrics> {
   return { processes, stats };
 }
 
-/** Sends a kill signal to a single process by PID. Returns true if successful. */
-export async function ipcKillProcess(pid: number, startTime?: number): Promise<boolean> {
+/** Sends a kill signal to a process identified by PID + startTime. Returns true if successful. */
+export async function ipcKillProcess(pid: number, startTime: number): Promise<boolean> {
   assertIntegerInRange("kill_process args.pid", pid, 1, 0x7fffffff);
-  const args: { pid: number; startTime?: number } = { pid };
-  if (startTime !== undefined && startTime > 0) {
-    args.startTime = startTime;
-  }
-  const result: unknown = await loggedInvoke("kill_process", args);
+  assertIntegerInRange("kill_process args.startTime", startTime, 1, Number.MAX_SAFE_INTEGER);
+  const result: unknown = await loggedInvoke("kill_process", { pid, startTime });
   assertBoolean("kill_process result", result);
   return result;
 }
 
-/** Kills multiple processes by PID in batch. Returns an object with killed PIDs and failed PIDs with error messages. */
-export async function ipcKillProcesses(pids: number[]): Promise<KillProcessesResult> {
-  if (!Array.isArray(pids) || pids.length === 0 || pids.length > 50) {
-    throw new IPCValidationError("kill_processes args.pids", pids, "Expected 1-50 PIDs");
+export type KillTarget = { pid: number; startTime: number };
+
+/** Kills multiple processes by (pid, startTime). Returns killed PIDs and failures. */
+export async function ipcKillProcesses(targets: KillTarget[]): Promise<KillProcessesResult> {
+  if (!Array.isArray(targets) || targets.length === 0 || targets.length > 50) {
+    throw new IPCValidationError("kill_processes args.targets", targets, "Expected 1-50 kill targets");
   }
-  for (let i = 0; i < pids.length; i++) {
-    assertIntegerInRange(`kill_processes args.pids[${i}]`, pids[i], 1, 0x7fffffff);
+  for (let i = 0; i < targets.length; i++) {
+    const target = targets[i];
+    if (target == null || typeof target !== "object") {
+      throw new IPCValidationError(`kill_processes args.targets[${i}]`, target, "Expected { pid, startTime }");
+    }
+    assertIntegerInRange(`kill_processes args.targets[${i}].pid`, target.pid, 1, 0x7fffffff);
+    assertIntegerInRange(`kill_processes args.targets[${i}].startTime`, target.startTime, 1, Number.MAX_SAFE_INTEGER);
   }
-  const result: unknown = await loggedInvoke("kill_processes", { pids });
+  const result: unknown = await loggedInvoke("kill_processes", { targets });
 
   if (result == null || typeof result !== "object" || Array.isArray(result)) {
     throw new IPCValidationError("kill_processes result", result, "Expected object with killed/failed from kill_processes");

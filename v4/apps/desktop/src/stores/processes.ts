@@ -264,8 +264,16 @@ export async function killSelected(): Promise<number[]> {
   };
 
   if (!(await confirmAction(msg, items, onAskAi))) return [];
+  const targets = pids.flatMap((pid) => {
+    const startTime = allProcs.find((p) => p.pid === pid)?.start_time;
+    return startTime && startTime > 0 ? [{ pid, startTime }] : [];
+  });
+  if (targets.length === 0) {
+    toast.error(t("processes.killErrorTitle"), t("processes.killMissingIdentity"));
+    return [];
+  }
   try {
-    const result = await ipcKillProcesses(pids);
+    const result = await ipcKillProcesses(targets);
     const killed = result.killed;
     // Immediately remove killed processes from UI
     processes.update(($procs) => $procs.filter((p) => !killed.includes(p.pid)));
@@ -290,9 +298,14 @@ export async function killSelected(): Promise<number[]> {
 
 /** Kills a single process by PID after user confirmation. Returns true if successfully killed. */
 export async function killSingle(pid: number, name?: string): Promise<boolean> {
+  const observed = get(processes).find((p) => p.pid === pid);
+  const startTime = observed?.start_time;
+  if (!startTime || startTime <= 0) {
+    toast.error(t("processes.killErrorTitle"), t("processes.killMissingIdentity"));
+    return false;
+  }
   if (!(await confirmAction(t("processes.confirmKillSingle", { name: name ?? String(pid), pid })))) return false;
   try {
-    const startTime = get(processes).find((p) => p.pid === pid)?.start_time;
     const ok = await ipcKillProcess(pid, startTime);
     if (ok) {
       processes.update(($procs) => $procs.filter((p) => p.pid !== pid));

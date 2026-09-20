@@ -309,7 +309,8 @@
     "metricsFetchFailedTitle": "Metrics fetch failed",
     "metricsFetchFailedMessage": "Repeated errors ({count}x): {error}",
     "partialKillTitle": "Some processes could not be killed",
-    "killErrorTitle": "Kill failed"
+    "killErrorTitle": "Kill failed",
+    "killMissingIdentity": "Cannot kill: process start time is unknown, so a recycled PID would be at risk."
   },
   "aiChat": {
     "title": "AI Actions",

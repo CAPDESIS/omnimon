@@ -919,21 +919,28 @@ pub fn execute_tool_call(
             }
             // Verify PID exists in current state — but do NOT kill it here.
             // The frontend must confirm and dispatch the IPC kill command.
-            let proc_info = state.cached_process_info.iter().find(|p| p.pid == pid);
-            let proc_name = proc_info.map(|p| p.name.as_str()).unwrap_or("unknown");
-
-            if proc_info.is_none() {
+            let Some(proc_info) = state.cached_process_info.iter().find(|p| p.pid == pid) else {
                 return tool_result(
                     "kill_process",
                     false,
                     format!("tool_process_not_found:{}", pid),
+                );
+            };
+            if proc_info.start_time == 0 {
+                return tool_result(
+                    "kill_process",
+                    false,
+                    format!("tool_process_missing_start_time:{}", pid),
                 );
             }
 
             tool_result(
                 "kill_process",
                 true,
-                format!("kill_process:{}:{}", pid, proc_name),
+                format!(
+                    "kill_process:{}:{}:{}",
+                    pid, proc_info.name, proc_info.start_time
+                ),
             )
         }
         "kill_by_name" => {
@@ -942,14 +949,14 @@ pub fn execute_tool_call(
                 return tool_result("kill_by_name", false, "tool_no_process_name");
             }
             let name_lower = name.to_lowercase();
-            let matching_pids: Vec<u32> = state
+            let matching: Vec<(u32, u64)> = state
                 .cached_process_info
                 .iter()
-                .filter(|p| p.name.to_lowercase().contains(&name_lower))
-                .map(|p| p.pid)
+                .filter(|p| p.name.to_lowercase().contains(&name_lower) && p.start_time > 0)
+                .map(|p| (p.pid, p.start_time))
                 .collect();
 
-            if matching_pids.is_empty() {
+            if matching.is_empty() {
                 return tool_result(
                     "kill_by_name",
                     false,
@@ -957,9 +964,9 @@ pub fn execute_tool_call(
                 );
             }
 
-            let pids_csv = matching_pids
+            let pids_csv = matching
                 .iter()
-                .map(|p| p.to_string())
+                .map(|(pid, start)| format!("{pid}@{start}"))
                 .collect::<Vec<_>>()
                 .join(",");
 
@@ -2410,6 +2417,7 @@ mod tests {
                 name: "Google Chrome".to_string(),
                 memory_bytes: 2 * 1_048_576,
                 cpu_pct: 12.5,
+                start_time: 1_700_000_000,
                 ..Default::default()
             }],
             ..Default::default()
@@ -2418,7 +2426,10 @@ mod tests {
         let kill_ok =
             execute_tool_call("kill_process", &serde_json::json!({ "pid": 4242 }), &state);
         assert!(kill_ok.success);
-        assert_eq!(kill_ok.details, "kill_process:4242:Google Chrome");
+        assert_eq!(
+            kill_ok.details,
+            "kill_process:4242:Google Chrome:1700000000"
+        );
 
         let kill_missing =
             execute_tool_call("kill_process", &serde_json::json!({ "pid": 9999 }), &state);
@@ -2431,7 +2442,7 @@ mod tests {
             &state,
         );
         assert!(kill_by_name.success);
-        assert_eq!(kill_by_name.details, "kill_by_name:chrome:4242");
+        assert_eq!(kill_by_name.details, "kill_by_name:chrome:4242@1700000000");
 
         let close_tabs = execute_tool_call(
             "close_tabs",
@@ -2537,7 +2548,15 @@ mod tests {
 
     #[test]
     fn execute_tool_call_covers_close_connection_and_unknown_tool() {
-        let state = crate::watcher::SystemState::default();
+        let state = crate::watcher::SystemState {
+            cached_process_info: vec![crate::watcher::CachedProcessInfo {
+                pid: 7,
+                name: "curl".to_string(),
+                start_time: 1_700_000_000,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
 
         let ok = execute_tool_call(
             "close_connection",
@@ -2545,7 +2564,7 @@ mod tests {
             &state,
         );
         assert!(ok.success);
-        assert_eq!(ok.details, "close_connection:7:8.8.8.8:443");
+        assert_eq!(ok.details, "close_connection:7:8.8.8.8:443:1700000000");
 
         let missing = execute_tool_call(
             "close_connection",
@@ -3155,7 +3174,7 @@ mod tests {
 
 fn execute_close_connection(
     args: &serde_json::Value,
-    _state: &crate::watcher::SystemState,
+    state: &crate::watcher::SystemState,
 ) -> ToolResult {
     let pid = args.get("pid").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
     let dst_ip = args.get("dst_ip").and_then(|v| v.as_str()).unwrap_or("");
@@ -3168,11 +3187,28 @@ fn execute_close_connection(
             "Missing required fields (pid, dst_ip, dst_port)",
         );
     }
+    let Some(proc_info) = state.cached_process_info.iter().find(|p| p.pid == pid) else {
+        return tool_result(
+            "close_connection",
+            false,
+            format!("tool_process_not_found:{}", pid),
+        );
+    };
+    if proc_info.start_time == 0 {
+        return tool_result(
+            "close_connection",
+            false,
+            format!("tool_process_missing_start_time:{}", pid),
+        );
+    }
 
     // Return a deferred instruction so the frontend can dispatch an IPC command
     tool_result(
         "close_connection",
         true,
-        format!("close_connection:{}:{}:{}", pid, dst_ip, dst_port),
+        format!(
+            "close_connection:{}:{}:{}:{}",
+            pid, dst_ip, dst_port, proc_info.start_time
+        ),
     )
 }
