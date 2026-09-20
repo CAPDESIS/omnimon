@@ -149,7 +149,11 @@ describe("AIChat", () => {
   });
 
   beforeEach(() => {
-    mockProcesses.set([makeProc()]);
+    mockProcesses.set([
+      makeProc({ pid: 101 }),
+      makeProc({ pid: 102 }),
+      makeProc({ pid: 103 }),
+    ]);
     mockAiProviderConfig.set({ provider: "openrouter", model: "test-model" });
     mockAiCacheTtlMinutes.set(5);
     mockUserMode.set("basic");
@@ -707,7 +711,11 @@ describe("AIChat", () => {
     await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
 
     await waitFor(() => {
-      expect(mockKillProcesses).toHaveBeenCalledWith([101, 102, 103]);
+      expect(mockKillProcesses).toHaveBeenCalledWith([
+        { pid: 101, startTime: 1_700_000_000 },
+        { pid: 102, startTime: 1_700_000_000 },
+        { pid: 103, startTime: 1_700_000_000 },
+      ]);
       expect(screen.getByText('Killed 2/3 processes matching "Chrome" \(1 failed\)')).toBeInTheDocument();
       expect(mockToast.success).toHaveBeenCalledWith("Action", 'Killed 2/3 processes matching "Chrome" (1 failed)');
     });
@@ -732,7 +740,7 @@ describe("AIChat", () => {
     await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
 
     await waitFor(() => {
-      expect(mockKillProcess).toHaveBeenCalledWith(101);
+      expect(mockKillProcess).toHaveBeenCalledWith(101, 1_700_000_000);
       expect(screen.getByText("Closed connection to 8.8.8.8:443 by terminating PID 101")).toBeInTheDocument();
     });
   });

@@ -4,7 +4,7 @@ pub mod zombie_killer;
 use macmon_core::browser::{
     sanitize_tab_id, sanitize_tab_url, BrowserKind, BrowserTab, NativeTabProvider, TabProvider,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -393,7 +393,7 @@ fn check_cdp_availability() -> std::collections::HashMap<String, bool> {
     status
 }
 
-/// IPC: Kill a single process by PID using the real OS-native killer.
+/// IPC: Kill a single process identified by PID + start_time.
 #[tauri::command]
 #[tracing::instrument(skip_all)]
 fn kill_process(pid: u32, start_time: Option<u64>) -> Result<bool, String> {
@@ -401,19 +401,18 @@ fn kill_process(pid: u32, start_time: Option<u64>) -> Result<bool, String> {
         "kill_process",
         &macmon_core::rate_limit::profiles::KILL,
     )?;
-    let result = if let Some(start_time) = start_time.filter(|t| *t > 0) {
-        macmon_core::killer::kill_process_identified(
-            macmon_core::killer::KillIdentity {
-                pid,
-                start_time: Some(start_time),
-                name: None,
-                exe_path: None,
-            },
-            &[],
-        )
-    } else {
-        macmon_core::killer::kill_process_safe(pid as i32, &[])
+    let Some(start_time) = start_time.filter(|t| *t > 0) else {
+        return Err("kill_process requires start_time so a recycled PID is not killed".to_string());
     };
+    let result = macmon_core::killer::kill_process_identified(
+        macmon_core::killer::KillIdentity {
+            pid,
+            start_time: Some(start_time),
+            name: None,
+            exe_path: None,
+        },
+        &[],
+    );
     match result {
         Ok(_) => Ok(true),
         Err(macmon_core::killer::KillError::ProcessNotFound(_)) => Ok(false),
@@ -428,6 +427,7 @@ pub struct KillProcessesResult {
     pub failed: Vec<(u32, String)>,
 }
 
+#[cfg(test)]
 fn kill_processes_with<F>(pids: Vec<u32>, mut kill_one: F) -> Result<KillProcessesResult, String>
 where
     F: FnMut(u32) -> Result<(), String>,
@@ -447,19 +447,50 @@ where
     Ok(KillProcessesResult { killed, failed })
 }
 
-/// IPC: Kill multiple processes by PIDs. Returns killed and failed PIDs with error messages.
+/// One process in a batch kill. PID alone is not an identity.
+#[derive(Debug, Clone, Deserialize)]
+pub struct KillTarget {
+    pub pid: u32,
+    #[serde(alias = "startTime")]
+    pub start_time: u64,
+}
+
+/// IPC: Kill multiple processes by (pid, start_time). Returns killed and failed PIDs.
 #[tauri::command]
 #[tracing::instrument(skip_all)]
-fn kill_processes(pids: Vec<u32>) -> Result<KillProcessesResult, String> {
+fn kill_processes(targets: Vec<KillTarget>) -> Result<KillProcessesResult, String> {
     macmon_core::rate_limit::check_rate_limit(
         "kill_processes",
         &macmon_core::rate_limit::profiles::KILL,
     )?;
-    kill_processes_with(pids, |pid| {
-        macmon_core::killer::kill_process_safe(pid as i32, &[])
-            .map(|_| ())
-            .map_err(|e| e.to_string())
-    })
+    if targets.len() > MAX_KILL_BATCH {
+        return Err(format!("error_batch_limit:{MAX_KILL_BATCH}"));
+    }
+    let mut killed = Vec::new();
+    let mut failed = Vec::new();
+    for target in targets {
+        if target.start_time == 0 {
+            failed.push((
+                target.pid,
+                "kill_processes requires start_time so a recycled PID is not killed".to_string(),
+            ));
+            continue;
+        }
+        let expected = macmon_core::killer::KillIdentity {
+            pid: target.pid,
+            start_time: Some(target.start_time),
+            name: None,
+            exe_path: None,
+        };
+        match macmon_core::killer::kill_process_identified(expected, &[]) {
+            Ok(_) => killed.push(target.pid),
+            Err(macmon_core::killer::KillError::ProcessNotFound(_)) => {
+                failed.push((target.pid, "process not found".to_string()))
+            }
+            Err(e) => failed.push((target.pid, e.to_string())),
+        }
+    }
+    Ok(KillProcessesResult { killed, failed })
 }
 
 /// Legacy store filename — only used for migrating existing plain-text keys.
@@ -1601,7 +1632,7 @@ mod tests {
     #[test]
     fn kill_process_missing_pid_is_false_or_error() {
         // Non-existent PID should not panic; ProcessNotFound maps to Ok(false).
-        let result = kill_process(u32::MAX - 7, None);
+        let result = kill_process(u32::MAX - 7, Some(1_700_000_000));
         assert!(result.is_ok() || result.is_err());
         if let Ok(killed) = result {
             assert!(!killed);
@@ -1609,10 +1640,35 @@ mod tests {
     }
 
     #[test]
+    fn kill_process_rejects_missing_start_time() {
+        let err = kill_process(42, None).expect_err("PID-only kill must be refused");
+        assert!(err.contains("start_time"), "{err}");
+        let err = kill_process(42, Some(0)).expect_err("start_time 0 is not an identity");
+        assert!(err.contains("start_time"), "{err}");
+    }
+
+    #[test]
     fn kill_processes_empty_batch_ok() {
         let result = kill_processes(vec![]).expect("empty batch");
         assert!(result.killed.is_empty());
         assert!(result.failed.is_empty());
+    }
+
+    #[test]
+    fn kill_processes_rejects_zero_start_time_without_signaling() {
+        let result = kill_processes(vec![KillTarget {
+            pid: 42,
+            start_time: 0,
+        }])
+        .expect("batch with invalid identity is not a transport error");
+        assert!(result.killed.is_empty());
+        assert_eq!(result.failed.len(), 1);
+        assert_eq!(result.failed[0].0, 42);
+        assert!(
+            result.failed[0].1.contains("start_time"),
+            "{}",
+            result.failed[0].1
+        );
     }
 
     #[test]

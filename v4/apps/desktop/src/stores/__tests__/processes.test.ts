@@ -353,8 +353,15 @@ describe("killSingle", () => {
   });
 
   it("returns false on IPC failure", async () => {
+    processes.set([makeProc({ pid: 99 })]);
     mockInvoke.mockRejectedValue(new Error("fail"));
     expect(await killSingle(99)).toBe(false);
+  });
+
+  it("refuses to kill when start_time is missing", async () => {
+    processes.set([makeProc({ pid: 99, start_time: 0 })]);
+    expect(await killSingle(99)).toBe(false);
+    expect(mockInvoke).not.toHaveBeenCalled();
   });
 
   it("does not remove process when IPC returns false", async () => {

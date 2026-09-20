@@ -175,68 +175,88 @@ describe("ipcGetMetrics", () => {
 describe("ipcKillProcess", () => {
   it("returns true on valid boolean response", async () => {
     mockInvoke.mockResolvedValue(true);
-    expect(await ipcKillProcess(42)).toBe(true);
+    expect(await ipcKillProcess(42, 1_700_000_000)).toBe(true);
+    expect(mockInvoke).toHaveBeenCalledWith("kill_process", { pid: 42, startTime: 1_700_000_000 });
+  });
+
+  it("rejects PID-only kills without startTime", async () => {
+    mockInvoke.mockClear();
+    await expect(ipcKillProcess(42, 0)).rejects.toThrow(IPCValidationError);
+    expect(mockInvoke).not.toHaveBeenCalled();
   });
 
   it("rejects non-boolean response", async () => {
     mockInvoke.mockResolvedValue("yes");
-    await expect(ipcKillProcess(42)).rejects.toThrow(IPCValidationError);
+    await expect(ipcKillProcess(42, 1_700_000_000)).rejects.toThrow(IPCValidationError);
   });
 });
 
 describe("ipcKillProcesses", () => {
+  const t1 = { pid: 1, startTime: 1_700_000_001 };
+  const t2 = { pid: 2, startTime: 1_700_000_002 };
+  const t3 = { pid: 3, startTime: 1_700_000_003 };
+
   it("returns KillProcessesResult on valid response", async () => {
     mockInvoke.mockResolvedValue({ killed: [1, 2, 3], failed: [] });
-    const result = await ipcKillProcesses([1, 2, 3]);
+    const result = await ipcKillProcesses([t1, t2, t3]);
     expect(result.killed).toEqual([1, 2, 3]);
     expect(result.failed).toEqual([]);
+    expect(mockInvoke).toHaveBeenCalledWith("kill_processes", { targets: [t1, t2, t3] });
   });
 
   it("returns result with partial failures", async () => {
     mockInvoke.mockResolvedValue({ killed: [1], failed: [[2, "permission denied"]] });
-    const result = await ipcKillProcesses([1, 2]);
+    const result = await ipcKillProcesses([t1, t2]);
     expect(result.killed).toEqual([1]);
     expect(result.failed).toEqual([[2, "permission denied"]]);
   });
 
+  it("rejects PID-only arrays (old format)", async () => {
+    mockInvoke.mockClear();
+    await expect(ipcKillProcesses([1, 2, 3] as unknown as { pid: number; startTime: number }[])).rejects.toThrow(
+      IPCValidationError,
+    );
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
   it("rejects flat array response (old format)", async () => {
     mockInvoke.mockResolvedValue([1, 2, 3]);
-    await expect(ipcKillProcesses([1, 2, 3])).rejects.toThrow(IPCValidationError);
+    await expect(ipcKillProcesses([t1, t2, t3])).rejects.toThrow(IPCValidationError);
   });
 
   it("rejects non-object response", async () => {
     mockInvoke.mockResolvedValue(42);
-    await expect(ipcKillProcesses([1])).rejects.toThrow(IPCValidationError);
+    await expect(ipcKillProcesses([t1])).rejects.toThrow(IPCValidationError);
   });
 
   it("rejects when killed is not an array", async () => {
     mockInvoke.mockResolvedValue({ killed: "not-array", failed: [] });
-    await expect(ipcKillProcesses([1])).rejects.toThrow(IPCValidationError);
+    await expect(ipcKillProcesses([t1])).rejects.toThrow(IPCValidationError);
   });
 
   it("rejects when failed is not an array", async () => {
     mockInvoke.mockResolvedValue({ killed: [], failed: "not-array" });
-    await expect(ipcKillProcesses([1])).rejects.toThrow(IPCValidationError);
+    await expect(ipcKillProcesses([t1])).rejects.toThrow(IPCValidationError);
   });
 
   it("rejects killed array containing strings", async () => {
     mockInvoke.mockResolvedValue({ killed: [1, "two"], failed: [] });
-    await expect(ipcKillProcesses([1, 2])).rejects.toThrow(IPCValidationError);
+    await expect(ipcKillProcesses([t1, t2])).rejects.toThrow(IPCValidationError);
   });
 
   it("rejects failed entry with wrong tuple shape", async () => {
     mockInvoke.mockResolvedValue({ killed: [], failed: [[1]] });
-    await expect(ipcKillProcesses([1])).rejects.toThrow(IPCValidationError);
+    await expect(ipcKillProcesses([t1])).rejects.toThrow(IPCValidationError);
   });
 
   it("rejects failed entry with non-number pid", async () => {
     mockInvoke.mockResolvedValue({ killed: [], failed: [["abc", "error"]] });
-    await expect(ipcKillProcesses([1])).rejects.toThrow(IPCValidationError);
+    await expect(ipcKillProcesses([t1])).rejects.toThrow(IPCValidationError);
   });
 
   it("rejects failed entry with non-string reason", async () => {
     mockInvoke.mockResolvedValue({ killed: [], failed: [[1, 42]] });
-    await expect(ipcKillProcesses([1])).rejects.toThrow(IPCValidationError);
+    await expect(ipcKillProcesses([t1])).rejects.toThrow(IPCValidationError);
   });
 });
 

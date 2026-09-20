@@ -241,28 +241,38 @@ pub fn kill_all_zombies() -> Result<Vec<macmon_core::killer::KillResult>, String
         (z, nk)
     };
     let mut results = Vec::with_capacity(zombies.len());
-    let mut killed_pids: HashSet<u32> = HashSet::new();
+    let mut killed_keys: HashSet<ProcessKey> = HashSet::new();
     for z in &zombies {
-        let expected = macmon_core::killer::KillIdentity {
-            pid: z.pid,
-            start_time: Some(z.start_time),
-            name: Some(z.name.clone()),
-            exe_path: z.exe_path.as_ref().map(std::path::PathBuf::from),
-        };
-        match macmon_core::killer::kill_process_identified(expected, &never_kill) {
+        match identified_kill_for_zombie(z, &never_kill) {
             Ok(r) => {
-                killed_pids.insert(r.pid);
+                killed_keys.insert((z.pid, z.start_time));
                 results.push(r);
             }
             Err(e) => eprintln!("[zombie_killer] kill_all: pid {} failed: {}", z.pid, e),
         }
     }
-    if !killed_pids.is_empty() {
+    if !killed_keys.is_empty() {
         let zombies_arc = zombies_handle();
         let mut current = write_lock_or_recover(&zombies_arc);
-        current.retain(|z| !killed_pids.contains(&z.pid));
+        current.retain(|z| !killed_keys.contains(&(z.pid, z.start_time)));
     }
     Ok(results)
+}
+
+fn identified_kill_for_zombie(
+    z: &ZombieCandidate,
+    never_kill: &[String],
+) -> Result<macmon_core::killer::KillResult, String> {
+    if z.start_time == 0 {
+        return Err("kill_zombie requires start_time so a recycled PID is not killed".to_string());
+    }
+    let expected = macmon_core::killer::KillIdentity {
+        pid: z.pid,
+        start_time: Some(z.start_time),
+        name: Some(z.name.clone()),
+        exe_path: z.exe_path.as_ref().map(std::path::PathBuf::from),
+    };
+    macmon_core::killer::kill_process_identified(expected, never_kill).map_err(|e| e.to_string())
 }
 
 /// Start the background engine. The thread ticks every [`TICK_INTERVAL_SECS`],
@@ -347,8 +357,7 @@ fn run_tick(
 
         let is_kill = config.auto_kill;
         if is_kill {
-            if let Err(e) = macmon_core::killer::kill_process_safe(z.pid as i32, &config.never_kill)
-            {
+            if let Err(e) = identified_kill_for_zombie(z, &config.never_kill) {
                 eprintln!("[zombie_killer] auto-kill failed for {}: {}", z.pid, e);
                 // Leave it un-notified so we try again next tick.
                 continue;
@@ -580,5 +589,22 @@ mod tests {
         assert!(result.is_err() || result.is_ok());
         let all = kill_all_zombies();
         assert!(all.is_ok());
+    }
+
+    #[test]
+    fn auto_kill_refuses_start_time_zero() {
+        let z = ZombieCandidate {
+            pid: 42,
+            name: "stable".into(),
+            exec_name: "stable".into(),
+            exe_path: Some("/Applications/Warp.app/Contents/MacOS/stable".into()),
+            cpu_pct: 90.0,
+            memory_bytes: 512 * 1024 * 1024,
+            age_secs: 3600,
+            reason: macmon_core::zombie_killer::ZombieReason::CpuSustained,
+            start_time: 0,
+        };
+        let err = identified_kill_for_zombie(&z, &[]).expect_err("start_time 0 must not SIGTERM");
+        assert!(err.contains("start_time"), "{err}");
     }
 }

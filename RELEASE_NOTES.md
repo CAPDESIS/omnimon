@@ -12,6 +12,10 @@ The run loop is deterministic: one process, fixed 15s sample, no osascript. Mont
 
 This does not replace the in-app Zombie Killer (alert-only by default). Homebrew remains on published tag `6.6.6` until a Universal DMG exists.
 
+Desktop kill paths (Zombie Killer including auto-kill, automations, process-table and AI `kill_process` / batch kill) identify the target as `(pid, start_time)`, not PID alone. A recycled PID with a new creation time is refused before SIGTERM and before SIGKILL. Memory Guard re-checks `lstart` before SIGKILL. CLI and TUI still kill by PID only.
+
+That matches OS process-handle practice (macOS `p_starttime`, Linux `/proc` starttime, Windows `FILETIME`). There is **no GitHub Release or Homebrew cask for 6.8.0**; the latest published tag remains **v6.6.6**.
+
 ---
 
 # OmniMon v6.7.0 Release Notes

@@ -164,16 +164,29 @@
   }
 
   onMount(async () => {
+    let disposed = false;
     loading = true;
     await Promise.all([loadConfig(), loadZombies()]);
     loading = false;
     try {
-      unlisten = await listen<ZombieCandidate[]>("zombie-killer-update", (event) => {
+      const fn = await listen<ZombieCandidate[]>("zombie-killer-update", (event) => {
         zombies = event.payload ?? [];
       });
+      if (disposed) {
+        fn();
+      } else {
+        unlisten = fn;
+      }
     } catch (e) {
       console.error("[ZombieKiller] failed to subscribe to updates:", e);
     }
+    return () => {
+      disposed = true;
+      if (unlisten) {
+        unlisten();
+        unlisten = null;
+      }
+    };
   });
 
   onDestroy(() => {

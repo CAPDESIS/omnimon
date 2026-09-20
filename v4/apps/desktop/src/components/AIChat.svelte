@@ -388,6 +388,11 @@
     }
   }
 
+  function startTimeForPid(pid: number): number | undefined {
+    const startTime = get(processes).find((p) => p.pid === pid)?.start_time;
+    return startTime && startTime > 0 ? startTime : undefined;
+  }
+
   async function executeKillProcess(details: string): Promise<{ success: boolean; message: string }> {
     const parts = details.replace("kill_process:", "").split(":");
     const pid = parseInt(parts[0], 10);
@@ -395,8 +400,12 @@
     if (!pid || pid <= 0) {
       return { success: false, message: t("aiChat.invalidPid", { pid: parts[0] }) };
     }
+    const startTime = startTimeForPid(pid);
+    if (startTime === undefined) {
+      return { success: false, message: t("processes.killMissingIdentity") };
+    }
     try {
-      const ok = await ipcKillProcess(pid);
+      const ok = await ipcKillProcess(pid, startTime);
       return ok
         ? { success: true, message: t("aiChat.killedProcess", { name, pid }) }
         : { success: false, message: t("aiChat.processNotFound", { pid }) };
@@ -413,9 +422,13 @@
     if (!pid || pid <= 0) {
       return { success: false, message: t("aiChat.invalidPid", { pid: parts[0] }) };
     }
+    const startTime = startTimeForPid(pid);
+    if (startTime === undefined) {
+      return { success: false, message: t("processes.killMissingIdentity") };
+    }
     try {
       // Direct connection closing is not fully supported without elevated privileges, so we fallback to process killing
-      const ok = await ipcKillProcess(pid);
+      const ok = await ipcKillProcess(pid, startTime);
       return ok
         ? { success: true, message: t("aiChat.killedProcessForConnection", { pid, ip, port }) }
         : { success: false, message: t("aiChat.processNotFound", { pid }) };
@@ -431,8 +444,15 @@
     if (pids.length === 0) {
       return { success: false, message: t("aiChat.noValidPids", { name }) };
     }
+    const targets = pids.flatMap((pid) => {
+      const startTime = startTimeForPid(pid);
+      return startTime === undefined ? [] : [{ pid, startTime }];
+    });
+    if (targets.length === 0) {
+      return { success: false, message: t("processes.killMissingIdentity") };
+    }
     try {
-      const result = await ipcKillProcesses(pids);
+      const result = await ipcKillProcesses(targets);
       const killed = result.killed.length;
       const failed = result.failed.length;
       if (killed > 0) {

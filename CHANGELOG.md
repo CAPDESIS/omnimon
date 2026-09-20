@@ -4,6 +4,24 @@
 
 ## 6.8.0 (2026-09-19)
 
+### Kill identity (false-positive prevention)
+
+- PID is treated as a handle, not an identity. Desktop kill paths compare `(pid, start_time)` (macOS `p_starttime`, Linux `/proc` starttime, Windows `FILETIME` via sysinfo) before SIGTERM and before force-kill (`#55` plus follow-up)
+- Confirmed Zombie Killer kills, **auto-kill**, automations, IPC `kill_process`, and batch `kill_processes` require `start_time > 0`. A recycled PID is refused instead of SIGTERM/SIGKILL
+- `start_time == 0` is not a wildcard in `identity_still_same`
+- Automations violation map is `(rule, pid, start_time)` so a new process does not inherit the old timer
+- Process list exposes `start_time`; UI and AI chat look it up before invoking kill
+- Batch kill rate-limit is one token per request, not per PID
+- Memory Guard `safe_kill_pid` re-checks `ps -o lstart` (and host/protected names) before SIGKILL; notifications pass title/body as `osascript` argv
+- CLI and TUI still call PID-only `kill_process_safe` (those UIs do not yet send start_time)
+
+### Desktop notifications and i18n (`#54`)
+
+- `notificationLevel === critical` no longer toasts every security alert (`|| true` removed)
+- Automation `duration_secs = 0` is clamped to 1s so kill rules cannot fire on first sight
+- Missing keys: `securityReport.noFindings`, `noFindingsDesc`, `tabs.focusErrorTitle`, `toolbar.fontSize`
+- Automations UI label says substring match, not regex
+
 ### Memory Guard (macOS LaunchAgent)
 
 - Open-source daemon under `tools/macos-memory-guard/` (`omnimon-memory-guard`)

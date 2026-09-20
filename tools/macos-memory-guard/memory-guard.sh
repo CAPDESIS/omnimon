@@ -102,7 +102,13 @@ notify() {
   local body="$1"
   local title="${2:-Memory Guard}"
   [[ "${MG_NOTIFY}" == "1" ]] || return 0
-  /usr/bin/osascript -e "display notification \"${body//\"/\\\"}\" with title \"${title//\"/\\\"}\"" >/dev/null 2>&1 || true
+  /usr/bin/osascript - "$title" "$body" >/dev/null 2>&1 <<'APPLESCRIPT' || true
+on run argv
+  set notifTitle to item 1 of argv
+  set notifBody to item 2 of argv
+  display notification notifBody with title notifTitle
+end run
+APPLESCRIPT
 }
 
 # --- metric parsers (testable) ------------------------------------------------
@@ -622,12 +628,30 @@ EOF
     >>"$METRICS_FILE" 2>/dev/null || true
 }
 
+# Trimmed `ps -o lstart=`. Empty if pid is gone or not numeric.
+pid_lstart() {
+  local pid="${1:-}" live=""
+  if [[ "$pid" =~ ^[0-9]+$ ]]; then
+    live="$(/bin/ps -p "$pid" -o lstart= 2>/dev/null || true)"
+    live="$(printf '%s' "$live" | /usr/bin/sed 's/^ *//;s/ *$//')"
+  fi
+  printf '%s' "$live"
+}
+
+# Pure: start time is identity. Empty or unequal → skip (do not kill).
+pid_identity_matches() {
+  local expect_lstart="${1:-}" live_lstart="${2:-}"
+  [[ -n "$expect_lstart" && -n "$live_lstart" && "$expect_lstart" == "$live_lstart" ]]
+}
+
 safe_kill_pid() {
   local pid="$1" reason="$2"
-  local name cmd base
+  local name cmd base snap_lstart live_lstart live_name live_cmd live_base
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
   name="$(/bin/ps -p "$pid" -o comm= 2>/dev/null || echo unknown)"
   cmd="$(/bin/ps -p "$pid" -o command= 2>/dev/null || echo "$name")"
   base="$(/usr/bin/basename "${name%% *}" 2>/dev/null || echo "$name")"
+  snap_lstart="$(pid_lstart "$pid")"
 
   if [[ "$pid" == "$SELF_PID" ]]; then
     return 1
@@ -644,17 +668,38 @@ safe_kill_pid() {
   if (( pid <= 1 )); then
     return 1
   fi
+  if [[ -z "$snap_lstart" ]]; then
+    log "skip pid=$pid no lstart"
+    return 1
+  fi
 
   if [[ "$MG_DRY_RUN" == "1" ]]; then
     log "DRY_RUN would kill pid=$pid name=$name reason=$reason"
     return 0
   fi
 
-  log "SIGTERM pid=$pid name=$name reason=$reason"
+  log "SIGTERM pid=$pid name=$name lstart=$snap_lstart reason=$reason"
   /bin/kill -TERM "$pid" 2>/dev/null || true
   /bin/sleep 2
+  # kill -0 is existence, not identity. Recycled PIDs must not be SIGKILLed.
   if /bin/kill -0 "$pid" 2>/dev/null; then
-    log "SIGKILL pid=$pid name=$name reason=$reason"
+    live_lstart="$(pid_lstart "$pid")"
+    live_name="$(/bin/ps -p "$pid" -o comm= 2>/dev/null || echo unknown)"
+    live_cmd="$(/bin/ps -p "$pid" -o command= 2>/dev/null || echo "$live_name")"
+    live_base="$(/usr/bin/basename "${live_name%% *}" 2>/dev/null || echo "$live_name")"
+    if ! pid_identity_matches "$snap_lstart" "$live_lstart"; then
+      log "SIGKILL skip pid=$pid recycled lstart mismatch"
+      return 1
+    fi
+    if is_host_app "$live_cmd" || is_host_app "$live_name"; then
+      log "SIGKILL skip pid=$pid now host name=$live_name"
+      return 1
+    fi
+    if is_protected_name "$live_base" || is_protected_name "$live_name"; then
+      log "SIGKILL skip pid=$pid now protected name=$live_name"
+      return 1
+    fi
+    log "SIGKILL pid=$pid name=$live_name reason=$reason"
     /bin/kill -KILL "$pid" 2>/dev/null || true
   fi
   return 0
@@ -1007,9 +1052,8 @@ session_close_pid() {
   local live
   [[ "$pid" =~ ^[0-9]+$ ]] || return 1
   (( pid > 1 )) || return 1
-  live="$(/bin/ps -p "$pid" -o lstart= 2>/dev/null || true)"
-  live="$(printf '%s' "$live" | /usr/bin/sed 's/^ *//;s/ *$//')"
-  if [[ -z "$live" || "$live" != "$expect_lstart" ]]; then
+  live="$(pid_lstart "$pid")"
+  if ! pid_identity_matches "$expect_lstart" "$live"; then
     log "session-close skip pid=$pid lstart mismatch"
     return 1
   fi
@@ -1037,9 +1081,8 @@ process_pending_closes() {
     if (( now < deadline )); then
       continue
     fi
-    live="$(/bin/ps -p "$pid" -o lstart= 2>/dev/null || true)"
-    live="$(printf '%s' "$live" | /usr/bin/sed 's/^ *//;s/ *$//')"
-    if [[ -n "$live" && "$live" == "$lstart" ]]; then
+    live="$(pid_lstart "$pid")"
+    if pid_identity_matches "$lstart" "$live"; then
       notify "Cerrando ${label:-sesión} (pid ${pid}) tras el margen para commit/docs." "Memory Guard · sesión"
       session_close_pid "$pid" "$lstart" "operator-confirmed-month-old"
     fi
@@ -1268,7 +1311,7 @@ cmd_run() {
 
 # Pure classifier contract. No ps, no osascript. fail=1 on mismatch.
 prove_classifier() {
-  local fail=0 line ppid etime cmd state cpu expect got
+  local fail=0 line ppid etime cmd state cpu expect got src
   while IFS= read -r line; do
     [[ -z "$line" || "$line" == \#* ]] && continue
     ppid="${line%%|*}"; rest="${line#*|}"
@@ -1311,6 +1354,26 @@ CASES
   if session_should_prompt 1 "npm exec firebase-tools@latest mcp"; then echo "FAIL prove prompt mcp"; fail=1; fi
   if is_session_container "claude --dangerously-skip-permissions"; then echo "FAIL prove container claude"; fail=1; fi
   if is_host_app "/Applications/Warp.app/Contents/MacOS/stable --finish-update"; then :; else echo "FAIL prove host warp"; fail=1; fi
+  # PID identity is start time, not kill -0. Mismatch/empty → skip (no kill).
+  if type pid_identity_matches >/dev/null 2>&1; then
+    if pid_identity_matches "Sat Jan  1 12:00:00 2025" "Sat Jan  1 12:00:00 2025"; then :; else echo "FAIL prove identity match"; fail=1; fi
+    if pid_identity_matches "Sat Jan  1 12:00:00 2025" "Sun Jan  2 00:00:00 2025"; then echo "FAIL prove identity mismatch"; fail=1; fi
+    if pid_identity_matches "Sat Jan  1 12:00:00 2025" ""; then echo "FAIL prove identity empty live"; fail=1; fi
+    if pid_identity_matches "" "Sat Jan  1 12:00:00 2025"; then echo "FAIL prove identity empty expect"; fail=1; fi
+    if pid_identity_matches "" ""; then echo "FAIL prove identity empty empty"; fail=1; fi
+  else
+    echo "FAIL prove pid_identity_matches missing"
+    fail=1
+  fi
+  src="$(declare -f notify 2>/dev/null || true)"
+  if printf '%s\n' "$src" | /usr/bin/grep -q 'osascript -e'; then
+    echo "FAIL prove notify osascript -e"
+    fail=1
+  fi
+  if ! printf '%s\n' "$src" | /usr/bin/grep -q 'on run argv'; then
+    echo "FAIL prove notify argv"
+    fail=1
+  fi
   return "$fail"
 }
 

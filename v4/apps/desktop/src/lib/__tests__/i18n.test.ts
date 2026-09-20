@@ -25,9 +25,11 @@ describe("i18n", () => {
     expect(t("securityReport.noFindingsDesc")).not.toBe("securityReport.noFindingsDesc");
     expect(t("tabs.focusErrorTitle")).not.toBe("tabs.focusErrorTitle");
     expect(t("toolbar.fontSize")).not.toBe("toolbar.fontSize");
+    expect(t("processes.killMissingIdentity")).not.toBe("processes.killMissingIdentity");
     locale.set("es");
     expect(t("securityReport.noFindings")).not.toBe("securityReport.noFindings");
     expect(t("tabs.focusErrorTitle")).not.toBe("tabs.focusErrorTitle");
+    expect(t("processes.killMissingIdentity")).not.toBe("processes.killMissingIdentity");
   });
 
   it("falls back to key when translation does not exist", () => {

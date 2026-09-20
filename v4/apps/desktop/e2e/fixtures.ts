@@ -301,8 +301,13 @@ async function installTauriMocks(page: Page) {
             return clone(networkData);
           case "kill_process":
             return true;
-          case "kill_processes":
-            return { killed: clone(Array.isArray(args.pids) ? args.pids : []), failed: [] };
+          case "kill_processes": {
+            const targets = Array.isArray(args.targets) ? args.targets : [];
+            const killed = targets
+              .map((target) => (target && typeof target === "object" ? (target as { pid?: unknown }).pid : undefined))
+              .filter((pid): pid is number => typeof pid === "number");
+            return { killed: clone(killed), failed: [] };
+          }
           case "close_browser_tab": {
             const tabId = typeof args.tabId === "string" ? args.tabId : "";
             tabsState = tabsState.filter((tab) => tab.id !== tabId);

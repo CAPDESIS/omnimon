@@ -136,7 +136,10 @@ pub fn identity_still_same(expected: &KillIdentity, live: &ProcessSnapshot) -> b
         return false;
     }
     if let Some(start) = expected.start_time {
-        if start != 0 && live.start_time != start {
+        // 0 is not a process identity. Treating it as a wildcard would let a
+        // recycled PID through. Callers that truly do not know start_time must
+        // pass None (CLI/TUI only) rather than Some(0).
+        if start == 0 || live.start_time != start {
             return false;
         }
     }
@@ -758,5 +761,16 @@ mod tests {
         assert!(identity_still_same(&expected, &live));
         let other = snap(3, "bash", 99, None);
         assert!(!identity_still_same(&expected, &other));
+    }
+
+    #[test]
+    fn start_time_zero_is_not_an_identity() {
+        let expected = want(100, "chrome", Some(0), None);
+        let live = snap(100, "chrome", 1_700_000_000, None);
+        assert!(!identity_still_same(&expected, &live));
+        assert!(matches!(
+            refuse_if_identity_changed(&expected, Some(&live)),
+            Err(KillError::IdentityMismatch { pid: 100 })
+        ));
     }
 }
