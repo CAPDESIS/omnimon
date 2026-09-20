@@ -77,8 +77,8 @@ describe("ZombieKiller", () => {
         return undefined;
       }
       if (command === "kill_zombie") {
-        const pid = (payload as { pid: number }).pid;
-        zombies = zombies.filter((z) => z.pid !== pid);
+        const { pid, startTime } = payload as { pid: number; startTime: number };
+        zombies = zombies.filter((z) => !(z.pid === pid && z.startTime === startTime));
         return { pid, processName: "x", killed: true };
       }
       if (command === "kill_all_zombies") {
@@ -131,7 +131,10 @@ describe("ZombieKiller", () => {
     await fireEvent.click(screen.getByRole("button", { name: /^Kill$/ }));
 
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith("kill_zombie", { pid: 5377 });
+      expect(mockInvoke).toHaveBeenCalledWith("kill_zombie", {
+        pid: 5377,
+        startTime: 1_700_000_000,
+      });
       expect(screen.queryByText("AdobeIPCBroker")).not.toBeInTheDocument();
     });
   });

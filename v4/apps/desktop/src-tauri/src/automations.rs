@@ -460,10 +460,10 @@ mod tests {
         assert_eq!(hits.len(), 2);
         assert!(hits
             .iter()
-            .any(|(r, pid, _, _)| r.id == "cpu-rule" && *pid == 1));
+            .any(|(r, pid, _, _, _)| r.id == "cpu-rule" && *pid == 1));
         assert!(hits
             .iter()
-            .any(|(r, pid, _, _)| r.id == "ram-rule" && *pid == 2));
+            .any(|(r, pid, _, _, _)| r.id == "ram-rule" && *pid == 2));
     }
 
     #[test]
@@ -483,6 +483,25 @@ mod tests {
     }
 
     #[test]
+    fn evaluate_rule_hits_exposes_start_time_for_pid_reuse_keys() {
+        let rules = vec![make_rule("cpu-rule", "node", "cpu", 5.0)];
+        let procs = vec![macmon_core::watcher::CachedProcessInfo {
+            pid: 9,
+            name: "node".into(),
+            exec_name: "node".into(),
+            cpu_pct: 42.0,
+            start_time: 1_700_000_123,
+            ..Default::default()
+        }];
+        let hits = evaluate_rule_hits(&rules, &procs);
+        assert_eq!(hits[0].4, 1_700_000_123);
+        assert_ne!(
+            process_violation_key("cpu-rule", 9, 1_700_000_123),
+            process_violation_key("cpu-rule", 9, 1_700_000_999)
+        );
+    }
+
+    #[test]
     fn evaluate_rule_hits_skips_processes_below_threshold() {
         let rules = vec![make_rule("cpu-rule", "node", "cpu", 90.0)];
         let procs = vec![macmon_core::watcher::CachedProcessInfo {
@@ -497,10 +516,14 @@ mod tests {
 }
 
 /// Pure evaluation of which (rule_id, pid) pairs currently exceed thresholds.
+fn process_violation_key(rule_id: &str, pid: u32, start_time: u64) -> (String, u32, u64) {
+    (rule_id.to_string(), pid, start_time)
+}
+
 fn evaluate_rule_hits(
     rules: &[AutomationRule],
     procs: &[macmon_core::watcher::CachedProcessInfo],
-) -> Vec<(AutomationRule, u32, String, f64)> {
+) -> Vec<(AutomationRule, u32, String, f64, u64)> {
     let mut hits = Vec::new();
     for rule in rules {
         for proc in procs {
@@ -513,7 +536,13 @@ fn evaluate_rule_hits(
                     proc.cpu_pct as f64
                 };
                 if value > rule.threshold {
-                    hits.push((rule.clone(), proc.pid, proc.name.clone(), value));
+                    hits.push((
+                        rule.clone(),
+                        proc.pid,
+                        proc.name.clone(),
+                        value,
+                        proc.start_time,
+                    ));
                 }
             }
         }
@@ -525,7 +554,7 @@ pub fn start_engine(app: AppHandle) {
     let _ = get_automation_rules(app.clone()); // Pre-load rules
 
     std::thread::spawn(move || {
-        let mut violations: HashMap<(String, u32), Instant> = HashMap::new();
+        let mut violations: HashMap<(String, u32, u64), Instant> = HashMap::new();
         loop {
             let interval_secs = macmon_core::settings::read_settings()
                 .automation_interval_secs
@@ -542,14 +571,20 @@ pub fn start_engine(app: AppHandle) {
             let now = Instant::now();
             let mut new_violations = HashMap::new();
 
-            for (rule, pid, proc_name, _value) in evaluate_rule_hits(&rules, procs) {
-                let key = (rule.id.clone(), pid);
+            for (rule, pid, proc_name, _value, start_time) in evaluate_rule_hits(&rules, procs) {
+                let key = process_violation_key(&rule.id, pid, start_time);
                 let first_seen = violations.get(&key).copied().unwrap_or(now);
                 new_violations.insert(key.clone(), first_seen);
 
                 if now.duration_since(first_seen).as_secs() >= rule.duration_secs {
                     if rule.action == ACTION_KILL {
-                        if macmon_core::killer::kill_process_safe(pid as i32, &[]).is_ok() {
+                        let expected = macmon_core::killer::KillIdentity {
+                            pid,
+                            start_time: Some(start_time),
+                            name: Some(proc_name.clone()),
+                            exe_path: None,
+                        };
+                        if macmon_core::killer::kill_process_identified(expected, &[]).is_ok() {
                             let locale = read_ui_locale(&app);
                             let _ = app
                                 .notification()

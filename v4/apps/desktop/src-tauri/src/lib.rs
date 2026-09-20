@@ -115,6 +115,7 @@ pub struct ProcessEntry {
     pub is_system: bool,
     pub idle: bool,
     pub state: String,
+    pub start_time: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -205,6 +206,7 @@ fn get_metrics(idle_threshold: Option<f64>) -> Result<Metrics, String> {
                 is_system,
                 idle,
                 state: if idle { "S".into() } else { "R".into() },
+                start_time: entry.start_time,
             }
         })
         .collect();
@@ -394,12 +396,25 @@ fn check_cdp_availability() -> std::collections::HashMap<String, bool> {
 /// IPC: Kill a single process by PID using the real OS-native killer.
 #[tauri::command]
 #[tracing::instrument(skip_all)]
-fn kill_process(pid: u32) -> Result<bool, String> {
+fn kill_process(pid: u32, start_time: Option<u64>) -> Result<bool, String> {
     macmon_core::rate_limit::check_rate_limit(
         "kill_process",
         &macmon_core::rate_limit::profiles::KILL,
     )?;
-    match macmon_core::killer::kill_process_safe(pid as i32, &[]) {
+    let result = if let Some(start_time) = start_time.filter(|t| *t > 0) {
+        macmon_core::killer::kill_process_identified(
+            macmon_core::killer::KillIdentity {
+                pid,
+                start_time: Some(start_time),
+                name: None,
+                exe_path: None,
+            },
+            &[],
+        )
+    } else {
+        macmon_core::killer::kill_process_safe(pid as i32, &[])
+    };
+    match result {
         Ok(_) => Ok(true),
         Err(macmon_core::killer::KillError::ProcessNotFound(_)) => Ok(false),
         Err(e) => Err(e.to_string()),
@@ -436,11 +451,11 @@ where
 #[tauri::command]
 #[tracing::instrument(skip_all)]
 fn kill_processes(pids: Vec<u32>) -> Result<KillProcessesResult, String> {
+    macmon_core::rate_limit::check_rate_limit(
+        "kill_processes",
+        &macmon_core::rate_limit::profiles::KILL,
+    )?;
     kill_processes_with(pids, |pid| {
-        macmon_core::rate_limit::check_rate_limit(
-            "kill_processes",
-            &macmon_core::rate_limit::profiles::KILL,
-        )?;
         macmon_core::killer::kill_process_safe(pid as i32, &[])
             .map(|_| ())
             .map_err(|e| e.to_string())
@@ -1586,7 +1601,7 @@ mod tests {
     #[test]
     fn kill_process_missing_pid_is_false_or_error() {
         // Non-existent PID should not panic; ProcessNotFound maps to Ok(false).
-        let result = kill_process(u32::MAX - 7);
+        let result = kill_process(u32::MAX - 7, None);
         assert!(result.is_ok() || result.is_err());
         if let Ok(killed) = result {
             assert!(!killed);

@@ -193,20 +193,36 @@ pub fn list_zombie_candidates() -> Vec<ZombieCandidate> {
 
 #[tauri::command]
 #[tracing::instrument(skip_all)]
-pub fn kill_zombie(pid: u32) -> Result<macmon_core::killer::KillResult, String> {
+pub fn kill_zombie(pid: u32, start_time: u64) -> Result<macmon_core::killer::KillResult, String> {
     macmon_core::rate_limit::check_rate_limit(
         "kill_zombie",
         &macmon_core::rate_limit::profiles::KILL,
     )?;
+    if start_time == 0 {
+        return Err("kill_zombie requires start_time so a recycled PID is not killed".to_string());
+    }
     let config_arc = config_handle();
     let never_kill = read_lock_or_recover(&config_arc).never_kill.clone();
     drop(config_arc);
-    let result = macmon_core::killer::kill_process_safe(pid as i32, &never_kill)
+    let candidate = {
+        let zombies_arc = zombies_handle();
+        let zombies = read_lock_or_recover(&zombies_arc);
+        zombies
+            .iter()
+            .find(|z| z.pid == pid && z.start_time == start_time)
+            .cloned()
+    };
+    let expected = macmon_core::killer::KillIdentity {
+        pid,
+        start_time: Some(start_time),
+        name: candidate.as_ref().map(|z| z.name.clone()),
+        exe_path: candidate.and_then(|z| z.exe_path.map(std::path::PathBuf::from)),
+    };
+    let result = macmon_core::killer::kill_process_identified(expected, &never_kill)
         .map_err(|e| e.to_string())?;
-    // Drop it from the current list so UI state stays in sync immediately.
     let zombies_arc = zombies_handle();
     let mut zombies = write_lock_or_recover(&zombies_arc);
-    zombies.retain(|z| z.pid != pid);
+    zombies.retain(|z| !(z.pid == pid && z.start_time == start_time));
     Ok(result)
 }
 
@@ -227,7 +243,13 @@ pub fn kill_all_zombies() -> Result<Vec<macmon_core::killer::KillResult>, String
     let mut results = Vec::with_capacity(zombies.len());
     let mut killed_pids: HashSet<u32> = HashSet::new();
     for z in &zombies {
-        match macmon_core::killer::kill_process_safe(z.pid as i32, &never_kill) {
+        let expected = macmon_core::killer::KillIdentity {
+            pid: z.pid,
+            start_time: Some(z.start_time),
+            name: Some(z.name.clone()),
+            exe_path: z.exe_path.as_ref().map(std::path::PathBuf::from),
+        };
+        match macmon_core::killer::kill_process_identified(expected, &never_kill) {
             Ok(r) => {
                 killed_pids.insert(r.pid);
                 results.push(r);
@@ -552,7 +574,9 @@ mod tests {
         // Directly exercise list + kill path without AppHandle where possible.
         let listed = list_zombie_candidates();
         let _ = listed.len();
-        let result = kill_zombie(u32::MAX - 11);
+        let missing_start = kill_zombie(u32::MAX - 11, 0);
+        assert!(missing_start.is_err());
+        let result = kill_zombie(u32::MAX - 11, 1_700_000_000);
         assert!(result.is_err() || result.is_ok());
         let all = kill_all_zombies();
         assert!(all.is_ok());

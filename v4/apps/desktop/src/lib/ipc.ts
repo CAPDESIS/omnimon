@@ -127,6 +127,9 @@ function validateProcessEntry(raw: unknown, index: number): ProcessEntry {
   assertBoolean(`processes[${index}].is_system`, r.is_system);
   assertBoolean(`processes[${index}].idle`, r.idle);
   assertString(`processes[${index}].state`, r.state);
+  const startTime =
+    r.start_time === undefined || r.start_time === null ? 0 : r.start_time;
+  assertFiniteNumber(`processes[${index}].start_time`, startTime);
 
   return {
     pid: r.pid as number,
@@ -151,6 +154,7 @@ function validateProcessEntry(raw: unknown, index: number): ProcessEntry {
     is_system: r.is_system as boolean,
     idle: r.idle as boolean,
     state: r.state as string,
+    start_time: startTime as number,
   };
 }
 
@@ -199,9 +203,13 @@ export async function ipcGetMetrics(idleThreshold?: number): Promise<Metrics> {
 }
 
 /** Sends a kill signal to a single process by PID. Returns true if successful. */
-export async function ipcKillProcess(pid: number): Promise<boolean> {
+export async function ipcKillProcess(pid: number, startTime?: number): Promise<boolean> {
   assertIntegerInRange("kill_process args.pid", pid, 1, 0x7fffffff);
-  const result: unknown = await loggedInvoke("kill_process", { pid });
+  const args: { pid: number; startTime?: number } = { pid };
+  if (startTime !== undefined && startTime > 0) {
+    args.startTime = startTime;
+  }
+  const result: unknown = await loggedInvoke("kill_process", args);
   assertBoolean("kill_process result", result);
   return result;
 }

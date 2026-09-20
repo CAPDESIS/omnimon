@@ -46,6 +46,7 @@ function makeProc(overrides: Partial<ProcessEntry> = {}): ProcessEntry {
     is_system: false,
     idle: true,
     state: "R",
+    start_time: 1_700_000_000,
     ...overrides,
   };
 }
