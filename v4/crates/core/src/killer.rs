@@ -280,6 +280,9 @@ fn kill_process_by_name(
 ///
 /// Sends SIGTERM first, then escalates to a force kill if the process survives.
 /// Returns an error if the PID is invalid, not found, blocked, or if the kill fails.
+///
+/// CLI/TUI should prefer [`kill_process_current`]: this helper still omits
+/// `start_time`, so the SIGKILL re-check cannot refuse a recycled PID.
 pub fn kill_process_safe(pid: i32, extra_blocklist: &[String]) -> Result<KillResult, KillError> {
     if pid <= 1 {
         return Err(KillError::InvalidPid(pid));
@@ -293,6 +296,33 @@ pub fn kill_process_safe(pid: i32, extra_blocklist: &[String]) -> Result<KillRes
         },
         extra_blocklist,
     )
+}
+
+/// Snapshot the live process as `(pid, start_time, name, exe)` and kill that identity.
+///
+/// Use this for immediate CLI/TUI kills: SIGKILL will refuse the PID if it was
+/// recycled during the TERM wait. `start_time == 0` is not an identity.
+pub fn kill_process_current(pid: i32, extra_blocklist: &[String]) -> Result<KillResult, KillError> {
+    if pid <= 1 {
+        return Err(KillError::InvalidPid(pid));
+    }
+    let pid_u32 = pid as u32;
+    let mut system = System::new();
+    system.refresh_processes_specifics(ProcessRefreshKind::everything());
+    let Some(process) = system.process(Pid::from_u32(pid_u32)) else {
+        return Err(KillError::ProcessNotFound(pid_u32));
+    };
+    let start_time = process.start_time();
+    if start_time == 0 {
+        return Err(KillError::IdentityMismatch { pid: pid_u32 });
+    }
+    let expected = KillIdentity {
+        pid: pid_u32,
+        start_time: Some(start_time),
+        name: Some(process.name().to_string()),
+        exe_path: process.exe().map(|p| p.to_path_buf()),
+    };
+    kill_process_identified(expected, extra_blocklist)
 }
 
 /// Kill only if the live process still matches `expected`.
@@ -448,6 +478,28 @@ mod tests {
     fn pid_zero_is_rejected() {
         let result = kill_process_safe(0, &[]);
         assert!(matches!(result, Err(KillError::InvalidPid(0))));
+    }
+
+    #[test]
+    fn kill_process_current_rejects_invalid_and_missing_pids() {
+        assert!(matches!(
+            kill_process_current(0, &[]),
+            Err(KillError::InvalidPid(0))
+        ));
+        assert!(matches!(
+            kill_process_current(1, &[]),
+            Err(KillError::InvalidPid(1))
+        ));
+        let mut system = System::new();
+        system.refresh_processes_specifics(ProcessRefreshKind::new());
+        let mut candidate: u32 = 500_000;
+        while system.process(Pid::from_u32(candidate)).is_some() {
+            candidate = candidate.saturating_add(1);
+        }
+        assert!(matches!(
+            kill_process_current(candidate as i32, &[]),
+            Err(KillError::ProcessNotFound(pid)) if pid == candidate
+        ));
     }
 
     #[test]

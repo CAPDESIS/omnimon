@@ -724,7 +724,7 @@ pub(crate) fn run_cli(cli: Cli) -> Result<(), i32> {
         }
         Commands::Kill { pid } => {
             println!("Attempting to kill process with PID {}...", pid);
-            match killer::kill_process_safe(*pid as i32, &[]) {
+            match killer::kill_process_current(*pid as i32, &[]) {
                 Ok(result) => {
                     println!(
                         "Successfully killed process '{}' (PID {})",

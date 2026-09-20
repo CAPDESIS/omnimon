@@ -5,6 +5,7 @@ use crate::ui;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::prelude::*;
 use std::io;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 /// Tick rate (500 ms → 2 refreshes/sec, matching watcher cadence).
@@ -75,9 +76,17 @@ fn handle_process_key(app: &mut App, key: KeyEvent) {
         KeyCode::Char('s') => app.next_sort(),
         KeyCode::Char('r') => app.toggle_sort_dir(),
         KeyCode::Char('K') => {
-            // Kill selected process.
+            // Kill selected process by (pid, start_time), never PID alone.
             if let Some(proc) = app.sorted_processes.get(app.selected) {
-                let _ = core::killer::kill_process_safe(proc.pid as i32, &[]);
+                if proc.pid > 1 && proc.start_time > 0 {
+                    let expected = core::killer::KillIdentity {
+                        pid: proc.pid,
+                        start_time: Some(proc.start_time),
+                        name: Some(proc.name.clone()),
+                        exe_path: proc.exe_path.as_ref().map(PathBuf::from),
+                    };
+                    let _ = core::killer::kill_process_identified(expected, &[]);
+                }
             }
         }
         _ => {}
@@ -470,6 +479,21 @@ mod tests {
             &mut app,
             KeyEvent::new(KeyCode::Char('K'), KeyModifiers::NONE),
         );
+        assert!(!app.should_quit);
+    }
+
+    #[test]
+    fn kill_key_refuses_start_time_zero_without_panic() {
+        let mut app = App::new();
+        app.sorted_processes = sample_processes(3);
+        app.sorted_processes[1].pid = 4242;
+        app.sorted_processes[1].start_time = 0;
+        app.selected = 1;
+        handle_key(
+            &mut app,
+            KeyEvent::new(KeyCode::Char('K'), KeyModifiers::NONE),
+        );
+        assert_eq!(app.sorted_processes[1].pid, 4242);
         assert!(!app.should_quit);
     }
 }

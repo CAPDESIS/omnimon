@@ -30,7 +30,7 @@ OmniMon is a next-generation, cross-platform system monitor built with Rust and 
 - **Plugin system** — Extend monitoring with Lua plugins (restricted stdlib, 150ms timeout, 1MB memory limit; not a security sandbox)
 - **Three interfaces** — Desktop GUI, CLI, and interactive TUI (htop-style)
 - **macOS Memory Guard** — optional LaunchAgent (`tools/macos-memory-guard/`) that reaps idle leftovers without touching Warp, Chrome, or `fseventsd`
-- **Kill identity** — Desktop Zombie Killer, automations, and process-table/AI kills target `(pid, start_time)`, not PID alone, so a recycled PID is not force-killed. CLI/TUI kills remain PID-only.
+- **Kill identity** — Desktop, CLI, and TUI kills target `(pid, start_time)`, not PID alone, so a recycled PID is not force-killed.
 
 ## Quick Start
 
@@ -180,7 +180,7 @@ OmniMon es un monitor de sistema multiplataforma de nueva generación construido
 - **Sistema de plugins** — Extiende el monitoreo con plugins Lua (stdlib restringida, 150ms, 1MB; no es un sandbox de seguridad)
 - **Tres interfaces** — GUI de escritorio, CLI e interfaz TUI interactiva
 - **macOS Memory Guard** — LaunchAgent opcional (`tools/macos-memory-guard/`) que cierra leftovers idle sin tocar Warp, Chrome ni `fseventsd`
-- **Identidad al matar** — En el escritorio, Zombie Killer, automatizaciones y la tabla/IA usan `(pid, start_time)`, no el PID solo. CLI/TUI siguen siendo solo PID.
+- **Identidad al matar** — Escritorio, CLI y TUI usan `(pid, start_time)`, no el PID solo.
 
 ## Inicio Rápido
 
