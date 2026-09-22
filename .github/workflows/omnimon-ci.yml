@@ -24,6 +24,13 @@ on:
   pull_request:
     branches: [main]
 
+  # Base-controlled policy signal only. This event never checks out or runs
+  # pull-request code; it makes unsupported fork PRs explicitly red instead
+  # of all-skipped green (fail-closed, mirrored from CapGym ci.yml).
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
   schedule:
     # Local-first policy: PR/push validation runs on the developer machine.
     # Remote CI is manual or staggered daily to avoid runner bottlenecks.
@@ -38,9 +45,25 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
+  fork-policy:
+    name: Fork policy (no untrusted code)
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      # Deliberately no checkout and no repository script invocation here.
+      - name: Reject fork PRs without executing their code
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            echo "::error::Fork PR code is not executed by this workflow. A maintainer must review and bring the commits onto a trusted repository branch."
+            exit 1
+          fi
+          echo "Same-repository PR; pull_request jobs provide the executable validation."
+
   lint:
     name: Lint (fmt + clippy)
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -76,7 +99,7 @@ jobs:
 
   memory-guard:
     name: Memory Guard prove
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
