@@ -1,3 +1,5 @@
+> SUPERSEDED 2026-09-23: Paddle y Polar se retiraron por completo el 2026-09-23. Stripe es el unico proveedor de cobro web. Este documento se conserva como historia; no sigas sus instrucciones de Paddle/Polar.
+
 # OmniMon ola 2026-09-11
 
 Repo app: `omnimon_apps/macmon` (`chochy2001/omnimon`)
