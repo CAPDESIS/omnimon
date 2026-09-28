@@ -19,7 +19,9 @@ jobs:
     # public-only is exclusive to the VPS public lane. Do NOT AND test-light:
     # no online runner carries both labels, so the job queues forever
     # (observed run 30914983210 queued ~7h).
-    runs-on: [self-hosted, public-only, ci-runner-node]
+    # UNPIN 2026-09-28: host name dropped; public-only already implies the
+    # two VPS public lane runners, so this changes nothing today.
+    runs-on: [self-hosted, Linux, X64, public-only]
     timeout-minutes: 15
     permissions:
       contents: read
@@ -153,7 +155,7 @@ jobs:
 
             if workflow_has "$file" "runs-on:[[:space:]]*ubuntu-latest"; then
               if [ "${REPO_PRIVATE:-true}" = "true" ]; then
-                warn "\`${base}\` uses \`ubuntu-latest\` in a PRIVATE repository. Private repos bill GitHub-hosted minutes; use \`[self-hosted, ci-runner-node, ...]\`."
+                warn "\`${base}\` uses \`ubuntu-latest\` in a PRIVATE repository. Private repos bill GitHub-hosted minutes; use \`[self-hosted, Linux, X64, ...]\` with a capacity class label."
               else
                 note "- OK: \`${base}\` uses \`ubuntu-latest\`. GitHub-hosted runners are free for public repositories, so validation must not consume the shared self-hosted pool (fleet runner policy 2026-09-17)."
               fi
