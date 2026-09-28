@@ -503,7 +503,10 @@ jobs:
     name: Sign Release Artifacts (SHA-256 + Ed25519)
     needs: [release]
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
-    runs-on: [self-hosted, public-only, ci-runner-node]
+    # UNPIN 2026-09-28: public-only is carried only by the two VPS public
+    # lane runners, so dropping the host name changes nothing today and the
+    # job no longer names a host.
+    runs-on: [self-hosted, Linux, X64, public-only]
     # Solo dos runners llevan `public-only`. Sin historico reciente, margen amplio.
     timeout-minutes: 30
     permissions:
@@ -641,7 +644,9 @@ jobs:
     name: Rename Release Assets
     needs: [release, sign-release]
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
-    runs-on: [self-hosted, public-only, ci-runner-node]
+    # UNPIN 2026-09-28: same no-op as sign-release (public-only implies the
+    # two VPS public lane runners).
+    runs-on: [self-hosted, Linux, X64, public-only]
     # Solo dos runners llevan `public-only`. Sin historico reciente, margen amplio.
     timeout-minutes: 30
     permissions:
