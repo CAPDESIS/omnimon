@@ -46,5 +46,8 @@
     "vite": "^8.1.5",
     "vitest": "^4.1.10",
     "webdriverio": "^9.29.1"
+  },
+  "overrides": {
+    "devalue": "^5.9.1"
   }
 }
