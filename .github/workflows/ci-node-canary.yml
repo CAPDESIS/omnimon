@@ -1,0 +1,82 @@
+# Canary for the two VPS public-lane runners (org group 6 "public-builds").
+#
+# This is the ONLY repo (with jorgesalgadomiranda_landing) whose jobs can land
+# on ci-runner-node-public-1 and ci-runner-node-public-deploy-1, so this is
+# the only place that can audit them with a real job. Dispatch-only on
+# purpose: it never runs on push/PR/schedule and changes nothing on the
+# runners (read-only probes, no secrets, no checkout).
+#
+# Added 2026-10-08 (CINODEAUDIT): both runners were online but unaudited
+# because capdesis-ci-nodes is not in group 6 and agents have no SSH to
+# ci-runner-node. Each job pins the runner by a label combination no other
+# runner carries, then asserts RUNNER_NAME so a future label drift fails
+# loud instead of auditing the wrong machine.
+name: Public runner canary
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: public-canary-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit-public-1:
+    name: Audit ci-runner-node-public-1
+    # capmenu-php-fast exists only on public-1 (fleet-wide, measured
+    # 2026-10-08), so this set resolves to exactly that runner.
+    runs-on: [self-hosted, Linux, X64, public-only, capmenu-php-fast]
+    timeout-minutes: 10
+    steps:
+      - name: Prove landing on public-1
+        run: |
+          set -euo pipefail
+          echo "runner=$RUNNER_NAME os=$RUNNER_OS arch=$RUNNER_ARCH"
+          [ "$RUNNER_NAME" = 'ci-runner-node-public-1' ] || {
+            echo "::error::landed on $RUNNER_NAME, expected ci-runner-node-public-1 (label drift?)"
+            exit 1
+          }
+
+      - name: Check test-light promise (python3 runs)
+        run: |
+          set -euo pipefail
+          python3 --version
+
+      - name: Check capmenu-php-fast promise (php runs)
+        run: |
+          set -euo pipefail
+          php --version
+
+      - name: Check shared public-lane tooling
+        run: |
+          set -euo pipefail
+          git --version
+          gh --version
+          sha256sum --version | head -n 1
+
+  audit-public-deploy-1:
+    name: Audit ci-runner-node-public-deploy-1
+    # public-only + deploy-only is carried only by public-deploy-1: the
+    # private deploy-1/deploy-2 live in group "deploys", invisible to
+    # this repository, so they can never pick this job up.
+    runs-on: [self-hosted, Linux, X64, public-only, deploy-only]
+    timeout-minutes: 10
+    steps:
+      - name: Prove landing on public-deploy-1
+        run: |
+          set -euo pipefail
+          echo "runner=$RUNNER_NAME os=$RUNNER_OS arch=$RUNNER_ARCH"
+          [ "$RUNNER_NAME" = 'ci-runner-node-public-deploy-1' ] || {
+            echo "::error::landed on $RUNNER_NAME, expected ci-runner-node-public-deploy-1 (label drift?)"
+            exit 1
+          }
+
+      - name: Check deploy-lane tooling (what sign/release jobs use)
+        run: |
+          set -euo pipefail
+          git --version
+          gh --version
+          sha256sum --version | head -n 1
+          python3 --version

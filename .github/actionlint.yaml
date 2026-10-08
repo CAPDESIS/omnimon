@@ -4,3 +4,5 @@ self-hosted-runner:
     - ci-runner-node
     - build-heavy
     - test-light
+    - capmenu-php-fast
+    - deploy-only
