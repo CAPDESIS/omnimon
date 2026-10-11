@@ -20,7 +20,7 @@ These are the backend-supported actions that can be triggered from the in-app AI
 | --- | --- | --- |
 | `omnimon status [--format text\|json]` | Show current system state and top processes | `omnimon status --format json` |
 | `omnimon kill <PID>` | Kill one process safely by PID | `omnimon kill 4242` |
-| `omnimon optimize --ai <provider> [--target <profile>]` | Ask an AI provider for process optimization suggestions | `omnimon optimize --ai openai --target browsers` |
+| `omnimon optimize --ai <provider> [--target <profile>]` | Ask an AI provider for process optimization suggestions | `omnimon optimize --ai openrouter --target browsers` |
 | `omnimon tabs list` | List open browser tabs | `omnimon tabs list` |
 | `omnimon tabs close --browser <BROWSER> [--id <ID>] [--url <URL>]` | Close one browser tab | `omnimon tabs close --browser Chrome --url "https://example.com"` |
 | `omnimon tabs focus --browser <BROWSER> [--id <ID>] [--url <URL>]` | Focus one browser tab | `omnimon tabs focus --browser Arc --url "https://github.com"` |

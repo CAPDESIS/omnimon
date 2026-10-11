@@ -49,10 +49,10 @@ omnimon optimize --ai <PROVIDER> [--target <TARGET>]
 ```
 
 **Options:**
-- `--ai <PROVIDER>`: `openai`, `anthropic`, `openrouter`, or `gemini` (required).
+- `--ai <PROVIDER>`: `anthropic`, `openrouter`, or `gemini` (required). (`openai` was removed fleet-wide; use `openrouter` with an `openai/...` model.)
 - `--target <TARGET>`: Profile to optimize (e.g. `browsers`, `all`). Default: `all`.
 
-**Default models:** gpt-4o-mini (OpenAI), claude-haiku-4-5 (Anthropic), llama-3.2-3b (OpenRouter), gemini-2.0-flash (Gemini).
+**Default models:** claude-haiku-4-5 (Anthropic), llama-3.2-3b (OpenRouter), gemini-2.0-flash (Gemini).
 
 **Examples:**
 ```bash
@@ -87,7 +87,7 @@ omnimon chat --ai <PROVIDER> <PROMPT>
 **Examples:**
 ```bash
 omnimon chat --ai anthropic "How do I clear my DNS cache?"
-omnimon chat --ai openai "What is using the most RAM?"
+omnimon chat --ai openrouter "What is using the most RAM?"
 ```
 
 ### 6. `apikey`
@@ -100,7 +100,7 @@ omnimon apikey --ai <PROVIDER> <KEY>
 
 **Examples:**
 ```bash
-omnimon apikey --ai openai "sk-..."
+omnimon apikey --ai openrouter "sk-or-..."
 omnimon apikey --ai anthropic "sk-ant-..."
 ```
 

@@ -107,6 +107,16 @@ jobs:
       - name: Classifier contract
         run: bash tools/macos-memory-guard/memory-guard.sh selftest
 
+  openrouter-only:
+    name: OpenRouter-only guard (no direct OpenAI)
+    if: github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Reject direct-OpenAI usage in production code
+        run: python3 scripts/openrouter-only-validate.py --root . --app omnimon
+
   select-test-matrix:
     name: Select validation platforms
     needs: [lint]

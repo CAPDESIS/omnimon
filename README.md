@@ -21,7 +21,7 @@ OmniMon is a next-generation, cross-platform system monitor built with Rust and 
 ## Highlights
 
 - **Real-time system monitoring** — CPU, memory, disk I/O, network throughput, and energy impact per process with 2-second refresh
-- **AI-powered optimization** — Prefer **OpenRouter** (Capdesis fleet product AI standard); desktop also has optional BYO-key paths (Anthropic, Gemini, OpenAI, Ollama) that are not the fleet product standard
+- **AI-powered optimization** — Prefer **OpenRouter** (Capdesis fleet product AI standard, incl. `openai/...` models); desktop also has optional BYO-key paths (Anthropic, Gemini, Ollama) that are not the fleet product standard
 - **Network intelligence** — Native packet capture (libpcap/eBPF/WinDivert), connection analysis, DNS enrichment, GeoIP, and MITRE ATT&CK correlation
 - **Browser tab control** — List, close, and focus tabs across Chrome, Safari, Brave, Edge, Arc, and Firefox via CDP and AppleScript
 - **Security & compliance** — CVE auditing, NIST SP 800-53 heartbeats, encrypted audit trails, Ed25519 release signing
@@ -80,7 +80,7 @@ omnimon optimize --ai anthropic --target browsers # AI optimization
 omnimon network --top                             # Network throughput
 omnimon network --connections --filter tcp         # TCP connections
 omnimon network --alerts --watch                  # Live alert stream
-omnimon chat --ai openai "What is using the most RAM?"
+omnimon chat --ai openrouter "What is using the most RAM?"
 omnimon security-scan --cve-db ./cves.json        # CVE audit
 omnimon rules list                                # Security rules
 omnimon release sign --version 6.3.0 ./omnimon    # Sign binary
@@ -103,11 +103,13 @@ cloud products; desktop: prefer OpenRouter user key). Do not treat direct
 
 | Provider | Model (default) | API Key Required | Notes |
 |----------|----------------|-----------------|-------|
-| **OpenRouter** | llama-3.2-3b (free) | Yes | **Preferred** fleet path |
+| **OpenRouter** | llama-3.2-3b (free) | Yes | **Preferred** fleet path (incl. `openai/...` models) |
 | Anthropic | claude-haiku-4-5 | Yes | Optional desktop BYO-key residual |
 | Gemini | gemini-2.0-flash | Yes | Optional desktop BYO-key residual |
-| OpenAI | gpt-4o-mini | Yes | Optional desktop residual — not fleet product standard |
 | Ollama | llama3.2 (local) | No | Local only |
+
+Direct OpenAI (`api.openai.com`) is removed fleet-wide: use OpenRouter with an
+`openai/...` model slug instead. Stored `openai` configs migrate automatically.
 
 Store keys securely: `omnimon apikey --ai <provider> <key>` (stored in OS Keyring).
 
@@ -219,7 +221,7 @@ make dev
 omnimon status                                    # Vista general del sistema
 omnimon optimize --ai anthropic --target browsers # Optimización con IA
 omnimon network --top                             # Throughput de red
-omnimon chat --ai openai "¿Qué está usando más RAM?"
+omnimon chat --ai openrouter "¿Qué está usando más RAM?"
 omnimon security-scan                             # Auditoría de seguridad
 omnimon doctor                                    # Diagnóstico del sistema
 ```
@@ -231,11 +233,13 @@ Estándar de IA de producto Capdesis: **solo OpenRouter**. No usar
 
 | Proveedor | Modelo (default) | Requiere API Key | Notas |
 |-----------|-----------------|-----------------|-------|
-| **OpenRouter** | llama-3.2-3b (gratis) | Sí | **Preferido** |
+| **OpenRouter** | llama-3.2-3b (gratis) | Sí | **Preferido** (incl. modelos `openai/...`) |
 | Anthropic | claude-haiku-4-5 | Sí | Residual desktop BYO-key |
 | Gemini | gemini-2.0-flash | Sí | Residual desktop BYO-key |
-| OpenAI | gpt-4o-mini | Sí | Residual desktop — no es estándar de flota |
 | Ollama | llama3.2 (local) | No | Solo local |
+
+OpenAI directo (`api.openai.com`) se eliminó en toda la flota: usa OpenRouter
+con un slug de modelo `openai/...`. Las configs `openai` guardadas migran solas.
 
 Guarda claves de forma segura: `omnimon apikey --ai <proveedor> <clave>` (almacenado en Keyring del OS).
 

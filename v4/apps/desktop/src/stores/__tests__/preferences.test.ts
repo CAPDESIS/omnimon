@@ -144,13 +144,37 @@ describe("loadPreferences", () => {
 
   it("loads saved AI provider config", async () => {
     mockStore.get.mockImplementation((key: string) => {
-      if (key === "aiProviderConfig") return { provider: "openai", model: "gpt-4o" };
+      if (key === "aiProviderConfig") return { provider: "anthropic", model: "claude-haiku-4-5-20251001" };
       return undefined;
     });
     await loadPreferences();
     const ai = get(aiProviderConfig);
-    expect(ai.provider).toBe("openai");
-    expect(ai.model).toBe("gpt-4o");
+    expect(ai.provider).toBe("anthropic");
+    expect(ai.model).toBe("claude-haiku-4-5-20251001");
+  });
+
+  it("migrates stored openai provider to openrouter", async () => {
+    // Fleet rule: direct OpenAI removed. Stored configs move to the same
+    // models through OpenRouter instead of failing on load.
+    mockStore.get.mockImplementation((key: string) => {
+      if (key === "aiProviderConfig") return { provider: "openai", model: "gpt-4o-mini" };
+      return undefined;
+    });
+    await loadPreferences();
+    const ai = get(aiProviderConfig);
+    expect(ai.provider).toBe("openrouter");
+    expect(ai.model).toBe("openai/gpt-4o-mini");
+  });
+
+  it("falls back to default model for unknown stored openai model", async () => {
+    mockStore.get.mockImplementation((key: string) => {
+      if (key === "aiProviderConfig") return { provider: "openai", model: "something-else" };
+      return undefined;
+    });
+    await loadPreferences();
+    const ai = get(aiProviderConfig);
+    expect(ai.provider).toBe("openrouter");
+    expect(ai.model).toBe(DEFAULT_AI_CONFIG.model);
   });
 
   it("uses defaults when store returns null/undefined", async () => {

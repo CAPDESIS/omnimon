@@ -225,11 +225,9 @@ fn resolve_ai_config() -> (core::ai::AiProvider, String, String) {
             key,
         );
     }
-    // Then OpenAI.
-    if let Ok(key) = core::ai::get_api_key(core::ai::AiProvider::OpenAI) {
-        return (core::ai::AiProvider::OpenAI, "gpt-4o-mini".into(), key);
-    }
     // Fallback: Ollama with empty key (works for local deployments).
+    // (No OpenAI step: fleet rule forbids direct OpenAI API usage. OpenAI
+    // models are reached through OpenRouter above.)
     (
         core::ai::AiProvider::Ollama,
         "llama3.2".into(),

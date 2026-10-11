@@ -337,7 +337,7 @@ export interface ProfilePreset {
   aiProfile: "general" | "developer" | "gaming" | "battery";
 }
 
-export type AiProviderKind = "openrouter" | "openai" | "gemini" | "anthropic" | "ollama";
+export type AiProviderKind = "openrouter" | "gemini" | "anthropic" | "ollama";
 
 export interface AiProviderDef {
   id: AiProviderKind;
@@ -359,12 +359,9 @@ export const AI_PROVIDERS: AiProviderDef[] = [
       "google/gemini-2.0-flash-001",
       "meta-llama/llama-3.1-8b-instruct",
       "anthropic/claude-sonnet-4",
+      "openai/gpt-4o-mini",
+      "openai/gpt-4o",
     ],
-  },
-  {
-    id: "openai",
-    label: "settings.providers.openai",
-    models: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-nano", "gpt-4.1-mini"],
   },
   {
     id: "gemini",

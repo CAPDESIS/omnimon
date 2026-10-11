@@ -375,7 +375,7 @@ describe("AiCommandBar", () => {
   });
 
   it("muestra error de seguridad cuando la respuesta toca claves protegidas", async () => {
-    mockAnalyze.mockResolvedValue('{"provider":"openai"}');
+    mockAnalyze.mockResolvedValue('{"provider":"openrouter"}');
     render(AiCommandBar);
     const input = screen.getByPlaceholderText(/Alert me if Chrome/i);
     await fireEvent.input(input, { target: { value: "try protected key" } });

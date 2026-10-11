@@ -422,6 +422,21 @@ function sanitizeProfilePresets(raw: unknown): ProfilePreset[] {
   return presets.length > 0 ? presets : [...DEFAULT_PROFILE_PRESETS];
 }
 
+export function sanitizeAiProviderConfig(raw: unknown): AiProviderConfig {
+  const fallback = { ...DEFAULT_AI_CONFIG };
+  if (!raw || typeof raw !== "object") return fallback;
+  const ai = raw as Record<string, unknown>;
+  let provider = typeof ai.provider === "string" ? ai.provider : fallback.provider;
+  let model = typeof ai.model === "string" ? ai.model : fallback.model;
+  // Fleet rule: direct OpenAI removed. Migrate stored configs to the same
+  // models through OpenRouter instead of failing on load.
+  if (provider === "openai") {
+    provider = "openrouter";
+    model = model.startsWith("gpt-") ? `openai/${model}` : fallback.model;
+  }
+  return { provider, model };
+}
+
 export function applyProfilePresetById(id: string): boolean {
   const preset = get(profilePresets).find((entry) => entry.id === id);
   if (!preset) return false;
@@ -500,11 +515,7 @@ export async function loadPreferences(): Promise<void> {
 
     const savedAi = await store.get("aiProviderConfig");
     if (savedAi && typeof savedAi === "object") {
-      const ai = savedAi as Record<string, unknown>;
-      aiProviderConfig.set({
-        provider: typeof ai.provider === "string" ? ai.provider : DEFAULT_AI_CONFIG.provider,
-        model: typeof ai.model === "string" ? ai.model : DEFAULT_AI_CONFIG.model,
-      });
+      aiProviderConfig.set(sanitizeAiProviderConfig(savedAi));
     }
 
     const savedNetworkAlertRules = await store.get("networkAlertRules");

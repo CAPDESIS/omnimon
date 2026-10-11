@@ -360,12 +360,12 @@ describe("ipcFocusBrowserTab", () => {
 describe("ipcAnalyzeContext", () => {
   it("returns AI text when backend responds with a string", async () => {
     mockInvoke.mockResolvedValue("analysis ready");
-    await expect(ipcAnalyzeContext("ctx", "openai", "gpt-4o-mini")).resolves.toBe("analysis ready");
+    await expect(ipcAnalyzeContext("ctx", "openrouter", "openai/gpt-4o-mini")).resolves.toBe("analysis ready");
   });
 
   it("rejects non-string payloads", async () => {
     mockInvoke.mockResolvedValue({ reply: "nope" });
-    await expect(ipcAnalyzeContext("ctx", "openai", "gpt-4o-mini")).rejects.toThrow(IPCValidationError);
+    await expect(ipcAnalyzeContext("ctx", "openrouter", "openai/gpt-4o-mini")).rejects.toThrow(IPCValidationError);
   });
 });
 
@@ -387,15 +387,15 @@ describe("ipcSaveAiConfig", () => {
 
   it("propagates tauri transport failures", async () => {
     mockInvoke.mockRejectedValue(new Error("tauri invoke timeout"));
-    await expect(ipcSaveAiConfig("openai", "gpt-4o-mini", "sk-test")).rejects.toThrow("tauri invoke timeout");
+    await expect(ipcSaveAiConfig("openrouter", "openai/gpt-4o-mini", "sk-test")).rejects.toThrow("tauri invoke timeout");
   });
 });
 
 describe("ipcValidateApiKey", () => {
   it("returns true on simulated 200 OK", async () => {
     mockInvoke.mockResolvedValue(true);
-    await expect(ipcValidateApiKey("openai", "sk-fake")).resolves.toBe(true);
-    expect(mockInvoke).toHaveBeenCalledWith("validate_api_key", { provider: "openai", key: "sk-fake" });
+    await expect(ipcValidateApiKey("openrouter", "sk-fake")).resolves.toBe(true);
+    expect(mockInvoke).toHaveBeenCalledWith("validate_api_key", { provider: "openrouter", key: "sk-fake" });
   });
 
   it("returns false on simulated invalid key", async () => {
@@ -405,12 +405,12 @@ describe("ipcValidateApiKey", () => {
 
   it("rejects non-boolean validation payload", async () => {
     mockInvoke.mockResolvedValue({ ok: true });
-    await expect(ipcValidateApiKey("openai", "sk-fake")).rejects.toThrow(IPCValidationError);
+    await expect(ipcValidateApiKey("openrouter", "sk-fake")).rejects.toThrow(IPCValidationError);
   });
 
   it("propagates simulated 401 Unauthorized from Tauri", async () => {
     mockInvoke.mockRejectedValue(new Error("401 Unauthorized"));
-    await expect(ipcValidateApiKey("openai", "sk-fake")).rejects.toThrow("401 Unauthorized");
+    await expect(ipcValidateApiKey("openrouter", "sk-fake")).rejects.toThrow("401 Unauthorized");
   });
 });
 
@@ -463,7 +463,7 @@ describe("ipcAnalyzeProcesses", () => {
 
   it("propagates API errors", async () => {
     mockInvoke.mockRejectedValue(new Error("No API key configured"));
-    await expect(ipcAnalyzeProcesses("developer", "openai", "gpt-4o")).rejects.toThrow("No API key configured");
+    await expect(ipcAnalyzeProcesses("developer", "openrouter", "openai/gpt-4o")).rejects.toThrow("No API key configured");
   });
 
   it("propagates tauri backend errors", async () => {
@@ -496,13 +496,13 @@ describe("other IPC helpers", () => {
       reply: "done",
       tool_call: { tool: "kill_process", success: true, details: "kill_process:99:Test" },
     });
-    await expect(ipcAiChat("hi", "openai", "gpt-4o", [["user", "prev"]])).resolves.toEqual({
+    await expect(ipcAiChat("hi", "openrouter", "openai/gpt-4o", [["user", "prev"]])).resolves.toEqual({
       reply: "done",
       tool_call: { tool: "kill_process", success: true, details: "kill_process:99:Test" },
     });
 
     mockInvoke.mockResolvedValue({ tool_call: null });
-    await expect(ipcAiChat("hi", "openai", "gpt-4o")).rejects.toThrow(IPCValidationError);
+    await expect(ipcAiChat("hi", "openrouter", "openai/gpt-4o")).rejects.toThrow(IPCValidationError);
   });
 
   it("accepts optional tool payloads and cache ttl", async () => {
@@ -516,7 +516,7 @@ describe("other IPC helpers", () => {
       },
     });
 
-    await expect(ipcAiChat("hi", "openai", "gpt-4o", [], 10)).resolves.toEqual({
+    await expect(ipcAiChat("hi", "openrouter", "openai/gpt-4o", [], 10)).resolves.toEqual({
       reply: "summary",
       tool_call: {
         tool: "get_system_summary",
@@ -532,13 +532,13 @@ describe("other IPC helpers", () => {
       reply: "done",
       tool_call: { tool: "format_disk", success: true, details: "boom" },
     });
-    await expect(ipcAiChat("hi", "openai", "gpt-4o")).rejects.toThrow(IPCValidationError);
-    await expect(ipcAiChat("x".repeat(5000), "openai", "gpt-4o")).rejects.toThrow(IPCValidationError);
+    await expect(ipcAiChat("hi", "openrouter", "openai/gpt-4o")).rejects.toThrow(IPCValidationError);
+    await expect(ipcAiChat("x".repeat(5000), "openrouter", "openai/gpt-4o")).rejects.toThrow(IPCValidationError);
   });
 
   it("rejects null AI chat payloads", async () => {
     mockInvoke.mockResolvedValue(null);
-    await expect(ipcAiChat("hi", "openai", "gpt-4o")).rejects.toThrow(IPCValidationError);
+    await expect(ipcAiChat("hi", "openrouter", "openai/gpt-4o")).rejects.toThrow(IPCValidationError);
   });
 
   it("validates AI rules schema payloads", async () => {

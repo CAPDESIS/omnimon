@@ -100,7 +100,7 @@ graph LR
 
 | Module | LOC | Responsibility |
 |--------|-----|---------------|
-| `ai` | 2,300+ | Multi-provider LLM integration (OpenAI, Anthropic, Gemini, OpenRouter, Ollama). Tool calling, prompt injection detection, response caching |
+| `ai` | 2,300+ | Multi-provider LLM integration (OpenRouter, Anthropic, Gemini, Ollama). Tool calling, prompt injection detection, response caching |
 | `network_analysis` | 2,600+ | Cross-platform connection capture (lsof/proc/netstat), DNS caching, per-process summaries, snapshot history |
 | `network` | 1,200+ | Packet capture engine: eBPF (Linux), libpcap (macOS), WinDivert (Windows). Per-process throughput |
 | `browser` | 1,000 | Chrome DevTools Protocol + AppleScript for tab management across 6 browsers |
@@ -164,7 +164,7 @@ graph LR
     TOOL --> REPLY
 ```
 
-**Supported providers:** OpenAI, Anthropic, Gemini, OpenRouter, Ollama (local).
+**Supported providers:** OpenRouter, Anthropic, Gemini, Ollama (local). Direct OpenAI was removed fleet-wide; OpenAI models are reached through OpenRouter (`openai/...` slugs).
 
 **Tool calling:** The AI can execute `kill_process`, `kill_by_name`, `close_tabs`, `add_automation_rule`, `remove_automation_rule` — all gated by confirmation in the frontend.
 

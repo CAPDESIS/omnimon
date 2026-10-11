@@ -295,7 +295,6 @@ enum Format {
 
 #[derive(Clone, ValueEnum)]
 enum AiProvider {
-    Openai,
     Anthropic,
     Openrouter,
     Gemini,
@@ -330,7 +329,6 @@ enum NetworkView {
 impl AiProvider {
     fn to_core_provider(&self) -> core_ai::AiProvider {
         match self {
-            AiProvider::Openai => core_ai::AiProvider::OpenAI,
             AiProvider::Anthropic => core_ai::AiProvider::Anthropic,
             AiProvider::Openrouter => core_ai::AiProvider::OpenRouter,
             AiProvider::Gemini => core_ai::AiProvider::Gemini,
@@ -339,7 +337,6 @@ impl AiProvider {
 
     fn display_name(&self) -> &'static str {
         match self {
-            AiProvider::Openai => "OpenAI",
             AiProvider::Anthropic => "Anthropic",
             AiProvider::Openrouter => "OpenRouter",
             AiProvider::Gemini => "Gemini",
@@ -348,7 +345,6 @@ impl AiProvider {
 
     fn default_model(&self) -> &'static str {
         match self {
-            AiProvider::Openai => "gpt-4o-mini",
             AiProvider::Anthropic => "claude-haiku-4-5-20251001",
             AiProvider::Openrouter => "meta-llama/llama-3.2-3b-instruct:free",
             AiProvider::Gemini => "gemini-2.0-flash",
@@ -569,7 +565,6 @@ pub(crate) fn run_cli(cli: Cli) -> Result<(), i32> {
     if cli.sync_keychain {
         println!("Syncing credentials from keychain...");
         let providers = [
-            ("OpenAI", core_ai::AiProvider::OpenAI),
             ("Anthropic", core_ai::AiProvider::Anthropic),
             ("OpenRouter", core_ai::AiProvider::OpenRouter),
             ("Gemini", core_ai::AiProvider::Gemini),
@@ -1884,9 +1879,10 @@ mod tests {
     #[test]
     fn ai_provider_maps_to_core_defaults() {
         assert_eq!(
-            AiProvider::Openai.to_core_provider(),
-            core_ai::AiProvider::OpenAI
+            AiProvider::Openrouter.to_core_provider(),
+            core_ai::AiProvider::OpenRouter
         );
+        assert_eq!(AiProvider::Openrouter.display_name(), "OpenRouter");
         assert_eq!(AiProvider::Anthropic.display_name(), "Anthropic");
         assert_eq!(AiProvider::Gemini.default_model(), "gemini-2.0-flash");
         assert_eq!(
@@ -2244,14 +2240,31 @@ mod tests {
 
     #[test]
     fn optimize_without_key_returns_error() {
-        let cli = Cli::parse_from(["omnimon", "optimize", "--ai", "openai", "--target", "all"]);
+        let cli = Cli::parse_from([
+            "omnimon",
+            "optimize",
+            "--ai",
+            "anthropic",
+            "--target",
+            "all",
+        ]);
         assert_eq!(run_cli(cli), Err(1));
     }
 
     #[test]
     fn chat_without_key_returns_error() {
-        let cli = Cli::parse_from(["omnimon", "chat", "--ai", "openai", "hello"]);
+        let cli = Cli::parse_from(["omnimon", "chat", "--ai", "anthropic", "hello"]);
         assert_eq!(run_cli(cli), Err(1));
+    }
+
+    #[test]
+    fn removed_openai_provider_is_rejected() {
+        // Fleet rule: no direct OpenAI API usage. `--ai openai` must fail at
+        // argument parsing with a clap error, never reach the AI backend.
+        match Cli::try_parse_from(["omnimon", "chat", "--ai", "openai", "hello"]) {
+            Ok(_) => panic!("--ai openai must be rejected at parse time"),
+            Err(err) => assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue),
+        }
     }
 
     #[test]
@@ -2388,13 +2401,13 @@ mod tests {
     }
 
     #[test]
-    fn apikey_with_invalid_openai_key_errors() {
+    fn apikey_with_invalid_anthropic_key_errors() {
         let cli = Cli::parse_from([
             "omnimon",
             "apikey",
             "--ai",
-            "openai",
-            "definitely-not-a-valid-openai-key",
+            "anthropic",
+            "definitely-not-a-valid-anthropic-key",
         ]);
         assert_eq!(run_cli(cli), Err(1));
     }
