@@ -1380,7 +1380,7 @@ mod tests {
     #[test]
     fn save_ai_config_with_rejects_empty_key_after_trim() {
         let mut called = false;
-        let err = save_ai_config_with("openai", "   ", |_, _| {
+        let err = save_ai_config_with("openrouter", "   ", |_, _| {
             called = true;
             Ok(())
         })
@@ -1394,14 +1394,14 @@ mod tests {
     fn save_ai_config_with_trims_key_before_persisting() {
         let mut captured: Option<(macmon_core::ai::AiProvider, String)> = None;
 
-        save_ai_config_with("openai", "  sk-test-value  ", |provider, key| {
+        save_ai_config_with("openrouter", "  sk-test-value  ", |provider, key| {
             captured = Some((provider, key.to_string()));
             Ok(())
         })
         .unwrap();
 
         let (provider, key) = captured.expect("expected saved key capture");
-        assert_eq!(provider, macmon_core::ai::AiProvider::OpenAI);
+        assert_eq!(provider, macmon_core::ai::AiProvider::OpenRouter);
         assert_eq!(key, "sk-test-value");
     }
 
@@ -1409,6 +1409,20 @@ mod tests {
     fn save_ai_config_with_rejects_unknown_provider() {
         let err = save_ai_config_with("unknown-provider", "key", |_, _| Ok(())).unwrap_err();
         assert!(err.contains("Unknown AI provider"));
+    }
+
+    #[test]
+    fn save_ai_config_with_rejects_removed_openai() {
+        // Fleet rule: no direct OpenAI API usage. A stored "openai" provider
+        // must fail with the OpenRouter migration hint, never save.
+        let mut called = false;
+        let err = save_ai_config_with("openai", "sk-test", |_, _| {
+            called = true;
+            Ok(())
+        })
+        .unwrap_err();
+        assert!(!called);
+        assert!(err.contains("openrouter"), "got: {err}");
     }
 
     #[test]

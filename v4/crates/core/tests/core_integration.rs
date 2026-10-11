@@ -1245,7 +1245,7 @@ fn integration_ai_provider_from_str() {
     use core::ai::AiProvider;
     use std::str::FromStr;
 
-    assert_eq!(AiProvider::from_str("openai").unwrap(), AiProvider::OpenAI);
+    assert!(AiProvider::from_str("openai").is_err());
     assert_eq!(
         AiProvider::from_str("anthropic").unwrap(),
         AiProvider::Anthropic
@@ -1264,7 +1264,6 @@ fn integration_ai_provider_properties() {
     use core::ai::AiProvider;
 
     for provider in [
-        AiProvider::OpenAI,
         AiProvider::Anthropic,
         AiProvider::Gemini,
         AiProvider::OpenRouter,
@@ -1277,10 +1276,30 @@ fn integration_ai_provider_properties() {
 }
 
 #[test]
+fn integration_no_provider_uses_openai_direct() {
+    use core::ai::AiProvider;
+
+    // Fleet OpenRouter-only rule: fails if any provider URL ever points back
+    // at the direct OpenAI API. (This file lives under tests/, which the CI
+    // prod-code scan excludes, so the literal below is safe here.)
+    for provider in [
+        AiProvider::OpenRouter,
+        AiProvider::Gemini,
+        AiProvider::Anthropic,
+        AiProvider::Ollama,
+    ] {
+        assert!(
+            !provider.api_url().contains("api.openai.com"),
+            "{provider:?} must not use the direct OpenAI API"
+        );
+    }
+}
+
+#[test]
 fn integration_ai_ollama_does_not_require_key() {
     use core::ai::AiProvider;
     assert!(!AiProvider::Ollama.requires_api_key());
-    assert!(AiProvider::OpenAI.requires_api_key());
+    assert!(AiProvider::OpenRouter.requires_api_key());
     assert!(AiProvider::Anthropic.requires_api_key());
 }
 

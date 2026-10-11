@@ -204,7 +204,6 @@
     "providers": {
       "ollama": "Ollama (Local)",
       "openrouter": "OpenRouter",
-      "openai": "OpenAI",
       "gemini": "Gemini",
       "anthropic": "Anthropic"
     }

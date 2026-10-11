@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Removed direct OpenAI provider (fleet OpenRouter-only rule)
+
+- The `openai` AI provider is gone from core, CLI (`--ai openai` now fails at parse time), TUI fallback chain, desktop provider picker, keyring services, and the Tauri CSP (`api.openai.com` removed from `connect-src`)
+- OpenAI models stay available through OpenRouter: the picker adds `openai/gpt-4o-mini` and `openai/gpt-4o` slugs, and stored `openai` configs migrate to `openrouter` on load (`gpt-*` models map to `openai/gpt-*`)
+- Regression coverage: unit + integration tests fail if any provider URL points at the direct OpenAI API, and parsing `"openai"` errors with the OpenRouter migration hint
+
 ## 6.8.0 (2026-09-19)
 
 ### Kill identity (false-positive prevention)

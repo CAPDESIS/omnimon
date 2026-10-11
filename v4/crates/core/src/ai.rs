@@ -1,4 +1,5 @@
-//! Artificial Intelligence integration module. Handles communication with various LLM providers (OpenAI, Anthropic, Gemini, OpenRouter) for predictive system optimization and context analysis.
+//! Artificial Intelligence integration module. Handles communication with various LLM providers (OpenRouter, Anthropic, Gemini, Ollama) for predictive system optimization and context analysis.
+//! Fleet rule: no direct OpenAI API usage. OpenAI models are reached through OpenRouter (`openai/...` slugs).
 
 use futures_util::StreamExt;
 use keyring::Entry;
@@ -67,7 +68,6 @@ const REQUEST_TIMEOUT_SECS: u64 = 60;
 
 // --- API URLs ---
 const API_URL_OPENROUTER: &str = "https://openrouter.ai/api/v1/chat/completions";
-const API_URL_OPENAI: &str = "https://api.openai.com/v1/chat/completions";
 const API_URL_GEMINI: &str =
     "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 const API_URL_ANTHROPIC: &str = "https://api.anthropic.com/v1/messages";
@@ -76,7 +76,6 @@ const OLLAMA_TAGS_URL: &str = "http://localhost:11434/api/tags";
 
 // --- Keyring service names ---
 const KEYRING_SERVICE_OPENROUTER: &str = "omnimon_openrouter";
-const KEYRING_SERVICE_OPENAI: &str = "omnimon_openai";
 const KEYRING_SERVICE_GEMINI: &str = "omnimon_gemini";
 const KEYRING_SERVICE_ANTHROPIC: &str = "omnimon_anthropic";
 const KEYRING_SERVICE_OLLAMA: &str = "omnimon_ollama";
@@ -98,7 +97,7 @@ const MAX_TOKENS_VALIDATION: u32 = 1;
 // --- Validation model names ---
 const VALIDATION_MODEL_ANTHROPIC: &str = "claude-haiku-4-5-20251001";
 const VALIDATION_MODEL_OPENROUTER: &str = "meta-llama/llama-3.2-3b-instruct:free";
-const VALIDATION_MODEL_DEFAULT: &str = "gpt-4o-mini";
+const VALIDATION_MODEL_GEMINI: &str = "gemini-2.0-flash";
 
 // --- Byte conversion constants ---
 const BYTES_PER_GB: f64 = 1_073_741_824.0;
@@ -108,7 +107,6 @@ const BYTES_PER_MB: f64 = 1_048_576.0;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AiProvider {
     OpenRouter,
-    OpenAI,
     Gemini,
     Anthropic,
     Ollama,
@@ -118,7 +116,6 @@ impl AiProvider {
     pub fn keyring_service(&self) -> &'static str {
         match self {
             AiProvider::OpenRouter => KEYRING_SERVICE_OPENROUTER,
-            AiProvider::OpenAI => KEYRING_SERVICE_OPENAI,
             AiProvider::Gemini => KEYRING_SERVICE_GEMINI,
             AiProvider::Anthropic => KEYRING_SERVICE_ANTHROPIC,
             AiProvider::Ollama => KEYRING_SERVICE_OLLAMA,
@@ -128,7 +125,6 @@ impl AiProvider {
     pub fn api_url(&self) -> &'static str {
         match self {
             AiProvider::OpenRouter => API_URL_OPENROUTER,
-            AiProvider::OpenAI => API_URL_OPENAI,
             AiProvider::Gemini => API_URL_GEMINI,
             AiProvider::Anthropic => API_URL_ANTHROPIC,
             AiProvider::Ollama => API_URL_OLLAMA,
@@ -138,7 +134,6 @@ impl AiProvider {
     pub fn display_name(&self) -> &'static str {
         match self {
             AiProvider::OpenRouter => "OpenRouter",
-            AiProvider::OpenAI => "OpenAI",
             AiProvider::Gemini => "Gemini",
             AiProvider::Anthropic => "Anthropic",
             AiProvider::Ollama => "Ollama (Local)",
@@ -153,7 +148,6 @@ impl AiProvider {
 
 fn resolve_api_url(provider: AiProvider) -> String {
     let env_key = match provider {
-        AiProvider::OpenAI => "OMNIMON_OPENAI_API_URL",
         AiProvider::OpenRouter => "OMNIMON_OPENROUTER_API_URL",
         AiProvider::Gemini => "OMNIMON_GEMINI_API_URL",
         AiProvider::Anthropic => "OMNIMON_ANTHROPIC_API_URL",
@@ -167,7 +161,10 @@ impl std::str::FromStr for AiProvider {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "openrouter" => Ok(AiProvider::OpenRouter),
-            "openai" => Ok(AiProvider::OpenAI),
+            "openai" => Err(
+                "AI provider 'openai' was removed; use 'openrouter' with an openai/... model"
+                    .to_string(),
+            ),
             "gemini" => Ok(AiProvider::Gemini),
             "anthropic" => Ok(AiProvider::Anthropic),
             "ollama" => Ok(AiProvider::Ollama),
@@ -306,10 +303,10 @@ pub async fn validate_api_key(
                 .header("Content-Type", "application/json");
             add_openrouter_headers(req).body(body).send().await?
         }
-        _ => {
+        AiProvider::Gemini => {
             let body = format!(
                 r#"{{"model":"{}","max_tokens":{},"messages":[{{"role":"user","content":"hi"}}]}}"#,
-                VALIDATION_MODEL_DEFAULT, MAX_TOKENS_VALIDATION
+                VALIDATION_MODEL_GEMINI, MAX_TOKENS_VALIDATION
             );
             client
                 .post(url)
@@ -318,6 +315,11 @@ pub async fn validate_api_key(
                 .body(body)
                 .send()
                 .await?
+        }
+        AiProvider::Ollama => {
+            // Unreachable: Ollama returns early above (no key to validate).
+            // Kept for exhaustiveness; no network I/O happens here.
+            return Ok(());
         }
     };
 
@@ -416,7 +418,7 @@ pub async fn analyze_with_ai_key(
         return analyze_anthropic(&client, api_key, model, &prompt).await;
     }
 
-    // OpenAI-compatible endpoint (OpenRouter, OpenAI, Gemini)
+    // OpenAI-compatible endpoint (OpenRouter, Gemini)
     let body = serde_json::json!({
         "model": model,
         "messages": [
@@ -1307,7 +1309,7 @@ pub async fn chat_with_tools(
             .unwrap_or("")
             .to_string()
     } else {
-        // OpenAI-compatible (OpenAI, OpenRouter, Gemini, Ollama)
+        // OpenAI-compatible (OpenRouter, Gemini, Ollama)
         let mut openai_msgs = vec![serde_json::json!({"role": "system", "content": system_prompt})];
         openai_msgs.extend(msg_array.iter().cloned());
         let body = serde_json::json!({
@@ -1447,7 +1449,7 @@ where
         }
         read_sse_stream_anthropic(resp, &on_token).await?
     } else {
-        // OpenAI-compatible providers (OpenAI, OpenRouter, Gemini, Ollama)
+        // OpenAI-compatible providers (OpenRouter, Gemini, Ollama)
         let mut openai_msgs = vec![json!({"role": "system", "content": system_prompt})];
         openai_msgs.extend(msg_array.iter().cloned());
         let body = json!({
@@ -1936,7 +1938,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     /// Serializes tests that mutate process-global state (the
-    /// `OMNIMON_OPENAI_API_URL` env var and the shared `AI_CACHE`) so the
+    /// `OMNIMON_*_API_URL` env vars and the shared `AI_CACHE`) so the
     /// suite passes under `cargo test`'s default parallel execution.
     static AI_TEST_LOCK: Mutex<()> = Mutex::new(());
 
@@ -2059,9 +2061,9 @@ mod tests {
         let public_v6 = redact_hostname_or_ip("2001:4860:4860::8888", true);
         assert!(public_v6.starts_with("<ip-"));
 
-        let hostname = redact_hostname_or_ip("api.openai.com", true);
+        let hostname = redact_hostname_or_ip("api.anthropic.com", true);
         assert!(hostname.starts_with("<host-"));
-        assert!(!hostname.contains("openai"));
+        assert!(!hostname.contains("anthropic"));
     }
 
     #[test]
@@ -2141,7 +2143,6 @@ mod tests {
             AiProvider::from_str("openrouter").unwrap(),
             AiProvider::OpenRouter
         );
-        assert_eq!(AiProvider::from_str("OpenAI").unwrap(), AiProvider::OpenAI);
         assert_eq!(AiProvider::from_str("GEMINI").unwrap(), AiProvider::Gemini);
         assert_eq!(
             AiProvider::from_str("anthropic").unwrap(),
@@ -2152,10 +2153,43 @@ mod tests {
     }
 
     #[test]
+    fn ai_provider_from_str_rejects_removed_openai() {
+        // Fleet rule: no direct OpenAI API usage. Stored "openai" values must
+        // fail loudly and point at OpenRouter, never silently remap.
+        for spelling in ["openai", "OpenAI", "OPENAI"] {
+            let err = AiProvider::from_str(spelling).unwrap_err();
+            assert!(
+                err.contains("openrouter"),
+                "removal message must point at openrouter, got: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn no_provider_url_uses_openai_direct() {
+        // Regression guard for the fleet OpenRouter-only rule: no provider
+        // may point at the direct OpenAI API host. (The host literal is
+        // built at runtime so this production file never contains it; the
+        // same assertion with the plain literal lives in core_integration.rs,
+        // which CI excludes from the prod-code scan.)
+        let direct_host = ["api", "openai", "com"].join(".");
+        for provider in [
+            AiProvider::OpenRouter,
+            AiProvider::Gemini,
+            AiProvider::Anthropic,
+            AiProvider::Ollama,
+        ] {
+            assert!(
+                !provider.api_url().contains(&direct_host),
+                "{provider:?} must not use the direct OpenAI API"
+            );
+        }
+    }
+
+    #[test]
     fn ai_provider_keyring_services_are_distinct() {
         let services: Vec<&str> = [
             AiProvider::OpenRouter,
-            AiProvider::OpenAI,
             AiProvider::Gemini,
             AiProvider::Anthropic,
             AiProvider::Ollama,
@@ -2177,7 +2211,6 @@ mod tests {
     fn ai_provider_api_urls_are_https_or_localhost() {
         for provider in &[
             AiProvider::OpenRouter,
-            AiProvider::OpenAI,
             AiProvider::Gemini,
             AiProvider::Anthropic,
         ] {
@@ -2194,7 +2227,7 @@ mod tests {
     #[test]
     fn ollama_does_not_require_api_key() {
         assert!(!AiProvider::Ollama.requires_api_key());
-        assert!(AiProvider::OpenAI.requires_api_key());
+        assert!(AiProvider::OpenRouter.requires_api_key());
         assert!(AiProvider::Anthropic.requires_api_key());
     }
 
@@ -2248,7 +2281,6 @@ mod tests {
     #[test]
     fn ai_provider_display_names_cover_all_variants() {
         assert_eq!(AiProvider::OpenRouter.display_name(), "OpenRouter");
-        assert_eq!(AiProvider::OpenAI.display_name(), "OpenAI");
         assert_eq!(AiProvider::Gemini.display_name(), "Gemini");
         assert_eq!(AiProvider::Anthropic.display_name(), "Anthropic");
         assert_eq!(AiProvider::Ollama.display_name(), "Ollama (Local)");
@@ -2624,8 +2656,8 @@ mod tests {
         let messages = vec![("user".to_string(), "close youtube tabs".to_string())];
         let system_prompt = "system prompt";
         let cache_key = calculate_hash(&(
-            AiProvider::OpenAI as u8,
-            "gpt-4o-mini",
+            AiProvider::OpenRouter as u8,
+            "meta-llama/llama-3.2-3b-instruct:free",
             &messages,
             system_prompt,
         ));
@@ -2645,8 +2677,8 @@ mod tests {
         }
 
         let (reply, tool_call) = chat_with_tools(
-            AiProvider::OpenAI,
-            "gpt-4o-mini",
+            AiProvider::OpenRouter,
+            "meta-llama/llama-3.2-3b-instruct:free",
             "unused-key",
             &messages,
             system_prompt,
@@ -2857,20 +2889,20 @@ mod tests {
             .await;
         clear_ai_cache();
         std::env::set_var(
-            "OMNIMON_OPENAI_API_URL",
+            "OMNIMON_GEMINI_API_URL",
             format!("{}/v1/chat/completions", server.url()),
         );
         let messages = vec![("user".to_string(), "summarize system".to_string())];
         let (reply, tool) = chat_with_tools(
-            AiProvider::OpenAI,
-            "gpt-4o-mini",
+            AiProvider::Gemini,
+            "gemini-2.0-flash",
             "sk-test",
             &messages,
             "system",
         )
         .await
         .expect("chat");
-        std::env::remove_var("OMNIMON_OPENAI_API_URL");
+        std::env::remove_var("OMNIMON_GEMINI_API_URL");
         assert!(!reply.is_empty());
         let _ = tool;
     }
@@ -2897,19 +2929,19 @@ mod tests {
             .await;
 
         std::env::set_var(
-            "OMNIMON_OPENAI_API_URL",
+            "OMNIMON_GEMINI_API_URL",
             format!("{}/v1/chat/completions", server.url()),
         );
         let suggestions = analyze_with_ai_key(
-            AiProvider::OpenAI,
-            "gpt-4o-mini",
+            AiProvider::Gemini,
+            "gemini-2.0-flash",
             r#"[{"pid":1,"name":"chrome","memory_mb":100}]"#,
             "general",
             "sk-test",
         )
         .await
         .expect("analyze should succeed");
-        std::env::remove_var("OMNIMON_OPENAI_API_URL");
+        std::env::remove_var("OMNIMON_GEMINI_API_URL");
 
         assert_eq!(suggestions.len(), 1);
         assert_eq!(suggestions[0].name, "chrome");
@@ -2933,18 +2965,18 @@ mod tests {
             .await;
 
         std::env::set_var(
-            "OMNIMON_OPENAI_API_URL",
+            "OMNIMON_GEMINI_API_URL",
             format!("{}/v1/chat/completions", server.url()),
         );
         let text = analyze_context_key(
-            AiProvider::OpenAI,
-            "gpt-4o-mini",
+            AiProvider::Gemini,
+            "gemini-2.0-flash",
             "Explain pid 1",
             "sk-test",
         )
         .await
         .expect("context analyze");
-        std::env::remove_var("OMNIMON_OPENAI_API_URL");
+        std::env::remove_var("OMNIMON_GEMINI_API_URL");
         assert!(text.contains("healthy") || !text.is_empty());
     }
 
@@ -2960,11 +2992,11 @@ mod tests {
             .create_async()
             .await;
         std::env::set_var(
-            "OMNIMON_OPENAI_API_URL",
+            "OMNIMON_GEMINI_API_URL",
             format!("{}/v1/chat/completions", server.url()),
         );
-        let result = validate_api_key(AiProvider::OpenAI, "gpt-4o-mini", "sk-test").await;
-        std::env::remove_var("OMNIMON_OPENAI_API_URL");
+        let result = validate_api_key(AiProvider::Gemini, "gemini-2.0-flash", "sk-test").await;
+        std::env::remove_var("OMNIMON_GEMINI_API_URL");
         assert!(result.is_ok());
     }
 
@@ -2979,11 +3011,11 @@ mod tests {
             .create_async()
             .await;
         std::env::set_var(
-            "OMNIMON_OPENAI_API_URL",
+            "OMNIMON_GEMINI_API_URL",
             format!("{}/v1/chat/completions", server.url()),
         );
-        let result = validate_api_key(AiProvider::OpenAI, "gpt-4o-mini", "sk-bad").await;
-        std::env::remove_var("OMNIMON_OPENAI_API_URL");
+        let result = validate_api_key(AiProvider::Gemini, "gemini-2.0-flash", "sk-bad").await;
+        std::env::remove_var("OMNIMON_GEMINI_API_URL");
         assert!(result.is_err());
     }
 

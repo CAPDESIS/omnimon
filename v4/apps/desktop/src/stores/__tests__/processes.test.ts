@@ -556,7 +556,7 @@ describe("analyzeWithAi", () => {
   it("stringifies non-Error failures", async () => {
     mockInvoke.mockRejectedValue("plain-string-error");
 
-    await analyzeWithAi("openai", "gpt-4o");
+    await analyzeWithAi("anthropic", "claude-haiku-4-5-20251001");
 
     expect(get(aiError)).toBe("plain-string-error");
   });
@@ -617,17 +617,17 @@ describe("dismissAiSuggestions", () => {
 describe("saveAiConfigAction", () => {
   it("forwards provider/model/key to IPC", async () => {
     mockInvoke.mockResolvedValue(undefined);
-    await saveAiConfigAction("openai", "gpt-5", "secret-key");
+    await saveAiConfigAction("openrouter", "openai/gpt-4o-mini", "secret-key");
     expect(mockInvoke).toHaveBeenCalledWith("save_ai_config", {
-      provider: "openai",
-      model: "gpt-5",
+      provider: "openrouter",
+      model: "openai/gpt-4o-mini",
       key: "secret-key",
     });
   });
 
   it("bubbles tauri save errors", async () => {
     mockInvoke.mockRejectedValue(new Error("keyring unavailable"));
-    await expect(saveAiConfigAction("openai", "gpt-5", "secret-key")).rejects.toThrow("keyring unavailable");
+    await expect(saveAiConfigAction("openrouter", "openai/gpt-4o-mini", "secret-key")).rejects.toThrow("keyring unavailable");
   });
 });
 

@@ -124,7 +124,7 @@ La TUI auto-detecta el proveedor disponible en este orden de prioridad:
 1. **Ollama** (local, sin API key) — ideal para uso offline
 2. **Anthropic** (Claude Haiku) — rápido y económico
 3. **OpenRouter** (free tier) — acceso gratuito a Llama
-4. **OpenAI** (GPT-4o-mini) — fallback
+4. **Ollama local** — fallback sin clave
 
 ## Integración con el CLI
 

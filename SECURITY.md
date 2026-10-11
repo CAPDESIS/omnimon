@@ -25,7 +25,7 @@ OmniMon includes strict, OS-specific blocklists (`#[cfg(target_os)]`) embedded d
 Even if the user or AI attempts to terminate these processes, the command will be natively denied, preventing kernel panics or OS crashes (Blue Screens).
 
 ### 2. Credential Storage (Native Keychain)
-API keys for AI providers (OpenAI, Anthropic, OpenRouter) and CrabNebula are **never** stored in plain text on disk.
+API keys for AI providers (OpenRouter, Anthropic, Gemini) and CrabNebula are **never** stored in plain text on disk.
 We use the cross-platform `keyring` crate to abstract and delegate secure storage to the OS's cryptographic credential manager:
 *   macOS: **Keychain Access**
 *   Windows: **Credential Manager**
@@ -56,7 +56,7 @@ All sensitive IPC commands are protected by a token bucket rate limiter (`rate_l
 *   **CONFIG profile:** 5 burst, 2/sec refill — configuration, automations, and plugin operations
 
 ### 8. Content Security Policy Hardening (v6.3.0+)
-Strict CSP in `tauri.conf.json`: `object-src 'none'; base-uri 'self'`. Only `self` plus explicitly allowed LLM API domains (OpenAI, Anthropic, Gemini, OpenRouter) are permitted for network connections.
+Strict CSP in `tauri.conf.json`: `object-src 'none'; base-uri 'self'`. Only `self` plus explicitly allowed LLM API domains (OpenRouter, Anthropic, Gemini) are permitted for network connections.
 
 ### 9. Lua plugins (restricted stdlib, not a sandbox)
 Embedded Lua 5.4 plugins load only `coroutine`/`table`/`string`/`utf8`/`math`. `io`, `os`, `package`, and `debug` are not loaded; `load`/`loadfile`/`dofile` are nilled. Memory (1 MiB) and instruction-budget (150 ms) limits apply. This is **not** a process/seccomp sandbox. Only install scripts you trust.
@@ -90,7 +90,7 @@ OmniMon incluye listas de bloqueo estrictas y divididas por plataforma (`#[cfg(t
 Incluso si el usuario o la IA intenta terminar estos procesos, el comando será denegado nativamente, previniendo "kernel panics" o cuelgues del SO (Blue Screens).
 
 ### 2. Almacenamiento de Credenciales (Keychain Nativo)
-Las claves de API de los proveedores de IA (OpenAI, Anthropic, OpenRouter) y CrabNebula **nunca** se almacenan en texto plano en el disco.
+Las claves de API de los proveedores de IA (OpenRouter, Anthropic, Gemini) y CrabNebula **nunca** se almacenan en texto plano en el disco.
 Utilizamos el crate multiplataforma `keyring` para abstraer y delegar el almacenamiento seguro al manejador de credenciales criptográficas del Sistema Operativo:
 *   macOS: **Keychain Access**
 *   Windows: **Credential Manager**
@@ -121,7 +121,7 @@ Todos los comandos IPC sensibles están protegidos por un rate limiter de tipo t
 *   **Perfil CONFIG:** 5 burst, 2/seg refill — configuración, automatizaciones y operaciones de plugins
 
 ### 8. Endurecimiento de CSP (v6.3.0+)
-CSP estricto en `tauri.conf.json`: `object-src 'none'; base-uri 'self'`. Solo `self` y los dominios de API de LLM explícitamente permitidos (OpenAI, Anthropic, Gemini, OpenRouter) se permiten para conexiones de red.
+CSP estricto en `tauri.conf.json`: `object-src 'none'; base-uri 'self'`. Solo `self` y los dominios de API de LLM explícitamente permitidos (OpenRouter, Anthropic, Gemini) se permiten para conexiones de red.
 
 ### 9. Plugins Lua (stdlib restringida, no es sandbox)
 Los plugins Lua 5.4 embebidos cargan solo `coroutine`/`table`/`string`/`utf8`/`math`. No se cargan `io`, `os`, `package` ni `debug`; `load`/`loadfile`/`dofile` se anulan. Hay tope de memoria (1 MiB) y presupuesto de instrucciones (150 ms). **No** es un sandbox de proceso/seccomp. Solo instala scripts de confianza.

@@ -6,7 +6,7 @@ Se ha implementado un mecanismo de sanitización en el backend (`ai.rs`) que eva
 ## 2. AI Response Caching (Memoization)
 Para ahorrar tokens y ciclos de CPU, se ha implementado una caché en memoria usando `std::sync::RwLock` y `std::collections::HashMap`.
 - Se genera un hash de la consulta del usuario (incluyendo contexto técnico como nombres de procesos).
-- Si la pregunta (ej. "Qué es WindowServer") ya fue respondida para el mismo contexto/estado, se retorna inmediatamente la respuesta almacenada sin hacer la petición a la API (Ollama/OpenAI/etc).
+- Si la pregunta (ej. "Qué es WindowServer") ya fue respondida para el mismo contexto/estado, se retorna inmediatamente la respuesta almacenada sin hacer la petición a la API (Ollama/OpenRouter/etc).
 
 ## 3. Graceful Degradation
 El componente `AIChat.svelte` fue modificado para manejar errores de API y timeouts de forma elegante.
