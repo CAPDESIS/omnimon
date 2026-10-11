@@ -90,6 +90,19 @@ EXCLUDED_BASENAMES = frozenset(
     ]
 )
 
+# Guard-owned files: the validator, the reusable workflow that embeds it,
+# and the caller shims all name the forbidden literals in their own
+# comments/pattern, so the guard never scans itself. These files are tiny
+# and reviewed on their own PRs; production code cannot hide behind these
+# names without a reviewer seeing it.
+SELF_EXCLUDED_BASENAMES = frozenset(
+    [
+        "openrouter-only-validate.py",
+        "openrouter-only-gate.yml",
+        "openrouter-only.yml",
+    ]
+)
+
 
 def excluded(path, extra):
     lowered = path.lower()
@@ -102,6 +115,8 @@ def excluded(path, extra):
             return True
     base = parts[-1] if parts else ""
     if base in EXCLUDED_BASENAMES:
+        return True
+    if base in SELF_EXCLUDED_BASENAMES:
         return True
     for suffix in EXCLUDED_SUFFIXES:
         if base.endswith(suffix):
