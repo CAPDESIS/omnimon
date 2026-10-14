@@ -134,5 +134,5 @@ omnimon status     # Snapshot estático (ya existente)
 omnimon chat       # Chat one-shot (ya existente)
 ```
 
-El subcomando `tui` se añadió al enum `Commands` del CLI (`v4/crates/cli/src/main.rs`)
+El subcomando `tui` vive en el enum `Commands` del CLI (`v4/crates/cli/src/lib.rs`)
 y delega a `omnimon_tui::run()`.

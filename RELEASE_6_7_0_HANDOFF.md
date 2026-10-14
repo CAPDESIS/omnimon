@@ -1,5 +1,12 @@
 # OmniMon 6.7.0 — Release Handoff
 
+> Estado 2026-10-13: el tag `v6.7.0` NUNCA se cortó (último tag publicado:
+> `v6.6.6` según `git tag`; manifests ya en 6.8.0) y `v4/releases.json`
+> sigue en 6.0.1 con placeholders. Pendiente real: cortar el tag de release
+> y regenerar `releases.json` con SHAs/firmas (pasos 3–4 abajo, adaptados a
+> la versión vigente). Este archivo se conserva como checklist; bórralo
+> cuando el release se publique.
+
 Documento de cierre de la sesión: qué quedó listo, qué falta para publicar 6.7.0 y dónde se documentó cada cosa. Borrar o archivar este archivo una vez que el tag `v6.7.0` esté publicado en GitHub Releases.
 
 ## Estado general

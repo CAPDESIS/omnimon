@@ -20,6 +20,10 @@ That matches OS process-handle practice (macOS `p_starttime`, Linux `/proc` star
 
 # OmniMon v6.7.0 Release Notes
 
+> Note 2026-10-13: no `v6.7.0` tag or binaries were ever published (latest
+> published tag is still `v6.6.6`). The Install/Artifacts sections below
+> describe the intended release flow, not published artifacts.
+
 Release date: 2026-04-17
 
 ## Zombie Killer

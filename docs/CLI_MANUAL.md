@@ -1,8 +1,8 @@
-# OmniMon CLI Manual (v6.3.0)
+# OmniMon CLI Manual (v6.8.0)
 
 ## Overview
 
-The OmniMon CLI provides full access to system monitoring, AI optimization, network analysis, security auditing, and release management directly from your terminal. It offers complete parity with the desktop GUI.
+The OmniMon CLI provides full access to system monitoring, AI optimization, network analysis, security auditing, and release management directly from your terminal. Parity with the desktop GUI is close but not complete: `security-scan`, `doctor`, and `cloud sync` have no GUI trigger yet (see `v4/docs/PARITY_GAPS.md`).
 
 ## Global Options
 

@@ -1,5 +1,12 @@
 # CLI ↔ GUI Parity Gaps
 
+> Status 2026-10-13 (workspace 6.8.0): Auth-login UI is now PARTIAL
+> (`CloudSync.svelte` saves the key; sync button not wired).
+> Security-scan GUI is PARTIAL (`SecurityReportView.svelte` shows
+> store-derived findings; no scan trigger IPC). Doctor GUI still missing.
+> Verified against `v4/apps/desktop/src/components/` and the
+> `generate_handler!` registry in `src-tauri/src/lib.rs`.
+
 Documento generado por la auditoría de paridad CLI/GUI.
 Input para el Sprint 2 (agente frontend).
 
@@ -57,9 +64,9 @@ Estas funcionalidades están correctamente excluidas del CLI por ser inherentes 
 | Settings | `settings` | Tauri Store |
 | **Network telemetry** | `network` | `get_network_data` |
 | **AI security rules** | `rules` | `apply_ai_rules` / `get_ai_rules_schema` |
-| Security scan | `security-scan` | **PENDIENTE** |
-| Doctor | `doctor` | **PENDIENTE** |
-| Auth | `auth` | **PENDIENTE (UI)** |
-| Cloud sync | `cloud` | **PENDIENTE** |
+| Security scan | `security-scan` | **PARCIAL** (`SecurityReportView` viewer only, no scan trigger) |
+| Doctor | `doctor` | **PENDIENTE** (no GUI) |
+| Auth | `auth` | **PARCIAL** (`CloudSync.svelte` key UI done) |
+| Cloud sync | `cloud` | **PENDIENTE** (button shows `syncNotImplemented`) |
 | Automations | N/A (usar `rules`) | `get/add/remove_automation_rules` |
 | Plugins (Lua) | N/A | `list/install/set_enabled/remove_plugin` |

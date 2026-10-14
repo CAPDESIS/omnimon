@@ -1,6 +1,8 @@
 # OmniMon Commands Reference
 
-Version: `6.3.0`
+Version: `6.8.0` (IPC registry verified 2026-10-13 against `generate_handler!` in `v4/apps/desktop/src-tauri/src/lib.rs`; CLI against `v4/crates/cli/src/lib.rs`)
+
+> AI providers: `openrouter`, `anthropic`, `gemini`, `ollama`. Direct `openai` was removed fleet-wide (`--ai openai` fails at parse time); use OpenRouter with an `openai/...` model.
 
 ## AI Chat Actions
 
@@ -11,8 +13,8 @@ These are the backend-supported actions that can be triggered from the in-app AI
 | `kill_process` | Close one app by PID after confirmation | Resolves a single PID and returns a deferred kill instruction for the frontend confirmation flow | "Cierra el proceso con PID 1234" | Plain-language confirmation preview, then success/failure text such as `Successfully killed process 'X' (PID 1234)` |
 | `kill_by_name` | Close all matching apps by name after confirmation | Matches current cached process names and returns a PID set for batch confirmation | "Cierra todos los Chrome Helper" | Plain-language list of matching processes and readable batch result |
 | `close_tabs` | Close browser tabs that match a title or URL | Supports `pattern` mode and `except` mode for selective multi-tab control | "Cierra YouTube y Netflix" / "Deja solo GitHub y Gemini" | Human-readable tab summary; no raw JSON shown to the end user |
-| `add_automation_rule` | Create an alert or auto-action rule | Adds an automation rule with `id`, `process_pattern`, `metric`, `threshold`, `duration_secs`, and `action` | "Avísame si node supera 2 GB por 60 segundos" | Readable confirmation such as `Added automation rule successfully` |
-| `remove_automation_rule` | Remove a saved automation rule | Deletes a rule by stable identifier | "Elimina la regla node-memory" | Readable confirmation such as `Removed automation rule successfully` |
+| `add_automation_rule` | Create an alert or auto-action rule | Returns a plan (`details` + `payload`); the UI stages it as `pendingAction` and invokes the real IPC only after explicit confirmation (since 6.7.0) | "Avísame si node supera 2 GB por 60 segundos" | Readable plan preview first, then confirmation such as `Added automation rule successfully` |
+| `remove_automation_rule` | Remove a saved automation rule | Returns a plan for frontend confirmation (since 6.7.0); deletes by stable identifier only after confirm | "Elimina la regla node-memory" | Readable plan preview first, then confirmation such as `Removed automation rule successfully` |
 
 ## CLI Commands
 
@@ -62,7 +64,7 @@ These are the backend-supported actions that can be triggered from the in-app AI
 | `get_network_connections` | none | `NetworkSnapshot` with current connection list and aggregate per-process analysis |
 | `get_network_history` | `seconds: number` | `NetworkSnapshot[]` for the requested recent interval |
 | `get_filtered_connections` | `filter: NetworkFilter` | `NetworkConnection[]` matching protocol/port/process/host filters |
-| `kill_process` | `pid: number` | `boolean` |
+| `kill_process` | `pid: number`, `start_time?: number` (required, `> 0`; recycled PIDs are refused) | `boolean` |
 | `kill_processes` | `pids: number[]` (max 50) | `{ killed: number[], failed: [number, string][] }` |
 | `save_ai_config` | `provider: string`, `model: string`, `key: string` | `void` |
 | `check_api_key` | `provider: string` | `boolean` |
@@ -87,6 +89,13 @@ These are the backend-supported actions that can be triggered from the in-app AI
 | `install_plugin` | `fileName: string`, `source: string` (max 256KB) | `PluginDescriptor` |
 | `set_plugin_enabled` | `pluginId: string`, `enabled: boolean` | `PluginDescriptor` |
 | `remove_plugin` | `pluginId: string` | `void` |
+| `check_cdp_availability` | none | `{ [browser: string]: boolean }` map |
+| `get_zombie_killer_config` | none | `ZombieKillerConfig` |
+| `set_zombie_killer_config` | `config: ZombieKillerConfig` | `void` |
+| `list_zombie_candidates` | none | `ZombieCandidate[]` |
+| `kill_zombie` | `pid: number`, `start_time: number` | `KillResult` |
+| `kill_all_zombies` | none | `KillResult[]` |
+| `get_ai_daily_usage` | none | `(used, limit)` for the UTC-day AI budget |
 
 ## Readable Output Expectations
 

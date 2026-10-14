@@ -19,6 +19,7 @@ Lockfile SoT: `v4/Cargo.lock`
 | --- | --- | --- | --- | --- | --- |
 | `CVE-2026-25727` | `RUSTSEC-2026-0009` | `time` | `0.3.54` | `>= 0.3.47` | Mitigated in lockfile |
 | `RUSTSEC-2026-0258` | `RUSTSEC-2026-0258` | `h2` | `0.4.16` | `>= 0.4.16` | Mitigated in lockfile (was 0.4.15) |
+| — | `RUSTSEC-2026-0340` + `0341` | `quinn-proto` | `0.11.18` | `0.11.18` | Mitigated in lockfile (bump PR #70, `2cb64ce`) |
 
 ## Vulnerability Detail
 

@@ -1,5 +1,14 @@
 # OS Integration Plan (OmniMon v4)
 
+> Status 2026-10-13 (workspace 6.8.0): largely IMPLEMENTED with deviations.
+> Tray menu + left-click toggle + autostart plugin (`tauri-plugin-autostart`
+> in `Cargo.toml`, initialized in `lib.rs`) exist; the Svelte autostart
+> toggle calls the plugin JS API directly (`App.svelte`), so the planned
+> custom `get/set_autostart_enabled` IPC commands were never needed.
+> Deviation: main window is `visible: true` in `tauri.conf.json`, not hidden
+> by default. Validation-plan note: this repo uses `bun run build`, not
+> `npm run build`.
+
 ## Objective
 
 Implement native macOS desktop integration for OmniMon v4 with three capabilities:
@@ -58,7 +67,7 @@ omnimon-memory-guard prove
 ## Validation plan
 
 - `cargo check` in `v4/apps/desktop/src-tauri` to validate Rust compile/lints baseline.
-- `npm run build` for frontend type+bundle sanity after IPC additions.
+- `bun run build` for frontend type+bundle sanity after IPC additions.
 - Manual smoke behavior:
   - app starts hidden,
   - tray left-click toggles visibility,

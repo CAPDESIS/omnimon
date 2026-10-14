@@ -34,7 +34,7 @@
 | Process Hollowing | T1055.012 | Defense Evasion | Memory pattern detection |
 | Credential Dumping | T1003 | Credential Access | Suspicious memory read monitoring |
 | Hijack Execution Flow | T1574 | Persistence | Unsigned module load detection |
-| C2 Communication | T1043, T1571 | Command & Control | Network policy enforcement |
+| C2 Communication | T1071, T1571 | Command & Control | Network policy enforcement |
 | Command Injection | T1059 | Execution | Native FFI (no shell commands) |
 | Unsecured Credentials | T1552 | Credential Access | OS Keychain integration |
 | UAC Bypass | T1548.002 | Privilege Escalation | User-space only operation |
@@ -52,13 +52,13 @@
 ### 4. CI/CD Hardening
 
 **Coverage Requirements:**
-- Rust backend: >= 70% line coverage in the current CI gate (`cargo llvm-cov --workspace --fail-under-lines 70 ...`)
-- Frontend: >= 75% line coverage in the current CI gate (`bun run test:coverage` plus `coverage-summary.json` check)
+- Rust backend: >= 85% line coverage in the current CI gate (`cargo llvm-cov --workspace --fail-under-lines 85 ...`, RAW workspace total)
+- Frontend: 85% lines/functions/statements + 70% branches, enforced by `vitest.config.ts` thresholds via `bun run test:coverage` plus the `coverage-summary.json` check
 - Linux is the blocking platform. macOS and Windows currently run as non-blocking experimental jobs.
 
 **CVE Scanning Pipeline:**
-- `cargo audit` for Rust dependency CVEs (RustSec Advisory DB)
-- `bun audit` for frontend dependency CVEs; the CI step is blocking as of 2026-06-29
+- `cargo audit` for Rust dependency CVEs (RustSec Advisory DB); fails the build on RUSTSEC vulnerabilities
+- `bun audit` for frontend dependency CVEs; blocks on high/critical in production deps (`--prod --audit-level=high`), with an `audit-ci` fallback when `bun audit` is unavailable
 - TruffleHog for leaked secrets/credentials
 - `scripts/cve-report.sh` generates consolidated vulnerability reports
 

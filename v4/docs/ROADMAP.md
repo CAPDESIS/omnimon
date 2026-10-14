@@ -1,5 +1,12 @@
 # OmniMon v4.6.0 Roadmap
 
+> Status 2026-10-13 (workspace 6.8.0): several "Pending" items below are
+> DONE (network telemetry, multi-language UI, TUI, JSON output, landing
+> page) — marked inline with evidence. Direct-OpenAI references are stale:
+> the `openai` provider was removed fleet-wide; OpenAI models are reached
+> via OpenRouter (`openai/...` slugs). License is pure MIT (`LICENSE`), not
+> MIT+Commons Clause.
+
 ## Status Update (v4.6.0)
 
 The sections below started as a v4.1 roadmap and include historical entries.
@@ -49,7 +56,7 @@ Reference files:
 - [x] Resize divider for tab panel height (persisted across restarts)
 
 ### AI Integration
-- [x] Multi-provider support: OpenAI, Anthropic, OpenRouter, Gemini
+- [x] Multi-provider support: OpenRouter, Anthropic, Gemini, Ollama (direct OpenAI removed fleet-wide; `openai/...` models via OpenRouter)
 - [x] AI Analyze button in toolbar (process optimization suggestions)
 - [x] AI profile selection: General, Developer, Gaming, Battery Saver
 - [x] Ask AI in process detail modal (contextual analysis with tab info)
@@ -80,7 +87,7 @@ Reference files:
 
 ### Documentation
 - [x] Bilingual documentation (English + Spanish) for README, CONTRIBUTING, ARCHITECTURE, CHANGELOG, SECURITY
-- [x] License: MIT + Commons Clause (free to use, cannot sell)
+- [x] License: MIT (`LICENSE`; the old "MIT + Commons Clause" line was stale)
 - [x] No AI attribution in repository
 
 ### Testing
@@ -114,25 +121,25 @@ Audit all UI components for text overflow issues. Ensure `text-overflow: ellipsi
 - Show if the tab is actively loading or idle
 - Show estimated memory usage per tab (when available via CDP)
 
-#### Network Traffic Monitoring
-Add network I/O metrics per process (bytes sent/received). Similar to Activity Monitor's Network tab. Requires `sysinfo` network data or platform-specific APIs.
+#### Network Traffic Monitoring — DONE (v6.2.0)
+Per-process network throughput, live connections, DNS/GeoIP, alerts, and a network dashboard (`NetworkDashboard.svelte`, `omnimon network`). Remaining: deeper packet forensics (see "Deep Network Analysis").
 
-#### Multi-Language UI
-Extend bilingual support from documentation to the actual application UI. Start with English and Spanish, with a language selector in settings. Use i18n framework or simple key-value translations.
+#### Multi-Language UI — DONE
+EN/ES UI via `src/lib/i18n.ts` + `src/locales/` with a language selector in settings. Remaining: a third locale was never requested; Zombie Killer strings would need translation if one is added.
 
 #### Export Functionality
 Export process list and tab data as JSON or CSV for analysis. Include peak tracking and historical data.
 
-#### Custom Application Logo
-Design and implement a proper OmniMon logo to replace the default Tauri icon. Needed for app store submissions and branding.
+#### Custom Application Logo — VERIFY
+An icon set exists (`v4/apps/desktop/src-tauri/icons/`: `icon.png/.icns/.ico`, referenced by `tauri.conf.json`) and the landing uses a gear+cyan mark. Still open: confirm the desktop icons are the OmniMon brand (not the Tauri default) before closing this.
 
 ### Low Priority / Future Releases
 
-#### SaaS Hosting
-- Hosted version where users pay a subscription instead of managing their own API keys
-- Domain and landing page for the service
-- Managed AI provider integration (user just pays monthly, no API key needed)
-- Self-hosting option for advanced users
+#### SaaS Hosting — PARTIAL
+- [x] Domain and landing page for the service (`omnimon_landing/`, omnimon.com.mx)
+- [ ] Hosted version where users pay a subscription instead of managing their own API keys (still pending)
+- [ ] Managed AI provider integration (user just pays monthly, no API key needed) (still pending)
+- [ ] Self-hosting option for advanced users (still pending)
 
 #### App Store Distribution
 - macOS App Store (requires Apple Developer account, notarization)
@@ -143,14 +150,14 @@ Design and implement a proper OmniMon logo to replace the default Tauri icon. Ne
 #### iOS / Android Support
 Tauri v2 supports mobile targets. Explore feasibility of a mobile companion app for remote system monitoring.
 
-#### Deep Network Analysis
-Wireshark-like packet inspection integrated into the process view. Show which processes are sending data to the internet, to which endpoints, and how much traffic. AI can analyze patterns for suspicious activity.
+#### Deep Network Analysis — PARTIAL
+Connection-level analysis is done (capture backends, per-process throughput, endpoints, DNS/GeoIP, MITRE mapping, AI presets). Still pending: Wireshark-like per-packet payload inspection in the process view (DPI reads metadata only, by design).
 
-#### CLI Enhancements
-- Interactive TUI mode for headless servers
-- JSON output for scripting
-- Remote monitoring via SSH tunnel
-- Daemon mode with alerts
+#### CLI Enhancements — PARTIAL
+- [x] Interactive TUI mode for headless servers (`omnimon tui`, `crates/tui/`)
+- [x] JSON output for scripting (`--format json` on `status`/`network`)
+- [ ] Remote monitoring via SSH tunnel (still pending)
+- [ ] Daemon mode with alerts (still pending; automations engine covers in-app alerts)
 
 #### Linux Distribution Testing
 Verify compatibility across major distros: Ubuntu, Fedora, Arch, Debian. Document any distro-specific setup requirements (libwebkit2gtk versions, Secret Service availability).
@@ -188,7 +195,7 @@ Verify compatibility across major distros: Ubuntu, Fedora, Arch, Debian. Documen
 - [x] Divisor redimensionable para panel de pestanas (persistido entre reinicios)
 
 ### Integracion con IA
-- [x] Soporte multi-proveedor: OpenAI, Anthropic, OpenRouter, Gemini
+- [x] Soporte multi-proveedor: OpenRouter, Anthropic, Gemini, Ollama (OpenAI directo eliminado; modelos `openai/...` vía OpenRouter)
 - [x] Boton "AI Analyze" en barra de herramientas (sugerencias de optimizacion)
 - [x] Seleccion de perfil de IA: General, Desarrollador, Gaming, Ahorro de Bateria
 - [x] "Ask AI" en modal de detalle (analisis contextual con info de pestanas)
@@ -219,7 +226,7 @@ Verify compatibility across major distros: Ubuntu, Fedora, Arch, Debian. Documen
 
 ### Documentacion
 - [x] Documentacion bilingue (ingles + espanol) para README, CONTRIBUTING, ARCHITECTURE, CHANGELOG, SECURITY
-- [x] Licencia: MIT + Commons Clause (uso libre, no se puede vender)
+- [x] Licencia: MIT (`LICENSE`; la línea vieja "MIT + Commons Clause" estaba desactualizada)
 - [x] Sin atribucion de IA en el repositorio
 
 ### Pruebas
@@ -253,24 +260,24 @@ Auditar todos los componentes de UI para problemas de desbordamiento de texto. A
 - Mostrar si la pestana esta cargando activamente o inactiva
 - Mostrar uso estimado de memoria por pestana (cuando este disponible via CDP)
 
-#### Monitoreo de Trafico de Red
-Agregar metricas de I/O de red por proceso (bytes enviados/recibidos). Similar a la pestana Red del Monitor de Actividad. Requiere datos de red de `sysinfo` o APIs especificas de plataforma.
+#### Monitoreo de Trafico de Red — HECHO (v6.2.0)
+Throughput por proceso, conexiones vivas, DNS/GeoIP, alertas y dashboard de red (`NetworkDashboard.svelte`, `omnimon network`). Resta: forense de paquetes más profundo (ver "Analisis Profundo de Red").
 
-#### UI Multi-Idioma
-Extender el soporte bilingue de la documentacion a la interfaz de la aplicacion. Comenzar con ingles y espanol, con selector de idioma en ajustes.
+#### UI Multi-Idioma — HECHO
+UI EN/ES vía `src/lib/i18n.ts` + `src/locales/` con selector de idioma en ajustes. Resta: nunca se pidió un tercer idioma; habría que traducir las cadenas del Zombie Killer si se suma uno.
 
 #### Funcionalidad de Exportacion
 Exportar lista de procesos y datos de pestanas como JSON o CSV para analisis.
 
-#### Logo Personalizado
-Disenar e implementar un logo propio de OmniMon para reemplazar el icono predeterminado de Tauri. Necesario para tiendas de aplicaciones y branding.
+#### Logo Personalizado — VERIFICAR
+Existe un set de iconos (`v4/apps/desktop/src-tauri/icons/`: `icon.png/.icns/.ico`, referenciado por `tauri.conf.json`) y el landing usa marca gear+cyan. Aún abierto: confirmar que los iconos desktop son la marca OmniMon (no el default de Tauri) antes de cerrar esto.
 
 ### Baja Prioridad / Futuras Versiones
 
-#### Hosting SaaS
-- Version hosteada donde los usuarios pagan suscripcion en vez de gestionar sus propias API keys
-- Dominio y landing page del servicio
-- Opcion de auto-hosting para usuarios avanzados
+#### Hosting SaaS — PARCIAL
+- [x] Dominio y landing page del servicio (`omnimon_landing/`, omnimon.com.mx)
+- [ ] Version hosteada donde los usuarios pagan suscripcion en vez de gestionar sus propias API keys (aún pendiente)
+- [ ] Opcion de auto-hosting para usuarios avanzados (aún pendiente)
 
 #### Distribucion en Tiendas de Aplicaciones
 - macOS App Store, Microsoft Store, Snap Store / Flathub
@@ -279,13 +286,13 @@ Disenar e implementar un logo propio de OmniMon para reemplazar el icono predete
 #### Soporte iOS / Android
 Tauri v2 soporta targets moviles. Explorar viabilidad de app companera movil.
 
-#### Analisis Profundo de Red
-Inspeccion de paquetes estilo Wireshark integrada en la vista de procesos.
+#### Analisis Profundo de Red — PARCIAL
+El análisis a nivel conexión está hecho (captura, throughput por proceso, endpoints, DNS/GeoIP, MITRE, presets IA). Aún pendiente: inspección de paquetes estilo Wireshark en la vista de procesos (DPI lee solo metadatos, por diseño).
 
-#### Mejoras del CLI
-- Modo TUI interactivo para servidores headless
-- Salida JSON para scripting
-- Monitoreo remoto via tunel SSH
+#### Mejoras del CLI — PARCIAL
+- [x] Modo TUI interactivo para servidores headless (`omnimon tui`, `crates/tui/`)
+- [x] Salida JSON para scripting (`--format json` en `status`/`network`)
+- [ ] Monitoreo remoto via tunel SSH (aún pendiente)
 
 #### Pruebas en Distribuciones Linux
 Verificar compatibilidad en distros principales: Ubuntu, Fedora, Arch, Debian.

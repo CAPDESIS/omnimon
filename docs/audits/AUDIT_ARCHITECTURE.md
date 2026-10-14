@@ -1,6 +1,14 @@
 # 🏗️ Auditoría Arquitectónica Integral — OmniMon
 **Reporte de Arquitectura y Análisis de Codebase**
 
+> Estado actual 2026-10-13: este reporte es una captura histórica del
+> 2026-03-08 (worktree-gemini-2, app v6.0.x; duplicado en
+> `AUDIT_ARCHITECTURE.md` en la raíz). Varias recomendaciones ya se
+> implementaron: CLI `network` y `rules` (v6.1.0/v6.2.0), rate limiting IPC
+> (v6.3.0), modelo push de telemetría (v6.1.0), streaming de chat IA (v6.1.0).
+> El proveedor directo OpenAI se eliminó de `ai.rs` (fleet OpenRouter-only).
+> La guía operativa actual vive en `AGENTS.md` y `docs/ARCHITECTURE.md`.
+
 Generado por: **Agente 4 (Gemini-Arch)**
 Worktree: `worktree-gemini-2`
 Scope: Full Codebase (Core, CLI, TUI, Desktop/GUI)
