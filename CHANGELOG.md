@@ -8,7 +8,7 @@
 - OpenAI models stay available through OpenRouter: the picker adds `openai/gpt-4o-mini` and `openai/gpt-4o` slugs, and stored `openai` configs migrate to `openrouter` on load (`gpt-*` models map to `openai/gpt-*`)
 - Regression coverage: unit + integration tests fail if any provider URL points at the direct OpenAI API, and parsing `"openai"` errors with the OpenRouter migration hint
 
-## 6.8.0 (2026-09-19)
+## 6.8.0 (2026-09-19) — unreleased, no tag (latest published: v6.6.6)
 
 ### Kill identity (false-positive prevention)
 
@@ -48,7 +48,7 @@
 - Homebrew cask remains on published tag `6.6.6`; workspace manifests are `6.8.0` until a DMG exists
 - CVE report aligned with `v4/Cargo.lock` (`time 0.3.54`, `h2 0.4.16`)
 
-## 6.7.0 (2026-04-17)
+## 6.7.0 (2026-04-17) — unreleased, no tag (latest published: v6.6.6)
 
 ### Zombie Killer
 - Nuevo motor que detecta procesos con CPU o RAM altos sostenidos durante ventanas prolongadas y los ofrece para terminación con confirmación del usuario

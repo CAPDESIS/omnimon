@@ -1,5 +1,7 @@
 # OmniMon 6.7.0 — Release Handoff
 
+> Nota 2026-10-14: documento histórico de la sesión 2026-04-17. El tag `v6.7.0` sigue sin publicarse (último tag: `v6.6.6`) y los manifiestos ya van en `6.8.0` sin tag. Leer solo como contexto; el estado vigente está en `docs/FLEET_STATUS.md`.
+
 Documento de cierre de la sesión: qué quedó listo, qué falta para publicar 6.7.0 y dónde se documentó cada cosa. Borrar o archivar este archivo una vez que el tag `v6.7.0` esté publicado en GitHub Releases.
 
 ## Estado general

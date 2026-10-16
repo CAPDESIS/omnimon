@@ -11,7 +11,10 @@ use std::time::{Duration, Instant};
 /// Tick rate (500 ms → 2 refreshes/sec, matching watcher cadence).
 const TICK_RATE: Duration = Duration::from_millis(500);
 
-pub fn run_loop<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<()> {
+pub fn run_loop<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<()>
+where
+    io::Error: From<B::Error>,
+{
     // Wait briefly for the watcher to produce its first snapshot.
     std::thread::sleep(Duration::from_millis(600));
     app.refresh();
@@ -19,7 +22,9 @@ pub fn run_loop<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Re
     let mut last_tick = Instant::now();
 
     loop {
-        terminal.draw(|f| ui::draw(f, app))?;
+        terminal
+            .draw(|f| ui::draw(f, app))
+            .map_err(|e| io::Error::other(format!("{e:?}")))?;
 
         let timeout = TICK_RATE.saturating_sub(last_tick.elapsed());
         if event::poll(timeout)? {
