@@ -13,12 +13,19 @@ test_osascript*
 
 # Rust
 v4/target/
+# Members share v4/Cargo.lock; this old child graph is not used by Cargo.
+v4/crates/core/Cargo.lock
 
 # Node
 v4/apps/desktop/node_modules/
 v4/apps/desktop/dist/
 v4/apps/desktop/coverage/
 v4/apps/desktop/test-results.json
+# The desktop frontend is installed from bun.lock; alternate locks describe
+# a different graph and must never be reintroduced as the audit source.
+v4/apps/desktop/package-lock.json
+v4/apps/desktop/npm-shrinkwrap.json
+/reports/
 
 # macOS
 .DS_Store
