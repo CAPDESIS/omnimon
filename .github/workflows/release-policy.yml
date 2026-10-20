@@ -35,6 +35,9 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Test release-policy helpers
+        run: bash scripts/test-release-policy-lib.sh
+
       - name: Audit workflows
         env:
           ENFORCE: 'true'
@@ -65,17 +68,9 @@ jobs:
             note "- FAIL: $*"
           }
 
-          has_top_level_key() {
-            local file="$1"
-            local key="$2"
-            grep -Eq "^${key}:" "$file"
-          }
-
-          workflow_has() {
-            local file="$1"
-            local pattern="$2"
-            grep -Eiq "$pattern" "$file"
-          }
+          # Helpers live in scripts/ so the regression test exercises the real code.
+          # shellcheck source=scripts/release-policy-lib.sh
+          source scripts/release-policy-lib.sh
 
           note "# CAPDESIS Release Policy Audit"
           note ""
