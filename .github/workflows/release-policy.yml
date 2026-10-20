@@ -7,6 +7,10 @@ on:
     # Local-first policy: PR/push validation runs on the developer machine.
     # Remote CI is manual or staggered daily to avoid runner bottlenecks.
     - cron: '0 12 * * *'
+
+permissions:
+  contents: read
+
 jobs:
   audit:
     name: Audit release gates
