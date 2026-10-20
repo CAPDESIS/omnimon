@@ -1,16 +1,11 @@
-# Runner policy (CAPDESIS fleet, 2026-09-17): this repository is PUBLIC, so
-# GitHub-hosted runners are free and unmetered. All validation lanes (lint,
-# matrix selection, tests, coverage, security audit) therefore run on
-# ubuntu-latest / macos-latest / windows-latest and no longer consume the
-# shared self-hosted VPS pool.
-# The release lane keeps its Linux build on the public self-hosted deploy
-# runner (labels: self-hosted, public-only, ci-runner-node, deploy-only ->
-# ci-runner-node-public-deploy-1 in org runner group 6 "public-builds"), and
-# sign-release / rename-assets stay on the public self-hosted lane
-# (ci-runner-node-public-1) because they carry the release signing path.
-# macos-latest / windows-latest in the release matrix are deliberate: no
-# self-hosted Windows runner exists at all, and the macOS runner group
-# "macos-on-demand" is not visible to this public repository.
+# Runner policy (CAPDESIS fleet): this repository is PUBLIC, so every job runs
+# on GitHub-hosted runners (ubuntu-latest / macos-latest / windows-latest).
+# No job uses the shared CAPDESIS fleet runners. A public repository's workflow
+# can reach any runner group it is granted, and those hosts carry production
+# SSH and Docker access, so a public repo must never schedule work on them.
+# The release lane builds Linux, macOS and Windows artifacts, and the signing
+# and asset-rename jobs run on ubuntu-latest too. The Ed25519 signing secret is
+# only ever read by jobs triggered by tags or workflow_dispatch, never by forks.
 name: OmniMon CI/CD
 
 on:
@@ -295,9 +290,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # cargo-audit shells out to `cargo`, which is not on PATH globally on the
-      # self-hosted runner. Every other Rust job sets up the toolchain first;
-      # without this step `cargo audit` exits 127 (command not found).
+      # cargo-audit shells out to `cargo`, so the job sets up the pinned Rust
+      # toolchain explicitly instead of relying on a preinstalled one. Without
+      # this step `cargo audit` exits 127 (command not found).
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
         with:
@@ -434,7 +429,7 @@ jobs:
       matrix:
         include:
           - platform: linux
-            os: [self-hosted, public-only, ci-runner-node, deploy-only]
+            os: ubuntu-latest
             args: ""
             experimental: false
           - platform: macos-universal
@@ -480,7 +475,7 @@ jobs:
           workspaces: "v4"
 
       - name: Install Linux Dependencies (Ubuntu only)
-        if: matrix.platform == 'linux' && runner.environment == 'github-hosted'
+        if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential file libwebkit2gtk-4.1-dev librsvg2-dev patchelf libxdo-dev libssl-dev
@@ -513,11 +508,7 @@ jobs:
     name: Sign Release Artifacts (SHA-256 + Ed25519)
     needs: [release]
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
-    # UNPIN 2026-09-28: public-only is carried only by the two VPS public
-    # lane runners, so dropping the host name changes nothing today and the
-    # job no longer names a host.
-    runs-on: [self-hosted, Linux, X64, public-only]
-    # Solo dos runners llevan `public-only`. Sin historico reciente, margen amplio.
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: write
@@ -654,10 +645,7 @@ jobs:
     name: Rename Release Assets
     needs: [release, sign-release]
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
-    # UNPIN 2026-09-28: same no-op as sign-release (public-only implies the
-    # two VPS public lane runners).
-    runs-on: [self-hosted, Linux, X64, public-only]
-    # Solo dos runners llevan `public-only`. Sin historico reciente, margen amplio.
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: write

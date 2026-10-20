@@ -10,27 +10,22 @@ on:
 jobs:
   audit:
     name: Audit release gates
-    # Skip fork PRs: this is a public repo and the job runs on a self-hosted
-    # runner. Fork PRs are not served by the public-builds runner group, so
-    # without this guard they queue forever; it also prevents untrusted
-    # contributions from consuming self-hosted capacity. Mirrors the guard on
-    # the lint job in omnimon-ci.yml.
+    # Skip fork PRs: fork code never runs here, and the job would otherwise
+    # spend GitHub-hosted minutes on untrusted contributions. Mirrors the guard
+    # on the lint job in omnimon-ci.yml.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    # public-only is exclusive to the VPS public lane. Do NOT AND test-light:
-    # no online runner carries both labels, so the job queues forever
-    # (observed run 30914983210 queued ~7h).
-    # UNPIN 2026-09-28: host name dropped; public-only already implies the
-    # two VPS public lane runners, so this changes nothing today.
-    runs-on: [self-hosted, Linux, X64, public-only]
+    # Public repo: GitHub-hosted runners are free and unmetered. The job never
+    # runs on shared CAPDESIS fleet runners (production SSH and Docker access).
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
 
     steps:
-      - name: Validate VPS self-hosted runner
+      - name: Validate GitHub-hosted runner
         run: |
-          if [ "${{ runner.environment }}" != "self-hosted" ]; then
-            echo "::error::This workflow must run on the VPS self-hosted runner"
+          if [ "${{ runner.environment }}" != "github-hosted" ]; then
+            echo "::error::This public-repo workflow must run on a GitHub-hosted runner"
             exit 1
           fi
 
@@ -40,10 +35,10 @@ jobs:
         env:
           ENFORCE: 'true'
           PRODUCTION_DAY: 'weekly'
-          # Fleet runner policy 2026-09-17: private repos stay 100% self-hosted,
-          # public repos move validation to GitHub-hosted (free and unmetered
-          # for public repositories). The ubuntu-latest audit below is therefore
-          # a finding only when the repository is private.
+          # Fleet runner policy: private repos run on the private fleet runners,
+          # public repos run CI and deploy on GitHub-hosted runners (free and
+          # unmetered for public repositories). The ubuntu-latest audit below is
+          # therefore a finding only when the repository is private.
           REPO_PRIVATE: ${{ github.event.repository.private }}
         run: |
           set -euo pipefail
@@ -155,9 +150,9 @@ jobs:
 
             if workflow_has "$file" "runs-on:[[:space:]]*ubuntu-latest"; then
               if [ "${REPO_PRIVATE:-true}" = "true" ]; then
-                warn "\`${base}\` uses \`ubuntu-latest\` in a PRIVATE repository. Private repos bill GitHub-hosted minutes; use \`[self-hosted, Linux, X64, ...]\` with a capacity class label."
+                warn "\`${base}\` uses \`ubuntu-latest\` in a PRIVATE repository. Private repos bill GitHub-hosted minutes; use the private fleet runner labels with a capacity class."
               else
-                note "- OK: \`${base}\` uses \`ubuntu-latest\`. GitHub-hosted runners are free for public repositories, so validation must not consume the shared self-hosted pool (fleet runner policy 2026-09-17)."
+                note "- OK: \`${base}\` uses \`ubuntu-latest\`. GitHub-hosted runners are free for public repositories, so CI and deploy stay off the shared fleet runners (fleet runner policy)."
               fi
             fi
           done
@@ -169,7 +164,7 @@ jobs:
           note "- Production promotion should use \`workflow_dispatch\`, \`environment: production\`, and an exact CI-green main SHA."
           note "- Normal production releases happen weekly and manually; no staging/preview promotion or bypass path exists."
           note "- Database migrations must be backward-compatible and backed up before production."
-          note "- Deploy jobs must run on \`ci-runner-node\` with \`deploy-only\`, not on production app hosts."
+          note "- Public repos run CI and deploy on GitHub-hosted runners; they never schedule jobs on shared fleet runners, which hold production access."
           note ""
           note "## Counts"
           note ""
