@@ -897,6 +897,23 @@ mod tests {
     }
 
     #[test]
+    fn embedded_release_pin_is_a_canonical_ed25519_key() {
+        // The committed pin must be a real 32-byte Ed25519 public key in canonical
+        // base64. An empty or malformed pin would make every signed release unverifiable.
+        let pin = RELEASE_SIGNING_PUBLIC_KEY_B64.trim();
+        assert!(
+            !pin.is_empty(),
+            "release-signing.pub must hold the release public key"
+        );
+        let key = import_public_key(pin).expect("pin must import as an Ed25519 public key");
+        assert_eq!(
+            export_public_key(&key),
+            pin,
+            "pin must be in canonical base64"
+        );
+    }
+
+    #[test]
     fn pinned_verify_rejects_tampered_payload_with_pinned_key() {
         let payload = b"omnimon release bytes";
         let (sig, verifying_key) = signed_release(payload);
