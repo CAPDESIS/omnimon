@@ -205,6 +205,44 @@ pub fn verify_release(
         .map_err(|_| "Ed25519 signature verification failed".to_string())
 }
 
+/// Release public key pinned into this build. It stays empty until the release
+/// signing key is provisioned and its public half is committed to this file.
+pub const RELEASE_SIGNING_PUBLIC_KEY_B64: &str = include_str!("release-signing.pub");
+
+/// Verifies a release signature against the key this build trusts.
+///
+/// An explicit `pubkey_override` (the CLI `--pubkey` flag) is used as given.
+/// Otherwise the only trusted key is `pinned_b64`, and the `public_key_b64`
+/// stored inside the signature file is merely compared with it. A signature
+/// file must never vouch for its own key.
+pub fn verify_release_pinned(
+    release_bytes: &[u8],
+    release_sig: &ReleaseSignature,
+    pubkey_override: Option<&str>,
+    pinned_b64: &str,
+) -> Result<(), String> {
+    let key_b64 = match pubkey_override {
+        Some(explicit) => explicit.trim().to_string(),
+        None => {
+            let pinned = pinned_b64.trim();
+            if pinned.is_empty() {
+                return Err(
+                    "no release public key is pinned in this build; pass --pubkey explicitly"
+                        .to_string(),
+                );
+            }
+            if release_sig.public_key_b64.trim() != pinned {
+                return Err(
+                    "signature was made with a key that is not the pinned release key".to_string(),
+                );
+            }
+            pinned.to_string()
+        }
+    };
+    let trusted = import_public_key(&key_b64)?;
+    verify_release(release_bytes, release_sig, &trusted)
+}
+
 // ---------------------------------------------------------------------------
 // Update Manifest (served by update endpoint)
 // ---------------------------------------------------------------------------
@@ -807,5 +845,62 @@ mod tests {
         let check =
             verify_binary_integrity(tampered, "/path/to/binary", &hash, &sig_b64, &verifying_key);
         assert!(!check.passed);
+    }
+
+    // --- Pinned release key verification ---
+
+    fn signed_release(payload: &[u8]) -> (ReleaseSignature, VerifyingKey) {
+        let (signing_key, verifying_key) = generate_ed25519_keypair();
+        (sign_release(&signing_key, payload, "6.8.0"), verifying_key)
+    }
+
+    #[test]
+    fn pinned_verify_accepts_signature_from_pinned_key() {
+        let payload = b"omnimon release bytes";
+        let (sig, verifying_key) = signed_release(payload);
+        let pinned = export_public_key(&verifying_key);
+        assert!(verify_release_pinned(payload, &sig, None, &pinned).is_ok());
+    }
+
+    #[test]
+    fn pinned_verify_rejects_signature_from_other_key() {
+        // Attacker signs with their own key and embeds that key in the .sig.json.
+        // Only the pinned key may be trusted, so this must fail.
+        let payload = b"omnimon release bytes";
+        let (sig, _attacker_key) = signed_release(payload);
+        let (_other_signing, other_verifying) = generate_ed25519_keypair();
+        let pinned = export_public_key(&other_verifying);
+        let err = verify_release_pinned(payload, &sig, None, &pinned)
+            .expect_err("a self-signed release must not verify against the pinned key");
+        assert!(err.contains("not the pinned release key"), "{err}");
+    }
+
+    #[test]
+    fn pinned_verify_fails_closed_when_no_key_is_pinned() {
+        let payload = b"omnimon release bytes";
+        let (sig, _verifying_key) = signed_release(payload);
+        let err = verify_release_pinned(payload, &sig, None, "   \n")
+            .expect_err("an empty pin must not fall back to the embedded key");
+        assert!(err.contains("no release public key is pinned"), "{err}");
+    }
+
+    #[test]
+    fn pinned_verify_explicit_override_is_used_as_given() {
+        let payload = b"omnimon release bytes";
+        let (sig, verifying_key) = signed_release(payload);
+        let explicit = export_public_key(&verifying_key);
+        // Even with nothing pinned, an explicit --pubkey is honoured.
+        assert!(verify_release_pinned(payload, &sig, Some(&explicit), "").is_ok());
+        let (_s, wrong) = generate_ed25519_keypair();
+        let wrong_b64 = export_public_key(&wrong);
+        assert!(verify_release_pinned(payload, &sig, Some(&wrong_b64), "").is_err());
+    }
+
+    #[test]
+    fn pinned_verify_rejects_tampered_payload_with_pinned_key() {
+        let payload = b"omnimon release bytes";
+        let (sig, verifying_key) = signed_release(payload);
+        let pinned = export_public_key(&verifying_key);
+        assert!(verify_release_pinned(b"tampered bytes", &sig, None, &pinned).is_err());
     }
 }

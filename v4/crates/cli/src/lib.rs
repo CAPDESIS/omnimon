@@ -1521,16 +1521,14 @@ pub(crate) fn run_cli(cli: Cli) -> Result<(), i32> {
                     }
                 };
 
-                let pubkey_b64 = pubkey.as_deref().unwrap_or(&release_sig.public_key_b64);
-                let verifying_key = match crypto::import_public_key(pubkey_b64) {
-                    Ok(k) => k,
-                    Err(e) => {
-                        eprintln!("Error loading public key: {}", e);
-                        return Err(1);
-                    }
-                };
-
-                match crypto::verify_release(&data, &release_sig, &verifying_key) {
+                // Trust only the key pinned in this build unless --pubkey is given.
+                // The public key inside the .sig.json is never trusted by itself.
+                match crypto::verify_release_pinned(
+                    &data,
+                    &release_sig,
+                    pubkey.as_deref(),
+                    crypto::RELEASE_SIGNING_PUBLIC_KEY_B64,
+                ) {
                     Ok(()) => {
                         println!("Verification PASSED");
                         println!("  SHA-256:   {}", release_sig.sha256);
@@ -2265,6 +2263,46 @@ mod tests {
             Ok(_) => panic!("--ai openai must be rejected at parse time"),
             Err(err) => assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue),
         }
+    }
+
+    #[test]
+    fn release_verify_without_pubkey_refuses_self_signed_release() {
+        // Without --pubkey the only trusted key is the one pinned in the build.
+        // A release signed with a fresh key (embedded in its own .sig.json) must
+        // not verify, whatever key the signature file claims.
+        let dir =
+            std::env::temp_dir().join(format!("omnimon-cli-selfsigned-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let artifact = dir.join("omnimon-linux.bin");
+        std::fs::write(&artifact, b"omnimon-release-bytes").unwrap();
+
+        let (signing_key, _verifying_key) = crypto::generate_ed25519_keypair();
+        let key_path = dir.join("signing.key");
+        std::fs::write(&key_path, crypto::export_signing_key(&signing_key)).unwrap();
+
+        let sign = Cli::parse_from([
+            "omnimon",
+            "release",
+            "sign",
+            artifact.to_str().unwrap(),
+            "--version",
+            "6.8.0-test",
+            "--key-file",
+            key_path.to_str().unwrap(),
+        ]);
+        assert!(run_cli(sign).is_ok());
+
+        let sig_path = format!("{}.sig.json", artifact.display());
+        let verify = Cli::parse_from([
+            "omnimon",
+            "release",
+            "verify",
+            artifact.to_str().unwrap(),
+            "--sig",
+            &sig_path,
+        ]);
+        assert!(run_cli(verify).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
