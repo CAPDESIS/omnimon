@@ -19,6 +19,11 @@ on:
   pull_request:
     branches: [main]
 
+  # Validation on the exact SHA that lands on main. Release and signing jobs
+  # never run from a branch push: they need a tag or workflow_dispatch input.
+  push:
+    branches: [main]
+
   # Base-controlled policy signal only. This event never checks out or runs
   # pull-request code; it makes unsupported fork PRs explicitly red instead
   # of all-skipped green (fail-closed, mirrored from CapGym ci.yml).
@@ -32,7 +37,7 @@ on:
     # Release/sign jobs stay gated to tags and workflow_dispatch (no daily deploys).
     - cron: '0 12 * * *'
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -114,6 +119,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Reject direct-OpenAI usage
         run: python3 scripts/openrouter-only-validate.py --root . --app omnimon
+
+  release-pipeline-contract:
+    name: Release pipeline contract (signing, checksums, publish gates)
+    if: github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Ensure PyYAML for the workflow graph checks
+        run: python3 -c "import yaml" 2>/dev/null || sudo apt-get install -y python3-yaml
+
+      - name: Run release pipeline regression tests
+        run: python3 scripts/test_release_pipeline.py -v
+
+      - name: Lint release scripts
+        run: shellcheck scripts/sign-release.sh scripts/release-checksums.sh scripts/release-assets.sh
 
   select-test-matrix:
     name: Select validation platforms
@@ -419,12 +443,34 @@ jobs:
           head: ${{ github.event.pull_request.head.sha }}
           extra_args: --only-verified
 
+  # Fails the release before any asset exists when the signing secret is
+  # missing or does not match the public key pinned in the build. Without
+  # this gate a release could go public unsigned.
+  signing-key-preflight:
+    name: Signing key matches pinned release key
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Check ED25519_SIGNING_KEY against the pinned public key
+        env:
+          ED25519_SIGNING_KEY: ${{ secrets.ED25519_SIGNING_KEY }}
+        run: bash scripts/sign-release.sh --check-key
+
   release:
     name: Release Builder (${{ matrix.platform }})
-    needs: [lint]
+    needs: [lint, signing-key-preflight]
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.experimental }}
+    # No continue-on-error: a failed platform must fail the release. The
+    # release is created as a draft and only published by publish-release,
+    # after every platform has built and every asset is signed.
     permissions:
       contents: write
     strategy:
@@ -434,15 +480,12 @@ jobs:
           - platform: linux
             os: ubuntu-latest
             args: ""
-            experimental: false
           - platform: macos-universal
             os: macos-latest
             args: "--target universal-apple-darwin"
-            experimental: true
           - platform: windows
             os: windows-latest
             args: ""
-            experimental: true
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -503,165 +546,33 @@ jobs:
             ```
             xattr -cr /Applications/OmniMon.app
             ```
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
 
-  sign-release:
-    name: Sign Release Artifacts (SHA-256 + Ed25519)
+  # Renaming happens first, so every checksum and signature covers the final
+  # published names.
+  rename-assets:
+    name: Rename Release Assets
     needs: [release]
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Download release artifacts
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ inputs.tag || github.ref_name }}
-        run: |
-          REPO="${{ github.repository }}"
-          sleep 15
-          mkdir -p /tmp/release-artifacts
-          gh release download "$TAG" --repo "$REPO" --dir /tmp/release-artifacts || true
-
-      - name: Generate SHA-256 checksums
-        run: |
-          cd /tmp/release-artifacts
-          rm -f SHA256SUMS.txt
-          count=0
-          for f in *; do
-            [ -f "$f" ] || continue
-            case "$f" in
-              SHA256SUMS*|*.sig.json|releases.json) continue ;;
-            esac
-            sha256sum "$f" >> SHA256SUMS.txt
-            count=$((count + 1))
-          done
-          if [ "$count" -eq 0 ]; then
-            echo "::warning::No release artifacts found to checksum"
-          else
-            echo "Generated checksums for $count artifacts:"
-            cat SHA256SUMS.txt
-          fi
-
-      - name: Sign artifacts with Ed25519
-        if: env.ED25519_SIGNING_KEY != ''
-        env:
-          ED25519_SIGNING_KEY: ${{ secrets.ED25519_SIGNING_KEY }}
-        run: |
-          cd /tmp/release-artifacts
-          for f in *; do
-            [ -f "$f" ] || continue
-            [ "$f" = "SHA256SUMS.txt" ] && continue
-            echo "$f" | grep -qE '\.(sig\.json|sha256)$' && continue
-            echo "Signing: $f"
-            bash "$GITHUB_WORKSPACE/scripts/sign-release.sh" "$f" "${{ inputs.tag || github.ref_name }}"
-          done
-          echo "All artifacts signed."
-
-      - name: Generate releases.json manifest
-        if: env.ED25519_SIGNING_KEY != ''
-        env:
-          ED25519_SIGNING_KEY: ${{ secrets.ED25519_SIGNING_KEY }}
-          TAG: ${{ inputs.tag || github.ref_name }}
-        run: |
-          cd /tmp/release-artifacts
-          export VERSION="${TAG#v}"
-          DATE=$(date -u +%Y-%m-%d)
-          export DATE
-
-          # Build releases.json from individual .sig.json files
-          python3 - <<'PY'
-          import json, glob, os
-
-          version = os.environ["VERSION"]
-          date = os.environ["DATE"]
-          artifacts = []
-
-          for sig_file in sorted(glob.glob("*.sig.json")):
-              with open(sig_file) as f:
-                  sig = json.load(f)
-              artifact_name = sig.get("artifact", sig_file.replace(".sig.json", ""))
-              artifact_path = sig_file.replace(".sig.json", "")
-              size = os.path.getsize(artifact_path) if os.path.exists(artifact_path) else 0
-              lower = artifact_name.lower()
-
-              platform = "unknown"
-              if "linux" in lower or ".appimage" in lower or ".deb" in lower or ".rpm" in lower:
-                  platform = "linux"
-              elif "macos" in lower or "darwin" in lower or ".dmg" in lower:
-                  platform = "macos"
-              elif "windows" in lower or ".msi" in lower or ".exe" in lower:
-                  platform = "windows"
-
-              arch = "unknown"
-              if "universal" in lower:
-                  arch = "universal"
-              elif "aarch64" in lower or "arm64" in lower:
-                  arch = "aarch64"
-              elif "x86_64" in lower or "amd64" in lower:
-                  arch = "x86_64"
-
-              artifacts.append({
-                  "filename": artifact_name,
-                  "platform": platform,
-                  "arch": arch,
-                  "sha256": sig["sha256"],
-                  "signature_b64": sig["signature_b64"],
-                  "size_bytes": size,
-              })
-
-          manifest = {
-              "version": version,
-              "date": date,
-              "artifacts": artifacts,
-              "manifest_signature": "GENERATED_BY_CI"
-          }
-
-          with open("releases.json", "w") as f:
-              json.dump(manifest, f, indent=2)
-          print(f"Generated releases.json with {len(artifacts)} artifacts")
-          PY
-
-      - name: Upload checksums, signatures, and manifest
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ inputs.tag || github.ref_name }}
-        run: |
-          REPO="${{ github.repository }}"
-          cd /tmp/release-artifacts
-          gh release upload "$TAG" SHA256SUMS.txt --repo "$REPO" --clobber
-          for sig in *.sig.json; do
-            [ -f "$sig" ] || continue
-            gh release upload "$TAG" "$sig" --repo "$REPO" --clobber
-          done
-          if [ -f releases.json ]; then
-            gh release upload "$TAG" releases.json --repo "$REPO" --clobber
-          fi
-          echo "Checksums, signatures, and manifest uploaded to release $TAG"
-
-  rename-assets:
-    name: Rename Release Assets
-    needs: [release, sign-release]
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: write
-    steps:
       - name: Remove duplicate assets from previous builds
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          REPO="${{ github.repository }}"
+          set -euo pipefail
           sleep 30
           # Collect all assets grouped by extension/type. Keep only the newest per type.
-          ASSETS=$(gh api "repos/$REPO/releases/tags/$TAG" --jq '.assets | sort_by(.created_at) | reverse | .[] | "\(.id)|\(.name)"')
+          ASSETS="$(bash scripts/release-assets.sh list "$TAG")"
           declare -A SEEN
           while IFS='|' read -r ID NAME; do
             [ -z "$NAME" ] && continue
@@ -679,19 +590,16 @@ jobs:
             esac
             if [ -n "${SEEN[$KEY]+x}" ]; then
               echo "Deleting duplicate: $NAME (ID: $ID)"
-              gh api "repos/$REPO/releases/assets/$ID" -X DELETE --silent || true
+              gh api "repos/$REPO/releases/assets/$ID" -X DELETE --silent
             else
               SEEN[$KEY]=1
             fi
           done <<< "$ASSETS"
 
       - name: Rename assets to user-friendly names
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          REPO="${{ github.repository }}"
-          ASSETS=$(gh api "repos/$REPO/releases/tags/$TAG" --jq '.assets[] | "\(.id)|\(.name)"')
+          set -euo pipefail
+          ASSETS="$(bash scripts/release-assets.sh list "$TAG")"
           echo "Found assets:"
           echo "$ASSETS"
           while IFS='|' read -r ID NAME; do
@@ -739,4 +647,137 @@ jobs:
             gh api "repos/$REPO/releases/assets/$ID" -X PATCH -f name="$NEW_NAME" -f label="$LABEL" --silent
           done <<< "$ASSETS"
           echo "All assets renamed successfully."
+
+  sign-release:
+    name: Sign Release Artifacts (SHA-256 + Ed25519)
+    needs: [signing-key-preflight, rename-assets]
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      TAG: ${{ inputs.tag || github.ref_name }}
+      VERSION: ${{ (inputs.tag || github.ref_name) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Download the renamed release assets
+        run: bash scripts/release-assets.sh download "$TAG" "$RUNNER_TEMP/release"
+
+      - name: Generate SHA-256 checksums from the final asset names
+        run: bash scripts/release-checksums.sh "$RUNNER_TEMP/release"
+
+      - name: Sign every artifact (fails on any error, no skipped signatures)
+        env:
+          ED25519_SIGNING_KEY: ${{ secrets.ED25519_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/release"
+          VERSION_NUMBER="${VERSION#v}"
+          for f in *; do
+            [ -f "$f" ] || continue
+            case "$f" in
+              SHA256SUMS*|*.sig.json|releases.json) continue ;;
+            esac
+            echo "Signing: $f"
+            bash "$GITHUB_WORKSPACE/scripts/sign-release.sh" "$f" "$VERSION_NUMBER"
+          done
+
+      - name: Generate and sign the releases.json manifest
+        env:
+          ED25519_SIGNING_KEY: ${{ secrets.ED25519_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/release"
+          export VERSION="${VERSION#v}"
+          export DATE
+          DATE="$(date -u +%Y-%m-%d)"
+          python3 - <<'PY'
+          import json, glob, os
+
+          version = os.environ["VERSION"]
+          date = os.environ["DATE"]
+          artifacts = []
+
+          for sig_file in sorted(glob.glob("*.sig.json")):
+              with open(sig_file) as f:
+                  sig = json.load(f)
+              artifact_name = sig.get("artifact", sig_file.replace(".sig.json", ""))
+              size = os.path.getsize(artifact_name)
+              lower = artifact_name.lower()
+
+              platform = "unknown"
+              if "linux" in lower or ".appimage" in lower or ".deb" in lower or ".rpm" in lower:
+                  platform = "linux"
+              elif "macos" in lower or "darwin" in lower or ".dmg" in lower:
+                  platform = "macos"
+              elif "windows" in lower or ".msi" in lower or ".exe" in lower:
+                  platform = "windows"
+
+              arch = "unknown"
+              if "universal" in lower:
+                  arch = "universal"
+              elif "aarch64" in lower or "arm64" in lower:
+                  arch = "aarch64"
+              elif "x86_64" in lower or "amd64" in lower:
+                  arch = "x86_64"
+
+              artifacts.append({
+                  "filename": artifact_name,
+                  "platform": platform,
+                  "arch": arch,
+                  "sha256": sig["sha256"],
+                  "signature_b64": sig["signature_b64"],
+                  "size_bytes": size,
+              })
+
+          if not artifacts:
+              raise SystemExit("no signed artifacts to manifest")
+          manifest = {
+              "version": version,
+              "date": date,
+              "artifacts": artifacts,
+              "manifest_signature": "",
+          }
+          with open("releases.json", "w") as f:
+              json.dump(manifest, f, indent=2)
+          print(f"Generated releases.json with {len(artifacts)} artifacts")
+          PY
+          bash "$GITHUB_WORKSPACE/scripts/sign-release.sh" --manifest releases.json
+
+      - name: Upload checksums, signatures and manifest to the draft release
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/release"
+          bash "$GITHUB_WORKSPACE/scripts/release-assets.sh" upload "$TAG" SHA256SUMS.txt
+          for f in *.sig.json releases.json; do
+            [ -f "$f" ] || continue
+            bash "$GITHUB_WORKSPACE/scripts/release-assets.sh" upload "$TAG" "$f"
+          done
+
+  # The only step that makes the release public. It refuses unless the draft
+  # has every platform binary, its .sig.json, SHA256SUMS.txt and releases.json.
+  publish-release:
+    name: Publish verified release
+    needs: [release, rename-assets, sign-release]
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Publish the draft if it is complete and signed
+        run: bash scripts/release-assets.sh publish "$TAG"
+
 # Migration trigger re-evaluation 2026-05-20T14:56:07Z
