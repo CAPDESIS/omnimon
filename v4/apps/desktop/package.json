@@ -18,7 +18,7 @@
     "@tauri-apps/plugin-autostart": "^2.5.1",
     "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-store": "^2.4.4",
-    "dompurify": "^3.4.16",
+    "dompurify": "^3.4.17",
     "lightweight-charts": "^5.2.0",
     "lucide-svelte": "^1.0.1",
     "marked": "^18.0.7"
