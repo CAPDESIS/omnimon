@@ -34,6 +34,40 @@ fn sanitize_rule(mut rule: AutomationRule) -> AutomationRule {
     rule
 }
 
+/// Validates a rule at the IPC boundary. The frontend guards are advisory:
+/// rules also arrive via the AI-confirmation path and from the persisted
+/// store, so the backend must reject shapes that would be unsafe to run.
+/// An empty `process_pattern` is the critical case — `str::contains("")`
+/// is always true, so such a rule would match every process on the system.
+fn validate_rule(rule: &AutomationRule) -> Result<(), String> {
+    if rule.id.trim().is_empty() {
+        return Err("error_rule_id_empty".to_string());
+    }
+    if rule.process_pattern.trim().is_empty() {
+        return Err("error_rule_pattern_empty".to_string());
+    }
+    if rule.metric != METRIC_RAM && rule.metric != "cpu" {
+        return Err("error_rule_metric_invalid".to_string());
+    }
+    if rule.action != ACTION_KILL && rule.action != "alert" {
+        return Err("error_rule_action_invalid".to_string());
+    }
+    if !rule.threshold.is_finite() || rule.threshold < 0.0 {
+        return Err("error_rule_threshold_invalid".to_string());
+    }
+    Ok(())
+}
+
+/// Whether a rule is safe to evaluate. Stored/legacy rules bypass
+/// `validate_rule`, so the engine re-checks before matching: an invalid
+/// rule is inert, never match-all.
+fn rule_is_evaluable(rule: &AutomationRule) -> bool {
+    !rule.process_pattern.trim().is_empty()
+        && rule.threshold.is_finite()
+        && rule.threshold >= 0.0
+        && (rule.metric == METRIC_RAM || rule.metric == "cpu")
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum UiLocale {
     En,
@@ -194,7 +228,7 @@ pub fn get_automation_rules(app: AppHandle) -> Vec<AutomationRule> {
                     if let Ok(stored_rules) = serde_json::from_value::<Vec<AutomationRule>>(val) {
                         let arc = get_rules();
                         let mut rules = write_lock_or_recover(&arc);
-                        *rules = stored_rules;
+                        *rules = stored_rules.into_iter().map(sanitize_rule).collect();
                     }
                 }
             }
@@ -215,6 +249,7 @@ pub fn add_automation_rule(app: AppHandle, rule: AutomationRule) -> Result<(), S
         "add_automation_rule",
         &macmon_core::rate_limit::profiles::CONFIG,
     )?;
+    validate_rule(&rule)?;
     let _ = get_automation_rules(app.clone()); // Ensure init
     add_rule(&app, rule);
     Ok(())
@@ -502,6 +537,68 @@ mod tests {
     }
 
     #[test]
+    fn evaluate_rule_hits_empty_pattern_matches_nothing() {
+        // Regression: `str::contains("")` is always true, so an empty or
+        // whitespace-only pattern must be inert — never match-all, even
+        // for a kill rule with threshold 0.
+        for pattern in ["", "   "] {
+            let mut rule = make_rule("bad", pattern, "cpu", 0.0);
+            rule.action = "kill".to_string();
+            let procs = vec![macmon_core::watcher::CachedProcessInfo {
+                pid: 7,
+                name: "node".into(),
+                exec_name: "node".into(),
+                cpu_pct: 99.0,
+                memory_bytes: 1_073_741_824,
+                ..Default::default()
+            }];
+            assert!(
+                evaluate_rule_hits(&[rule], &procs).is_empty(),
+                "pattern {pattern:?} must match nothing"
+            );
+        }
+    }
+
+    #[test]
+    fn evaluate_rule_hits_skips_non_finite_or_negative_threshold() {
+        for threshold in [f64::NAN, f64::INFINITY, -1.0] {
+            let rule = make_rule("bad", "node", "cpu", threshold);
+            let procs = vec![macmon_core::watcher::CachedProcessInfo {
+                pid: 7,
+                name: "node".into(),
+                exec_name: "node".into(),
+                cpu_pct: 99.0,
+                ..Default::default()
+            }];
+            assert!(evaluate_rule_hits(&[rule], &procs).is_empty());
+        }
+    }
+
+    #[test]
+    fn validate_rule_rejects_unsafe_shapes_and_accepts_valid() {
+        assert_eq!(
+            validate_rule(&make_rule("r", "  ", "cpu", 10.0)).unwrap_err(),
+            "error_rule_pattern_empty"
+        );
+        assert_eq!(
+            validate_rule(&make_rule("r", "node", "memory", 10.0)).unwrap_err(),
+            "error_rule_metric_invalid"
+        );
+        assert_eq!(
+            validate_rule(&make_rule("r", "node", "cpu", f64::NAN)).unwrap_err(),
+            "error_rule_threshold_invalid"
+        );
+        let mut kill = make_rule("r", "node", "cpu", 10.0);
+        kill.action = "nuke".to_string();
+        assert_eq!(
+            validate_rule(&kill).unwrap_err(),
+            "error_rule_action_invalid"
+        );
+        assert!(validate_rule(&make_rule("r", "node", "cpu", 10.0)).is_ok());
+        assert!(validate_rule(&make_rule("r", "node", METRIC_RAM, 0.0)).is_ok());
+    }
+
+    #[test]
     fn evaluate_rule_hits_skips_processes_below_threshold() {
         let rules = vec![make_rule("cpu-rule", "node", "cpu", 90.0)];
         let procs = vec![macmon_core::watcher::CachedProcessInfo {
@@ -526,6 +623,9 @@ fn evaluate_rule_hits(
 ) -> Vec<(AutomationRule, u32, String, f64, u64)> {
     let mut hits = Vec::new();
     for rule in rules {
+        if !rule_is_evaluable(rule) {
+            continue;
+        }
         for proc in procs {
             if proc.name.contains(&rule.process_pattern)
                 || proc.exec_name.contains(&rule.process_pattern)

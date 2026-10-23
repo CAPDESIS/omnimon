@@ -33,6 +33,10 @@
               <td class="down">{formatSpeed(proc.totalDown)}</td>
               <td>{proc.topDest}</td>
             </tr>
+          {:else}
+            <tr>
+              <td colspan="5" class="empty-state">{t("processNetwork.emptyState")}</td>
+            </tr>
           {/each}
         </tbody>
       </table>
@@ -95,6 +99,12 @@
   .process-table tr:hover td {
     background: var(--bg-hover, #f0f0f0);
     cursor: pointer;
+  }
+
+  .empty-state {
+    text-align: center;
+    color: #999;
+    font-style: italic;
   }
 
   .up { color: #22c55e; }

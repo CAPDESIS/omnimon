@@ -851,7 +851,8 @@
     "process": "Process",
     "connections": "Connections",
     "topDestination": "Top destination",
-    "chartPlaceholder": "Pie/Donut chart: bandwidth distribution"
+    "chartPlaceholder": "Pie/Donut chart: bandwidth distribution",
+    "emptyState": "No processes with network activity"
   },
   "automations": {
     "title": "Automations Engine",
