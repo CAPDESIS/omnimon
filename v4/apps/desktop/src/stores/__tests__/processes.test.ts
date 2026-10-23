@@ -692,10 +692,16 @@ describe("polling", () => {
     await vi.advanceTimersByTimeAsync(1000);
 
     const browserCallsAfter = mockInvoke.mock.calls.filter((c) => c[0] === "get_browser_tabs").length;
-    const networkCalls = mockInvoke.mock.calls.filter((c) => c[0] === "get_network_connections" || c[0] === "get_network_data").length;
+    const networkCalls = mockInvoke.mock.calls.filter((c) => c[0] === "get_network_data").length;
+    // Removed IPC commands (snapshots/history/filtering arrive via the
+    // `network-update` event + client-side filtering) must never be invoked.
+    const orphanCalls = mockInvoke.mock.calls.filter((c) =>
+      ["get_network_connections", "get_network_history", "get_filtered_connections"].includes(c[0] as string),
+    ).length;
 
     expect(browserCallsAfter).toBeGreaterThanOrEqual(browserCallsBefore);
     expect(networkCalls).toBeGreaterThanOrEqual(1);
+    expect(orphanCalls).toBe(0);
   });
 
   it("setPollingTarget no-op when state does not change", async () => {

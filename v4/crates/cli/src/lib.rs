@@ -1835,6 +1835,19 @@ fn print_preset(preset: &ProfilePreset, active: bool) {
 mod tests {
     use super::*;
 
+    /// Hermetic keychain for tests that would otherwise touch the live OS
+    /// keyring: on macOS, Security.framework can block for a long time
+    /// awaiting an unlock prompt in a non-interactive session. Installs
+    /// keyring's in-memory mock once per test process. Each mock entry
+    /// starts empty, so `get_password` deterministically yields `NoEntry`
+    /// and `set_password` succeeds, with no persistence between entries.
+    fn hermetic_keychain() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            keyring::set_default_credential_builder(keyring::mock::default_credential_builder());
+        });
+    }
+
     #[test]
     fn format_memory_scales_units() {
         assert_eq!(format_memory(512), "512 B");
@@ -2009,6 +2022,7 @@ mod tests {
 
     #[test]
     fn cloud_sync_missing_key_returns_error() {
+        hermetic_keychain();
         let cli = Cli::parse_from([
             "omnimon",
             "cloud",
@@ -2328,16 +2342,18 @@ mod tests {
 
     #[test]
     fn auth_login_persists_or_errors_cleanly() {
+        hermetic_keychain();
         let cli = Cli::parse_from(["omnimon", "auth", "login", "cn_test_key_coverage"]);
-        let result = run_cli(cli);
-        assert!(result.is_ok() || result == Err(1));
+        // With the in-memory mock keychain, saving the key must succeed.
+        assert_eq!(run_cli(cli), Ok(()));
     }
 
     #[test]
     fn config_rotate_key_runs() {
+        hermetic_keychain();
         let cli = Cli::parse_from(["omnimon", "config", "rotate-key"]);
-        let result = run_cli(cli);
-        assert!(result.is_ok() || result == Err(1));
+        // Empty mock keychain: rotate-key generates and stores an initial key.
+        assert_eq!(run_cli(cli), Ok(()));
     }
 
     #[test]
@@ -2360,6 +2376,7 @@ mod tests {
 
     #[test]
     fn cloud_sync_with_missing_report_after_fake_key() {
+        hermetic_keychain();
         // Without a key this fails early; with a key it fails on missing file.
         let path = std::env::temp_dir().join("omnimon-missing-report-for-sync.enc");
         let _ = std::fs::remove_file(&path);

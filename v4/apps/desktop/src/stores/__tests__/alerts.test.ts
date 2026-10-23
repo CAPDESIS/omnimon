@@ -306,8 +306,8 @@ describe("alerts store", () => {
     const unlistenNetwork = vi.fn();
     const handlers: Record<string, (event: { payload: any }) => void> = {};
 
-    mockListen.mockImplementation(async (eventName: string, cb: (event: { payload: any }) => void) => {
-      handlers[eventName] = cb;
+    mockListen.mockImplementation(async (eventName, cb) => {
+      handlers[eventName] = cb as (event: { payload: any }) => void;
       return eventName === "security-alert" ? unlistenSecurity : unlistenNetwork;
     });
 
@@ -357,9 +357,9 @@ describe("alerts store", () => {
 
   it("does not toast non-critical security alerts when the user asked for critical only", async () => {
     const handlers: Record<string, (event: { payload: any }) => void> = {};
-    mockListen.mockImplementation(async (eventName: string, cb: (event: { payload: any }) => void) => {
-      handlers[eventName] = cb;
-      return vi.fn();
+    mockListen.mockImplementation(async (eventName, cb) => {
+      handlers[eventName] = cb as (event: { payload: any }) => void;
+      return () => {};
     });
     notificationLevel.set("critical");
     _resetToasts();
@@ -679,9 +679,9 @@ describe("Smart Health Alerts", () => {
 
   it("listener usa mensajes fallback para security y network toasts", async () => {
     const handlers: Record<string, (event: { payload: any }) => void> = {};
-    mockListen.mockImplementation(async (eventName: string, cb: (event: { payload: any }) => void) => {
-      handlers[eventName] = cb;
-      return vi.fn();
+    mockListen.mockImplementation(async (eventName, cb) => {
+      handlers[eventName] = cb as (event: { payload: any }) => void;
+      return () => {};
     });
 
     await initSecurityAlertListener();

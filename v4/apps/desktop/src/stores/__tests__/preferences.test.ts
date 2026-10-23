@@ -294,9 +294,10 @@ describe("loadPreferences", () => {
 
     expect(get(networkAlertRules)).toHaveLength(1);
     expect(get(networkAlertRules)[0].condition.kind).toBe("high_bandwidth");
-    if (get(networkAlertRules)[0].condition.kind === "high_bandwidth") {
-      expect(get(networkAlertRules)[0].condition.threshold_mbps).toBe(0.1);
-      expect(get(networkAlertRules)[0].condition.process).toBe("chrome");
+    const highBandwidth = get(networkAlertRules)[0].condition;
+    if (highBandwidth.kind === "high_bandwidth") {
+      expect(highBandwidth.threshold_mbps).toBe(0.1);
+      expect(highBandwidth.process).toBe("chrome");
     }
   });
 
@@ -339,12 +340,14 @@ describe("loadPreferences", () => {
     expect(get(networkAlertRules)).toHaveLength(2);
     expect(get(networkAlertRules)[0].condition.kind).toBe("suspicious_destination");
     expect(get(networkAlertRules)[1].condition.kind).toBe("connection_count_exceeded");
-    if (get(networkAlertRules)[0].condition.kind === "suspicious_destination") {
-      expect(get(networkAlertRules)[0].condition.patterns).toEqual(["evil"]);
+    const suspiciousDest = get(networkAlertRules)[0].condition;
+    if (suspiciousDest.kind === "suspicious_destination") {
+      expect(suspiciousDest.patterns).toEqual(["evil"]);
     }
-    if (get(networkAlertRules)[1].condition.kind === "connection_count_exceeded") {
-      expect(get(networkAlertRules)[1].condition.max_connections).toBe(201);
-      expect(get(networkAlertRules)[1].condition.process).toBe("Safari");
+    const connExceeded = get(networkAlertRules)[1].condition;
+    if (connExceeded.kind === "connection_count_exceeded") {
+      expect(connExceeded.max_connections).toBe(201);
+      expect(connExceeded.process).toBe("Safari");
     }
   });
 

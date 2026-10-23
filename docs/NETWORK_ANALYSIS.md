@@ -57,9 +57,7 @@ omnimon network --alerts --watch --watch-interval-ms 1000
 Desktop IPC commands:
 
 - `get_network_data` returns watcher telemetry (`top_processes`, `recent_connections`, backend, DPI, totals).
-- `get_network_connections` returns the latest analyzed `NetworkSnapshot`.
-- `get_network_history(seconds)` returns recent analyzed snapshots.
-- `get_filtered_connections(filter)` applies the backend `NetworkFilter`.
+- Analyzed snapshots arrive via the `network-update` event; history and filtering happen client-side in the network store.
 
 The desktop store in `v4/apps/desktop/src/stores/network.svelte.ts` keeps the current snapshot, rolling history, UI filters, and derived per-process summaries.
 
