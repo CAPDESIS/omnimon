@@ -59,9 +59,6 @@ These are the backend-supported actions that can be triggered from the in-app AI
 | --- | --- | --- |
 | `get_metrics` | `idleThreshold?: number` | `Metrics` object with `processes[]` and `stats` |
 | `get_network_data` | none | JSON object with `top_processes`, `recent_connections`, aggregate throughput, backend, and DPI flag |
-| `get_network_connections` | none | `NetworkSnapshot` with current connection list and aggregate per-process analysis |
-| `get_network_history` | `seconds: number` | `NetworkSnapshot[]` for the requested recent interval |
-| `get_filtered_connections` | `filter: NetworkFilter` | `NetworkConnection[]` matching protocol/port/process/host filters |
 | `kill_process` | `pid: number` | `boolean` |
 | `kill_processes` | `pids: number[]` (max 50) | `{ killed: number[], failed: [number, string][] }` |
 | `save_ai_config` | `provider: string`, `model: string`, `key: string` | `void` |

@@ -894,9 +894,10 @@
     "saving": "Saving...",
     "saveKey": "Save key",
     "syncNow": "Sync now",
+    "syncing": "Syncing...",
+    "syncSuccess": "Sync completed ({bytes} bytes uploaded).",
     "saved": "Key saved successfully!",
-    "error": "Error: {error}",
-    "syncNotImplemented": "Sync is not implemented yet."
+    "error": "Error: {error}"
   },
   "themeSelector": {
     "selectTheme": "Select theme",

@@ -40,9 +40,15 @@ Verified 2026-10-14. Rust/Tauri desktop app + Go-free stack; manifests at `6.8.0
 ## Real pendings
 
 LOCAL (agent-actionable):
-1. `cli` full suite (49 tests) hangs on macOS keychain mutex — needs test isolation (mock keyring or serial keychain tests). Do not run concurrently with other lanes.
-2. ROADMAP item 1 (CloudSync desktop GUI) partial: IPC key exists, `syncNotImplemented` still present.
+1. RESOLVED 2026-10-22 (pendientes wave): keychain/network tests are hermetic
+   (`hermetic_keychain` mock in cli/tui); full cli+tui suites finish in seconds.
+2. RESOLVED 2026-10-22: CloudSync upload IPC `sync_cloud` implemented
+   (encrypted telemetry payload; clean error without key). Real CrabNebula
+   endpoint/contract still OWNER-unverified.
 3. Coverage gate (`cargo llvm-cov`) and `cargo audit` not run in this lane.
+4. RESOLVED 2026-10-22: Playwright E2E job in CI; orphan network IPC commands
+   removed (event + client filter retained); stores tsc errors fixed.
+5. Landing screenshot: AVIF/WebP generated (-83%/-72%), PNG kept as fallback.
 
 OWNER-ONLY:
 1. Publish `v6.7.0`/`v6.8.0` tags + Universal DMG (triggers signed release pipeline; explicit decision per handoff doc). Homebrew cask stays on `6.6.6` until then.
@@ -78,14 +84,14 @@ Corregido hoy (stale probado):
 Pendientes reales ordenados:
 1. P1 OWNER: publicar tag `v6.7.0`/`v6.8.0` + DMG Universal; hasta entonces
    Homebrew queda en `6.6.6` y `RELEASE_6_7_0_HANDOFF.md` sigue histórico.
-2. P1 LOCAL: `docs/ROADMAP.md` ítem 1 CloudSync parcial —
-   `v4/apps/desktop/src/components/CloudSync.svelte:54` sigue en
-   `syncNotImplemented` (hay `save_cloud_key`, falta IPC de subida).
-3. P2 LOCAL: ROADMAP ítem 3 — añadir job CI que corra Playwright E2E.
+2. RESUELTO 2026-10-22: CloudSync IPC de subida implementado; pendiente solo
+   la confirmación OWNER del endpoint real CrabNebula.
+3. RESUELTO 2026-10-22: job CI Playwright E2E añadido (flaky conocido:
+   `e2e/ai-chat.spec.ts` pasa en retry).
 4. P2 OWNER: ROADMAP ítem 4 — secretos Apple Developer + paso `notarytool`
    (ausente en `.github/workflows/`, verificado por grep).
-5. P2 LOCAL: `cli` suite completa cuelga en mutex keychain macOS (ver
-   "Real pendings" arriba); `cargo llvm-cov`/`cargo audit` no corridos hoy.
+5. RESUELTO 2026-10-22: tests keychain/red herméticos; quedan residuales
+   menores (2 errores tsc fuera de stores, 64 de `astro check` en landing).
 6. P3 DOC: `v4/docs/ROADMAP.md` y `v4/docs/PARITY_GAPS.md` son históricos
    (v4.1–v4.6, mencionan proveedor OpenAI directo ya retirado en
    `CHANGELOG.md` Unreleased); tratar como archivo, no como roadmap vigente.

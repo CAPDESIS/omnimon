@@ -5,10 +5,14 @@
 
   import Button from "./Button.svelte";
 
+  type CloudSyncResult = { uploaded_bytes: number; sha256: string };
+
   let key = $state("");
   let status = $state("");
+  let syncState = $state<"idle" | "success" | "error">("idle");
   let loadingKey = $state(false);
   let savingKey = $state(false);
+  let syncing = $state(false);
 
   onMount(() => {
     let mounted = true;
@@ -40,18 +44,34 @@
     if (savingKey || loadingKey) return;
     savingKey = true;
     status = "";
+    syncState = "idle";
     try {
       await invoke<void>("save_cloud_key", { key });
       status = t("cloudSync.saved");
+      syncState = "success";
     } catch (e) {
       status = t("cloudSync.error", { error: e instanceof Error ? e.message : String(e) });
+      syncState = "error";
     } finally {
       savingKey = false;
     }
   }
 
-  function syncNow() {
-    status = t("cloudSync.syncNotImplemented");
+  async function syncNow() {
+    if (syncing || loadingKey || savingKey) return;
+    syncing = true;
+    status = "";
+    syncState = "idle";
+    try {
+      const result = await invoke<CloudSyncResult>("sync_cloud");
+      syncState = "success";
+      status = t("cloudSync.syncSuccess", { bytes: result.uploaded_bytes });
+    } catch (e) {
+      syncState = "error";
+      status = t("cloudSync.error", { error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      syncing = false;
+    }
   }
 </script>
 
@@ -64,17 +84,17 @@
       id="cloud-key"
       bind:value={key}
       placeholder={t("cloudSync.placeholder")}
-      disabled={loadingKey || savingKey}
+      disabled={loadingKey || savingKey || syncing}
     />
   </div>
   <div class="actions">
-    <Button variant="primary" onclick={saveKey} disabled={loadingKey || savingKey || !key.trim()}>
+    <Button variant="primary" onclick={saveKey} disabled={loadingKey || savingKey || syncing || !key.trim()}>
        {savingKey ? t("cloudSync.saving") : t("cloudSync.saveKey")}
       </Button>
-      <Button variant="secondary" onclick={syncNow} disabled={loadingKey || savingKey}>{t("cloudSync.syncNow")}</Button>
+      <Button variant="secondary" onclick={syncNow} disabled={loadingKey || savingKey || syncing}>{syncing ? t("cloudSync.syncing") : t("cloudSync.syncNow")}</Button>
    </div>
   {#if status}
-    <p class="status">{status}</p>
+    <p class="status" class:error={syncState === "error"} class:success={syncState === "success"} role="status" aria-live="polite">{status}</p>
   {/if}
 </div>
 
@@ -111,5 +131,11 @@
     margin-top: 1rem;
     font-size: 0.9rem;
     color: var(--fg-muted, #999);
+  }
+  .status.error {
+    color: var(--danger, #f87171);
+  }
+  .status.success {
+    color: var(--success, #4ade80);
   }
 </style>

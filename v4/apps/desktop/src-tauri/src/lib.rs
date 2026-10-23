@@ -818,32 +818,6 @@ fn get_network_data() -> Result<serde_json::Value, String> {
     }))
 }
 
-/// IPC: Return full network analysis snapshot with per-process summaries and connection details.
-#[tauri::command]
-#[tracing::instrument(skip_all)]
-fn get_network_connections() -> Result<macmon_core::network_analysis::NetworkSnapshot, String> {
-    macmon_core::watcher::get_network_snapshot()
-        .ok_or_else(|| "No network snapshot available yet".to_string())
-}
-
-/// IPC: Return historical network snapshots from the last N seconds.
-#[tauri::command]
-#[tracing::instrument(skip_all)]
-fn get_network_history(
-    seconds: u32,
-) -> Result<Vec<macmon_core::network_analysis::NetworkSnapshot>, String> {
-    Ok(macmon_core::watcher::get_network_history(seconds))
-}
-
-/// IPC: Return filtered network connections from the current snapshot.
-#[tauri::command]
-#[tracing::instrument(skip_all)]
-fn get_filtered_connections(
-    filter: macmon_core::network_analysis::NetworkFilter,
-) -> Result<Vec<macmon_core::network_analysis::NetworkConnection>, String> {
-    Ok(macmon_core::watcher::get_filtered_connections(&filter))
-}
-
 /// IPC: Query whether the main window is currently visible.
 #[tauri::command]
 #[tracing::instrument(skip_all)]
@@ -871,6 +845,21 @@ fn save_cloud_key(key: String) -> Result<(), String> {
 fn get_cloud_key() -> Result<String, String> {
     let entry = keyring::Entry::new("omnimon", "crabnebula_api_key").map_err(|e| e.to_string())?;
     entry.get_password().map_err(|e| e.to_string())
+}
+
+/// IPC: Encrypt and upload a telemetry snapshot using the key saved by
+/// `save_cloud_key` (same keyring entry via `macmon_core::cloud`).
+/// Without a stored key, returns the clean `no cloud key configured` error.
+#[tauri::command]
+#[tracing::instrument(skip_all)]
+async fn sync_cloud() -> Result<macmon_core::cloud::CloudSyncResult, String> {
+    macmon_core::rate_limit::check_rate_limit(
+        "sync_cloud",
+        &macmon_core::rate_limit::profiles::CONFIG,
+    )?;
+    let snapshot = macmon_core::telemetry::telemetry_snapshot(Some(50));
+    let payload = macmon_core::cloud::build_telemetry_sync_payload(&snapshot);
+    macmon_core::cloud::sync_stored_payload_to_cloud(&payload).await
 }
 
 /// IPC: Interactive AI chat with live system state injection and tool calling.
@@ -1307,9 +1296,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_metrics,
             get_network_data,
-            get_network_connections,
-            get_network_history,
-            get_filtered_connections,
             kill_process,
             kill_processes,
             save_ai_config,
@@ -1329,6 +1315,7 @@ pub fn run() {
             get_window_visible,
             save_cloud_key,
             get_cloud_key,
+            sync_cloud,
             automations::get_automation_rules,
             automations::add_automation_rule,
             automations::remove_automation_rule,
@@ -1587,20 +1574,11 @@ mod tests {
     }
 
     #[test]
-    fn get_network_connections_does_not_panic() {
-        // Before the watcher has produced a snapshot this returns Err; either outcome is fine.
-        let _ = get_network_connections();
-    }
-
-    #[test]
-    fn get_network_history_accepts_window() {
-        assert!(get_network_history(60).is_ok());
-    }
-
-    #[test]
-    fn get_filtered_connections_with_default_filter() {
-        let filter = macmon_core::network_analysis::NetworkFilter::default();
-        assert!(get_filtered_connections(filter).is_ok());
+    fn network_snapshot_source_for_event_path_does_not_panic() {
+        // The frontend receives snapshots via the `network-update` event
+        // (emitted from this source in `run`), not via a dedicated IPC
+        // command. Before the watcher runs this is `None`; either is fine.
+        let _ = macmon_core::watcher::get_network_snapshot();
     }
 
     #[test]

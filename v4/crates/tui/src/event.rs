@@ -22,7 +22,9 @@ where
     let mut last_tick = Instant::now();
 
     loop {
-        terminal.draw(|f| ui::draw(f, app))?;
+        terminal
+            .draw(|f| ui::draw(f, app))
+            .map_err(|e| io::Error::other(format!("{e:?}")))?;
 
         let timeout = TICK_RATE.saturating_sub(last_tick.elapsed());
         if event::poll(timeout)? {
@@ -244,6 +246,23 @@ mod tests {
     use super::*;
     use crate::app::SortColumn;
 
+    /// Hermetic AI environment: replace the live OS keyring (which can block
+    /// awaiting an unlock prompt in a non-interactive session) with keyring's
+    /// in-memory mock, and point the spawned chat request at a closed
+    /// loopback port so it fails instantly instead of reaching a real local
+    /// Ollama or any network. Mock entries start empty, so every provider
+    /// lookup misses and `resolve_ai_config` falls back to Ollama/no-key.
+    fn hermetic_ai_env() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            keyring::set_default_credential_builder(keyring::mock::default_credential_builder());
+            std::env::set_var(
+                "OMNIMON_OLLAMA_API_URL",
+                "http://127.0.0.1:1/v1/chat/completions",
+            );
+        });
+    }
+
     #[test]
     fn ctrl_c_sets_should_quit() {
         let mut app = App::new();
@@ -382,9 +401,12 @@ mod tests {
 
     #[test]
     fn resolve_ai_config_returns_provider() {
-        let (provider, model, _key) = resolve_ai_config();
-        assert!(!model.is_empty());
-        let _ = provider;
+        hermetic_ai_env();
+        let (provider, model, key) = resolve_ai_config();
+        // Empty mock keychain: all providers miss, fallback is Ollama/no-key.
+        assert_eq!(provider, core::ai::AiProvider::Ollama);
+        assert_eq!(model, "llama3.2");
+        assert!(key.is_empty());
     }
 
     #[test]
@@ -396,6 +418,7 @@ mod tests {
 
     #[test]
     fn chat_enter_with_message_records_user_and_sets_loading() {
+        hermetic_ai_env();
         let mut app = App::new();
         handle_key(&mut app, KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
         handle_key(

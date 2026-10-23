@@ -191,6 +191,143 @@ pub async fn validate_stored_cloud_key() -> CloudValidation {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Cloud Sync (upload)
+// ---------------------------------------------------------------------------
+
+const SYNC_TIMEOUT_SECS: u64 = 30;
+
+/// Result of a successful cloud sync upload.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CloudSyncResult {
+    pub uploaded_bytes: usize,
+    pub sha256: String,
+}
+
+/// Clean, user-facing error used when sync is attempted without a key.
+/// Never leaks keyring internals or key material.
+pub const NO_CLOUD_KEY_ERROR: &str = "no cloud key configured";
+
+fn validate_sync_key(key: &str) -> Result<String, String> {
+    let trimmed = key.trim();
+    if trimmed.is_empty() {
+        return Err(NO_CLOUD_KEY_ERROR.to_string());
+    }
+    validate_key_format(trimmed)?;
+    Ok(trimmed.to_string())
+}
+
+/// Build the minimal telemetry payload sent to the cloud. Process paths and
+/// icon data are deliberately excluded (privacy + payload size).
+pub fn build_telemetry_sync_payload(
+    snapshot: &crate::telemetry::TelemetrySnapshot,
+) -> serde_json::Value {
+    let processes: Vec<serde_json::Value> = snapshot
+        .processes
+        .iter()
+        .map(|p| {
+            serde_json::json!({
+                "pid": p.pid,
+                "name": p.name,
+                "memory_bytes": p.memory_bytes,
+                "cpu_usage_percent": p.cpu_usage_percent,
+                "net_rx_bytes_per_sec": p.net_rx_bytes_per_sec,
+                "net_tx_bytes_per_sec": p.net_tx_bytes_per_sec,
+                "is_system": p.is_system,
+            })
+        })
+        .collect();
+    serde_json::json!({
+        "kind": "telemetry_snapshot",
+        "schema_version": 1,
+        "app_version": env!("CARGO_PKG_VERSION"),
+        "cpu_usage_percent": snapshot.cpu_usage_percent,
+        "total_memory_bytes": snapshot.total_memory_bytes,
+        "used_memory_bytes": snapshot.used_memory_bytes,
+        "swap_used_mb": snapshot.swap_used_mb,
+        "net_rx_bytes_per_sec": snapshot.net_rx_bytes_per_sec,
+        "net_tx_bytes_per_sec": snapshot.net_tx_bytes_per_sec,
+        "total_processes": snapshot.total_processes,
+        "processes": processes,
+    })
+}
+
+/// Encrypt `payload` with a key HKDF-derived from the cloud API key.
+pub fn encrypt_sync_payload(
+    key: &str,
+    payload: &serde_json::Value,
+) -> Result<(crate::crypto::EncryptedPayload, String), String> {
+    let key = validate_sync_key(key)?;
+    let derived =
+        crate::crypto::derive_key(key.as_bytes(), crate::crypto::kdf_context::DATA_ENCRYPTION);
+    let encrypted = crate::crypto::encrypt_json(derived.as_bytes(), payload)?;
+    let sha256 = crate::crypto::sha256_hex(encrypted.ciphertext_b64.as_bytes());
+    Ok((encrypted, sha256))
+}
+
+/// Encrypt and upload `payload` to `{CN_API_BASE}/sync` with `key`.
+/// No network call is made when the key is missing or malformed.
+pub async fn sync_payload_to_cloud(
+    key: &str,
+    payload: &serde_json::Value,
+) -> Result<CloudSyncResult, String> {
+    let key = validate_sync_key(key)?;
+    let (encrypted, sha256) = encrypt_sync_payload(&key, payload)?;
+    let uploaded_bytes = encrypted.ciphertext_b64.len();
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(SYNC_TIMEOUT_SECS))
+        .build()
+        .map_err(|e| format!("http client: {e}"))?;
+
+    let url = format!("{}/sync", cloud_api_base());
+    let response = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {key}"))
+        .header("User-Agent", concat!("OmniMon/", env!("CARGO_PKG_VERSION")))
+        .json(&serde_json::json!({
+            "algorithm": encrypted.algorithm,
+            "nonce_b64": encrypted.nonce_b64,
+            "ciphertext_b64": encrypted.ciphertext_b64,
+            "sha256": sha256,
+        }))
+        .send()
+        .await
+        .map_err(|e| {
+            if e.is_timeout() {
+                "request timed out".to_string()
+            } else if e.is_connect() {
+                "could not connect to CrabNebula API".to_string()
+            } else {
+                format!("network error: {e}")
+            }
+        })?;
+
+    let status = response.status();
+    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+        return Err("invalid or expired API key".to_string());
+    }
+    if !status.is_success() {
+        return Err(format!("API returned status {status}"));
+    }
+    Ok(CloudSyncResult {
+        uploaded_bytes,
+        sha256,
+    })
+}
+
+/// Sync using the key stored via [`save_cloud_key`]. Without a stored key this
+/// returns [`NO_CLOUD_KEY_ERROR`] and makes no network call.
+pub async fn sync_stored_payload_to_cloud(
+    payload: &serde_json::Value,
+) -> Result<CloudSyncResult, String> {
+    let key = match get_cloud_key() {
+        Ok(k) if !k.trim().is_empty() => k,
+        _ => return Err(NO_CLOUD_KEY_ERROR.to_string()),
+    };
+    sync_payload_to_cloud(&key, payload).await
+}
+
 /// Determines the cloud tier from the API response body.
 fn detect_tier_from_response(body: &serde_json::Value) -> CloudTier {
     // Check explicit string plan/tier fields
@@ -418,6 +555,128 @@ mod tests {
 
         assert!(!result.valid);
         assert!(result.error.unwrap().contains("invalid or expired"));
+    }
+
+    #[test]
+    fn sync_key_missing_is_clean_error() {
+        assert_eq!(validate_sync_key("").unwrap_err(), NO_CLOUD_KEY_ERROR);
+        assert_eq!(validate_sync_key("   ").unwrap_err(), NO_CLOUD_KEY_ERROR);
+    }
+
+    #[tokio::test]
+    async fn sync_without_key_makes_no_upload_and_errors_cleanly() {
+        let payload = serde_json::json!({"kind": "telemetry_snapshot"});
+        let err = sync_payload_to_cloud("", &payload).await.unwrap_err();
+        assert_eq!(err, NO_CLOUD_KEY_ERROR);
+        let err = sync_payload_to_cloud("key with spaces", &payload)
+            .await
+            .unwrap_err();
+        assert!(err.contains("invalid characters"));
+    }
+
+    #[test]
+    fn sync_payload_encrypts_and_roundtrips() {
+        let payload = serde_json::json!({"kind": "telemetry_snapshot", "total_processes": 2});
+        let (encrypted, sha256) =
+            encrypt_sync_payload("cn_live_test_key_ok", &payload).expect("encrypt");
+        assert_eq!(encrypted.algorithm, "AES-256-GCM");
+        assert_eq!(sha256.len(), 64);
+        let derived = crate::crypto::derive_key(
+            b"cn_live_test_key_ok",
+            crate::crypto::kdf_context::DATA_ENCRYPTION,
+        );
+        let decrypted: serde_json::Value =
+            crate::crypto::decrypt_json(derived.as_bytes(), &encrypted).expect("decrypt");
+        assert_eq!(decrypted, payload);
+    }
+
+    #[test]
+    fn telemetry_sync_payload_excludes_paths_and_icons() {
+        let snapshot = crate::telemetry::TelemetrySnapshot {
+            total_memory_bytes: 100,
+            free_memory_bytes: 40,
+            used_memory_bytes: 60,
+            free_percent: 40,
+            swap_used_mb: 0,
+            cpu_usage_percent: 1.5,
+            net_rx_bytes_per_sec: 10,
+            net_tx_bytes_per_sec: 20,
+            total_processes: 1,
+            processes: vec![crate::telemetry::ProcessTelemetryView {
+                pid: 42,
+                name: "demo".into(),
+                exec_name: "demo".into(),
+                group: "Apps".into(),
+                group_key: "demo".into(),
+                group_identity_type: "name".into(),
+                grouped_display_name: "demo".into(),
+                process_count: 1,
+                bundle_id: Some("com.example.demo".into()),
+                exe_path: Some("/secret/path/demo".into()),
+                icon_data_url: Some("data:image/png;base64,AAAA".into()),
+                memory_bytes: 1024,
+                virtual_memory_bytes: 2048,
+                disk_read_bytes: 0,
+                disk_write_bytes: 0,
+                net_rx_bytes_per_sec: 1,
+                net_tx_bytes_per_sec: 2,
+                energy_impact_score: None,
+                cpu_usage_percent: 0.5,
+                start_time: 1,
+                is_system: false,
+            }],
+            super_processes: vec![],
+        };
+        let payload = build_telemetry_sync_payload(&snapshot);
+        let text = payload.to_string();
+        assert!(!text.contains("/secret/path"));
+        assert!(!text.contains("data:image"));
+        assert_eq!(payload["processes"][0]["name"], "demo");
+    }
+
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
+    async fn sync_payload_uploads_encrypted_to_mock_server() {
+        let _guard = CN_API_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut server = mockito::Server::new_async().await;
+        let _m = server
+            .mock("POST", "/sync")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"ok":true}"#)
+            .create_async()
+            .await;
+        std::env::set_var("OMNIMON_CN_API_BASE", server.url());
+        let result = sync_payload_to_cloud(
+            "cn_live_test_key_ok",
+            &serde_json::json!({"kind": "telemetry_snapshot"}),
+        )
+        .await;
+        std::env::remove_var("OMNIMON_CN_API_BASE");
+        let result = result.expect("sync");
+        assert!(result.uploaded_bytes > 0);
+        assert_eq!(result.sha256.len(), 64);
+    }
+
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
+    async fn sync_payload_maps_unauthorized() {
+        let _guard = CN_API_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut server = mockito::Server::new_async().await;
+        let _m = server
+            .mock("POST", "/sync")
+            .with_status(401)
+            .create_async()
+            .await;
+        std::env::set_var("OMNIMON_CN_API_BASE", server.url());
+        let err = sync_payload_to_cloud(
+            "cn_live_bad_key",
+            &serde_json::json!({"kind": "telemetry_snapshot"}),
+        )
+        .await
+        .unwrap_err();
+        std::env::remove_var("OMNIMON_CN_API_BASE");
+        assert!(err.contains("invalid or expired"));
     }
 
     #[tokio::test]

@@ -894,9 +894,10 @@
     "saving": "Guardando...",
     "saveKey": "Guardar clave",
     "syncNow": "Sincronizar ahora",
+    "syncing": "Sincronizando...",
+    "syncSuccess": "Sincronización completada ({bytes} bytes subidos).",
     "saved": "¡Clave guardada correctamente!",
-    "error": "Error: {error}",
-    "syncNotImplemented": "La sincronización todavía no está implementada."
+    "error": "Error: {error}"
   },
   "themeSelector": {
     "selectTheme": "Seleccionar tema",
