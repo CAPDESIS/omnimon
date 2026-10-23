@@ -851,7 +851,8 @@
     "process": "Proceso",
     "connections": "Conexiones",
     "topDestination": "Destino principal",
-    "chartPlaceholder": "Gráfica Pie/Donut: distribución de ancho de banda"
+    "chartPlaceholder": "Gráfica Pie/Donut: distribución de ancho de banda",
+    "emptyState": "Sin procesos con actividad de red"
   },
   "automations": {
     "title": "Motor de automatizaciones",

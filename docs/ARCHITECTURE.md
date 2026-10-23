@@ -1,6 +1,6 @@
 # OmniMon Architecture
 
-Version: 6.3.0
+Version: 6.8.0 (workspace manifests; unreleased — latest published tag `v6.6.6`)
 
 This document describes the high-level architecture of OmniMon, covering the Cargo workspace layout, data flow, key subsystems, and security design.
 
@@ -254,11 +254,10 @@ graph TD
 
 ## Testing Architecture
 
-**Unit tests (1083 total):**
-- Frontend: 663 tests via Vitest + Testing Library (45 test files)
-- Rust core: 367 tests (inline `#[cfg(test)]`)
-- Rust desktop: 46 tests (plugins, automations)
-- Coverage: 86.5% statements, 72% branches, 87.7% functions
+**Unit tests (1366 total, measured 2026-10-14, re-verified post-RUSTAUDIT):**
+- Frontend: 715 tests via Vitest + Testing Library (47 test files) — `npx vitest run` in `v4/apps/desktop`, 715 passed, 0 failed
+- Rust workspace: 651 tests (`cargo test --workspace` in `v4/`, 651 passed, 0 failed across all crates)
+- Coverage (frontend v8, `bun run test:coverage` in `v4/apps/desktop`, clover.xml): 86.7% statements (4900/5650), 70.6% branches (2740/3882), 86.7% functions (1981/2285)
 
 **E2E tests (7 total):**
 - Framework: Playwright (standalone, no Tauri WebDriver)

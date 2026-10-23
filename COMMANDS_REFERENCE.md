@@ -1,6 +1,6 @@
 # OmniMon Commands Reference
 
-Version: `6.3.0`
+Version: `6.8.0` (workspace manifests; unreleased — latest published tag `v6.6.6`)
 
 ## AI Chat Actions
 
