@@ -68,6 +68,17 @@ describe("NetworkDashboard", () => {
     expect(screen.getByPlaceholderText("Filter by process...")).toBeInTheDocument();
   });
 
+  it("renders real SVG history chart from store history", () => {
+    (mockState as { history: unknown[] }).history = [1, 2, 3].map((i) => ({
+      timestamp: i, total_bytes_per_sec_up: i * 1024, total_bytes_per_sec_down: i * 2048,
+      active_connections: 1, processes_with_network: 1, connections: [],
+    }));
+    const { container } = render(NetworkDashboard);
+    expect(screen.getByTestId("network-history-chart")).toBeInTheDocument();
+    expect(container.querySelectorAll("[data-testid='network-history-chart'] path")).toHaveLength(4);
+    mockState.history = [];
+  });
+
   it("switches to process tab", async () => {
     render(NetworkDashboard);
 

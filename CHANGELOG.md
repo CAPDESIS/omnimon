@@ -1,14 +1,34 @@
 # Changelog
 
-## Unreleased
+## 6.8.0 (2026-10-25)
 
-### Removed direct OpenAI provider (fleet OpenRouter-only rule)
+### Network charts (this PR)
+
+- Network history area chart (up/down) and per-process donut replace the
+  previous placeholders, rendered as lightweight SVG from existing store data
+
+### Removed direct OpenAI provider (fleet OpenRouter-only rule) (#68)
 
 - The `openai` AI provider is gone from core, CLI (`--ai openai` now fails at parse time), TUI fallback chain, desktop provider picker, keyring services, and the Tauri CSP (`api.openai.com` removed from `connect-src`)
 - OpenAI models stay available through OpenRouter: the picker adds `openai/gpt-4o-mini` and `openai/gpt-4o` slugs, and stored `openai` configs migrate to `openrouter` on load (`gpt-*` models map to `openai/gpt-*`)
 - Regression coverage: unit + integration tests fail if any provider URL points at the direct OpenAI API, and parsing `"openai"` errors with the OpenRouter migration hint
 
-## 6.8.0 (2026-09-19)
+### Automation hardening, network empty state, docs to 6.8.0 (#84)
+
+- Automation rules are validated/sanitized (`validate_rule`/`sanitize` in `automations.rs`): an empty pattern no longer acts as a match-all kill rule; regression tests cover it
+- `ProcessNetworkView` empty state uses real EN/ES copy with a regression test
+- Docs aligned to 6.8.0 (headers 6.3.0 -> 6.8.0, ROADMAP status, `remediation_infra`, `FLEET_STATUS` with ordered pendings)
+
+### CloudSync upload IPC, hermetic tests, E2E CI (#85)
+
+- New `sync_cloud` IPC: encrypted payload upload with a clean no-key error; mockito-backed tests
+- Keychain/network tests are hermetic (full workspace suite passes locally with 0 skips)
+- Playwright E2E CI job plus `scripts/check-e2e-ci.py` guard; orphan network IPC commands removed (event path retained) and store `tsc` fixes
+
+### Desktop type-check and deterministic E2E waits (#86)
+
+- `tsc --noEmit` back to 0 (`NetworkDashboard.test.ts` listener promise type)
+- E2E ai-chat flake fixed with deterministic `APP_READY_TIMEOUT_MS` waits, no sleeps (7/7 with retries=0 on cold Vite cache)
 
 ### Kill identity (false-positive prevention)
 
@@ -41,7 +61,7 @@
 - Complements in-app Zombie Killer (alert-only by default); does not change `never_kill` defaults
 - CI job `Memory Guard prove` on `ubuntu-latest`
 
-### Also from Unreleased
+### Also in 6.8.0
 
 - Lua plugins: restricted stdlib (`no io/os/package/debug`, `load`/`loadfile`/`dofile` removed) plus tests; docs no longer call the VM a security sandbox
 - Desktop empty process table now uses real EN/ES copy instead of raw i18n keys

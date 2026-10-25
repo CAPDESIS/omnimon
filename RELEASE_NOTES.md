@@ -1,6 +1,6 @@
 # OmniMon v6.8.0 Release Notes
 
-Release date: 2026-09-19
+Release date: 2026-10-25 (pending `v6.8.0` tag)
 
 ## Memory Guard (macOS)
 

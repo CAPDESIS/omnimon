@@ -7,6 +7,8 @@
   let expandedRow: string | null = $state(null);
 
   import { formatNetworkRate as formatSpeed } from "../lib/formatting";
+  import { donutSegments } from "../lib/networkChart";
+  const segments = $derived(donutSegments(getPerProcessSummary(), 70));
 </script>
 
 <div class="process-network-container">
@@ -43,8 +45,18 @@
     </div>
     
     <div class="chart-container">
-      <p class="placeholder-text">{t("processNetwork.chartPlaceholder")}</p>
-      <!-- TODO: Implement actual charting library component -->
+      {#if segments.length > 0}
+        <svg data-testid="process-donut-chart" viewBox="0 0 180 180" role="img" aria-label={t("processNetwork.chartPlaceholder")}>
+          <circle cx="90" cy="90" r="70" fill="none" stroke="var(--border-color, #eee)" stroke-width="22" />
+          {#each segments as seg}
+            <circle cx="90" cy="90" r="70" fill="none" stroke={seg.color} stroke-width="22"
+              stroke-dasharray={seg.dash} stroke-dashoffset={seg.offset} transform="rotate(-90 90 90)"><title>{seg.name}: {(seg.share * 100).toFixed(1)}%</title></circle>
+          {/each}
+        </svg>
+        <ul class="donut-legend">
+          {#each segments as seg}<li><span class="swatch" style="background:{seg.color}"></span>{seg.name} {(seg.share * 100).toFixed(1)}% · {formatSpeed(seg.total)}</li>{/each}
+        </ul>
+      {/if}
     </div>
   </div>
 </div>
@@ -72,8 +84,11 @@
   .chart-container {
     flex: 1;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
     background: var(--bg-surface-2, #f9f9f9);
     border: 1px solid var(--border-color, #eee);
     border-radius: 8px;
@@ -109,4 +124,7 @@
 
   .up { color: #22c55e; }
   .down { color: #3b82f6; }
+  .chart-container svg { width: 180px; height: 180px; }
+  .donut-legend { list-style: none; margin: 0; padding: 0; font-size: 0.8rem; display: flex; flex-direction: column; gap: 0.25rem; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 0.4rem; }
 </style>

@@ -9,8 +9,16 @@
   } from "../stores/network.svelte";
   import ConnectionsTable from "./ConnectionsTable.svelte";
   import ProcessNetworkView from "./ProcessNetworkView.svelte";
+  import { areaPath, linePath, maxRate } from "../lib/networkChart";
 
   const networkState = getNetworkState();
+  const W = 600, H = 150, PAD = 8;
+  const history = $derived(networkState.history);
+  const chartMax = $derived(maxRate(history));
+  const upLine = $derived(linePath(history.map((s) => s.total_bytes_per_sec_up), W, H, PAD, chartMax));
+  const downLine = $derived(linePath(history.map((s) => s.total_bytes_per_sec_down), W, H, PAD, chartMax));
+  const upArea = $derived(areaPath(history.map((s) => s.total_bytes_per_sec_up), W, H, PAD, chartMax));
+  const downArea = $derived(areaPath(history.map((s) => s.total_bytes_per_sec_down), W, H, PAD, chartMax));
 
   let activeTab = $state<"connections" | "processes">("connections");
 
@@ -58,8 +66,17 @@
   </div>
 
   <div class="history-graph">
-    <p class="placeholder-text">{t("networkDashboard.historyPlaceholder")}</p>
-    <!-- TODO: Implement chart with state.history -->
+    {#if history.length >= 2}
+      <svg data-testid="network-history-chart" viewBox="0 0 {W} {H}" preserveAspectRatio="none" role="img" aria-label={t("networkDashboard.historyPlaceholder")}>
+        <path d={downArea} fill="#3b82f6" opacity="0.18" />
+        <path d={upArea} fill="#22c55e" opacity="0.18" />
+        <path d={downLine} fill="none" stroke="#3b82f6" stroke-width="2" />
+        <path d={upLine} fill="none" stroke="#22c55e" stroke-width="2" />
+      </svg>
+      <div class="legend"><span class="up">↑ {formatSpeed(getTotalUp())}</span><span class="down">↓ {formatSpeed(getTotalDown())}</span><span>{t("networkDashboard.historyPlaceholder")}</span></div>
+    {:else}
+      <p class="placeholder-text">{t("networkDashboard.historyPlaceholder")}</p>
+    {/if}
   </div>
 
   <div class="tabs">
@@ -129,12 +146,17 @@
   .history-graph {
     background: var(--bg-surface, #fff);
     border-radius: 8px;
-    height: 150px;
+    min-height: 150px;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
     justify-content: center;
     border: 1px solid var(--border-color, #eee);
+    padding: 0.5rem;
+    gap: 0.25rem;
   }
+  .history-graph svg { width: 100%; height: 120px; display: block; }
+  .legend { display: flex; gap: 1rem; font-size: 0.8rem; color: var(--text-secondary, #666); }
 
   .tabs {
     display: flex;
