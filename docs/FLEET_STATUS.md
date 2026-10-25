@@ -45,7 +45,9 @@ LOCAL (agent-actionable):
 2. RESOLVED 2026-10-22: CloudSync upload IPC `sync_cloud` implemented
    (encrypted telemetry payload; clean error without key). Real CrabNebula
    endpoint/contract still OWNER-unverified.
-3. Coverage gate (`cargo llvm-cov`) and `cargo audit` not run in this lane.
+3. MEASURED 2026-10-25: `cargo llvm-cov --workspace` lines 86.56%
+   (16,367 total lines), functions 82.08%; `cargo audit` 0 vulnerabilities
+   (5 allowed warnings: unmaintained gtk stack + 1 unsound).
 4. RESOLVED 2026-10-22: Playwright E2E job in CI; orphan network IPC commands
    removed (event + client filter retained); stores tsc errors fixed.
 5. Landing screenshot: AVIF/WebP generated (-83%/-72%), PNG kept as fallback.
