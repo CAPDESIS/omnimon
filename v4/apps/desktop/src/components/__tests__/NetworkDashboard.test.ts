@@ -79,10 +79,10 @@ describe("NetworkDashboard", () => {
 
   it("drops the listener if unmounted before init resolves", async () => {
     const unlisten = vi.fn();
-    let resolveListener: ((fn: () => void) => void) | undefined;
+    let resolveListener: ((fn: typeof unlisten) => void) | undefined;
     mockInitNetworkListener.mockImplementationOnce(
       () =>
-        new Promise<() => void>((resolve) => {
+        new Promise<typeof unlisten>((resolve) => {
           resolveListener = resolve;
         }),
     );

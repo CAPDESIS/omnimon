@@ -1,16 +1,26 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
+// Cold Vite dev-server transforms can exceed the default 5s expect budget
+// on the first attempt; wait on the condition itself, never on a fixed delay.
+const APP_READY_TIMEOUT_MS = 15_000;
+
 export async function gotoApp(page: Page) {
   await page.goto("/");
   await expect(page).toHaveTitle(/OmniMon/);
-  await expect(page.getByRole("textbox", { name: /Search processes/i })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: /Search processes/i })).toBeVisible({
+    timeout: APP_READY_TIMEOUT_MS,
+  });
   await waitForTable(page);
 }
 
 export async function waitForTable(page: Page) {
-  await expect(page.getByRole("table", { name: /Process list/i })).toBeVisible();
+  await expect(page.getByRole("table", { name: /Process list/i })).toBeVisible({
+    timeout: APP_READY_TIMEOUT_MS,
+  });
   await expect
-    .poll(async () => page.locator("td.col-name .name-text").count())
+    .poll(async () => page.locator("td.col-name .name-text").count(), {
+      timeout: APP_READY_TIMEOUT_MS,
+    })
     .toBeGreaterThan(0);
 }
 
