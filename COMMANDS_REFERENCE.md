@@ -84,6 +84,14 @@ These are the backend-supported actions that can be triggered from the in-app AI
 | `install_plugin` | `fileName: string`, `source: string` (max 256KB) | `PluginDescriptor` |
 | `set_plugin_enabled` | `pluginId: string`, `enabled: boolean` | `PluginDescriptor` |
 | `remove_plugin` | `pluginId: string` | `void` |
+| `check_cdp_availability` | none | map of browser name to CDP availability `boolean` |
+| `sync_cloud` | none | `CloudSyncResult` with uploaded bytes and SHA-256 (added in #85) |
+| `get_zombie_killer_config` | none | `ZombieKillerConfig` |
+| `set_zombie_killer_config` | `config: ZombieKillerConfig` | `void` |
+| `list_zombie_candidates` | none | `ZombieCandidate[]` |
+| `kill_zombie` | `pid: number`, `startTime: number` | `KillResult` |
+| `kill_all_zombies` | none | `KillResult[]` |
+| `get_ai_daily_usage` | none | `[used: number, limit: number]` |
 
 ## Readable Output Expectations
 

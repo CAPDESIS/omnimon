@@ -66,9 +66,12 @@ describe("ProcessNetworkView", () => {
     expect(screen.getByText("4.0 KB/s")).toBeInTheDocument();
   });
 
-  it("shows chart placeholder", () => {
-    render(ProcessNetworkView);
-    expect(screen.getByText(/bandwidth distribution/i)).toBeInTheDocument();
+  it("renders real donut chart with shares, no placeholder", () => {
+    const { container } = render(ProcessNetworkView);
+    expect(screen.getByTestId("process-donut-chart")).toBeInTheDocument();
+    expect(container.querySelectorAll("[data-testid='process-donut-chart'] circle")).toHaveLength(3); // track + 2 segments
+    expect(screen.getByText(/Chrome 88\.9%/)).toBeInTheDocument();
+    expect(screen.queryByText(/Pie\/Donut chart/)).not.toBeInTheDocument();
   });
 
   it("shows empty state when no process has network activity", () => {
