@@ -1,8 +1,8 @@
 # Tracks the last published GitHub tag (v6.6.6 Universal DMG). Workspace
 # manifests are 6.8.0; do not bump this cask until a 6.8.0 Universal DMG exists.
 cask "omnimon" do
-  version "6.6.6"
-  sha256 "8293a3f22f507b1144cb4492197176c0db4c537aeacf314c7521984fd0a289f2"
+  version "6.8.0"
+  sha256 "1d2f3cd9f96b9f2f9ebd32c49a08951b6ad1aa0cb6e745f6a88ee3b7d249b03c"
 
   url "https://github.com/chochy2001/omnimon/releases/download/v#{version}/OmniMon-#{version}-macOS-Universal.dmg"
   name "OmniMon"
