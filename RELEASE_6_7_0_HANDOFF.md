@@ -1,4 +1,12 @@
-# OmniMon 6.7.0 — Release Handoff
+# OmniMon 6.7.0, handoff de release (documento historico)
+
+> **Historico, medido 2026-10-27.** Este documento es el cierre de la sesion
+> del 2026-04-17 y su instruccion final, "borrar o archivar este archivo una
+> vez que el tag `v6.7.0` este publicado", no se puede seguir tal cual:
+> **`v6.7.0` nunca se publico.** Los tags que existen en `origin` son
+> `v6.6.5`, `v6.6.6` y **`v6.8.0`**, asi que la version salio por encima de
+> este handoff. Leelo solo como contexto; el estado vigente esta en
+> `docs/FLEET_STATUS.md`.
 
 Documento de cierre de la sesión: qué quedó listo, qué falta para publicar 6.7.0 y dónde se documentó cada cosa. Borrar o archivar este archivo una vez que el tag `v6.7.0` esté publicado en GitHub Releases.
 
@@ -20,10 +28,10 @@ Documento de cierre de la sesión: qué quedó listo, qué falta para publicar 6
 | `a169c83` | refactor! | `network-alerts`: `EvaluatorState` pasa a ser `pub` y `&mut`, sin singleton (breaking para consumidores out-of-tree) |
 | `e73d590` | feat | `ai-safety`: privacy mode, daily budget, keyring delete-first, CSP Ollama, confirmación frontend de automation rules, DPI badge |
 | `3b1a183` | chore | clippy 1.95 (`unnecessary_sort_by`, `collapsible_match`) en 10 call sites preexistentes |
-| `3cfb0f9` | test | coverage de branches restaurada a 70.37–70.80% (21 tests nuevos en ProfileSettings, Automations, ZombieKiller, `validateAiRule`) |
+| `3cfb0f9` | test | coverage de branches restaurada a 70.37-70.80% (21 tests nuevos en ProfileSettings, Automations, ZombieKiller, `validateAiRule`) |
 | `4a42bf6` | docs | CHANGELOG con entrada "Unreleased" para 6.7.0 |
 
-### Documentación (pendiente de commit — ver más abajo)
+### Documentación (pendiente de commit ,  ver más abajo)
 
 | Archivo | Cambio |
 |---------|--------|
@@ -45,7 +53,7 @@ Documento de cierre de la sesión: qué quedó listo, qué falta para publicar 6
 - `cargo +1.95 check --workspace` → limpio (`omnimon-desktop v6.7.0` compila).
 - `cargo +1.95 clippy --workspace --all-targets -- -D warnings` → limpio (antes de los cambios de docs).
 - `cargo +1.95 test --workspace` → 458 tests passing (288 core + 95 integration + 53 tauri + 18 + 4 tui).
-- `bun run test:coverage` → 689 Vitest, branches 70.37–70.80% (estable sobre el umbral 70%).
+- `bun run test:coverage` → 689 Vitest, branches 70.37-70.80% (estable sobre el umbral 70%).
 - `bun run build` en landing → 12 páginas, incluyendo las dos nuevas v6.7.0.
 
 ## Lo que falta para cerrar 6.7.0
@@ -63,7 +71,7 @@ git commit -m "chore: bump version to v6.7.0"
 git push origin main
 ```
 
-> Este push dispara CI de `main` (no build de release — ese necesita el tag).
+> Este push dispara CI de `main` (no build de release ,  ese necesita el tag).
 
 ### 2. Commit + push del landing (repo `omnimon_landing`)
 
@@ -91,9 +99,9 @@ El workflow `omnimon-ci.yml` se dispara en `push: tags: [ "v*" ]`. Los jobs que 
 - `Test (linux/macos/windows)`
 - `Coverage Gates`
 - `Security Audit`
-- **`Release Builder`** — genera `.dmg`, `.msi`, `.deb`, `.AppImage`, `.rpm`
-- **`Sign Release Artifacts (SHA-256 + Ed25519)`** — firma los binarios
-- **`Rename Release Assets`** — los deja con el naming esperado
+- **`Release Builder`** ,  genera `.dmg`, `.msi`, `.deb`, `.AppImage`, `.rpm`
+- **`Sign Release Artifacts (SHA-256 + Ed25519)`** ,  firma los binarios
+- **`Rename Release Assets`** ,  los deja con el naming esperado
 
 ### 4. Regenerar `v4/releases.json`
 
@@ -112,7 +120,7 @@ Si sigue en 6.0.1, correr manualmente el generador (`scripts/sign-release.sh` o 
 Después de que el pipeline suba artefactos:
 
 - Revisar `https://github.com/chochy2001/omnimon/releases/tag/v6.7.0` (el release builder normalmente crea el draft; publicarlo).
-- Actualizar la fórmula de Homebrew en `chochy2001/homebrew-omnimon` apuntando al nuevo DMG y SHA-256 (procedimiento histórico del tap — no tocado en esta sesión).
+- Actualizar la fórmula de Homebrew en `chochy2001/homebrew-omnimon` apuntando al nuevo DMG y SHA-256 (procedimiento histórico del tap ,  no tocado en esta sesión).
 
 ### 6. Smoke test post-release
 
