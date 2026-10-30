@@ -1,6 +1,6 @@
 # OmniMon v6.8.0 Release Notes
 
-Release date: 2026-10-25 (pending `v6.8.0` tag)
+Released as `v6.8.0` on 2026-10-26 (UTC).
 
 ## Memory Guard (macOS)
 
@@ -10,11 +10,11 @@ It watches RAM pressure and only reaps **idle leftover orphans** (`ppid=1`, CPU 
 
 The run loop is deterministic: one process, fixed 15s sample, no osascript. Month-old Warp/Cursor sessions get a notification; the only yes/no dialog is `omnimon-memory-guard review-sessions`. `omnimon-memory-guard prove` is the classifier contract.
 
-This does not replace the in-app Zombie Killer (alert-only by default). Homebrew remains on published tag `6.6.6` until a Universal DMG exists.
+This does not replace the in-app Zombie Killer (alert-only by default). The Homebrew cask points at the v6.8.0 Universal DMG.
 
 Desktop, CLI, and TUI kill paths identify the target as `(pid, start_time)`, not PID alone. A recycled PID with a new creation time is refused before SIGTERM and before SIGKILL. Memory Guard re-checks `lstart` before SIGKILL.
 
-That matches OS process-handle practice (macOS `p_starttime`, Linux `/proc` starttime, Windows `FILETIME`). There is **no GitHub Release or Homebrew cask for 6.8.0**; the latest published tag remains **v6.6.6**.
+That matches OS process-handle practice (macOS `p_starttime`, Linux `/proc` starttime, Windows `FILETIME`). The v6.8.0 GitHub Release carries the signed installers and the generated `releases.json`.
 
 ---
 

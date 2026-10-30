@@ -1,6 +1,6 @@
 # OmniMon Architecture
 
-Version: 6.8.0 (workspace manifests; unreleased — latest published tag `v6.6.6`)
+Version: 6.8.0 (latest published release `v6.8.0`, 2026-10-26)
 
 This document describes the high-level architecture of OmniMon, covering the Cargo workspace layout, data flow, key subsystems, and security design.
 
