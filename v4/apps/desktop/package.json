@@ -14,32 +14,32 @@
     "test:e2e": "playwright test --project=chromium"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.11.1",
-    "@tauri-apps/plugin-autostart": "^2.5.1",
-    "@tauri-apps/plugin-notification": "^2.3.3",
-    "@tauri-apps/plugin-store": "^2.4.4",
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-autostart": "^2.7.0",
+    "@tauri-apps/plugin-notification": "~2.6.0",
+    "@tauri-apps/plugin-store": "^2.5.0",
     "dompurify": "^3.4.17",
-    "lightweight-charts": "^5.2.0",
+    "lightweight-charts": "^5.2.1",
     "lucide-svelte": "^1.0.1",
-    "marked": "^18.0.7"
+    "marked": "^18.1.2"
   },
   "devDependencies": {
     "@crabnebula/tauri-driver": "^2.0.9",
-    "@crabnebula/test-runner-backend": "^0.2.8",
-    "@playwright/test": "^1.61.1",
-    "@sveltejs/vite-plugin-svelte": "^7.2.0",
-    "@tauri-apps/cli": "^2.11.4",
-    "@testing-library/jest-dom": "^7.0.0",
+    "@crabnebula/test-runner-backend": "^0.2.9",
+    "@playwright/test": "^1.64.1",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tauri-apps/cli": "^2.12.4",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/svelte": "^5.4.2",
-    "@types/node": "^26.1.1",
-    "@typescript-eslint/types": "^8.65.0",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@types/node": "^26.6.6",
+    "@typescript-eslint/types": "^8.72.1",
+    "@vitest/coverage-v8": "^4.1.12",
     "happy-dom": "^21.0.4",
     "jsdom": "^29.1.1",
-    "svelte": "^5.56.7",
+    "svelte": "^5.57.3",
     "typescript": "^7.0.2",
     "vite": "^8.1.6",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "overrides": {
     "devalue": "^5.9.1",
