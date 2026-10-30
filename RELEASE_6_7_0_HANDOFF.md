@@ -105,6 +105,8 @@ El workflow `omnimon-ci.yml` se dispara en `push: tags: [ "v*" ]`. Los jobs que 
 
 ### 4. Regenerar `v4/releases.json`
 
+> Nota 2026-10-30: ese archivo se renombro a `v4/releases.example.json`; es un ejemplo con hashes de relleno, no un manifiesto. El `releases.json` real y firmado es el asset que `omnimon-ci.yml` adjunta a cada GitHub Release, asi que este paso ya no aplica.
+
 El archivo hoy sigue en `6.0.1` con placeholders. El pipeline (`omnimon_release_manifest`) debería regenerarlo con los SHA-256 y firmas reales una vez que el tag buildee. Verificar después del tag:
 
 ```bash

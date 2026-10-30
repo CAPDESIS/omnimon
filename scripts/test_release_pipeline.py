@@ -358,5 +358,40 @@ class AssetCompletenessTests(unittest.TestCase):
         self.assertIn("OmniMon-6.8.0-Windows.msi has no .sig.json", result.stderr)
 
 
+class ExampleManifestTests(unittest.TestCase):
+    """The only committed manifest is an example, and it says so by its name.
+
+    The real, signed releases.json is generated and attached to each GitHub
+    Release by omnimon-ci.yml and is never committed. A committed file named
+    releases.json full of PLACEHOLDER_ hashes (v4/releases.json, 6.0.1) looked
+    like a real manifest to anyone browsing the tree.
+    """
+
+    EXAMPLE = ROOT / "v4" / "releases.example.json"
+
+    def tracked_files(self) -> list[str]:
+        listing = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-files", "-z"],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(listing.returncode, 0, listing.stderr)
+        return [path for path in listing.stdout.split("\0") if path]
+
+    def test_no_manifest_named_releases_json_is_committed(self) -> None:
+        tracked = self.tracked_files()
+        self.assertGreater(len(tracked), 0)
+        offenders = [p for p in tracked if p.split("/")[-1] == "releases.json"]
+        self.assertEqual(offenders, [])
+
+    def test_example_manifest_holds_only_placeholders(self) -> None:
+        manifest = json.loads(self.EXAMPLE.read_text(encoding="utf-8"))
+        self.assertTrue(manifest["manifest_signature"].startswith("PLACEHOLDER_"))
+        self.assertGreater(len(manifest["artifacts"]), 0)
+        for artifact in manifest["artifacts"]:
+            self.assertTrue(artifact["sha256"].startswith("PLACEHOLDER_"), artifact)
+            self.assertTrue(artifact["signature_b64"].startswith("PLACEHOLDER_"), artifact)
+            self.assertEqual(artifact["size_bytes"], 0, artifact)
+
+
 if __name__ == "__main__":
     unittest.main()
