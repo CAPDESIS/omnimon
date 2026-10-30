@@ -199,5 +199,5 @@ sha256sum -c SHA256SUMS.txt
 | `crates/cli/src/main.rs` | Subcomando `release` |
 | `scripts/sign-release.sh` | Script de firma para CI (usa openssl) |
 | `.github/workflows/omnimon-ci.yml` | Pipeline con firma automatizada |
-| `releases.json` | Manifiesto de releases (esquema de ejemplo) |
+| `releases.example.json` | Esquema de ejemplo con valores `PLACEHOLDER_...`; no es un manifiesto real. El `releases.json` firmado lo genera y adjunta `omnimon-ci.yml` a cada GitHub Release |
 | `docs/SECURITY_KEYS.md` | Gestión de claves de updater Tauri |
