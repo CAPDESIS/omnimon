@@ -9,6 +9,22 @@ import { writable, derived, get } from "svelte/store";
 // deterministic under runner load (passes locally with this set).
 configure({ asyncUtilTimeout: 8000 });
 
+// happy-dom 21 implements WAAPI Animation.cancel() per spec: canceling
+// rejects the animation's `finished` promise with AbortError. Svelte's
+// transition abort path calls cancel() without consuming `finished`, so
+// under happy-dom 21 every aborted transition surfaces as an unhandled
+// rejection (247 of them across the suite, measured 2026-10-30, none on
+// happy-dom 20). Attach a no-op rejection handler to that one promise so
+// the expected cancellation stays silent; other rejections still surface.
+if (typeof Animation !== "undefined" && typeof Animation.prototype.cancel === "function") {
+  const originalCancel = Animation.prototype.cancel;
+  Animation.prototype.cancel = function (this: Animation, ...args: unknown[]) {
+    const result = (originalCancel as (...a: unknown[]) => unknown).apply(this, args);
+    this.finished?.catch(() => undefined);
+    return result;
+  };
+}
+
 // Polyfill Element.prototype.animate for Svelte transitions in happy-dom
 if (typeof Element.prototype.animate !== "function") {
   Element.prototype.animate = function () {
