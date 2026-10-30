@@ -1,5 +1,5 @@
-# Tracks the last published GitHub tag (v6.6.6 Universal DMG). Workspace
-# manifests are 6.8.0; do not bump this cask until a 6.8.0 Universal DMG exists.
+# Tracks the latest published GitHub release (v6.8.0 Universal DMG,
+# 2026-10-26). Bump version and sha256 together, only from a published DMG.
 cask "omnimon" do
   version "6.8.0"
   sha256 "1d2f3cd9f96b9f2f9ebd32c49a08951b6ad1aa0cb6e745f6a88ee3b7d249b03c"

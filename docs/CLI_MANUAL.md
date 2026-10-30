@@ -1,4 +1,4 @@
-# OmniMon CLI Manual (v6.8.0 — workspace version, unreleased; latest published tag `v6.6.6`)
+# OmniMon CLI Manual (v6.8.0)
 
 ## Overview
 
