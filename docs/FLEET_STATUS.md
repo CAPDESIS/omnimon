@@ -1,6 +1,16 @@
 # OmniMon (macmon) — Fleet Status
 
-Verified 2026-10-14. Rust/Tauri desktop app + Go-free stack; manifests at `6.8.0`, no tag/release for 6.7.0/6.8.0.
+Verified 2026-10-14. Rust/Tauri desktop app + Go-free stack; manifests at `6.8.0`.
+
+**Release, re-checked 2026-10-30:** `v6.8.0` is published and marked Latest
+(`gh release list --repo CAPDESIS/omnimon`: "OmniMon v6.8.0 Latest v6.8.0
+2026-10-26T02:25:33Z"; tag commit `3b859b8`, 2026-10-25). It carries 12 assets,
+including `OmniMon-6.8.0-macOS-Universal.dmg`, Linux AppImage/deb/rpm, the
+Windows MSI, their `.sig.json` files, `SHA256SUMS.txt` and `releases.json`. The
+Homebrew cask `distribution/homebrew/omnimon.rb` on `origin/main` is at
+`version "6.8.0"`. There is no `v6.7.0` tag or release: 6.7.0 shipped only as a
+CHANGELOG heading. The rest of this file is the 2026-10-14 snapshot unless a
+line says otherwise.
 
 ## Revisions
 
@@ -8,7 +18,7 @@ Verified 2026-10-14. Rust/Tauri desktop app + Go-free stack; manifests at `6.8.0
 |---|---|---|
 | HEAD (`omnimon-RUSTAUDIT`) | `7b909a4` | 2026-10-14 |
 | `origin/main` | `2c4ab80` | 2026-10-14 |
-| Latest tag | `v6.6.6` (no `v6.7`/`v6.8` tag) | — |
+| Latest tag | `v6.8.0` (re-checked 2026-10-30; was `v6.6.6` on 2026-10-14) | 2026-10-25 |
 
 ## Prod / live
 
@@ -53,7 +63,9 @@ LOCAL (agent-actionable):
 5. Landing screenshot: AVIF/WebP generated (-83%/-72%), PNG kept as fallback.
 
 OWNER-ONLY:
-1. Publish `v6.7.0`/`v6.8.0` tags + Universal DMG (triggers signed release pipeline; explicit decision per handoff doc). Homebrew cask stays on `6.6.6` until then.
+1. RESOLVED (re-checked 2026-10-30): `v6.8.0` tag and release with the Universal
+   DMG exist (2026-10-26) and the Homebrew cask is at `6.8.0`. `v6.7.0` was
+   never tagged; it is superseded by `v6.8.0`, not pending.
 2. Apple Developer secrets for notarization (ROADMAP item 4); pipeline has no `notarytool` step.
 
 ## Barrido 2026-10-16 lane E (cierre sesion, sin commit/push/merge/delete/deploy)
