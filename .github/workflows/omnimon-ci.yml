@@ -482,7 +482,7 @@ jobs:
             v4/apps/desktop/playwright-report
             v4/apps/desktop/test-results
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
 
   # Fails the release before any asset exists when the signing secret is
   # missing or does not match the public key pinned in the build. Without
