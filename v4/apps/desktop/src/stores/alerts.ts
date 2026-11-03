@@ -430,7 +430,7 @@ export function askAiAboutNetworkAlert(alert: NetworkAlert): void {
   const localizedMessage = formatNetworkAlertMessage(alert);
   const localizedDetails = formatNetworkAlertDetails(alert);
   const prompt = [
-    `Analiza esta alerta de red y explicala en espanol:`,
+    `Analiza esta alerta de red y explícala en español:`,
     `Regla: ${localizedRule}`,
     `Severidad: ${alert.severity}`,
     `Mensaje: ${localizedMessage}`,
