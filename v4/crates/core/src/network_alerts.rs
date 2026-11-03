@@ -316,7 +316,7 @@ fn check_high_bandwidth(
             cooldown_key: format!("{}:pid:{}", rule.id, throughput.pid),
             condition_kind: "high_bandwidth".to_string(),
             message: format!(
-                "{} supero {} con {:.2} Mbps",
+                "{} superó {} con {:.2} Mbps",
                 actual_name,
                 direction_label(direction),
                 bandwidth
@@ -344,7 +344,7 @@ fn check_high_bandwidth(
         cooldown_key: format!("{}:system:{}", rule.id, direction_label(direction)),
         condition_kind: "high_bandwidth".to_string(),
         message: format!(
-            "El trafico total supero {} con {:.2} Mbps",
+            "El tráfico total superó {} con {:.2} Mbps",
             direction_label(direction),
             bandwidth
         ),
@@ -376,7 +376,7 @@ fn check_new_external_connection(
         debounce_key: format!("{}:{}", rule.id, destination),
         cooldown_key: format!("{}:{}", rule.id, destination),
         condition_kind: "new_external_connection".to_string(),
-        message: format!("Nueva conexion externa observada hacia {}", destination),
+        message: format!("Nueva conexión externa observada hacia {}", destination),
         process_name: None,
         pid: Some(event.pid),
         destination: Some(destination.clone()),
@@ -402,7 +402,7 @@ fn check_unusual_port(
         cooldown_key: format!("{}:{}", rule.id, destination),
         condition_kind: "unusual_port".to_string(),
         message: format!(
-            "Conexion a puerto sospechoso {} en {}",
+            "Conexión a puerto sospechoso {} en {}",
             event.dst_port, destination
         ),
         process_name: None,
@@ -509,7 +509,7 @@ fn check_connection_count(
         cooldown_key: format!("{}:pid:{}", rule.id, matched.0.pid),
         condition_kind: "connection_count_exceeded".to_string(),
         message: format!(
-            "{} supero el limite de conexiones con {}",
+            "{} superó el límite de conexiones con {}",
             matched
                 .0
                 .process_name
@@ -580,7 +580,7 @@ fn direction_label(direction: Direction) -> &'static str {
     match direction {
         Direction::Upload => "upload",
         Direction::Download => "download",
-        Direction::Both => "trafico total",
+        Direction::Both => "tráfico total",
     }
 }
 
@@ -1055,7 +1055,7 @@ mod tests {
     fn helpers_cover_direction_rounding_and_external_ip_logic() {
         assert_eq!(direction_label(Direction::Upload), "upload");
         assert_eq!(direction_label(Direction::Download), "download");
-        assert_eq!(direction_label(Direction::Both), "trafico total");
+        assert_eq!(direction_label(Direction::Both), "tráfico total");
         assert_eq!(round2(1.234), 1.23);
         assert_eq!(round2(1.235), 1.24);
 
@@ -1141,5 +1141,65 @@ mod tests {
             dst_port,
             bytes: 512,
         }
+    }
+
+    fn accent_rule() -> NetworkAlertRule {
+        NetworkAlertRule {
+            id: "accents".to_string(),
+            name: "accents".to_string(),
+            enabled: true,
+            condition: AlertCondition::UnusualPort {
+                suspicious_ports: vec![4444],
+            },
+            severity: AlertSeverity::Warning,
+            cooldown_seconds: 0,
+            notify_ai: false,
+        }
+    }
+
+    #[test]
+    fn alert_messages_keep_spanish_accents() {
+        let rule = accent_rule();
+        let mut state = EvaluatorState::new();
+        let mut snapshot = sample();
+        snapshot.recent_connections = vec![
+            make_event(42, "8.8.8.8", 4444),
+            make_event(42, "8.8.4.4", 443),
+            make_event(42, "1.1.1.1", 80),
+        ];
+
+        let external = check_new_external_connection(&rule, &snapshot, false, &mut state)
+            .expect("external connection candidate");
+        assert!(
+            external
+                .message
+                .contains("Nueva conexión externa observada hacia"),
+            "unexpected message: {}",
+            external.message
+        );
+
+        let port = check_unusual_port(&rule, &snapshot, &[4444]).expect("unusual port candidate");
+        assert!(
+            port.message.contains("Conexión a puerto sospechoso"),
+            "unexpected message: {}",
+            port.message
+        );
+
+        let count =
+            check_connection_count(&rule, &snapshot, 2, None).expect("connection count candidate");
+        assert!(
+            count.message.contains("superó el límite de conexiones con"),
+            "unexpected message: {}",
+            count.message
+        );
+
+        snapshot.net_rx_bytes_per_sec = 5_000_000;
+        let total = check_high_bandwidth(&rule, &snapshot, 0.0, Direction::Both, None)
+            .expect("high bandwidth candidate");
+        assert!(
+            total.message.contains("El tráfico total superó"),
+            "unexpected message: {}",
+            total.message
+        );
     }
 }
