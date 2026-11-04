@@ -23,7 +23,13 @@ line says otherwise.
 ## Prod / live
 
 - Prod containers on `web-app-proxy`: none (`docker ps | grep -iE 'omni|macmon'` → no match). N/A by design: desktop app.
-- Live landing `https://omnimon.com.mx`: HTTP/2 200, static (Cloudflare), `last-modified 2026-10-11`. No revision endpoint; landing is the separate `omnimon_landing` repo (git-ignored here).
+- Landing revision endpoint rechecked 2026-11-04:
+  `curl -sS --max-time 15 "https://omnimon.com.mx/version.json?probe=$RANDOM"`
+  returns `sha: 830192fb1be54b315e05a23ec7b744c9d3737427`,
+  `built_at: 2026-11-03T02:59:37Z`. The former "No revision endpoint" claim
+  is stale. The landing is the separate `omnimon_landing` repo (git-ignored
+  here); this SHA must be compared to that repository, not the desktop main.
+  Landing parity is NO MEDIBLE in this desktop-only repository audit.
 
 ## Gates (measured 2026-10-14, this tree)
 
