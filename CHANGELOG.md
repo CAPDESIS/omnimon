@@ -70,6 +70,8 @@
 
 ## 6.7.0 (2026-04-17)
 
+Development milestone without its own tag or GitHub release. The work shipped inside v6.8.0.
+
 ### Zombie Killer
 - Nuevo motor que detecta procesos con CPU o RAM altos sostenidos durante ventanas prolongadas y los ofrece para terminación con confirmación del usuario
 - Core `zombie_killer` stateless (`identify_candidates`, `sanitize_config`) con clamps de configuración (umbral de CPU, uptime mínimo, sustained, `never_kill`) e invariantes en compile-time para el throttle de notificaciones
