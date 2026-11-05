@@ -111,10 +111,9 @@ describe("spanish orthography", () => {
   });
 
   it("pins the fixed energy and empty-state strings", () => {
-    const table = (es as Record<string, Record<string, string>>).table;
-    expect(table.energy).toBe("Energía");
-    expect(table.sortByEnergy).toBe("Ordenar por energía");
-    expect(table.emptyDesc).toBe("Ningún proceso coincide con los filtros actuales.");
+    expect(es.table.energy).toBe("Energía");
+    expect(es.table.sortByEnergy).toBe("Ordenar por energía");
+    expect(es.table.emptyDesc).toBe("Ningún proceso coincide con los filtros actuales.");
   });
 
   it("keeps accents in the network-alert AI prompt", () => {

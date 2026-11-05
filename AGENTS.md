@@ -31,7 +31,7 @@ for most product code lives under `v4/`.
 
 - `cargo fmt --all`
 - `cargo check --workspace`
-- `cargo clippy --workspace -- -D warnings`
+- `cargo clippy --workspace --all-targets -- -D warnings`
 - `cargo test --workspace`
 
 ## Rules

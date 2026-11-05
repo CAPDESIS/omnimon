@@ -1160,7 +1160,7 @@ mod tests {
     #[test]
     fn alert_messages_keep_spanish_accents() {
         let rule = accent_rule();
-        let mut state = EvaluatorState::new();
+        let state = EvaluatorState::new();
         let mut snapshot = sample();
         snapshot.recent_connections = vec![
             make_event(42, "8.8.8.8", 4444),
@@ -1168,7 +1168,7 @@ mod tests {
             make_event(42, "1.1.1.1", 80),
         ];
 
-        let external = check_new_external_connection(&rule, &snapshot, false, &mut state)
+        let external = check_new_external_connection(&rule, &snapshot, false, &state)
             .expect("external connection candidate");
         assert!(
             external

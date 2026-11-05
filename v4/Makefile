@@ -15,7 +15,7 @@ test-all:
 	@echo "Checking formatting..."
 	cargo fmt --check
 	@echo "Running linter (clippy)..."
-	cargo clippy --workspace -- -D warnings
+	cargo clippy --workspace --all-targets -- -D warnings
 	@echo "Running tests..."
 	cargo test --workspace -- --test-threads=1
 
