@@ -1,8 +1,8 @@
 # OmniMon
 
-[![CI](https://github.com/chochy2001/omnimon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/omnimon/actions) [![Version](https://img.shields.io/badge/version-6.8.0-brightgreen)](#) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_2_+_Svelte_5-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-💖-ff69b4)](https://github.com/sponsors/chochy2001)
+[![CI](https://github.com/chochy2001/omnimon/actions/workflows/omnimon-ci.yml/badge.svg)](https://github.com/chochy2001/omnimon/actions) [![Version](https://img.shields.io/badge/version-6.8.1-brightgreen)](#) [![Rust Core](https://img.shields.io/badge/core-Rust_v1.75+-orange)](#) [![Tauri UI](https://img.shields.io/badge/ui-Tauri_2_+_Svelte_5-blue)](#) [![Platform](https://img.shields.io/badge/platform-macOS_|_Windows_|_Linux-lightgray)](#) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-💖-ff69b4)](https://github.com/sponsors/chochy2001)
 
-> Version note: manifests are pinned at **6.8.0**, which is also the latest published release (**v6.8.0**, 2026-10-26). The cask in `distribution/homebrew/omnimon.rb` is on 6.8.0 and points at the published Universal DMG.
+> Version note: manifests are pinned at **6.8.1**. The latest published installer is still **v6.8.0** (2026-10-26) until tag `v6.8.1` is cut. The cask in `distribution/homebrew/omnimon.rb` stays on that published Universal DMG.
 
 ```
   ___  __  __ _   _ ___ __  __  ___  _   _

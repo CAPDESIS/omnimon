@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.8.1
+
+Patch so the published installers include the commits that landed after tag `v6.8.0`.
+
+- Spanish orthography in the desktop UI and in the network-alert messages compiled into the binary
+- Cargo.lock and the Tauri crates moved forward on the 6.8 line; those updates reach users only through this rebuild
+- Clippy in CI now lints tests (`--all-targets`)
+
+The Homebrew cask stays on the published v6.8.0 DMG until this tag's Universal DMG and its sha256 exist.
+
 ## 6.8.0 (2026-10-25)
 
 ### Network charts (this PR)
