@@ -57,7 +57,8 @@ describe("playwright e2e webServer", () => {
   });
 
   it("reuses an existing server only when OMNIMON_E2E_REUSE=1, in or out of CI", async () => {
-    for (const ci of [{}, { CI: "true" }]) {
+    const cases: Array<Record<string, string>> = [{}, { CI: "true" }];
+    for (const ci of cases) {
       const on = await loadConfig({ ...ci, OMNIMON_E2E_REUSE: "1" });
       expect(on.webServer.reuseExistingServer).toBe(true);
       for (const flag of ["0", "true", "yes", ""]) {

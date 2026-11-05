@@ -97,7 +97,7 @@ jobs:
         working-directory: ./v4
 
       - name: Run Clippy
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
         working-directory: ./v4
 
   memory-guard:
@@ -212,12 +212,16 @@ jobs:
         working-directory: ./v4
 
       - name: Run Clippy
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
         working-directory: ./v4
 
       - name: Run Backend Tests
         run: cargo test --workspace -- --test-threads=1
         working-directory: ./v4
+
+      - name: Typecheck frontend
+        run: bun run typecheck
+        working-directory: ./v4/apps/desktop
 
       - name: Run Frontend Tests
         run: bun run test
