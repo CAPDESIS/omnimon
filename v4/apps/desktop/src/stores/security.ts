@@ -312,7 +312,7 @@ export async function refreshNetworkConnections(
   );
 
   // Only update stores if the connection set actually changed
-  const connFingerprint = conns.map(c => `${c.pid}:${c.remote_addr}:${c.remote_port}:${c.bytes_recv}:${c.bytes_sent}`).join(";");
+  const connFingerprint = conns.map(c => `${c.pid}:${c.process_name}:${c.remote_addr}:${c.remote_port}:${c.bytes_recv}:${c.bytes_sent}`).join(";");
   if (connFingerprint !== lastNetworkFingerprint) {
     lastNetworkFingerprint = connFingerprint;
     networkConnections.set(conns);
