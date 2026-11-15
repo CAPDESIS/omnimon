@@ -1,3 +1,5 @@
+> [!NOTE] Corte historico fechado (2026-10-26) - notas hasta v6.8.0; consulta README.md / CHANGELOG.md / GitHub Releases para el estado vigente (v6.8.1 publicado 2026-11-05).
+
 # OmniMon v6.8.0 Release Notes
 
 Released as `v6.8.0` on 2026-10-26 (UTC).
