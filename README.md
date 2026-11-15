@@ -21,7 +21,7 @@ OmniMon is a cross-platform system monitor built with Rust, Tauri, and Svelte. I
 ## Tech Stack
 
 - **Rust workspace (`v4/Cargo.toml`, `6.8.1`)**: Rust edition `2021` (CI toolchain `1.97.1`), `sysinfo 0.30`, `tokio 1`, `reqwest 0.13`, `keyring 3`, `aes-gcm 0.10`, `ed25519-dalek 2`, `pcap 1` (macOS), `aya 0.13` (Linux eBPF), `ratatui 0.30`, `clap 4.5`
-- **Desktop host & UI (`v4/apps/desktop/`, `6.8.1`)**: Tauri `2.12.4`, Svelte `5.57.3`, TypeScript `7.0.2`, Vite `8.1.6`, Bun `1.3.x` (`1.3.14` in CI), Vitest `4.1.12`, Playwright `1.64.1`
+- **Desktop host & UI (`v4/apps/desktop/`, `6.8.1`)**: Tauri `2.12.4`, Svelte `5.57.3`, TypeScript `7.0.2`, Vite `8.3.8`, Bun `1.3.x` (`1.3.14` in CI), Vitest `4.1.12`, Playwright `1.65.1`
 - **AI standard**: **OpenRouter** preferred fleet AI standard (direct `api.openai.com` removed; enforced by `scripts/openrouter-only-validate.py`)
 
 ## Highlights
@@ -49,7 +49,7 @@ omnimon/
 │   │   ├── core/                   # Shared Rust telemetry, network, AI, security, crypto
 │   │   ├── cli/                    # OmniMon CLI binary
 │   │   └── tui/                    # Interactive terminal UI (ratatui)
-│   └── apps/desktop/               # Svelte 5.57.3 + Vite 8.1.6 + Tauri 2.12.4 app
+│   └── apps/desktop/               # Svelte 5.57.3 + Vite 8.3.8 + Tauri 2.12.4 app
 │       ├── package.json            # Frontend dependencies & scripts (Bun)
 │       ├── src/                    # Svelte components, stores, IPC client, tests
 │       ├── e2e/                    # Playwright E2E specs
