@@ -1,3 +1,8 @@
+#[cfg(debug_assertions)]
+mod demo;
+#[cfg(any(debug_assertions, test))]
+mod demo_mode;
+
 pub mod automations;
 pub mod plugins;
 pub mod zombie_killer;
@@ -1043,6 +1048,12 @@ fn toggle_main_window(app: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let context = tauri::generate_context!();
+    #[cfg(debug_assertions)]
+    if demo_mode::enabled(std::env::var_os("OMNIMON_DEMO").as_deref()) {
+        return demo::run(context);
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
@@ -1330,7 +1341,7 @@ pub fn run() {
             zombie_killer::kill_all_zombies,
             get_ai_daily_usage,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .unwrap_or_else(|e| {
             eprintln!("[omnimon] fatal: tauri application failed to start: {e}");
             std::process::exit(1);
