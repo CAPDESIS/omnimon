@@ -32,3 +32,10 @@ release builds. `bash scripts/test-demo-mode.sh` compiles and runs the same
 opt-in gate with debug assertions enabled and disabled. Cargo tests cover the
 read-only command boundary, and the frontend fixture test exercises the real
 IPC validators. Close the demo and verify its PID has exited after capture.
+
+The fixture includes 22 generic processes and eight documentation-range connections.
+RAM and network totals derive from the rows; the status CPU is the mean per process,
+matching StatusBar. Allow network polling to complete before capturing process names.
+Capture without the cursor and move focus away from controls before saving images.
+The isolated host emits the same synthetic metrics every three seconds to fill
+the normal chart history. No host measurements are taken.
