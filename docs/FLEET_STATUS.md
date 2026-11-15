@@ -1,6 +1,23 @@
-# OmniMon (macmon) — Fleet Status
+# OmniMon (macmon) - Fleet Status
 
-**Current status, re-checked 2026-11-05 (UTC).** One desktop product (Rust crates `core`, `cli`, `tui`, and the Tauri host). There is no Free app and no Pro app. `CloudTier` is a cloud-sync entitlement, not a second binary.
+**Current status, re-checked 2026-11-15 (UTC).** One desktop product (Rust crates `core`, `cli`, `omnimon-tui`, and `omnimon-desktop` Tauri host). There is no Free app and no Pro app. `CloudTier` is a cloud-sync entitlement, not a second binary.
+
+| Ref | SHA / Version | Evidence |
+|---|---|---|
+| Desktop `origin/main` | `27d2f24b482861c91485a2ed6c566478cce878e7` (`27d2f24b`) | Local `main` and `origin/main` head; manifests (`v4/Cargo.toml`, `v4/apps/desktop/package.json`, `v4/apps/desktop/src-tauri/tauri.conf.json`) at `6.8.1`. |
+| Published GitHub Release | tag `v6.8.1` at `1c41ad3` (published `2026-11-05T05:19:55Z`) | `gh release view v6.8.1 --repo CAPDESIS/omnimon` is **Latest** with 12 assets (`OmniMon-6.8.1-macOS-Universal.dmg`, `OmniMon-6.8.1-Windows.msi`, Linux `.AppImage`/`.deb`/`.rpm`, `.sig.json` signatures, `releases.json`, `SHA256SUMS.txt`). |
+| Homebrew cask | `version "6.8.0"` | `distribution/homebrew/omnimon.rb` remains at `6.8.0` pending the `6.8.1` Universal DMG `sha256` bump. |
+| Landing `origin/main` | `b0ec37ecfdf17818181ac36895d142fbc` (`b0ec37ec`) | `chochy2001/omnimon_landing` (`Astro 7.4.7`, `Tailwind 4.3.3`); `src/consts.ts` pins `OMNIMON_VERSION = '6.8.1'` and `PUBLISHED_VERSION = '6.8.1'` (`5 Nov 2026`). |
+
+Still open as of `2026-11-15`: bumping `distribution/homebrew/omnimon.rb` to `6.8.1`, owner verification of the CrabNebula updater endpoint, Apple Developer ID notarization (`notarytool`), and implementing notification click actions in `v4/apps/desktop/src-tauri/src/lib.rs`.
+
+Everything below this line is preserved as historical point-in-time snapshots (`2026-11-05` and earlier).
+
+---
+
+## Snapshot 2026-11-05 (historical)
+
+**Historical snapshot, checked 2026-11-05 (UTC).** One desktop product (Rust crates `core`, `cli`, `tui`, and the Tauri host). There is no Free app and no Pro app. `CloudTier` is a cloud-sync entitlement, not a second binary.
 
 | Ref | SHA | Evidence |
 |---|---|---|

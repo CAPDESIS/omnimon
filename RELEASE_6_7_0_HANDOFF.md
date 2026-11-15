@@ -1,3 +1,5 @@
+> [!NOTE] Corte historico fechado (2026-04-17) - consulta README.md / docs/FLEET_STATUS.md para el estado vigente.
+
 # OmniMon 6.7.0, handoff de release (documento historico)
 
 > **Historico, medido 2026-10-27.** Este documento es el cierre de la sesion
