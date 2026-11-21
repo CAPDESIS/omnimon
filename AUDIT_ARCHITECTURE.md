@@ -1,3 +1,5 @@
+> [!NOTE] Corte historico fechado (2026-03-08) - consulta README.md / docs/ARCHITECTURE.md / docs/FLEET_STATUS.md para el estado vigente.
+
 # 🏗️ Auditoría Arquitectónica Integral — OmniMon
 **Reporte de Arquitectura y Análisis de Codebase**
 

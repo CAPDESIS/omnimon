@@ -1,3 +1,5 @@
+> [!NOTE] Corte historico fechado (2026-03-08) - consulta README.md / docs/FLEET_STATUS.md para el estado vigente.
+
 # OmniMon Documentation Audit
 
 > Estado actual 2026-06-29: este reporte es una captura histórica del
