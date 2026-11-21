@@ -51,6 +51,11 @@
   let zombies = $state<ZombieCandidate[]>([]);
   let loading = $state(true);
   let saving = $state(false);
+  let savingLock = false;
+  let killingPids = $state<number[]>([]);
+  const killingPidLocks = new Set<number>();
+  let killingAll = $state(false);
+  let killingAllLock = false;
   let newBlocklistEntry = $state("");
   let error = $state<string | null>(null);
   let unlisten: UnlistenFn | null = null;
@@ -103,6 +108,8 @@
   }
 
   async function saveConfig() {
+    if (savingLock) return;
+    savingLock = true;
     saving = true;
     error = null;
     try {
@@ -118,6 +125,7 @@
     } catch (e) {
       error = t("zombieKiller.errorSave", { error: String(e) });
     } finally {
+      savingLock = false;
       saving = false;
     }
   }
@@ -128,23 +136,34 @@
   }
 
   async function handleKillOne(zombie: ZombieCandidate) {
+    if (killingAllLock || killingPidLocks.has(zombie.pid)) return;
+    killingPidLocks.add(zombie.pid);
+    killingPids = [...killingPids, zombie.pid];
     error = null;
     try {
       await invoke("kill_zombie", { pid: zombie.pid, startTime: zombie.startTime });
       zombies = zombies.filter((z) => !(z.pid === zombie.pid && z.startTime === zombie.startTime));
     } catch (e) {
       error = t("zombieKiller.errorKillOne", { pid: zombie.pid, error: String(e) });
+    } finally {
+      killingPidLocks.delete(zombie.pid);
+      killingPids = killingPids.filter((pid) => pid !== zombie.pid);
     }
   }
 
   async function handleKillAll() {
-    if (zombies.length === 0) return;
+    if (zombies.length === 0 || killingAllLock) return;
+    killingAllLock = true;
+    killingAll = true;
     error = null;
     try {
       await invoke("kill_all_zombies");
       zombies = [];
     } catch (e) {
       error = t("zombieKiller.errorKillAll", { error: String(e) });
+    } finally {
+      killingAllLock = false;
+      killingAll = false;
     }
   }
 
@@ -340,7 +359,7 @@
           <header class="zk-section-header">
             <h3>{t("zombieKiller.detectedProcesses", { count: zombies.length })}</h3>
             {#if zombies.length > 0}
-              <Button variant="danger" size="sm" type="button" onclick={handleKillAll}>
+              <Button variant="danger" size="sm" type="button" disabled={killingAll} onclick={handleKillAll}>
                 {t("zombieKiller.killAll")}
               </Button>
             {/if}
@@ -370,6 +389,7 @@
                     variant="danger"
                     size="sm"
                     type="button"
+                    disabled={killingAll || killingPids.includes(z.pid)}
                     onclick={() => handleKillOne(z)}
                   >
                     {t("zombieKiller.kill")}

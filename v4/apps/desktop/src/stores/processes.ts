@@ -382,7 +382,11 @@ export const focusedPid = writable<number | null>(null);
 export const grouping = writable(true);
 
 /** Triggers AI-powered process analysis using the selected profile and provider. Updates aiSuggestions/aiError stores. */
+let analyzeWithAiInFlight = false;
+
 export async function analyzeWithAi(provider?: string, model?: string): Promise<void> {
+  if (analyzeWithAiInFlight || get(aiLoading)) return;
+  analyzeWithAiInFlight = true;
   aiLoading.set(true);
   aiError.set(null);
   try {
@@ -399,6 +403,7 @@ export async function analyzeWithAi(provider?: string, model?: string): Promise<
       aiError.set(msg);
     }
   } finally {
+    analyzeWithAiInFlight = false;
     aiLoading.set(false);
   }
 }
@@ -529,6 +534,7 @@ export function _resetForTest(): void {
   focusedPid.set(null);
   grouping.set(false);
   aiSuggestions.set([]);
+  analyzeWithAiInFlight = false;
   aiLoading.set(false);
   aiError.set(null);
   aiProfile.set("general");

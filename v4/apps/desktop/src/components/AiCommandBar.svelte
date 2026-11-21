@@ -67,6 +67,8 @@
   }
 
   let pendingChange = $state<PendingChange | null>(null);
+  let confirmingChange = $state(false);
+  let confirmingChangeLock = false;
 
   function scrollToBottom() {
     scrollContainerToBottom(chatContainer);
@@ -124,8 +126,10 @@
   }
 
   async function confirmPendingChange() {
-    if (!pendingChange) return;
-
+    if (!pendingChange || confirmingChangeLock) return;
+    confirmingChangeLock = true;
+    confirmingChange = true;
+    try {
     if (pendingChange.kind === "config" && pendingChange.patch) {
       applyPatch(pendingChange.patch);
       const keys = Object.keys(pendingChange.patch).join(", ");
@@ -165,9 +169,14 @@
 
     pendingChange = null;
     scrollToBottom();
+    } finally {
+      confirmingChangeLock = false;
+      confirmingChange = false;
+    }
   }
 
   function rejectPendingChange() {
+    if (!pendingChange || confirmingChangeLock) return;
     messages = [...messages, { role: "system", text: t("aiConfig.changeRejected") }];
     pendingChange = null;
     scrollToBottom();
@@ -432,10 +441,10 @@
       </div>
 
       <div class="preview-actions">
-        <Button class="btn-confirm" variant="primary" size="sm" onclick={confirmPendingChange}>
+        <Button class="btn-confirm" variant="primary" size="sm" onclick={confirmPendingChange} disabled={confirmingChange}>
           {t("aiConfig.apply")}
         </Button>
-        <Button class="btn-reject" variant="ghost" size="sm" onclick={rejectPendingChange}>
+        <Button class="btn-reject" variant="ghost" size="sm" onclick={rejectPendingChange} disabled={confirmingChange}>
           {t("aiConfig.reject")}
         </Button>
       </div>

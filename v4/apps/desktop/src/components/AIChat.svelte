@@ -37,6 +37,8 @@
   let messages = $state<ChatMessageWithTool[]>([]);
   let chatContainer: HTMLDivElement | undefined = $state();
   let pendingAction = $state<{ tool: string; details: string; result: ToolResult } | null>(null);
+  let confirmingAction = $state(false);
+  let confirmingActionLock = false;
   let requestToken = 0;
   let isAutoScroll = $state(true);
   let streamingMessage = $state("");
@@ -525,9 +527,12 @@
   }
 
   async function confirmAction() {
-    if (!pendingAction) return;
+    if (!pendingAction || confirmingActionLock) return;
+    confirmingActionLock = true;
+    confirmingAction = true;
     loading = true;
     const { result } = pendingAction;
+    try {
     if (result.tool === "close_tabs" && result.success) {
       // Use selected tabs if available
       const selectedTabs = pendingTabs.filter(t => t.selected);
@@ -616,12 +621,16 @@
     }
 
     pendingAction = null;
-    loading = false;
     scrollToBottom();
+    } finally {
+      confirmingActionLock = false;
+      confirmingAction = false;
+      loading = false;
+    }
   }
 
   function rejectAction() {
-    if (!pendingAction) return;
+    if (!pendingAction || confirmingActionLock) return;
     messages = [
       ...messages,
       { role: "system", text: t("aiChat.cancelled") },
@@ -780,10 +789,10 @@
           {/if}
 
           <div class="action-buttons">
-            <Button class="confirm-btn" variant="primary" size="sm" onclick={confirmAction} disabled={pendingAction.tool === "close_tabs" && pendingTabs.filter(t => t.selected).length === 0}>
+            <Button class="confirm-btn" variant="primary" size="sm" onclick={confirmAction} disabled={confirmingAction || (pendingAction.tool === "close_tabs" && pendingTabs.filter(t => t.selected).length === 0)}>
               {t("aiChat.confirm")}{pendingAction.tool === "close_tabs" && pendingTabs.length > 0 ? ` (${pendingTabs.filter(t => t.selected).length})` : ""}
             </Button>
-            <Button class="reject-btn" variant="ghost" size="sm" onclick={rejectAction}>{t("aiChat.cancel")}</Button>
+            <Button class="reject-btn" variant="ghost" size="sm" onclick={rejectAction} disabled={confirmingAction}>{t("aiChat.cancel")}</Button>
           </div>
         </div>
       {/if}

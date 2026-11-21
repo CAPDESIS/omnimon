@@ -600,6 +600,22 @@ describe("analyzeWithAi", () => {
     await promise;
     expect(get(aiLoading)).toBe(false);
   });
+
+  it("ignores concurrent analyzeWithAi calls while an analysis is already in flight", async () => {
+    let resolvePromise!: (v: unknown) => void;
+    mockInvoke.mockImplementation(
+      () => new Promise((resolve) => { resolvePromise = resolve; }),
+    );
+
+    const first = analyzeWithAi("openrouter", "m");
+    const second = analyzeWithAi("openrouter", "m");
+
+    expect(mockInvoke.mock.calls.filter((c) => c[0] === "analyze_processes")).toHaveLength(1);
+
+    resolvePromise([]);
+    await Promise.all([first, second]);
+    expect(get(aiLoading)).toBe(false);
+  });
 });
 
 describe("dismissAiSuggestions", () => {
