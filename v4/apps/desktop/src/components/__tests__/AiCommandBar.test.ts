@@ -429,7 +429,7 @@ describe("AiCommandBar", () => {
     resolveApply(1);
 
     await waitFor(() => {
-      expect(screen.getByText(/Applied 1 security rule(s)/)).toBeInTheDocument();
+      expect(screen.getByText(/Applied 1 security rule\(s\)/)).toBeInTheDocument();
       expect(screen.queryByText("Change rejected by user.")).not.toBeInTheDocument();
     });
   });
