@@ -350,4 +350,35 @@ describe("Plugins", () => {
       expect(screen.getByText("No version")).toBeInTheDocument();
     });
   });
+  it("evita solicitudes duplicadas en togglePlugin y removePlugin mientras hay una operacion en vuelo", async () => {
+    let resolveToggle!: () => void;
+    mockListPlugins
+      .mockResolvedValueOnce([makePlugin({ enabled: true })])
+      .mockResolvedValueOnce([makePlugin({ enabled: false, status: "idle" })]);
+    mockSetPluginEnabled.mockImplementationOnce(
+      () => new Promise<void>((res) => { resolveToggle = res; }),
+    );
+
+    render(Plugins, { props: { onclose: vi.fn() } });
+
+    const disableBtn = await screen.findByRole("button", { name: "Disable" });
+    const removeBtn = screen.getByRole("button", { name: "Remove" });
+
+    disableBtn.click();
+    disableBtn.click();
+    removeBtn.click();
+
+    await waitFor(() => {
+      expect(mockSetPluginEnabled).toHaveBeenCalledTimes(1);
+      expect(mockRemovePlugin).not.toHaveBeenCalled();
+      expect(disableBtn).toBeDisabled();
+      expect(removeBtn).toBeDisabled();
+    });
+
+    resolveToggle();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Enable" })).not.toBeDisabled();
+    });
+  });
 });

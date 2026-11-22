@@ -335,4 +335,50 @@ describe("ZombieKiller", () => {
       expect(screen.queryByText("FinalCutPro")).not.toBeInTheDocument();
     });
   });
+  it("bloquea doble envio de kill_zombie y kill_all_zombies mientras estan en vuelo", async () => {
+    zombies = [
+      makeCandidate({ pid: 501, name: "zombie-one" }),
+      makeCandidate({ pid: 502, name: "zombie-two" }),
+    ];
+    let resolveKillOne!: (v: unknown) => void;
+    let resolveKillAll!: (v: unknown) => void;
+
+    mockInvoke.mockImplementation((command) => {
+      if (command === "get_zombie_killer_config") return Promise.resolve({ ...config });
+      if (command === "list_zombie_candidates") return Promise.resolve([...zombies]);
+      if (command === "kill_zombie") {
+        return new Promise((res) => { resolveKillOne = res; });
+      }
+      if (command === "kill_all_zombies") {
+        return new Promise((res) => { resolveKillAll = res; });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(ZombieKiller, { props: { onclose: vi.fn() } });
+
+    const killBtns = await screen.findAllByRole("button", { name: /^Kill$/ });
+    killBtns[0].click();
+    killBtns[0].click();
+
+    await waitFor(() => {
+      expect(mockInvoke.mock.calls.filter((c) => c[0] === "kill_zombie")).toHaveLength(1);
+      expect(killBtns[0]).toBeDisabled();
+    });
+
+    resolveKillOne({ pid: 501, processName: "zombie-one", killed: true });
+    await waitFor(() => expect(screen.queryByText("zombie-one")).not.toBeInTheDocument());
+
+    const killAllBtn = screen.getByRole("button", { name: /Kill all/ });
+    killAllBtn.click();
+    killAllBtn.click();
+
+    await waitFor(() => {
+      expect(mockInvoke.mock.calls.filter((c) => c[0] === "kill_all_zombies")).toHaveLength(1);
+      expect(killAllBtn).toBeDisabled();
+    });
+
+    resolveKillAll([{ pid: 502, processName: "zombie-two", killed: true }]);
+    await waitFor(() => expect(screen.queryByText("zombie-two")).not.toBeInTheDocument());
+  });
 });

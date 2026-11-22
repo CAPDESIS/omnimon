@@ -941,4 +941,42 @@ describe("AIChat", () => {
       expect(screen.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument();
     });
   });
+  it("evita doble ejecucion al hacer doble clic en Confirm mientras la accion esta en vuelo", async () => {
+    const pendingKill = deferred<boolean>();
+    mockAiChat.mockResolvedValueOnce({
+      reply: "I can kill that process.",
+      tool_call: {
+        tool: "kill_process",
+        success: true,
+        details: "kill_process:101:Chrome:1700000000",
+      },
+    });
+    mockKillProcess.mockReturnValueOnce(pendingKill.promise);
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Kill Chrome" } });
+    await fireEvent.click(screen.getByText("Send"));
+
+    const confirmBtn = await screen.findByRole("button", { name: "Confirm" });
+    const cancelBtn = screen.getByRole("button", { name: "Cancel" });
+
+    confirmBtn.click();
+    confirmBtn.click();
+    cancelBtn.click();
+
+    await waitFor(() => {
+      expect(mockKillProcess).toHaveBeenCalledTimes(1);
+      expect(confirmBtn).toBeDisabled();
+      expect(cancelBtn).toBeDisabled();
+    });
+
+    pendingKill.resolve(true);
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Action cancelled by user.")).not.toBeInTheDocument();
+    });
+  });
 });

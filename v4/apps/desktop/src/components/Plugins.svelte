@@ -24,6 +24,9 @@
   let error = $state<string | null>(null);
   let uploadState = $state<string | null>(null);
   let uploadBusy = $state(false);
+  let uploadBusyLock = false;
+  let busyPluginIds = $state<string[]>([]);
+  const busyPluginIdLocks = new Set<string>();
   let refreshing = $state(false);
   let fileInput: HTMLInputElement | undefined = $state();
   function highlightLua(code: string): string {
@@ -103,8 +106,9 @@ end`;
   async function handleUpload(event: Event) {
     const input = event.currentTarget as HTMLInputElement;
     const file = input.files?.[0];
-    if (!file) return;
+    if (!file || uploadBusyLock) return;
 
+    uploadBusyLock = true;
     uploadBusy = true;
     uploadState = null;
     error = null;
@@ -116,28 +120,41 @@ end`;
     } catch (err) {
       error = localizeBackendError(err instanceof Error ? err.message : String(err));
     } finally {
+      uploadBusyLock = false;
       uploadBusy = false;
       input.value = "";
     }
   }
 
   async function togglePlugin(plugin: PluginDescriptor) {
+    if (busyPluginIdLocks.has(plugin.id)) return;
+    busyPluginIdLocks.add(plugin.id);
+    busyPluginIds = [...busyPluginIds, plugin.id];
     error = null;
     try {
       await ipcSetPluginEnabled(plugin.id, !plugin.enabled);
       await loadPlugins();
     } catch (err) {
       error = localizeBackendError(err instanceof Error ? err.message : String(err));
+    } finally {
+      busyPluginIdLocks.delete(plugin.id);
+      busyPluginIds = busyPluginIds.filter((id) => id !== plugin.id);
     }
   }
 
   async function removePlugin(plugin: PluginDescriptor) {
+    if (busyPluginIdLocks.has(plugin.id)) return;
+    busyPluginIdLocks.add(plugin.id);
+    busyPluginIds = [...busyPluginIds, plugin.id];
     error = null;
     try {
       await ipcRemovePlugin(plugin.id);
       await loadPlugins();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
+    } finally {
+      busyPluginIdLocks.delete(plugin.id);
+      busyPluginIds = busyPluginIds.filter((id) => id !== plugin.id);
     }
   }
 
@@ -178,7 +195,7 @@ end`;
           <strong>{t("plugins.uploadTitle")}</strong>
           <p>{t("plugins.uploadBody")}</p>
         </div>
-        <input bind:this={fileInput} class="hidden-input" type="file" accept=".lua" onchange={handleUpload} />
+        <input bind:this={fileInput} class="hidden-input" type="file" accept=".lua" disabled={uploadBusy} onchange={handleUpload} />
         <Button variant="primary" type="button" onclick={() => fileInput?.click()} disabled={uploadBusy}>
           {uploadBusy ? t("plugins.uploading") : t("plugins.uploadButton")}
         </Button>
@@ -259,10 +276,10 @@ end`;
               </div>
 
               <div class="plugin-actions">
-                <Button variant="secondary" type="button" onclick={() => togglePlugin(plugin)}>
+                <Button variant="secondary" type="button" disabled={busyPluginIds.includes(plugin.id)} onclick={() => togglePlugin(plugin)}>
                   {plugin.enabled ? t("plugins.disable") : t("plugins.enable")}
                 </Button>
-                <Button variant="danger" type="button" onclick={() => removePlugin(plugin)}>{t("plugins.remove")}</Button>
+                <Button variant="danger" type="button" disabled={busyPluginIds.includes(plugin.id)} onclick={() => removePlugin(plugin)}>{t("plugins.remove")}</Button>
               </div>
             </article>
           {/each}

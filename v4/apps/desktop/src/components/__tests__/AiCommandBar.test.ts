@@ -385,4 +385,52 @@ describe("AiCommandBar", () => {
       expect(screen.getAllByText(/Security violation/i).length).toBeGreaterThan(0);
     });
   });
+  it("evita doble ejecucion de ipcApplyAiRules al hacer doble clic en Apply", async () => {
+    let resolveApply!: (count: number) => void;
+    mockApplyAiRules.mockImplementationOnce(
+      () => new Promise<number>((res) => { resolveApply = res; }),
+    );
+    mockAnalyze.mockResolvedValueOnce(JSON.stringify({
+      ai_rules: [{
+        id: "block-cn",
+        name: "Block CN",
+        enabled: true,
+        kind: "process_country",
+        process_contains: "chrome",
+        country_code: "CN",
+        destination_ip: null,
+        destination_cidr: null,
+        destination_port: null,
+        protocol: "tcp",
+        process_memory_mb_gt: null,
+        mitre_technique_id: "T1071",
+        temporal_correlation: null,
+      }],
+    }));
+
+    render(AiCommandBar);
+    const input = screen.getByPlaceholderText(/Alert me if Chrome/i);
+    await fireEvent.input(input, { target: { value: "block china traffic" } });
+    await fireEvent.click(screen.getByText("Run"));
+
+    const applyBtn = await screen.findByRole("button", { name: "Apply" });
+    const rejectBtn = screen.getByRole("button", { name: "Reject" });
+
+    applyBtn.click();
+    applyBtn.click();
+    rejectBtn.click();
+
+    await waitFor(() => {
+      expect(mockApplyAiRules).toHaveBeenCalledTimes(1);
+      expect(applyBtn).toBeDisabled();
+      expect(rejectBtn).toBeDisabled();
+    });
+
+    resolveApply(1);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Applied 1 security rule\(s\)/)).toBeInTheDocument();
+      expect(screen.queryByText("Change rejected by user.")).not.toBeInTheDocument();
+    });
+  });
 });
