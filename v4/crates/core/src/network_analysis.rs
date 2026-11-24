@@ -2621,7 +2621,83 @@ short line
     fn linux_get_connections_exercises_proc_and_ss_paths() {
         let first = get_active_connections().expect("first linux connections");
         let second = get_active_connections().expect("second linux connections");
-        assert_eq!(first.len(), second.len());
+        // Live hosts open and close ephemeral sockets concurrently, so socket
+        // counts between two consecutive snapshots are not guaranteed equal.
+        for conn in first.iter().chain(second.iter()) {
+            assert!(!conn.process_name.is_empty() || conn.pid > 0);
+            assert!(matches!(
+                conn.protocol,
+                Protocol::TCP | Protocol::UDP | Protocol::ICMP | Protocol::Other
+            ));
+        }
+    }
+
+    #[test]
+    fn parse_proc_net_and_ss_are_deterministic() {
+        let proc_tcp = "\
+  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
+   0: 0100007F:0050 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 12345 1 00000000 100 0 0 10 0
+   1: 0500000A:C3CF 2E50FA8E:01BB 01 00000000:00000000 00:00000000 00000000  1000        0 67890 1 00000000 100 0 0 10 0
+";
+        let ss_data = "\
+tcp   LISTEN     0      128    127.0.0.1:80      0.0.0.0:*           users:((\"nginx\",pid=101,fd=5))
+tcp   ESTAB      0      0      10.0.0.5:50127    142.250.80.46:443   users:((\"chrome\",pid=202,fd=6))
+";
+        let pid_names: HashMap<u32, String> =
+            [(101, "nginx".to_string()), (202, "chrome".to_string())]
+                .into_iter()
+                .collect();
+        let inode_pid: HashMap<u64, u32> = [(12345, 101), (67890, 202)].into_iter().collect();
+
+        let proc_a = parse_proc_net_with_inode_map(proc_tcp, Protocol::TCP, &pid_names, &inode_pid);
+        let proc_b = parse_proc_net_with_inode_map(proc_tcp, Protocol::TCP, &pid_names, &inode_pid);
+        assert_eq!(proc_a.len(), 2);
+        assert_eq!(proc_a.len(), proc_b.len());
+        for (a, b) in proc_a.iter().zip(proc_b.iter()) {
+            assert_eq!(
+                (
+                    &a.pid,
+                    &a.process_name,
+                    a.protocol,
+                    a.local_port,
+                    a.remote_port,
+                    a.state
+                ),
+                (
+                    &b.pid,
+                    &b.process_name,
+                    b.protocol,
+                    b.local_port,
+                    b.remote_port,
+                    b.state
+                ),
+            );
+        }
+
+        let ss_a = parse_ss_output(ss_data, &pid_names).unwrap();
+        let ss_b = parse_ss_output(ss_data, &pid_names).unwrap();
+        assert_eq!(ss_a.len(), 2);
+        assert_eq!(ss_a.len(), ss_b.len());
+        for (a, b) in ss_a.iter().zip(ss_b.iter()) {
+            assert_eq!(
+                (
+                    &a.pid,
+                    &a.process_name,
+                    a.protocol,
+                    a.local_port,
+                    a.remote_port,
+                    a.state
+                ),
+                (
+                    &b.pid,
+                    &b.process_name,
+                    b.protocol,
+                    b.local_port,
+                    b.remote_port,
+                    b.state
+                ),
+            );
+        }
     }
 
     #[cfg(target_os = "macos")]
