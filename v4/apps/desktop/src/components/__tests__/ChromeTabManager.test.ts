@@ -508,4 +508,44 @@ describe("ChromeTabManager", () => {
     expect(screen.getByText("Tab A")).toBeInTheDocument();
     expect(screen.getByText("Tab B")).toBeInTheDocument();
   });
+
+  it("ignores rapid double-click on Close Selected and Close All while confirmation is pending", async () => {
+    let resolveConfirm!: (value: boolean) => void;
+    mockConfirmAction.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveConfirm = resolve;
+        }),
+    );
+    browserTabs.set([
+      makeTab({ id: "c1", title: "Tab 1", browser: "Chrome", url: "https://1.com" }),
+      makeTab({ id: "c2", title: "Tab 2", browser: "Chrome", url: "https://2.com" }),
+    ]);
+    processes.set([makeProc()]);
+    mockInvoke.mockResolvedValue(true);
+    mockConfirmAction.mockClear();
+
+    render(ChromeTabManager);
+
+    await fireEvent.click(screen.getByTitle("Select all Chrome tabs"));
+    const closeSelectedBtn = screen.getByTitle("Close 2 selected tab(s)") as HTMLButtonElement;
+    const closeAllBtn = screen.getByTitle("Close all Chrome tabs") as HTMLButtonElement;
+
+    closeSelectedBtn.click();
+    closeSelectedBtn.click();
+    closeAllBtn.click();
+
+    await waitFor(() => {
+      expect(mockConfirmAction).toHaveBeenCalledTimes(1);
+      expect(closeSelectedBtn).toBeDisabled();
+      expect(closeAllBtn).toBeDisabled();
+    });
+
+    resolveConfirm(true);
+
+    await waitFor(() => {
+      const calls = mockInvoke.mock.calls.filter((call) => call[0] === "close_browser_tab");
+      expect(calls).toHaveLength(2);
+    });
+  });
 });

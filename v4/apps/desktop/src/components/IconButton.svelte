@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { createActionGuard, DEFAULT_ACTION_COOLDOWN_MS } from "../lib/actionGuard";
 
   type IconButtonVariant = "ghost" | "secondary" | "danger";
   type IconButtonSize = "sm" | "md";
@@ -13,6 +14,8 @@
     class?: string;
     ariaLabel?: string;
     title?: string;
+    cooldownMs?: number;
+    onclick?: (event: MouseEvent) => unknown;
   }
 
   let {
@@ -24,8 +27,34 @@
     class: className = "",
     ariaLabel,
     title,
+    cooldownMs = DEFAULT_ACTION_COOLDOWN_MS,
+    onclick,
     ...restProps
   }: Props & Record<string, unknown> = $props();
+
+  let pending = $state(false);
+  const guard = createActionGuard({ cooldownMs: DEFAULT_ACTION_COOLDOWN_MS });
+
+  $effect(() => {
+    guard.setCooldownMs(cooldownMs);
+  });
+
+  let effectiveDisabled = $derived(disabled || pending);
+
+  function handleClick(event: MouseEvent) {
+    if (effectiveDisabled) {
+      event.preventDefault();
+      return;
+    }
+    if (!onclick) return;
+    const result = guard.run(onclick, event);
+    if (result && typeof (result as PromiseLike<unknown>).then === "function") {
+      pending = true;
+      Promise.resolve(result).finally(() => {
+        pending = false;
+      });
+    }
+  }
 
   let classes = $derived(
     ["ui-icon-button", `ui-icon-button--${variant}`, `ui-icon-button--${size}`, className]
@@ -37,9 +66,10 @@
 <button
   class={classes}
   type={type}
-  disabled={disabled}
+  disabled={effectiveDisabled}
   aria-label={ariaLabel}
   title={title}
+  onclick={handleClick}
   {...restProps}
 >
   {@render children?.()}

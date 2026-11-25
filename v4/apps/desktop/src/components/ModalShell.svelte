@@ -30,17 +30,29 @@
   }: Props = $props();
 
   let panelEl = $state<HTMLDivElement | undefined>();
+  let hasClosed = false;
+
+  function triggerClose() {
+    if (hasClosed) return;
+    hasClosed = true;
+    onclose?.();
+  }
 
   function handleBackdropMouseDown(event: MouseEvent) {
     if (!closeOnBackdrop) return;
-    if (event.target === event.currentTarget) onclose?.();
+    if (event.target === event.currentTarget) triggerClose();
+  }
+
+  function handleBackdropClick(event: MouseEvent) {
+    if (!closeOnBackdrop) return;
+    if (event.target === event.currentTarget) triggerClose();
   }
 
   function handleBackdropKeydown(event: KeyboardEvent) {
     if (!closeOnEscape) return;
     if (event.key === "Escape") {
       event.preventDefault();
-      onclose?.();
+      triggerClose();
     }
   }
 </script>
@@ -48,9 +60,7 @@
 <div
   class={`ui-modal-backdrop ${backdropClass}`.trim()}
   onmousedown={handleBackdropMouseDown}
-  onclick={(event) => {
-    if (closeOnBackdrop && event.target === event.currentTarget) onclose?.();
-  }}
+  onclick={handleBackdropClick}
   onkeydown={handleBackdropKeydown}
   role="presentation"
 >

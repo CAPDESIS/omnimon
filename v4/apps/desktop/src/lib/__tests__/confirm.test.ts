@@ -21,15 +21,16 @@ describe("confirm", () => {
     await expect(promise).resolves.toBe(false);
   });
 
-  it("cierra el dialogo previo cuando se abre uno nuevo", async () => {
+  it("ignora un dialogo superpuesto sin reemplazar el dialogo activo", async () => {
     const first = confirmAction("First dialog");
     const second = confirmAction("Second dialog");
 
-    await expect(first).resolves.toBe(false);
-    expect(get(confirmDialogState)).toMatchObject({ open: true, message: "Second dialog" });
+    await expect(second).resolves.toBe(false);
+    expect(get(confirmDialogState)).toMatchObject({ open: true, message: "First dialog" });
 
     resolveConfirmDialog(true);
-    await expect(second).resolves.toBe(true);
+    await expect(first).resolves.toBe(true);
+    expect(get(confirmDialogState)).toMatchObject({ open: false, message: "", resolve: null });
   });
 
   it("ignora resolver cuando no hay dialogo abierto", () => {

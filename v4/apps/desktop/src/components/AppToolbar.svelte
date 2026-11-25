@@ -106,7 +106,7 @@
 
     <div class="selection-cluster">
       <div class="btn-group">
-        <Button active={grouping} onclick={ontogglegrouping} title={t("toolbar.toggleGrouping")}>
+        <Button active={grouping} cooldownMs={0} onclick={ontogglegrouping} title={t("toolbar.toggleGrouping")}>
           <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
             <rect x="1" y="1" width="5" height="5" rx="1"/>
             <rect x="1" y="9" width="5" height="5" rx="1"/>
@@ -115,8 +115,8 @@
           </svg>
           <span>{t("toolbar.groups")}</span>
         </Button>
-        <Button variant="secondary" onclick={onselectall}>{t("toolbar.all")}</Button>
-        <Button variant="secondary" onclick={onselectnone}>{t("toolbar.none")}</Button>
+        <Button variant="secondary" cooldownMs={0} onclick={onselectall}>{t("toolbar.all")}</Button>
+        <Button variant="secondary" cooldownMs={0} onclick={onselectnone}>{t("toolbar.none")}</Button>
       </div>
       <Button variant="danger" onclick={onkillselected} disabled={selectedCount === 0} aria-label={t("toolbar.closeSelected")}>
         {t("toolbar.close")}{#if selectedCount > 0}&nbsp;({selectedCount} · {selectedRamMB.toFixed(0)} MB){/if}
@@ -147,7 +147,7 @@
         <span>{t("toolbar.security")}</span>
         {#if totalFindings > 0}<span class="findings-badge">{totalFindings}</span>{/if}
       </Button>
-      <Button class="toolbar-action-button" variant="secondary" onclick={ontoggledashboard} title={dashboardCollapsed ? t("toolbar.showDashboard") : t("toolbar.hideDashboard")}>
+      <Button class="toolbar-action-button" variant="secondary" cooldownMs={0} onclick={ontoggledashboard} title={dashboardCollapsed ? t("toolbar.showDashboard") : t("toolbar.hideDashboard")}>
         <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
           {#if dashboardCollapsed}
             <path d="M3 4h10v1H3zM3 7h10v1H3zM3 10h10v1H3z"/>
@@ -162,7 +162,7 @@
       <Button class="toolbar-action-button" variant="secondary" onclick={onopensettings} title={t("toolbar.aiSettings")}><span><Settings size={14} /></span><span>{t("toolbar.aiSettings")}</span></Button>
       <Button class="toolbar-action-button" variant="secondary" onclick={onopenhelp} title={t("toolbar.helpCenter")}><span class="btn-icon-glyph">?</span><span>{t("toolbar.helpCenter")}</span></Button>
       <div class="font-controls">
-        <Button variant="ghost" size="icon" onclick={ondecreasefont} title={t("toolbar.decreaseFont", { mod: modKey() })} aria-label={t("toolbar.decreaseFontLabel")}>A-</Button>
+        <Button variant="ghost" size="icon" cooldownMs={0} onclick={ondecreasefont} title={t("toolbar.decreaseFont", { mod: modKey() })} aria-label={t("toolbar.decreaseFontLabel")}>A-</Button>
         <input
           type="number"
           bind:value={fontSize}
@@ -171,7 +171,7 @@
           class="font-size-input"
           aria-label={t("toolbar.fontSize")}
         />
-        <Button variant="ghost" size="icon" onclick={onincreasefont} title={t("toolbar.increaseFont", { mod: modKey() })} aria-label={t("toolbar.increaseFontLabel")}>A+</Button>
+        <Button variant="ghost" size="icon" cooldownMs={0} onclick={onincreasefont} title={t("toolbar.increaseFont", { mod: modKey() })} aria-label={t("toolbar.increaseFontLabel")}>A+</Button>
       </div>
     </div>
   </div>

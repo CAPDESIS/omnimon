@@ -27,12 +27,13 @@ export const confirmDialogState = writable<ConfirmDialogState>({
  * Shows a custom in-app confirmation dialog.
  * Returns a Promise that resolves to true (confirm) or false (cancel).
  * Replaces window.confirm() which doesn't work reliably in Tauri v2 WKWebView.
+ * Enforces single-flight: if a confirm dialog is already open, ignores the overlapping
+ * request and resolves it to false without replacing the active prompt.
  */
 export function confirmAction(message: string, items: ConfirmDialogItem[] = [], onAskAi?: () => void): Promise<boolean> {
-  // Close any previous dialog first
   const prev = get(confirmDialogState);
-  if (prev.resolve) {
-    prev.resolve(false);
+  if (prev.open || prev.resolve) {
+    return Promise.resolve(false);
   }
 
   return new Promise((resolve) => {
@@ -48,8 +49,10 @@ export function confirmAction(message: string, items: ConfirmDialogItem[] = [], 
 
 export function resolveConfirmDialog(value: boolean): void {
   const state = get(confirmDialogState);
-  if (state.resolve) {
-    state.resolve(value);
+  if (!state.open && !state.resolve) {
+    return;
   }
+  const resolve = state.resolve;
   confirmDialogState.set({ open: false, message: "", items: [], resolve: null, onAskAi: null });
+  resolve?.(value);
 }

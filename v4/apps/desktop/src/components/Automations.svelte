@@ -31,6 +31,7 @@
   // IPC state: surfaces backend failures so they do not happen silently.
   let loading = $state(true);
   let busy = $state(false);
+  let busyLock = false;
   let error = $state<string | null>(null);
 
   async function loadRules() {
@@ -43,10 +44,12 @@
   }
 
   async function addRule() {
+    if (busyLock || busy) return;
     if (!process_pattern.trim()) {
       error = t("automations.ruleMissingFields");
       return;
     }
+    busyLock = true;
     busy = true;
     error = null;
     try {
@@ -63,11 +66,14 @@
     } catch (e) {
       error = t("automations.errorAdd", { error: String(e) });
     } finally {
+      busyLock = false;
       busy = false;
     }
   }
 
   async function removeRule(id: string) {
+    if (busyLock || busy) return;
+    busyLock = true;
     busy = true;
     error = null;
     try {
@@ -76,6 +82,7 @@
     } catch (e) {
       error = t("automations.errorRemove", { error: String(e) });
     } finally {
+      busyLock = false;
       busy = false;
     }
   }

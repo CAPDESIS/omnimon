@@ -82,9 +82,10 @@
     dashboardLayout,
   } from "./stores/preferences";
   import { ipcValidateApiKey, ipcCheckApiKey, ipcClearAiCache } from "./lib/ipc";
+  import { resolveConfirmDialog } from "./lib/confirm";
   import { listen } from "@tauri-apps/api/event";
   import { t, locale, initI18n } from "./lib/i18n";
-  import { focusNetworkRequest, inspectProcessRequest, askAiRequest } from "./stores/uiActions";
+  import { focusNetworkRequest, inspectProcessRequest, askAiRequest, closeModalsEpoch } from "./stores/uiActions";
   import type { LocaleCode } from "./lib/i18n";
   import { focusFirstFocusable, trapFocus, rememberActiveElement, restoreFocus } from "./lib/focusTrap";
 
@@ -327,6 +328,9 @@
   let showSettings = $state(false);
   let apiKeyInput = $state("");
   let settingsSaving = $state(false);
+  let settingsSavingLock = false;
+  let clearingAiCache = $state(false);
+  let clearingAiCacheLock = false;
   let settingsError = $state<string | null>(null);
   let settingsSaved = $state(false);
   let autostartEnabled = $state(false);
@@ -334,6 +338,8 @@
   let autostartError = $state<string | null>(null);
 
   async function handleSaveSettings() {
+    if (settingsSavingLock || settingsSaving) return;
+    settingsSavingLock = true;
     settingsSaving = true;
     settingsError = null;
     settingsSaved = false;
@@ -359,6 +365,7 @@
     } catch (e) {
       settingsError = e instanceof Error ? e.message : String(e);
     } finally {
+      settingsSavingLock = false;
       settingsSaving = false;
     }
   }
@@ -428,10 +435,16 @@
   }
 
   async function handleClearAiCache() {
+    if (clearingAiCacheLock || clearingAiCache) return;
+    clearingAiCacheLock = true;
+    clearingAiCache = true;
     try {
       await ipcClearAiCache();
     } catch (e) {
       settingsError = e instanceof Error ? e.message : String(e);
+    } finally {
+      clearingAiCacheLock = false;
+      clearingAiCache = false;
     }
   }
 
@@ -613,6 +626,8 @@
     showHelpCenter = false;
     activeMetricModal = null;
     if (showSettings) closeSettings();
+    resolveConfirmDialog(false);
+    closeModalsEpoch.update((n) => n + 1);
   }
 
   function inspectProcess(proc: ProcessEntry) {
@@ -926,6 +941,7 @@
                   class="col-move-btn"
                   variant="ghost"
                   size="sm"
+                  cooldownMs={0}
                   disabled={i === 0}
                   onclick={() => moveColumnUp(key)}
                   title={t("settings.moveUp")}
@@ -935,6 +951,7 @@
                   class="col-move-btn"
                   variant="ghost"
                   size="sm"
+                  cooldownMs={0}
                   disabled={i === $columnOrder.length - 1}
                   onclick={() => moveColumnDown(key)}
                   title={t("settings.moveDown")}
@@ -1068,7 +1085,7 @@
         </div>
         <div class="settings-row">
           <label class="settings-label" for="clear-ai-cache">{t("settings.aiCache")}</label>
-          <Button id="clear-ai-cache" variant="ghost" onclick={handleClearAiCache}>{t("settings.clearCache")}</Button>
+          <Button id="clear-ai-cache" variant="ghost" disabled={clearingAiCache} onclick={handleClearAiCache}>{t("settings.clearCache")}</Button>
         </div>
         <div class="settings-row">
           <label class="settings-label" for="autostart-toggle">{t("settings.autostart")}</label>

@@ -12,3 +12,6 @@ export const askAiRequest = writable<string | null>(null);
 
 /** Request to focus/open the network dashboard with an optional process filter. */
 export const focusNetworkRequest = writable<string | null>(null);
+
+/** Incremented when App closes all modals so nested modals also close cleanly. */
+export const closeModalsEpoch = writable<number>(0);

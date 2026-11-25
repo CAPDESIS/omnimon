@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Button from "./Button.svelte";
   import { t } from "../lib/i18n";
   import { networkAlertRules } from "../stores/preferences";
+  import { closeModalsEpoch } from "../stores/uiActions";
   import type { NetworkAlertCondition, NetworkAlertDirection, NetworkAlertRule, NetworkAlertSeverity } from "../lib/types";
 
   type ConditionKind = NetworkAlertCondition["kind"];
@@ -20,6 +22,17 @@
 
   let showModal = $state(false);
   let editId = $state<string | null>(null);
+
+  onMount(() => {
+    let initialized = false;
+    return closeModalsEpoch.subscribe(() => {
+      if (!initialized) {
+        initialized = true;
+        return;
+      }
+      showModal = false;
+    });
+  });
   let ruleName = $state("");
   let enabled = $state(true);
   let severity = $state<NetworkAlertSeverity>("warning");
@@ -253,7 +266,15 @@
   <div
     class="modal-backdrop"
     role="presentation"
-    onclick={() => (showModal = false)}
+    onclick={(event: MouseEvent) => {
+      if (event.target === event.currentTarget) showModal = false;
+    }}
+    onkeydown={(event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        showModal = false;
+      }
+    }}
   >
     <div
       class="modal-card"

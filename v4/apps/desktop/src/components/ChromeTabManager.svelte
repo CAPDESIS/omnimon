@@ -17,6 +17,10 @@
 
   let expandedBrowsers = $state<Set<string>>(new Set(["Chrome", "Safari", "Brave", "Edge", "Arc", "Firefox"]));
   let closing = $state<Set<string>>(new Set());
+  let closingBatch = $state(false);
+  const closingTabLocks = new Set<string>();
+  let closingSelectedLock = false;
+  let closingAllLock = false;
   let selectedTabIds = $state<Set<string>>(new Set());
   let cdpStatus = $state<Record<string, boolean>>({});
   let showCdpHelp = $state(false);
@@ -161,34 +165,10 @@
   }
 
   async function closeTab(tab: BrowserTab) {
-    if (!(await confirmAction(t("tabs.confirmCloseTab", { title: tab.title })))) return;
-    const next = new Set(closing);
-    next.add(tab.id);
-    closing = next;
+    if (closingTabLocks.has(tab.id) || closingSelectedLock || closingAllLock) return;
+    closingTabLocks.add(tab.id);
     try {
-      await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
-      removeTabFromStore(tab.id);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("Rate limited")) {
-        toast.warning(t("common.rateLimited"), msg);
-      } else {
-        toast.error(t("tabs.closeErrorTitle"), msg);
-      }
-      console.warn("[ChromeTabManager] Failed to close tab:", e);
-    }
-    const after = new Set(closing);
-    after.delete(tab.id);
-    closing = after;
-  }
-
-  async function closeSelected() {
-    const allTabs = $browserTabs;
-    const toClose = allTabs.filter((t) => selectedTabIds.has(t.id));
-    if (toClose.length === 0) return;
-    if (!(await confirmAction(t("tabs.confirmCloseSelected", { count: toClose.length })))) return;
-    let failCount = 0;
-    for (const tab of toClose) {
+      if (!(await confirmAction(t("tabs.confirmCloseTab", { title: tab.title })))) return;
       const next = new Set(closing);
       next.add(tab.id);
       closing = next;
@@ -196,45 +176,99 @@
         await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
         removeTabFromStore(tab.id);
       } catch (e) {
-        failCount++;
-        console.warn("[ChromeTabManager] Failed to close tab:", tab.title, e);
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("Rate limited")) {
+          toast.warning(t("common.rateLimited"), msg);
+        } else {
+          toast.error(t("tabs.closeErrorTitle"), msg);
+        }
+        console.warn("[ChromeTabManager] Failed to close tab:", e);
       }
       const after = new Set(closing);
       after.delete(tab.id);
       closing = after;
+    } finally {
+      closingTabLocks.delete(tab.id);
     }
-    if (failCount > 0) {
-      toast.warning(
-        t("tabs.closeErrorTitle"),
-        t("tabs.closeCountFailed", { count: failCount }),
-      );
+  }
+
+  async function closeSelected() {
+    if (closingSelectedLock || closingAllLock) return;
+    const allTabs = $browserTabs;
+    const toClose = allTabs.filter((t) => selectedTabIds.has(t.id));
+    if (toClose.length === 0) return;
+    closingSelectedLock = true;
+    closingBatch = true;
+    try {
+      if (!(await confirmAction(t("tabs.confirmCloseSelected", { count: toClose.length })))) return;
+      let failCount = 0;
+      for (const tab of toClose) {
+        if (closingTabLocks.has(tab.id)) continue;
+        closingTabLocks.add(tab.id);
+        const next = new Set(closing);
+        next.add(tab.id);
+        closing = next;
+        try {
+          await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
+          removeTabFromStore(tab.id);
+        } catch (e) {
+          failCount++;
+          console.warn("[ChromeTabManager] Failed to close tab:", tab.title, e);
+        } finally {
+          closingTabLocks.delete(tab.id);
+          const after = new Set(closing);
+          after.delete(tab.id);
+          closing = after;
+        }
+      }
+      if (failCount > 0) {
+        toast.warning(
+          t("tabs.closeErrorTitle"),
+          t("tabs.closeCountFailed", { count: failCount }),
+        );
+      }
+    } finally {
+      closingSelectedLock = false;
+      closingBatch = false;
     }
   }
 
   async function closeAllTabs(tabs: BrowserTab[]) {
+    if (closingSelectedLock || closingAllLock) return;
     if (tabs.length === 0) return;
-    if (!(await confirmAction(t("tabs.confirmCloseAll", { count: tabs.length })))) return;
-    let failCount = 0;
-    for (const tab of tabs) {
-      const next = new Set(closing);
-      next.add(tab.id);
-      closing = next;
-      try {
-        await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
-        removeTabFromStore(tab.id);
-      } catch (e) {
-        failCount++;
-        console.warn("[ChromeTabManager] Failed to close tab:", tab.title, e);
+    closingAllLock = true;
+    closingBatch = true;
+    try {
+      if (!(await confirmAction(t("tabs.confirmCloseAll", { count: tabs.length })))) return;
+      let failCount = 0;
+      for (const tab of tabs) {
+        if (closingTabLocks.has(tab.id)) continue;
+        closingTabLocks.add(tab.id);
+        const next = new Set(closing);
+        next.add(tab.id);
+        closing = next;
+        try {
+          await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
+          removeTabFromStore(tab.id);
+        } catch (e) {
+          failCount++;
+          console.warn("[ChromeTabManager] Failed to close tab:", tab.title, e);
+        } finally {
+          closingTabLocks.delete(tab.id);
+          const after = new Set(closing);
+          after.delete(tab.id);
+          closing = after;
+        }
       }
-      const after = new Set(closing);
-      after.delete(tab.id);
-      closing = after;
-    }
-    if (failCount > 0) {
-      toast.warning(
-        t("tabs.closeErrorTitle"),
-        t("tabs.closeCountFailed", { count: failCount }),
-      );
+      if (failCount > 0) {
+        toast.warning(
+          t("tabs.closeErrorTitle"),
+          t("tabs.closeCountFailed", { count: failCount }),
+        );
+      }
+    } finally {
+      closingAllLock = false;
+      closingBatch = false;
     }
   }
 </script>
@@ -276,6 +310,7 @@
         {#if selectedCount > 0}
           <button
             class="btn-close-selected"
+            disabled={closingBatch}
             onclick={(e: MouseEvent) => { e.stopPropagation(); closeSelected(); }}
             title={t("tabs.closeCountTitle", { count: selectedCount })}
           >
@@ -284,6 +319,7 @@
         {/if}
         <button
           class="btn-close-all"
+          disabled={closingBatch}
           onclick={(e: MouseEvent) => { e.stopPropagation(); closeAllTabs(section.tabs); }}
           title={t("tabs.closeAllTitle", { browser: section.name })}
         >
