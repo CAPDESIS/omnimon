@@ -292,4 +292,24 @@ describe("App AI Command Bar", () => {
 
     expect(startPolling).not.toHaveBeenCalled();
   });
+
+  it("closes active ConfirmDialog when opening settings via closeAllModals", async () => {
+    const { confirmAction, confirmDialogState } = await import("../lib/confirm");
+    const { get } = await import("svelte/store");
+
+    render(App);
+    const pending = confirmAction("Confirm action?");
+    await waitFor(() => {
+      expect(get(confirmDialogState).open).toBe(true);
+    });
+
+    const settingsButton = document.querySelector('.toolbar-actions button[title="AI Settings"]') as HTMLButtonElement;
+    await fireEvent.click(settingsButton);
+
+    await expect(pending).resolves.toBe(false);
+    expect(get(confirmDialogState).open).toBe(false);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "OmniMon Settings" })).toBeInTheDocument();
+    });
+  });
 });

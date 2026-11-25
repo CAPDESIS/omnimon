@@ -36,6 +36,10 @@
   // Tab management state
   let selectedTabIds = $state<Set<string>>(new Set());
   let closingTabs = $state<Set<string>>(new Set());
+  let closingSelected = $state(false);
+  const closingTabLocks = new Set<string>();
+  let closingSelectedLock = false;
+  let askAiLock = false;
   let tabFilter = $state("");
   let aiResponse = $state("");
   let aiAnalyzing = $state(false);
@@ -93,6 +97,8 @@
   }
 
   async function closeTab(tab: BrowserTab) {
+    if (closingTabLocks.has(tab.id) || closingSelectedLock) return;
+    closingTabLocks.add(tab.id);
     closingTabs = new Set([...closingTabs, tab.id]);
     try {
       await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
@@ -102,28 +108,43 @@
       selectedTabIds = next;
     } catch (e) {
       console.error("Failed to close tab:", e);
-    }
-    const after = new Set(closingTabs);
-    after.delete(tab.id);
-    closingTabs = after;
-  }
-
-  async function closeSelectedTabs() {
-    const toClose = allBrowserTabs.filter((t) => selectedTabIds.has(t.id));
-    for (const tab of toClose) {
-      closingTabs = new Set([...closingTabs, tab.id]);
-      try {
-        await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
-        browserTabs.update(($tabs) => $tabs.filter((t) => t.id !== tab.id));
-        const next = new Set(selectedTabIds);
-        next.delete(tab.id);
-        selectedTabIds = next;
-      } catch {
-        // continue closing others
-      }
+    } finally {
+      closingTabLocks.delete(tab.id);
       const after = new Set(closingTabs);
       after.delete(tab.id);
       closingTabs = after;
+    }
+  }
+
+  async function closeSelectedTabs() {
+    if (closingSelectedLock) return;
+    const toClose = allBrowserTabs.filter((t) => selectedTabIds.has(t.id));
+    if (toClose.length === 0) return;
+    closingSelectedLock = true;
+    closingSelected = true;
+    try {
+      for (const tab of toClose) {
+        if (closingTabLocks.has(tab.id)) continue;
+        closingTabLocks.add(tab.id);
+        closingTabs = new Set([...closingTabs, tab.id]);
+        try {
+          await ipcCloseBrowserTab(tab.id, tab.url, tab.browser);
+          browserTabs.update(($tabs) => $tabs.filter((t) => t.id !== tab.id));
+          const next = new Set(selectedTabIds);
+          next.delete(tab.id);
+          selectedTabIds = next;
+        } catch {
+          // continue closing others
+        } finally {
+          closingTabLocks.delete(tab.id);
+          const after = new Set(closingTabs);
+          after.delete(tab.id);
+          closingTabs = after;
+        }
+      }
+    } finally {
+      closingSelectedLock = false;
+      closingSelected = false;
     }
   }
 
@@ -165,6 +186,8 @@
   }
 
   async function askAi() {
+    if (askAiLock || aiAnalyzing) return;
+    askAiLock = true;
     aiAnalyzing = true;
     aiError = null;
     aiResponse = "";
@@ -182,6 +205,7 @@
         aiError = msg;
       }
     } finally {
+      askAiLock = false;
       aiAnalyzing = false;
     }
   }
@@ -274,7 +298,7 @@
             <Button variant="secondary" size="sm" class="btn-tab-action" onclick={selectAllTabs} title={t("process.selectAllTabs")}>{t("common.all")}</Button>
             <Button variant="ghost" size="sm" class="btn-tab-action" onclick={selectNoneTabs} title={t("process.deselectAll")}>{t("common.none")}</Button>
             {#if selectedCount > 0}
-              <Button variant="danger" size="sm" class="btn-tab-close-selected" onclick={closeSelectedTabs} title={t("process.closeCountTitle", { count: selectedCount })}>
+              <Button variant="danger" size="sm" class="btn-tab-close-selected" disabled={closingSelected} onclick={closeSelectedTabs} title={t("process.closeCountTitle", { count: selectedCount })}>
                 {t("process.closeCount", { count: selectedCount })}
               </Button>
             {/if}

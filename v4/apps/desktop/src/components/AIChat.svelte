@@ -879,6 +879,7 @@
     <Button
       class="send-btn"
       variant="primary"
+      cooldownMs={0}
       onclick={handleSubmit}
       disabled={loading || !input.trim()}
     >

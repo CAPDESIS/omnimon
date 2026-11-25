@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { createActionGuard, DEFAULT_ACTION_COOLDOWN_MS } from "../lib/actionGuard";
 
   type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
   type ButtonSize = "sm" | "md" | "icon";
@@ -13,6 +14,8 @@
     disabled?: boolean;
     type?: "button" | "submit" | "reset";
     class?: string;
+    cooldownMs?: number;
+    onclick?: (event: MouseEvent) => unknown;
   }
 
   let {
@@ -24,8 +27,34 @@
     disabled = false,
     type = "button",
     class: className = "",
+    cooldownMs = DEFAULT_ACTION_COOLDOWN_MS,
+    onclick,
     ...restProps
   }: Props & Record<string, unknown> = $props();
+
+  let pending = $state(false);
+  const guard = createActionGuard({ cooldownMs: DEFAULT_ACTION_COOLDOWN_MS });
+
+  $effect(() => {
+    guard.setCooldownMs(cooldownMs);
+  });
+
+  let effectiveDisabled = $derived(disabled || pending);
+
+  function handleClick(event: MouseEvent) {
+    if (effectiveDisabled) {
+      event.preventDefault();
+      return;
+    }
+    if (!onclick) return;
+    const result = guard.run(onclick, event);
+    if (result && typeof (result as PromiseLike<unknown>).then === "function") {
+      pending = true;
+      Promise.resolve(result).finally(() => {
+        pending = false;
+      });
+    }
+  }
 
   let classes = $derived(
     ["ui-button", `ui-button--${variant}`, `ui-button--${size}`, active ? "is-active" : "", className]
@@ -39,9 +68,10 @@
     class={classes}
     data-variant={variant}
     data-size={size}
-    href={disabled ? undefined : href}
-    aria-disabled={disabled ? "true" : undefined}
-    tabindex={disabled ? -1 : undefined}
+    href={effectiveDisabled ? undefined : href}
+    aria-disabled={effectiveDisabled ? "true" : undefined}
+    tabindex={effectiveDisabled ? -1 : undefined}
+    onclick={handleClick}
     {...restProps}
   >
     {@render children?.()}
@@ -52,7 +82,8 @@
     data-variant={variant}
     data-size={size}
     type={type}
-    disabled={disabled}
+    disabled={effectiveDisabled}
+    onclick={handleClick}
     {...restProps}
   >
     {@render children?.()}

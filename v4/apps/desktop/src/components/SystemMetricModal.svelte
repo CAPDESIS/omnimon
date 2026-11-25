@@ -316,7 +316,7 @@
             </table>
           </div>
           {#if $filtered.length > processLimit}
-            <Button class="show-more-btn" variant="secondary" size="sm" onclick={() => processLimit += 20}>
+            <Button class="show-more-btn" variant="secondary" size="sm" cooldownMs={0} onclick={() => processLimit += 20}>
               {t("systemMetrics.showMore", { count: $filtered.length - processLimit })}
             </Button>
           {/if}

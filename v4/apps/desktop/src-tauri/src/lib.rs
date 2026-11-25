@@ -12,7 +12,7 @@ use macmon_core::browser::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tauri::{
@@ -1020,6 +1020,32 @@ fn clear_ai_cache() -> Result<(), String> {
     Ok(())
 }
 
+const TRAY_DEBOUNCE_MS: u64 = 300;
+static TRAY_EPOCH: OnceLock<Instant> = OnceLock::new();
+static LAST_TRAY_ACTION_MS: AtomicU64 = AtomicU64::new(0);
+
+fn tray_monotonic_ms() -> u64 {
+    let start = TRAY_EPOCH.get_or_init(Instant::now);
+    (start.elapsed().as_millis() as u64).saturating_add(1)
+}
+
+fn try_acquire_tray_debounce(last_ms: &AtomicU64, now_ms: u64, debounce_ms: u64) -> bool {
+    let mut prev = last_ms.load(Ordering::Acquire);
+    loop {
+        if prev != 0 && now_ms.saturating_sub(prev) < debounce_ms {
+            return false;
+        }
+        match last_ms.compare_exchange_weak(prev, now_ms, Ordering::AcqRel, Ordering::Acquire) {
+            Ok(_) => return true,
+            Err(actual) => prev = actual,
+        }
+    }
+}
+
+fn should_toggle_on_shortcut_state(state: tauri_plugin_global_shortcut::ShortcutState) -> bool {
+    matches!(state, tauri_plugin_global_shortcut::ShortcutState::Pressed)
+}
+
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -1216,10 +1242,21 @@ pub fn run() {
                         button: MouseButton::Left,
                         button_state: MouseButtonState::Up,
                         ..
-                    } => {
+                    } if try_acquire_tray_debounce(
+                        &LAST_TRAY_ACTION_MS,
+                        tray_monotonic_ms(),
+                        TRAY_DEBOUNCE_MS,
+                    ) =>
+                    {
                         toggle_main_window(tray.app_handle());
                     }
-                    TrayIconEvent::DoubleClick { .. } => {
+                    TrayIconEvent::DoubleClick { .. }
+                        if try_acquire_tray_debounce(
+                            &LAST_TRAY_ACTION_MS,
+                            tray_monotonic_ms(),
+                            TRAY_DEBOUNCE_MS,
+                        ) =>
+                    {
                         show_main_window(tray.app_handle());
                     }
                     _ => {}
@@ -1283,8 +1320,10 @@ pub fn run() {
                     Ok(s) => {
                         let register_result =
                             app.global_shortcut()
-                                .on_shortcut(s, move |_app, _shortcut, _event| {
-                                    toggle_main_window(&app_handle);
+                                .on_shortcut(s, move |_app, _shortcut, event| {
+                                    if should_toggle_on_shortcut_state(event.state()) {
+                                        toggle_main_window(&app_handle);
+                                    }
                                 });
 
                         if let Err(e) = register_result {
@@ -1736,5 +1775,21 @@ mod tests {
         // Characterization through helper already exists; also cover rate-limited command wrapper shape.
         let err = save_ai_config_with("not-a-provider", "sk", |_, _| Ok(())).unwrap_err();
         assert!(err.contains("Unknown AI provider"));
+    }
+
+    #[test]
+    fn tray_debounce_blocks_rapid_follow_up_and_allows_after_window() {
+        let last_ms = AtomicU64::new(0);
+        assert!(try_acquire_tray_debounce(&last_ms, 1, TRAY_DEBOUNCE_MS));
+        assert!(!try_acquire_tray_debounce(&last_ms, 150, TRAY_DEBOUNCE_MS));
+        assert!(!try_acquire_tray_debounce(&last_ms, 300, TRAY_DEBOUNCE_MS));
+        assert!(try_acquire_tray_debounce(&last_ms, 301, TRAY_DEBOUNCE_MS));
+    }
+
+    #[test]
+    fn global_shortcut_only_toggles_on_pressed_state() {
+        use tauri_plugin_global_shortcut::ShortcutState;
+        assert!(should_toggle_on_shortcut_state(ShortcutState::Pressed));
+        assert!(!should_toggle_on_shortcut_state(ShortcutState::Released));
     }
 }

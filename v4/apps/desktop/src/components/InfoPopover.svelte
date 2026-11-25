@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import Button from "./Button.svelte";
 
   interface Props {
@@ -8,14 +9,29 @@
 
   let { label, content }: Props = $props();
   let open = $state(false);
+  let closeTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function clearPendingClose() {
+    if (closeTimer !== undefined) {
+      clearTimeout(closeTimer);
+      closeTimer = undefined;
+    }
+  }
 
   function toggle() {
+    clearPendingClose();
     open = !open;
   }
 
-  function close() {
-    open = false;
+  function scheduleClose() {
+    clearPendingClose();
+    closeTimer = setTimeout(() => {
+      closeTimer = undefined;
+      open = false;
+    }, 120);
   }
+
+  onDestroy(clearPendingClose);
 </script>
 
 <div class="info-popover">
@@ -27,7 +43,7 @@
     variant="ghost"
     size="icon"
     onclick={toggle}
-    onblur={() => setTimeout(close, 120)}
+    onblur={scheduleClose}
   >
     <span class="info-trigger-glyph">i</span>
   </Button>

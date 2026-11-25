@@ -162,7 +162,7 @@
       <Button class="toolbar-action-button" variant="secondary" onclick={onopensettings} title={t("toolbar.aiSettings")}><span><Settings size={14} /></span><span>{t("toolbar.aiSettings")}</span></Button>
       <Button class="toolbar-action-button" variant="secondary" onclick={onopenhelp} title={t("toolbar.helpCenter")}><span class="btn-icon-glyph">?</span><span>{t("toolbar.helpCenter")}</span></Button>
       <div class="font-controls">
-        <Button variant="ghost" size="icon" onclick={ondecreasefont} title={t("toolbar.decreaseFont", { mod: modKey() })} aria-label={t("toolbar.decreaseFontLabel")}>A-</Button>
+        <Button variant="ghost" size="icon" cooldownMs={0} onclick={ondecreasefont} title={t("toolbar.decreaseFont", { mod: modKey() })} aria-label={t("toolbar.decreaseFontLabel")}>A-</Button>
         <input
           type="number"
           bind:value={fontSize}
@@ -171,7 +171,7 @@
           class="font-size-input"
           aria-label={t("toolbar.fontSize")}
         />
-        <Button variant="ghost" size="icon" onclick={onincreasefont} title={t("toolbar.increaseFont", { mod: modKey() })} aria-label={t("toolbar.increaseFontLabel")}>A+</Button>
+        <Button variant="ghost" size="icon" cooldownMs={0} onclick={onincreasefont} title={t("toolbar.increaseFont", { mod: modKey() })} aria-label={t("toolbar.increaseFontLabel")}>A+</Button>
       </div>
     </div>
   </div>

@@ -549,6 +549,38 @@ describe("tab management", () => {
 
     expect(screen.getByText("Fail Tab")).toBeInTheDocument();
   });
+
+  it("ignores rapid double-click on closeSelectedTabs while closing is in flight", async () => {
+    let resolveClose!: (value: boolean) => void;
+    browserTabs.set([
+      { id: "tab-1", title: "One", url: "https://one.com", browser: "Chrome" },
+      { id: "tab-2", title: "Two", url: "https://two.com", browser: "Chrome" },
+    ]);
+    mockInvoke.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveClose = resolve;
+        }),
+    );
+    mockInvoke.mockResolvedValue(true);
+
+    render(ProcessDetailsModal, { props: { process: browserProc, onclose: vi.fn() } });
+    await fireEvent.click(screen.getByTitle("Select all tabs"));
+    const closeSelectedBtn = screen.getByTitle("Close 2 selected tab(s)") as HTMLButtonElement;
+
+    closeSelectedBtn.click();
+    closeSelectedBtn.click();
+
+    await waitFor(() => {
+      expect(mockInvoke.mock.calls.filter((c) => c[0] === "close_browser_tab")).toHaveLength(1);
+    });
+
+    resolveClose(true);
+
+    await waitFor(() => {
+      expect(mockInvoke.mock.calls.filter((c) => c[0] === "close_browser_tab")).toHaveLength(2);
+    });
+  });
 });
 
 describe("AI analysis", () => {

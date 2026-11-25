@@ -170,4 +170,51 @@ describe("Automations", () => {
     // Rule should still be visible because the remove failed.
     expect(screen.getByText(/Chrome > 80 cpu/)).toBeInTheDocument();
   });
+
+  it("evita envios duplicados en addRule cuando se hace doble clic mientras esta en vuelo", async () => {
+    let resolveAdd!: () => void;
+    mockInvoke.mockImplementation(async (command, payload) => {
+      if (command === "get_automation_rules") {
+        return [...rules];
+      }
+      if (command === "add_automation_rule") {
+        return new Promise<void>((resolve) => {
+          resolveAdd = () => {
+            const nextRule = (payload as { rule: AutomationRule }).rule;
+            rules = [...rules, nextRule];
+            resolve();
+          };
+        });
+      }
+      return undefined;
+    });
+
+    const { container } = render(Automations, { props: { onclose: vi.fn() } });
+
+    await waitFor(() => {
+      expect(container.querySelector(".builder")).not.toBeNull();
+    });
+
+    const patternInput = container.querySelector('.builder input[type="text"]') as HTMLInputElement;
+    await fireEvent.input(patternInput, { target: { value: "python" } });
+
+    const addBtn = container.querySelector(
+      '.builder button[data-variant="primary"]',
+    ) as HTMLButtonElement;
+    addBtn.click();
+    addBtn.click();
+
+    await waitFor(() => {
+      const addCalls = mockInvoke.mock.calls.filter((call) => call[0] === "add_automation_rule");
+      expect(addCalls).toHaveLength(1);
+      expect(addBtn).toBeDisabled();
+    });
+
+    resolveAdd();
+
+    await waitFor(() => {
+      expect(addBtn).not.toBeDisabled();
+      expect(screen.getByText(/python >/)).toBeInTheDocument();
+    });
+  });
 });
