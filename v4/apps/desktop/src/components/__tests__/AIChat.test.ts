@@ -979,4 +979,70 @@ describe("AIChat", () => {
       expect(screen.queryByText("Action cancelled by user.")).not.toBeInTheDocument();
     });
   });
+  it("envia una sola solicitud IPC aunque se haga clic rapido dos veces en Send", async () => {
+    const pending = deferred<ChatResponse>();
+    mockAiChat.mockReturnValueOnce(pending.promise);
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Primer mensaje" } });
+    const sendBtn = screen.getByText("Send");
+    await fireEvent.click(sendBtn);
+
+    // Mientras la solicitud esta en vuelo, un segundo intento (click o Enter) no debe disparar IPC.
+    await fireEvent.input(input, { target: { value: "Duplicado" } });
+    await fireEvent.click(sendBtn);
+    await fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(mockAiChat).toHaveBeenCalledTimes(1);
+
+    pending.resolve({ reply: "Respuesta unica", tool_call: null });
+
+    await waitFor(() => {
+      expect(screen.getByText("Respuesta unica")).toBeInTheDocument();
+    });
+    expect(mockAiChat).toHaveBeenCalledTimes(1);
+  });
+
+  it("reactiva Send inmediatamente tras Cancel para enviar un nuevo mensaje sin esperar", async () => {
+    const pendingFirst = deferred<ChatResponse>();
+    mockAiChat
+      .mockReturnValueOnce(pendingFirst.promise)
+      .mockResolvedValueOnce({ reply: "Segunda respuesta", tool_call: null });
+
+    render(AIChat);
+
+    const input = screen.getByPlaceholderText(/ask ai to act/i);
+    await fireEvent.input(input, { target: { value: "Primera consulta" } });
+    await fireEvent.click(screen.getByText("Send"));
+
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    // Tras cancelar, el boton debe volver a estar habilitado aunque la promesa anterior siga pendiente.
+    await fireEvent.input(input, { target: { value: "Segunda consulta" } });
+    const sendBtn = screen.getByText("Send");
+    expect(sendBtn.closest("button")).not.toBeDisabled();
+
+    await fireEvent.click(sendBtn);
+
+    expect(mockAiChat).toHaveBeenCalledTimes(2);
+    expect(mockAiChat).toHaveBeenLastCalledWith(
+      "Segunda consulta",
+      "openrouter",
+      "test-model",
+      expect.any(Array),
+      5,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Segunda respuesta")).toBeInTheDocument();
+    });
+
+    // La respuesta tardia de la primera solicitud no debe aparecer.
+    pendingFirst.resolve({ reply: "Respuesta tardia", tool_call: null });
+    await waitFor(() => {
+      expect(screen.queryByText("Respuesta tardia")).not.toBeInTheDocument();
+    });
+  });
 });

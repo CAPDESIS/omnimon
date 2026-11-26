@@ -876,11 +876,15 @@
       }}
       disabled={loading}
     ></textarea>
+    <!-- Wrap in a void arrow so Button.svelte does not track handleSubmit's
+         promise: otherwise its internal pending/single-flight lock stays
+         active for up to 45s after cancelRequest(). Re-entry is guarded by
+         the `loading` check at the top of handleSubmit. -->
     <Button
       class="send-btn"
       variant="primary"
       cooldownMs={0}
-      onclick={handleSubmit}
+      onclick={() => { void handleSubmit(); }}
       disabled={loading || !input.trim()}
     >
       {loading ? t("common.loadingShort") : t("aiChat.send")}
